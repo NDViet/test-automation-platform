@@ -41,7 +41,7 @@
 
         <platform.version>1.0.0-SNAPSHOT</platform.version>
         <selenium.version>4.27.0</selenium.version>
-        <webdrivermanager.version>5.9.2</webdrivermanager.version>
+        <webdrivermanager.version>6.1.0</webdrivermanager.version>
         <cucumber.version>7.22.2</cucumber.version>
         <testng.version>7.11.0</testng.version>
         <assertj.version>3.27.3</assertj.version>
