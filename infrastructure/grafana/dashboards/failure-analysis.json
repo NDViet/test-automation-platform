@@ -1,0 +1,827 @@
+{
+  "title": "Failure Analysis",
+  "uid": "failure-analysis",
+  "description": "AI-powered root-cause breakdown of failing tests across every project — categories, confidence, affected components, suggested fixes, and unanalysed gaps.",
+  "tags": ["quality", "failures", "ai", "postgres"],
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5m",
+  "time": { "from": "now-7d", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "editable": true,
+  "graphTooltip": 1,
+
+  "templating": {
+    "list": [
+      {
+        "name": "team",
+        "label": "Team",
+        "type": "query",
+        "datasource": { "type": "postgres", "uid": "platform-postgres" },
+        "query": "SELECT slug FROM teams ORDER BY name",
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": "All",
+        "multi": false,
+        "sort": 1,
+        "current": { "text": "All", "value": "$__all" },
+        "hide": 0
+      },
+      {
+        "name": "project",
+        "label": "Project",
+        "type": "query",
+        "datasource": { "type": "postgres", "uid": "platform-postgres" },
+        "query": "SELECT p.slug FROM projects p JOIN teams t ON t.id = p.team_id WHERE '$team' = 'All' OR t.slug = '$team' ORDER BY p.name",
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": "All",
+        "multi": false,
+        "sort": 1,
+        "current": { "text": "All", "value": "$__all" },
+        "hide": 0
+      },
+      {
+        "name": "category",
+        "label": "Category",
+        "type": "custom",
+        "query": "All,APPLICATION_BUG,TEST_DEFECT,INFRASTRUCTURE,FLAKY_TEST,ENVIRONMENT,UNKNOWN",
+        "current": { "text": "All", "value": "All" },
+        "includeAll": false,
+        "multi": false,
+        "hide": 0
+      },
+      {
+        "name": "search",
+        "label": "Error Search",
+        "type": "textbox",
+        "current": { "text": "", "value": "" },
+        "hide": 0,
+        "description": "Filter raw failures by error text (case-insensitive substring match)"
+      }
+    ]
+  },
+
+  "panels": [
+
+    {
+      "id": 1,
+      "type": "row",
+      "title": "Summary",
+      "collapsed": false,
+      "gridPos": { "x": 0, "y": 0, "w": 24, "h": 1 }
+    },
+
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Analyses Run",
+      "description": "Total AI failure classifications in the time range and scope.",
+      "gridPos": { "x": 0, "y": 1, "w": 5, "h": 4 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "none", "justifyMode": "auto", "textMode": "auto", "orientation": "auto" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] } },
+        "overrides": []
+      },
+      "targets": [{
+        "refId": "A", "rawQuery": true, "format": "table",
+        "rawSql": "SELECT count(*) AS \"Analyses\" FROM failure_analyses fa JOIN projects p ON p.id = fa.project_id JOIN teams t ON t.id = p.team_id WHERE $__timeFilter(fa.analysed_at) AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project') AND ('$category' = 'All' OR fa.category = '$category')"
+      }]
+    },
+
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Unique Failing Tests",
+      "description": "Distinct test IDs that have at least one AI analysis.",
+      "gridPos": { "x": 5, "y": 1, "w": 5, "h": 4 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value", "graphMode": "none", "justifyMode": "auto", "textMode": "auto", "orientation": "auto" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "thresholds" }, "thresholds": { "mode": "absolute", "steps": [{ "color": "orange", "value": null }] } },
+        "overrides": []
+      },
+      "targets": [{
+        "refId": "A", "rawQuery": true, "format": "table",
+        "rawSql": "SELECT count(DISTINCT fa.test_id) AS \"Unique Tests\" FROM failure_analyses fa JOIN projects p ON p.id = fa.project_id JOIN teams t ON t.id = p.team_id WHERE $__timeFilter(fa.analysed_at) AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project')"
+      }]
+    },
+
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Application Bugs",
+      "description": "Failures classified APPLICATION_BUG — real defects in the product under test.",
+      "gridPos": { "x": 10, "y": 1, "w": 5, "h": 4 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none", "justifyMode": "auto", "textMode": "auto", "orientation": "auto" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "orange", "value": 1 },
+            { "color": "red", "value": 5 }
+          ]}
+        },
+        "overrides": []
+      },
+      "targets": [{
+        "refId": "A", "rawQuery": true, "format": "table",
+        "rawSql": "SELECT count(*) AS \"App Bugs\" FROM failure_analyses fa JOIN projects p ON p.id = fa.project_id JOIN teams t ON t.id = p.team_id WHERE fa.category = 'APPLICATION_BUG' AND $__timeFilter(fa.analysed_at) AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project')"
+      }]
+    },
+
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Flaky Candidates",
+      "description": "Tests the AI flagged as flaky based on failure patterns.",
+      "gridPos": { "x": 15, "y": 1, "w": 5, "h": 4 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none", "justifyMode": "auto", "textMode": "auto", "orientation": "auto" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "orange", "value": 1 },
+            { "color": "red", "value": 5 }
+          ]}
+        },
+        "overrides": []
+      },
+      "targets": [{
+        "refId": "A", "rawQuery": true, "format": "table",
+        "rawSql": "SELECT count(DISTINCT fa.test_id) AS \"Flaky Candidates\" FROM failure_analyses fa JOIN projects p ON p.id = fa.project_id JOIN teams t ON t.id = p.team_id WHERE fa.is_flaky_candidate = true AND $__timeFilter(fa.analysed_at) AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project')"
+      }]
+    },
+
+    {
+      "id": 6,
+      "type": "stat",
+      "title": "Avg AI Confidence",
+      "description": "Mean confidence score across all analyses — higher means clearer root causes.",
+      "gridPos": { "x": 20, "y": 1, "w": 4, "h": 4 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none", "justifyMode": "auto", "textMode": "auto", "orientation": "auto" },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "red", "value": null },
+            { "color": "orange", "value": 50 },
+            { "color": "green", "value": 70 }
+          ]}
+        },
+        "overrides": []
+      },
+      "targets": [{
+        "refId": "A", "rawQuery": true, "format": "table",
+        "rawSql": "SELECT ROUND((AVG(fa.confidence) * 100)::numeric, 1) AS \"Avg Confidence\" FROM failure_analyses fa JOIN projects p ON p.id = fa.project_id JOIN teams t ON t.id = p.team_id WHERE $__timeFilter(fa.analysed_at) AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project')"
+      }]
+    },
+
+    {
+      "id": 10,
+      "type": "row",
+      "title": "Category Distribution",
+      "collapsed": false,
+      "gridPos": { "x": 0, "y": 5, "w": 24, "h": 1 }
+    },
+
+    {
+      "id": 11,
+      "type": "piechart",
+      "title": "Root-Cause Category Breakdown",
+      "description": "How Claude classified each failure. APPLICATION_BUG = real product defect; TEST_DEFECT = broken test code; INFRASTRUCTURE = env/CI issue; FLAKY_TEST = non-deterministic failure.",
+      "gridPos": { "x": 0, "y": 6, "w": 8, "h": 9 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": {
+        "pieType": "donut",
+        "displayLabels": ["name", "percent"],
+        "legend": { "displayMode": "table", "placement": "right", "showLegend": true, "values": ["value", "percent"] }
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "APPLICATION_BUG" },  "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } }] },
+          { "matcher": { "id": "byName", "options": "TEST_DEFECT" },      "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "orange" } }] },
+          { "matcher": { "id": "byName", "options": "INFRASTRUCTURE" },   "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "yellow" } }] },
+          { "matcher": { "id": "byName", "options": "FLAKY_TEST" },       "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "purple" } }] },
+          { "matcher": { "id": "byName", "options": "ENVIRONMENT" },      "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "blue" } }] },
+          { "matcher": { "id": "byName", "options": "UNKNOWN" },          "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "grey" } }] }
+        ]
+      },
+      "targets": [{
+        "refId": "A", "rawQuery": true, "format": "table",
+        "rawSql": "SELECT fa.category, count(*) AS count FROM failure_analyses fa JOIN projects p ON p.id = fa.project_id JOIN teams t ON t.id = p.team_id WHERE $__timeFilter(fa.analysed_at) AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project') GROUP BY fa.category ORDER BY count DESC"
+      }]
+    },
+
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "Category Trend Over Time",
+      "description": "Failure category counts per time bucket — spot when application bugs spike vs. test maintenance debt.",
+      "gridPos": { "x": 8, "y": 6, "w": 16, "h": 9 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": {
+        "tooltip": { "mode": "multi", "sort": "none" },
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }
+      },
+      "fieldConfig": {
+        "defaults": { "custom": { "lineWidth": 2, "fillOpacity": 8 } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "APPLICATION_BUG" },  "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } }] },
+          { "matcher": { "id": "byName", "options": "TEST_DEFECT" },      "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "orange" } }] },
+          { "matcher": { "id": "byName", "options": "INFRASTRUCTURE" },   "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "yellow" } }] },
+          { "matcher": { "id": "byName", "options": "FLAKY_TEST" },       "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "purple" } }] },
+          { "matcher": { "id": "byName", "options": "UNKNOWN" },          "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "grey" } }] }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A", "rawQuery": true, "format": "time_series",
+          "rawSql": "SELECT $__timeGroup(fa.analysed_at, $__interval) AS time, count(*) AS \"APPLICATION_BUG\" FROM failure_analyses fa JOIN projects p ON p.id = fa.project_id JOIN teams t ON t.id = p.team_id WHERE fa.category = 'APPLICATION_BUG' AND $__timeFilter(fa.analysed_at) AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project') GROUP BY 1 ORDER BY 1"
+        },
+        {
+          "refId": "B", "rawQuery": true, "format": "time_series",
+          "rawSql": "SELECT $__timeGroup(fa.analysed_at, $__interval) AS time, count(*) AS \"TEST_DEFECT\" FROM failure_analyses fa JOIN projects p ON p.id = fa.project_id JOIN teams t ON t.id = p.team_id WHERE fa.category = 'TEST_DEFECT' AND $__timeFilter(fa.analysed_at) AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project') GROUP BY 1 ORDER BY 1"
+        },
+        {
+          "refId": "C", "rawQuery": true, "format": "time_series",
+          "rawSql": "SELECT $__timeGroup(fa.analysed_at, $__interval) AS time, count(*) AS \"INFRASTRUCTURE\" FROM failure_analyses fa JOIN projects p ON p.id = fa.project_id JOIN teams t ON t.id = p.team_id WHERE fa.category = 'INFRASTRUCTURE' AND $__timeFilter(fa.analysed_at) AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project') GROUP BY 1 ORDER BY 1"
+        },
+        {
+          "refId": "D", "rawQuery": true, "format": "time_series",
+          "rawSql": "SELECT $__timeGroup(fa.analysed_at, $__interval) AS time, count(*) AS \"FLAKY_TEST\" FROM failure_analyses fa JOIN projects p ON p.id = fa.project_id JOIN teams t ON t.id = p.team_id WHERE fa.category = 'FLAKY_TEST' AND $__timeFilter(fa.analysed_at) AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project') GROUP BY 1 ORDER BY 1"
+        },
+        {
+          "refId": "E", "rawQuery": true, "format": "time_series",
+          "rawSql": "SELECT $__timeGroup(fa.analysed_at, $__interval) AS time, count(*) AS \"UNKNOWN\" FROM failure_analyses fa JOIN projects p ON p.id = fa.project_id JOIN teams t ON t.id = p.team_id WHERE fa.category = 'UNKNOWN' AND $__timeFilter(fa.analysed_at) AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project') GROUP BY 1 ORDER BY 1"
+        }
+      ]
+    },
+
+    {
+      "id": 20,
+      "type": "row",
+      "title": "Failures by Project",
+      "collapsed": false,
+      "gridPos": { "x": 0, "y": 15, "w": 24, "h": 1 }
+    },
+
+    {
+      "id": 21,
+      "type": "table",
+      "title": "Failure Categories per Project",
+      "description": "Cross-tab of AI categories per project. Sort by 'App Bug' to find teams with real product defects.",
+      "gridPos": { "x": 0, "y": 16, "w": 24, "h": 7 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": { "footer": { "show": false }, "showHeader": true, "sortBy": [{ "displayName": "App Bug", "desc": true }] },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "App Bug" }, "properties": [
+            { "id": "custom.width", "value": 85 },
+            { "id": "custom.displayMode", "value": "color-background" },
+            { "id": "color", "value": { "mode": "thresholds" } },
+            { "id": "thresholds", "value": { "mode": "absolute", "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 1 },
+              { "color": "red", "value": 5 }
+            ]}}
+          ]},
+          { "matcher": { "id": "byName", "options": "Test Defect" }, "properties": [{ "id": "custom.width", "value": 90 }] },
+          { "matcher": { "id": "byName", "options": "Infra" }, "properties": [{ "id": "custom.width", "value": 60 }] },
+          { "matcher": { "id": "byName", "options": "Flaky" }, "properties": [{ "id": "custom.width", "value": 60 }] },
+          { "matcher": { "id": "byName", "options": "Unknown" }, "properties": [{ "id": "custom.width", "value": 70 }] },
+          { "matcher": { "id": "byName", "options": "Total" }, "properties": [{ "id": "custom.width", "value": 60 }] },
+          { "matcher": { "id": "byName", "options": "Project" }, "properties": [{ "id": "custom.width", "value": 180 }] },
+          { "matcher": { "id": "byName", "options": "Team" }, "properties": [{ "id": "custom.width", "value": 140 }] }
+        ]
+      },
+      "targets": [{
+        "refId": "A", "rawQuery": true, "format": "table",
+        "rawSql": "SELECT p.name AS \"Project\", t.name AS \"Team\", count(*) FILTER (WHERE fa.category = 'APPLICATION_BUG') AS \"App Bug\", count(*) FILTER (WHERE fa.category = 'TEST_DEFECT') AS \"Test Defect\", count(*) FILTER (WHERE fa.category = 'INFRASTRUCTURE') AS \"Infra\", count(*) FILTER (WHERE fa.category = 'FLAKY_TEST') AS \"Flaky\", count(*) FILTER (WHERE fa.category NOT IN ('APPLICATION_BUG','TEST_DEFECT','INFRASTRUCTURE','FLAKY_TEST')) AS \"Unknown\", count(*) AS \"Total\", ROUND((AVG(fa.confidence) * 100)::numeric, 1) AS \"Avg Conf %\" FROM failure_analyses fa JOIN projects p ON p.id = fa.project_id JOIN teams t ON t.id = p.team_id WHERE $__timeFilter(fa.analysed_at) AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project') GROUP BY p.name, t.name ORDER BY count(*) DESC"
+      }]
+    },
+
+    {
+      "id": 30,
+      "type": "row",
+      "title": "Top Failing Tests — AI Classified",
+      "collapsed": false,
+      "gridPos": { "x": 0, "y": 23, "w": 24, "h": 1 }
+    },
+
+    {
+      "id": 31,
+      "type": "table",
+      "title": "Most-Failed Tests with Root Cause",
+      "description": "Tests with the highest failure count, enriched with AI category, confidence, and root cause. Filter by $category variable above.",
+      "gridPos": { "x": 0, "y": 24, "w": 24, "h": 10 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": { "footer": { "show": false }, "showHeader": true, "sortBy": [{ "displayName": "Failures", "desc": true }] },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Category" }, "properties": [
+            { "id": "custom.width", "value": 130 },
+            { "id": "custom.displayMode", "value": "color-background" },
+            { "id": "mappings", "value": [
+              { "type": "value", "options": { "APPLICATION_BUG": { "color": "red",    "index": 0 } } },
+              { "type": "value", "options": { "TEST_DEFECT":     { "color": "orange", "index": 1 } } },
+              { "type": "value", "options": { "INFRASTRUCTURE":  { "color": "yellow", "index": 2 } } },
+              { "type": "value", "options": { "FLAKY_TEST":      { "color": "purple", "index": 3 } } }
+            ]}
+          ]},
+          { "matcher": { "id": "byName", "options": "Conf %" }, "properties": [
+            { "id": "custom.width", "value": 70 },
+            { "id": "custom.displayMode", "value": "color-text" },
+            { "id": "color", "value": { "mode": "thresholds" } },
+            { "id": "thresholds", "value": { "mode": "absolute", "steps": [
+              { "color": "red", "value": null },
+              { "color": "orange", "value": 50 },
+              { "color": "green", "value": 70 }
+            ]}}
+          ]},
+          { "matcher": { "id": "byName", "options": "Failures" }, "properties": [
+            { "id": "custom.width", "value": 70 },
+            { "id": "custom.displayMode", "value": "color-background" },
+            { "id": "color", "value": { "mode": "thresholds" } },
+            { "id": "thresholds", "value": { "mode": "absolute", "steps": [
+              { "color": "orange", "value": null },
+              { "color": "red", "value": 5 }
+            ]}}
+          ]},
+          { "matcher": { "id": "byName", "options": "Flaky?" }, "properties": [{ "id": "custom.width", "value": 55 }] },
+          { "matcher": { "id": "byName", "options": "Test" }, "properties": [{ "id": "custom.width", "value": 280 }] },
+          { "matcher": { "id": "byName", "options": "Project" }, "properties": [{ "id": "custom.width", "value": 130 }] },
+          { "matcher": { "id": "byName", "options": "Root Cause" }, "properties": [{ "id": "custom.width", "value": 360 }] }
+        ]
+      },
+      "targets": [{
+        "refId": "A", "rawQuery": true, "format": "table",
+        "rawSql": "SELECT COALESCE(MAX(tcr.display_name), fa.test_id) AS \"Test\", p.name AS \"Project\", fa.category AS \"Category\", ROUND((AVG(fa.confidence) * 100)::numeric, 0) AS \"Conf %\", MAX(fa.root_cause) AS \"Root Cause\", MAX(fa.affected_component) AS \"Component\", bool_or(fa.is_flaky_candidate) AS \"Flaky?\", count(*) AS \"Failures\", MAX(fa.analysed_at) AS \"Last Analysed\" FROM failure_analyses fa JOIN projects p ON p.id = fa.project_id JOIN teams t ON t.id = p.team_id LEFT JOIN test_case_results tcr ON tcr.id = fa.test_case_result_id WHERE $__timeFilter(fa.analysed_at) AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project') AND ('$category' = 'All' OR fa.category = '$category') GROUP BY fa.test_id, p.name, fa.category ORDER BY count(*) DESC, AVG(fa.confidence) DESC LIMIT 25"
+      }]
+    },
+
+    {
+      "id": 40,
+      "type": "row",
+      "title": "High-Confidence Application Bugs",
+      "collapsed": false,
+      "gridPos": { "x": 0, "y": 34, "w": 24, "h": 1 }
+    },
+
+    {
+      "id": 41,
+      "type": "table",
+      "title": "Actionable Bugs — APPLICATION_BUG ≥ 70% Confidence",
+      "description": "Failures the AI is highly confident are real product defects. These should be filed as bug tickets. 'Suggested Fix' is Claude's recommended remediation.",
+      "gridPos": { "x": 0, "y": 35, "w": 24, "h": 9 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": { "footer": { "show": false }, "showHeader": true, "sortBy": [{ "displayName": "Conf %", "desc": true }] },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Conf %" }, "properties": [
+            { "id": "custom.width", "value": 70 },
+            { "id": "custom.displayMode", "value": "color-background" },
+            { "id": "color", "value": { "mode": "thresholds" } },
+            { "id": "thresholds", "value": { "mode": "absolute", "steps": [
+              { "color": "orange", "value": null },
+              { "color": "red", "value": 85 }
+            ]}}
+          ]},
+          { "matcher": { "id": "byName", "options": "Issue Key" }, "properties": [
+            { "id": "custom.width", "value": 90 },
+            { "id": "custom.displayMode", "value": "color-text" },
+            { "id": "color", "value": { "mode": "thresholds" } },
+            { "id": "thresholds", "value": { "mode": "absolute", "steps": [
+              { "color": "red", "value": null },
+              { "color": "green", "value": 1 }
+            ]}}
+          ]},
+          { "matcher": { "id": "byName", "options": "Test" }, "properties": [{ "id": "custom.width", "value": 250 }] },
+          { "matcher": { "id": "byName", "options": "Project" }, "properties": [{ "id": "custom.width", "value": 130 }] },
+          { "matcher": { "id": "byName", "options": "Root Cause" }, "properties": [{ "id": "custom.width", "value": 280 }] },
+          { "matcher": { "id": "byName", "options": "Suggested Fix" }, "properties": [{ "id": "custom.width", "value": 340 }] },
+          { "matcher": { "id": "byName", "options": "Component" }, "properties": [{ "id": "custom.width", "value": 140 }] }
+        ]
+      },
+      "targets": [{
+        "refId": "A", "rawQuery": true, "format": "table",
+        "rawSql": "SELECT DISTINCT ON (fa.test_id, fa.project_id) COALESCE(tcr.display_name, fa.test_id) AS \"Test\", p.name AS \"Project\", ROUND((fa.confidence * 100)::numeric, 0) AS \"Conf %\", fa.root_cause AS \"Root Cause\", LEFT(fa.suggested_fix, 300) AS \"Suggested Fix\", fa.affected_component AS \"Component\", itl.issue_key AS \"Issue Key\", itl.issue_status AS \"Issue Status\", fa.analysed_at AS \"Analysed At\" FROM failure_analyses fa JOIN projects p ON p.id = fa.project_id JOIN teams t ON t.id = p.team_id LEFT JOIN test_case_results tcr ON tcr.id = fa.test_case_result_id LEFT JOIN issue_tracker_links itl ON itl.test_id = fa.test_id AND itl.project_id = fa.project_id WHERE fa.category = 'APPLICATION_BUG' AND fa.confidence >= 0.70 AND $__timeFilter(fa.analysed_at) AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project') ORDER BY fa.test_id, fa.project_id, fa.confidence DESC LIMIT 25"
+      }]
+    },
+
+    {
+      "id": 50,
+      "type": "row",
+      "title": "Affected Components & Flaky Candidates",
+      "collapsed": false,
+      "gridPos": { "x": 0, "y": 44, "w": 24, "h": 1 }
+    },
+
+    {
+      "id": 51,
+      "type": "bargauge",
+      "title": "Failures by Component",
+      "description": "Which application components appear most in failure analyses. Helps prioritise where to invest reliability work.",
+      "gridPos": { "x": 0, "y": 45, "w": 8, "h": 9 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": true },
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "minVizWidth": 0,
+        "minVizHeight": 10,
+        "namePlacement": "auto",
+        "valueMode": "color"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "blue", "value": null },
+            { "color": "orange", "value": 3 },
+            { "color": "red", "value": 10 }
+          ]}
+        },
+        "overrides": []
+      },
+      "targets": [{
+        "refId": "A", "rawQuery": true, "format": "table",
+        "rawSql": "SELECT fa.affected_component AS \"metric\", count(*) AS \"Failures\" FROM failure_analyses fa JOIN projects p ON p.id = fa.project_id JOIN teams t ON t.id = p.team_id WHERE fa.affected_component IS NOT NULL AND fa.affected_component != '' AND $__timeFilter(fa.analysed_at) AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project') GROUP BY fa.affected_component ORDER BY count(*) DESC LIMIT 10"
+      }]
+    },
+
+    {
+      "id": 52,
+      "type": "table",
+      "title": "Flaky Candidates Detail",
+      "description": "Tests the AI flagged as potential flakes, correlated against the flakiness scorer classification.",
+      "gridPos": { "x": 8, "y": 45, "w": 16, "h": 9 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": { "footer": { "show": false }, "showHeader": true, "sortBy": [{ "displayName": "Flakiness Score", "desc": true }] },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Flakiness Class" }, "properties": [
+            { "id": "custom.width", "value": 120 },
+            { "id": "custom.displayMode", "value": "color-background" },
+            { "id": "mappings", "value": [
+              { "type": "value", "options": { "CRITICAL_FLAKY": { "color": "red",    "index": 0 } } },
+              { "type": "value", "options": { "FLAKY":          { "color": "orange", "index": 1 } } },
+              { "type": "value", "options": { "WATCH":          { "color": "yellow", "index": 2 } } },
+              { "type": "value", "options": { "STABLE":         { "color": "green",  "index": 3 } } },
+              { "type": "value", "options": { "NOT SCORED":     { "color": "grey",   "index": 4 } } }
+            ]}
+          ]},
+          { "matcher": { "id": "byName", "options": "Flakiness Score" }, "properties": [
+            { "id": "custom.width", "value": 110 },
+            { "id": "decimals", "value": 2 },
+            { "id": "custom.displayMode", "value": "color-text" },
+            { "id": "color", "value": { "mode": "thresholds" } },
+            { "id": "thresholds", "value": { "mode": "absolute", "steps": [
+              { "color": "yellow", "value": null },
+              { "color": "orange", "value": 30 },
+              { "color": "red", "value": 60 }
+            ]}}
+          ]},
+          { "matcher": { "id": "byName", "options": "Test" }, "properties": [{ "id": "custom.width", "value": 280 }] },
+          { "matcher": { "id": "byName", "options": "Project" }, "properties": [{ "id": "custom.width", "value": 120 }] }
+        ]
+      },
+      "targets": [{
+        "refId": "A", "rawQuery": true, "format": "table",
+        "rawSql": "SELECT fa.test_id AS \"Test\", p.name AS \"Project\", fa.category AS \"Category\", ROUND((AVG(fa.confidence) * 100)::numeric, 0) AS \"Conf %\", MAX(fa.root_cause) AS \"Root Cause\", COALESCE(MAX(fs.classification), 'NOT SCORED') AS \"Flakiness Class\", ROUND((COALESCE(MAX(fs.score), 0) * 100)::numeric, 1) AS \"Flakiness Score\", count(*) AS \"AI Flags\", MAX(fa.analysed_at) AS \"Last Seen\" FROM failure_analyses fa JOIN projects p ON p.id = fa.project_id JOIN teams t ON t.id = p.team_id LEFT JOIN flakiness_scores fs ON fs.test_id = fa.test_id AND fs.project_id = fa.project_id WHERE fa.is_flaky_candidate = true AND $__timeFilter(fa.analysed_at) AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project') GROUP BY fa.test_id, p.name, fa.category ORDER BY COALESCE(MAX(fs.score), 0) DESC, AVG(fa.confidence) DESC LIMIT 20"
+      }]
+    },
+
+    {
+      "id": 60,
+      "type": "row",
+      "title": "Failures Without AI Analysis",
+      "collapsed": false,
+      "gridPos": { "x": 0, "y": 54, "w": 24, "h": 1 }
+    },
+
+    {
+      "id": 61,
+      "type": "stat",
+      "title": "Unanalysed Failures",
+      "description": "FAILED test results that have no matching entry in failure_analyses. These are gaps in AI coverage — run the nightly batch or trigger on-demand analysis.",
+      "gridPos": { "x": 0, "y": 55, "w": 6, "h": 4 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none", "justifyMode": "auto", "textMode": "auto", "orientation": "auto" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green", "value": null },
+            { "color": "orange", "value": 1 },
+            { "color": "red", "value": 20 }
+          ]}
+        },
+        "overrides": []
+      },
+      "targets": [{
+        "refId": "A", "rawQuery": true, "format": "table",
+        "rawSql": "SELECT count(*) AS \"Unanalysed\" FROM test_case_results tcr JOIN test_executions te ON te.id = tcr.execution_id JOIN projects p ON p.id = te.project_id JOIN teams t ON t.id = p.team_id LEFT JOIN failure_analyses fa ON fa.test_case_result_id = tcr.id WHERE tcr.status = 'FAILED' AND fa.id IS NULL AND $__timeFilter(tcr.created_at) AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project')"
+      }]
+    },
+
+    {
+      "id": 62,
+      "type": "table",
+      "title": "Unanalysed Failing Tests",
+      "description": "Failed tests with no AI analysis yet — includes the raw error message so you can triage without waiting for AI.",
+      "gridPos": { "x": 6, "y": 55, "w": 18, "h": 8 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": { "footer": { "show": false }, "showHeader": true, "sortBy": [{ "displayName": "Failures", "desc": true }] },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Failures" }, "properties": [
+            { "id": "custom.width", "value": 75 },
+            { "id": "custom.displayMode", "value": "color-background" },
+            { "id": "color", "value": { "mode": "thresholds" } },
+            { "id": "thresholds", "value": { "mode": "absolute", "steps": [
+              { "color": "orange", "value": null },
+              { "color": "red", "value": 5 }
+            ]}}
+          ]},
+          { "matcher": { "id": "byName", "options": "Test Name" },  "properties": [{ "id": "custom.width", "value": 240 }] },
+          { "matcher": { "id": "byName", "options": "Project" },    "properties": [{ "id": "custom.width", "value": 120 }] },
+          { "matcher": { "id": "byName", "options": "Last Failure" },"properties": [{ "id": "custom.width", "value": 150 }] },
+          { "matcher": { "id": "byName", "options": "Raw Error" },  "properties": [{ "id": "custom.width", "value": 420 }, { "id": "custom.inspect", "value": true }] }
+        ]
+      },
+      "targets": [{
+        "refId": "A", "rawQuery": true, "format": "table",
+        "rawSql": "SELECT COALESCE(tcr.display_name, tcr.method_name, tcr.test_id) AS \"Test Name\", p.name AS \"Project\", count(*) AS \"Failures\", MAX(tcr.created_at) AS \"Last Failure\", LEFT(MAX(tcr.failure_message), 300) AS \"Raw Error\" FROM test_case_results tcr JOIN test_executions te ON te.id = tcr.execution_id JOIN projects p ON p.id = te.project_id JOIN teams t ON t.id = p.team_id LEFT JOIN failure_analyses fa ON fa.test_case_result_id = tcr.id WHERE tcr.status = 'FAILED' AND fa.id IS NULL AND $__timeFilter(tcr.created_at) AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project') GROUP BY COALESCE(tcr.display_name, tcr.method_name, tcr.test_id), p.name ORDER BY count(*) DESC LIMIT 20"
+      }]
+    },
+
+    {
+      "id": 70,
+      "type": "row",
+      "title": "Recent AI Analyses",
+      "collapsed": false,
+      "gridPos": { "x": 0, "y": 63, "w": 24, "h": 1 }
+    },
+
+    {
+      "id": 71,
+      "type": "table",
+      "title": "Latest Analyses — Full Detail",
+      "description": "Most recent AI analyses. Includes the original raw error message from the test runner alongside the AI root cause and suggested fix.",
+      "gridPos": { "x": 0, "y": 64, "w": 24, "h": 10 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": { "footer": { "show": false }, "showHeader": true },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Category" }, "properties": [
+            { "id": "custom.width", "value": 130 },
+            { "id": "custom.displayMode", "value": "color-background" },
+            { "id": "mappings", "value": [
+              { "type": "value", "options": { "APPLICATION_BUG": { "color": "red",    "index": 0 } } },
+              { "type": "value", "options": { "TEST_DEFECT":     { "color": "orange", "index": 1 } } },
+              { "type": "value", "options": { "INFRASTRUCTURE":  { "color": "yellow", "index": 2 } } },
+              { "type": "value", "options": { "FLAKY_TEST":      { "color": "purple", "index": 3 } } }
+            ]}
+          ]},
+          { "matcher": { "id": "byName", "options": "Conf %" }, "properties": [
+            { "id": "custom.width", "value": 65 },
+            { "id": "custom.displayMode", "value": "color-text" },
+            { "id": "color", "value": { "mode": "thresholds" } },
+            { "id": "thresholds", "value": { "mode": "absolute", "steps": [
+              { "color": "red", "value": null },
+              { "color": "orange", "value": 50 },
+              { "color": "green", "value": 70 }
+            ]}}
+          ]},
+          { "matcher": { "id": "byName", "options": "Flaky?" },       "properties": [{ "id": "custom.width", "value": 55 }] },
+          { "matcher": { "id": "byName", "options": "Test" },         "properties": [{ "id": "custom.width", "value": 200 }] },
+          { "matcher": { "id": "byName", "options": "Project" },      "properties": [{ "id": "custom.width", "value": 110 }] },
+          { "matcher": { "id": "byName", "options": "Raw Error" },    "properties": [{ "id": "custom.width", "value": 280 }, { "id": "custom.inspect", "value": true }] },
+          { "matcher": { "id": "byName", "options": "Root Cause" },   "properties": [{ "id": "custom.width", "value": 240 }] },
+          { "matcher": { "id": "byName", "options": "Suggested Fix" },"properties": [{ "id": "custom.width", "value": 280 }] },
+          { "matcher": { "id": "byName", "options": "Model" },        "properties": [{ "id": "custom.width", "value": 110 }] }
+        ]
+      },
+      "targets": [{
+        "refId": "A", "rawQuery": true, "format": "table",
+        "rawSql": "SELECT COALESCE(tcr.display_name, fa.test_id) AS \"Test\", p.name AS \"Project\", fa.category AS \"Category\", ROUND((fa.confidence * 100)::numeric, 0) AS \"Conf %\", LEFT(tcr.failure_message, 280) AS \"Raw Error\", fa.root_cause AS \"Root Cause\", LEFT(fa.suggested_fix, 280) AS \"Suggested Fix\", fa.affected_component AS \"Component\", fa.is_flaky_candidate AS \"Flaky?\", fa.model_version AS \"Model\", (fa.input_tokens + fa.output_tokens) AS \"Tokens\", fa.analysed_at AS \"Analysed At\" FROM failure_analyses fa JOIN projects p ON p.id = fa.project_id JOIN teams t ON t.id = p.team_id LEFT JOIN test_case_results tcr ON tcr.id = fa.test_case_result_id WHERE $__timeFilter(fa.analysed_at) AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project') AND ('$category' = 'All' OR fa.category = '$category') ORDER BY fa.analysed_at DESC LIMIT 30"
+      }]
+    },
+
+    { "id": 80, "type": "row", "title": "Token Usage", "collapsed": false, "gridPos": { "x": 0, "y": 200, "w": 24, "h": 1 }, "panels": [] },
+
+    {
+      "id": 81, "type": "stat", "title": "Total Tokens (period)",
+      "description": "Sum of all input + output tokens consumed by the AI provider in the selected time range.",
+      "gridPos": { "x": 0, "y": 201, "w": 4, "h": 4 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto", "textMode": "auto", "colorMode": "background", "graphMode": "none" },
+      "fieldConfig": { "defaults": { "unit": "short", "decimals": 0, "color": { "mode": "fixed", "fixedColor": "blue" }, "thresholds": { "mode": "absolute", "steps": [] } } },
+      "targets": [{
+        "refId": "A", "rawQuery": true, "format": "table",
+        "rawSql": "SELECT SUM(input_tokens + output_tokens) AS \"Total Tokens\" FROM failure_analyses fa JOIN projects p ON p.id = fa.project_id JOIN teams t ON t.id = p.team_id WHERE $__timeFilter(fa.analysed_at) AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project')"
+      }]
+    },
+
+    {
+      "id": 82, "type": "stat", "title": "Input Tokens",
+      "description": "Total prompt/input tokens sent to the AI provider.",
+      "gridPos": { "x": 4, "y": 201, "w": 4, "h": 4 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto", "textMode": "auto", "colorMode": "background", "graphMode": "none" },
+      "fieldConfig": { "defaults": { "unit": "short", "decimals": 0, "color": { "mode": "fixed", "fixedColor": "purple" }, "thresholds": { "mode": "absolute", "steps": [] } } },
+      "targets": [{
+        "refId": "A", "rawQuery": true, "format": "table",
+        "rawSql": "SELECT SUM(input_tokens) AS \"Input Tokens\" FROM failure_analyses fa JOIN projects p ON p.id = fa.project_id JOIN teams t ON t.id = p.team_id WHERE $__timeFilter(fa.analysed_at) AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project')"
+      }]
+    },
+
+    {
+      "id": 83, "type": "stat", "title": "Output Tokens",
+      "description": "Total completion/output tokens generated by the AI provider.",
+      "gridPos": { "x": 8, "y": 201, "w": 4, "h": 4 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto", "textMode": "auto", "colorMode": "background", "graphMode": "none" },
+      "fieldConfig": { "defaults": { "unit": "short", "decimals": 0, "color": { "mode": "fixed", "fixedColor": "green" }, "thresholds": { "mode": "absolute", "steps": [] } } },
+      "targets": [{
+        "refId": "A", "rawQuery": true, "format": "table",
+        "rawSql": "SELECT SUM(output_tokens) AS \"Output Tokens\" FROM failure_analyses fa JOIN projects p ON p.id = fa.project_id JOIN teams t ON t.id = p.team_id WHERE $__timeFilter(fa.analysed_at) AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project')"
+      }]
+    },
+
+    {
+      "id": 84, "type": "stat", "title": "Avg Tokens / Analysis",
+      "description": "Average total tokens per classification request — lower is better (prompt efficiency).",
+      "gridPos": { "x": 12, "y": 201, "w": 4, "h": 4 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto", "textMode": "auto", "colorMode": "background", "graphMode": "none" },
+      "fieldConfig": { "defaults": { "unit": "short", "decimals": 0,
+        "color": { "mode": "thresholds" },
+        "thresholds": { "mode": "absolute", "steps": [
+          { "color": "green",  "value": null },
+          { "color": "yellow", "value": 800 },
+          { "color": "red",    "value": 1500 }
+        ]}
+      }},
+      "targets": [{
+        "refId": "A", "rawQuery": true, "format": "table",
+        "rawSql": "SELECT ROUND(AVG(input_tokens + output_tokens), 0) AS \"Avg Tokens\" FROM failure_analyses fa JOIN projects p ON p.id = fa.project_id JOIN teams t ON t.id = p.team_id WHERE $__timeFilter(fa.analysed_at) AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project')"
+      }]
+    },
+
+    {
+      "id": 85, "type": "stat", "title": "Est. Cost (USD)",
+      "description": "Estimated cost based on model pricing. OpenAI gpt-4o: $2.50/1M input, $10/1M output. Claude opus-4-6: $3/1M input, $15/1M output.",
+      "gridPos": { "x": 16, "y": 201, "w": 4, "h": 4 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "orientation": "auto", "textMode": "auto", "colorMode": "value", "graphMode": "none" },
+      "fieldConfig": { "defaults": { "unit": "currencyUSD", "decimals": 4,
+        "color": { "mode": "thresholds" },
+        "thresholds": { "mode": "absolute", "steps": [
+          { "color": "green",  "value": null },
+          { "color": "yellow", "value": 0.50 },
+          { "color": "red",    "value": 2.00 }
+        ]}
+      }},
+      "targets": [{
+        "refId": "A", "rawQuery": true, "format": "table",
+        "rawSql": "SELECT ROUND(SUM(CASE WHEN fa.model_version LIKE 'openai/%' THEN (fa.input_tokens / 1000000.0 * 2.50) + (fa.output_tokens / 1000000.0 * 10.0) ELSE (fa.input_tokens / 1000000.0 * 3.0) + (fa.output_tokens / 1000000.0 * 15.0) END)::numeric, 4) AS \"Est. Cost\" FROM failure_analyses fa JOIN projects p ON p.id = fa.project_id JOIN teams t ON t.id = p.team_id WHERE $__timeFilter(fa.analysed_at) AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project')"
+      }]
+    },
+
+    {
+      "id": 86, "type": "timeseries", "title": "Token Usage Over Time",
+      "description": "Daily input and output token consumption. Use this to spot prompt regressions or spikes in analysis volume.",
+      "gridPos": { "x": 0, "y": 205, "w": 16, "h": 8 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "list", "placement": "bottom" } },
+      "fieldConfig": { "defaults": { "unit": "short", "custom": { "lineWidth": 2, "fillOpacity": 10 } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Input Tokens" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "purple" } }] },
+          { "matcher": { "id": "byName", "options": "Output Tokens" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "green" } }] }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A", "rawQuery": true, "format": "time_series",
+          "rawSql": "SELECT $__timeGroup(fa.analysed_at, $__interval, 0) AS time, SUM(fa.input_tokens) AS \"Input Tokens\" FROM failure_analyses fa JOIN projects p ON p.id = fa.project_id JOIN teams t ON t.id = p.team_id WHERE $__timeFilter(fa.analysed_at) AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project') GROUP BY 1 ORDER BY 1"
+        },
+        {
+          "refId": "B", "rawQuery": true, "format": "time_series",
+          "rawSql": "SELECT $__timeGroup(fa.analysed_at, $__interval, 0) AS time, SUM(fa.output_tokens) AS \"Output Tokens\" FROM failure_analyses fa JOIN projects p ON p.id = fa.project_id JOIN teams t ON t.id = p.team_id WHERE $__timeFilter(fa.analysed_at) AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project') GROUP BY 1 ORDER BY 1"
+        }
+      ]
+    },
+
+    {
+      "id": 87, "type": "bargauge", "title": "Tokens by Model / Provider",
+      "description": "Total tokens consumed per model version — compare Claude vs OpenAI spend.",
+      "gridPos": { "x": 16, "y": 205, "w": 8, "h": 8 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": { "orientation": "horizontal", "reduceOptions": { "calcs": ["lastNotNull"] }, "displayMode": "gradient", "valueMode": "color" },
+      "fieldConfig": { "defaults": { "unit": "short", "decimals": 0,
+        "color": { "mode": "palette-classic" },
+        "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] }
+      }},
+      "targets": [{
+        "refId": "A", "rawQuery": true, "format": "table",
+        "rawSql": "SELECT fa.model_version AS \"Model\", SUM(fa.input_tokens + fa.output_tokens) AS \"Total Tokens\" FROM failure_analyses fa JOIN projects p ON p.id = fa.project_id JOIN teams t ON t.id = p.team_id WHERE $__timeFilter(fa.analysed_at) AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project') GROUP BY fa.model_version ORDER BY 2 DESC"
+      }]
+    },
+
+    { "id": 90, "type": "row", "title": "Raw Failure Detail", "collapsed": false, "gridPos": { "x": 0, "y": 220, "w": 24, "h": 1 }, "panels": [] },
+
+    {
+      "id": 91, "type": "table",
+      "title": "Raw Test Failures",
+      "description": "Every FAILED test result with its original failure_message and stack_trace from the test runner. Use 'Error Search' variable to filter by keyword. Click any cell to see full content.",
+      "gridPos": { "x": 0, "y": 221, "w": 24, "h": 14 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": {
+        "footer": { "show": false },
+        "showHeader": true,
+        "sortBy": [{ "displayName": "Time", "desc": true }]
+      },
+      "fieldConfig": {
+        "defaults": { "custom": { "align": "left", "inspect": true } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Status" }, "properties": [
+            { "id": "custom.width", "value": 80 },
+            { "id": "custom.displayMode", "value": "color-background" },
+            { "id": "mappings", "value": [
+              { "type": "value", "options": { "FAILED": { "color": "red",    "index": 0 } } },
+              { "type": "value", "options": { "BROKEN": { "color": "orange", "index": 1 } } }
+            ]}
+          ]},
+          { "matcher": { "id": "byName", "options": "Test" },         "properties": [{ "id": "custom.width", "value": 220 }] },
+          { "matcher": { "id": "byName", "options": "Project" },      "properties": [{ "id": "custom.width", "value": 110 }] },
+          { "matcher": { "id": "byName", "options": "Env" },          "properties": [{ "id": "custom.width", "value": 80 }] },
+          { "matcher": { "id": "byName", "options": "Duration ms" },  "properties": [{ "id": "custom.width", "value": 90 }, { "id": "unit", "value": "ms" }] },
+          { "matcher": { "id": "byName", "options": "AI Category" },  "properties": [
+            { "id": "custom.width", "value": 130 },
+            { "id": "custom.displayMode", "value": "color-background" },
+            { "id": "noValue", "value": "—" },
+            { "id": "mappings", "value": [
+              { "type": "value", "options": { "APPLICATION_BUG": { "color": "red",    "index": 0 } } },
+              { "type": "value", "options": { "TEST_DEFECT":     { "color": "orange", "index": 1 } } },
+              { "type": "value", "options": { "FLAKY_TIMING":    { "color": "purple", "index": 2 } } },
+              { "type": "value", "options": { "ENVIRONMENT":     { "color": "yellow", "index": 3 } } }
+            ]}
+          ]},
+          { "matcher": { "id": "byName", "options": "Failure Message" }, "properties": [{ "id": "custom.width", "value": 380 }, { "id": "custom.inspect", "value": true }] },
+          { "matcher": { "id": "byName", "options": "Stack Trace" },     "properties": [{ "id": "custom.width", "value": 420 }, { "id": "custom.inspect", "value": true }] },
+          { "matcher": { "id": "byName", "options": "Time" },            "properties": [{ "id": "custom.width", "value": 150 }] }
+        ]
+      },
+      "targets": [{
+        "refId": "A", "rawQuery": true, "format": "table",
+        "rawSql": "SELECT tcr.created_at AS \"Time\", COALESCE(tcr.display_name, tcr.method_name, tcr.test_id) AS \"Test\", p.name AS \"Project\", te.environment AS \"Env\", tcr.status AS \"Status\", tcr.duration_ms AS \"Duration ms\", tcr.failure_message AS \"Failure Message\", LEFT(tcr.stack_trace, 1000) AS \"Stack Trace\", fa.category AS \"AI Category\" FROM test_case_results tcr JOIN test_executions te ON te.id = tcr.execution_id JOIN projects p ON p.id = te.project_id JOIN teams t ON t.id = p.team_id LEFT JOIN failure_analyses fa ON fa.test_case_result_id = tcr.id WHERE tcr.status IN ('FAILED','BROKEN') AND $__timeFilter(tcr.created_at) AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project') AND ('${search}' = '' OR tcr.failure_message ILIKE '%${search}%' OR tcr.stack_trace ILIKE '%${search}%' OR COALESCE(tcr.display_name, tcr.method_name, tcr.test_id) ILIKE '%${search}%') ORDER BY tcr.created_at DESC LIMIT 100"
+      }]
+    },
+
+    {
+      "id": 88, "type": "table", "title": "Token Usage by Project",
+      "description": "Per-project breakdown of AI token consumption and estimated cost.",
+      "gridPos": { "x": 0, "y": 213, "w": 24, "h": 7 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": { "sortBy": [{ "displayName": "Total Tokens", "desc": true }], "footer": { "show": false } },
+      "fieldConfig": {
+        "defaults": { "custom": { "align": "left" } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Analyses" },    "properties": [{ "id": "custom.width", "value": 80 }] },
+          { "matcher": { "id": "byName", "options": "Input Tokens" }, "properties": [{ "id": "custom.width", "value": 110 }] },
+          { "matcher": { "id": "byName", "options": "Output Tokens" },"properties": [{ "id": "custom.width", "value": 110 }] },
+          { "matcher": { "id": "byName", "options": "Total Tokens" }, "properties": [{ "id": "custom.width", "value": 110 }] },
+          { "matcher": { "id": "byName", "options": "Avg / Analysis" },"properties": [{ "id": "custom.width", "value": 110 }] },
+          { "matcher": { "id": "byName", "options": "Est. Cost $" },  "properties": [{ "id": "custom.width", "value": 100 },
+            { "id": "thresholds", "value": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 0.10 }, { "color": "red", "value": 0.50 }] } },
+            { "id": "custom.displayMode", "value": "color-background" }
+          ]},
+          { "matcher": { "id": "byName", "options": "Model" },        "properties": [{ "id": "custom.width", "value": 130 }] }
+        ]
+      },
+      "targets": [{
+        "refId": "A", "rawQuery": true, "format": "table",
+        "rawSql": "SELECT p.name AS \"Project\", t.name AS \"Team\", COUNT(*) AS \"Analyses\", SUM(fa.input_tokens) AS \"Input Tokens\", SUM(fa.output_tokens) AS \"Output Tokens\", SUM(fa.input_tokens + fa.output_tokens) AS \"Total Tokens\", ROUND(AVG(fa.input_tokens + fa.output_tokens), 0) AS \"Avg / Analysis\", ROUND(SUM(CASE WHEN fa.model_version LIKE 'openai/%' THEN (fa.input_tokens / 1000000.0 * 2.50) + (fa.output_tokens / 1000000.0 * 10.0) ELSE (fa.input_tokens / 1000000.0 * 3.0) + (fa.output_tokens / 1000000.0 * 15.0) END)::numeric, 4) AS \"Est. Cost $\", MAX(fa.model_version) AS \"Model\" FROM failure_analyses fa JOIN projects p ON p.id = fa.project_id JOIN teams t ON t.id = p.team_id WHERE $__timeFilter(fa.analysed_at) AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project') GROUP BY p.id, p.name, t.name ORDER BY 6 DESC"
+      }]
+    }
+
+  ]
+}

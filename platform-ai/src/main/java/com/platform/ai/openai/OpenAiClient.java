@@ -1,0 +1,158 @@
+package com.platform.ai.openai;
+
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.platform.ai.classification.ClaudeAnalysisResult;
+import com.platform.ai.client.AiAnalysisResponse;
+import com.platform.ai.client.AiClient;
+import jakarta.annotation.PostConstruct;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.stereotype.Component;
+import org.springframework.web.client.RestClient;
+
+import java.util.List;
+import java.util.Map;
+
+/**
+ * OpenAI Chat Completions implementation of {@link AiClient}.
+ *
+ * <p>Active when {@code ai.provider=openai}.
+ * Uses Spring {@link RestClient} to call {@code POST /v1/chat/completions}.
+ * Requests {@code response_format: {type: "json_object"}} to guarantee valid JSON output,
+ * eliminating the need for markdown-fence stripping on the happy path.
+ * Reports real token usage from the API response.</p>
+ */
+@Component
+@ConditionalOnProperty(name = "ai.provider", havingValue = "openai")
+public class OpenAiClient implements AiClient {
+
+    private static final Logger log = LoggerFactory.getLogger(OpenAiClient.class);
+    private static final String COMPLETIONS_URL = "https://api.openai.com/v1/chat/completions";
+    private static final int MAX_TOKENS = 1024;
+
+    private final ObjectMapper objectMapper;
+    private final String apiKey;
+    private final String model;
+
+    private RestClient restClient;
+
+    public OpenAiClient(ObjectMapper objectMapper,
+                        @Value("${openai.api-key:}") String apiKey,
+                        @Value("${openai.model:gpt-4o}") String model) {
+        this.objectMapper = objectMapper;
+        this.apiKey = apiKey;
+        this.model = model;
+    }
+
+    @PostConstruct
+    void init() {
+        if (apiKey != null && !apiKey.isBlank()) {
+            restClient = RestClient.builder()
+                    .baseUrl(COMPLETIONS_URL)
+                    .defaultHeader("Authorization", "Bearer " + apiKey)
+                    .defaultHeader("Content-Type", "application/json")
+                    .build();
+            log.info("[AI] OpenAI client initialised (model={})", model);
+        } else {
+            log.warn("[AI] OPENAI_API_KEY not configured — OpenAI calls will return UNKNOWN");
+        }
+    }
+
+    @Override
+    public String providerName() {
+        return "openai/" + model;
+    }
+
+    @Override
+    public AiAnalysisResponse analyse(String systemPrompt, String userPrompt) {
+        if (restClient == null) {
+            return AiAnalysisResponse.ofResult(
+                    unknownResult("OpenAI client not initialised — set OPENAI_API_KEY"));
+        }
+        try {
+            Map<String, Object> request = Map.of(
+                    "model", model,
+                    "max_tokens", MAX_TOKENS,
+                    "response_format", Map.of("type", "json_object"),
+                    "messages", List.of(
+                            Map.of("role", "system", "content", systemPrompt),
+                            Map.of("role", "user",   "content", userPrompt)
+                    )
+            );
+
+            String responseBody = restClient.post()
+                    .body(objectMapper.writeValueAsString(request))
+                    .retrieve()
+                    .body(String.class);
+
+            return parseResponse(responseBody);
+
+        } catch (Exception e) {
+            log.error("[AI] OpenAI API call failed: {}", e.getMessage(), e);
+            return AiAnalysisResponse.ofResult(unknownResult("API error: " + e.getMessage()));
+        }
+    }
+
+    private AiAnalysisResponse parseResponse(String rawBody) {
+        try {
+            OpenAiResponse response = objectMapper.readValue(rawBody, OpenAiResponse.class);
+
+            // Extract token counts
+            int inputTokens  = response.usage() != null ? response.usage().promptTokens()     : 0;
+            int outputTokens = response.usage() != null ? response.usage().completionTokens() : 0;
+            log.debug("[AI] OpenAI token usage: input={} output={}", inputTokens, outputTokens);
+
+            // Extract content
+            String content = response.choices() != null && !response.choices().isEmpty()
+                    ? response.choices().get(0).message().content()
+                    : "";
+
+            // Defensive fence strip (json_object mode normally skips this)
+            String json = content.trim();
+            if (json.startsWith("```")) {
+                int start = json.indexOf('{');
+                int end   = json.lastIndexOf('}');
+                if (start >= 0 && end > start) json = json.substring(start, end + 1);
+            }
+
+            ClaudeAnalysisResult result = objectMapper.readValue(json, ClaudeAnalysisResult.class);
+            return new AiAnalysisResponse(result, inputTokens, outputTokens);
+
+        } catch (Exception e) {
+            log.error("[AI] Failed to parse OpenAI response: {}", e.getMessage());
+            log.debug("[AI] Raw body: {}", rawBody);
+            return AiAnalysisResponse.ofResult(unknownResult("JSON parse error: " + e.getMessage()));
+        }
+    }
+
+    private ClaudeAnalysisResult unknownResult(String reason) {
+        return new ClaudeAnalysisResult(
+                "UNKNOWN", 0.0,
+                reason,
+                "Automated analysis unavailable",
+                "Review the failure manually or retry after configuring the API key",
+                false,
+                "Unknown");
+    }
+
+    // ── Internal response model ───────────────────────────────────────────────
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record OpenAiResponse(List<Choice> choices, Usage usage) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record Choice(ChatMessage message) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record ChatMessage(String role, String content) {}
+
+    @JsonIgnoreProperties(ignoreUnknown = true)
+    record Usage(
+            @JsonProperty("prompt_tokens")     int promptTokens,
+            @JsonProperty("completion_tokens") int completionTokens
+    ) {}
+}

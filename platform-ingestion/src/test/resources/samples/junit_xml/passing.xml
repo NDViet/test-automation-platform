@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.example.PaymentServiceTest" tests="3" failures="0" errors="0" skipped="0" time="1.234">
+    <testcase classname="com.example.PaymentServiceTest" name="shouldProcessPayment" time="0.512"/>
+    <testcase classname="com.example.PaymentServiceTest" name="shouldRefundPayment" time="0.321"/>
+    <testcase classname="com.example.PaymentServiceTest" name="shouldRejectInvalidCard" time="0.401"/>
+</testsuite>

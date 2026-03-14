@@ -1,0 +1,60 @@
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://platform-loki:3100/loki/api/v1/push
+
+scrape_configs:
+  - job_name: docker
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 5s
+        filters:
+          # Only collect logs from containers in our platform compose project
+          - name: label
+            values: ["com.docker.compose.project=test-automation-platform"]
+
+    relabel_configs:
+      # Use the compose service name as the primary label
+      - source_labels: [__meta_docker_container_label_com_docker_compose_service]
+        target_label: service
+      # Also keep the container name for debugging
+      - source_labels: [__meta_docker_container_name]
+        regex: /(.*)
+        target_label: container
+      # Drop containers that have no compose service label (standalone containers)
+      - source_labels: [service]
+        regex: .+
+        action: keep
+
+    pipeline_stages:
+      # Parse the raw Docker log JSON wrapper (log, stream, time)
+      - json:
+          expressions:
+            output:    log
+            stream:    stream
+            timestamp: time
+      # Set the log line from the parsed output field
+      - output:
+          source: output
+      # Attempt to parse the inner JSON (logstash-logback-encoder format)
+      - json:
+          expressions:
+            level:       level
+            logger:      logger_name
+            thread:      thread_name
+            trace_id:    traceId
+            test_id:     testId
+            test_method: testMethod
+          source: output
+      # Promote log level to a Loki label for fast filtering
+      - labels:
+          level:
+      # Drop noisy DEBUG lines unless they come from platform code
+      - drop:
+          expression: '.*'
+          if: 'level == "DEBUG" and not (logger =~ "com.platform.*")'

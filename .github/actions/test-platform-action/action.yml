@@ -1,0 +1,98 @@
+name: 'Test Automation Platform — Publish Results'
+description: 'Publish test results (JUnit XML, Cucumber JSON, TestNG, Allure, Playwright, Newman) to the Test Automation Platform'
+
+inputs:
+  platform-url:
+    description: 'Platform ingestion URL (e.g. https://platform.example.com)'
+    required: true
+  api-key:
+    description: 'Platform API key'
+    required: true
+  team-id:
+    description: 'Team identifier'
+    required: true
+  project-id:
+    description: 'Project identifier'
+    required: true
+  format:
+    description: 'Report format: JUNIT_XML | CUCUMBER_JSON | TESTNG | ALLURE | PLAYWRIGHT | NEWMAN'
+    required: true
+    default: 'JUNIT_XML'
+  report-dir:
+    description: 'Directory containing report files'
+    required: false
+    default: 'target/surefire-reports'
+  file-glob:
+    description: 'Glob pattern to match report files'
+    required: false
+    default: '*.xml'
+  environment:
+    description: 'Test environment label (e.g. staging, production)'
+    required: false
+    default: 'unknown'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Publish test results to platform
+      shell: bash
+      env:
+        PLATFORM_URL:        ${{ inputs.platform-url }}
+        PLATFORM_API_KEY:    ${{ inputs.api-key }}
+        PLATFORM_TEAM_ID:    ${{ inputs.team-id }}
+        PLATFORM_PROJECT_ID: ${{ inputs.project-id }}
+        TEST_ENV:            ${{ inputs.environment }}
+      run: |
+        set -e
+
+        REPORT_DIR="${{ inputs.report-dir }}"
+        FILE_GLOB="${{ inputs.file-glob }}"
+        FORMAT="${{ inputs.format }}"
+        BRANCH="${GITHUB_REF_NAME:-}"
+
+        echo "[Platform Action] Collecting ${FORMAT} files from ${REPORT_DIR} (glob: ${FILE_GLOB})"
+
+        # Collect matching files
+        FILES=()
+        while IFS= read -r -d '' f; do
+          FILES+=("$f")
+        done < <(find "${REPORT_DIR}" -maxdepth 2 -name "${FILE_GLOB}" -print0 2>/dev/null || true)
+
+        if [ ${#FILES[@]} -eq 0 ]; then
+          echo "[Platform Action] WARNING: No ${FILE_GLOB} files found in ${REPORT_DIR} — skipping"
+          exit 0
+        fi
+
+        echo "[Platform Action] Found ${#FILES[@]} file(s) — publishing to platform"
+
+        # Build curl multipart args
+        CURL_ARGS=(
+          -s -o /dev/null -w "%{http_code}"
+          -X POST "${PLATFORM_URL}/api/v1/results/ingest"
+          -H "X-API-Key: ${PLATFORM_API_KEY}"
+          -F "teamId=${PLATFORM_TEAM_ID}"
+          -F "projectId=${PLATFORM_PROJECT_ID}"
+          -F "format=${FORMAT}"
+          -F "environment=${TEST_ENV}"
+        )
+
+        if [ -n "${BRANCH}" ]; then
+          CURL_ARGS+=(-F "branch=${BRANCH}")
+        fi
+
+        CI_RUN_URL="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+        CURL_ARGS+=(-F "ciRunUrl=${CI_RUN_URL}")
+
+        for f in "${FILES[@]}"; do
+          CURL_ARGS+=(-F "files=@${f}")
+        done
+
+        HTTP_STATUS=$(curl "${CURL_ARGS[@]}")
+
+        if [ "${HTTP_STATUS}" = "202" ]; then
+          echo "[Platform Action] Results published successfully (HTTP 202)"
+        else
+          echo "[Platform Action] WARNING: Platform returned HTTP ${HTTP_STATUS} — results may not have been recorded"
+          # Non-fatal: exit 0 so test step result is not affected
+          exit 0
+        fi

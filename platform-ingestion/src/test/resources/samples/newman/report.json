@@ -1,0 +1,36 @@
+{
+  "collection": { "info": { "name": "Payment API Collection" } },
+  "run": {
+    "stats": {
+      "requests": { "total": 3, "failed": 1 },
+      "assertions": { "total": 6, "failed": 1 }
+    },
+    "timings": { "started": 1741334400000, "completed": 1741334405000 },
+    "executions": [
+      {
+        "item": { "name": "POST /payments - success" },
+        "response": { "status": "OK", "code": 200, "responseTime": 345 },
+        "assertions": [
+          { "assertion": "Status code is 200", "error": null },
+          { "assertion": "Response has transactionId", "error": null }
+        ]
+      },
+      {
+        "item": { "name": "GET /payments/:id - not found" },
+        "response": { "status": "Not Found", "code": 404, "responseTime": 120 },
+        "assertions": [
+          { "assertion": "Status code is 404", "error": null },
+          { "assertion": "Error message is present", "error": null }
+        ]
+      },
+      {
+        "item": { "name": "POST /refunds - invalid amount" },
+        "response": { "status": "Unprocessable Entity", "code": 422, "responseTime": 210 },
+        "assertions": [
+          { "assertion": "Status code is 200", "error": { "name": "AssertionError", "message": "expected response to have status code 200 but got 422" } },
+          { "assertion": "Refund id returned", "error": null }
+        ]
+      }
+    ]
+  }
+}

@@ -1,0 +1,596 @@
+{
+  "__inputs": [],
+  "__elements": {},
+  "__requires": [
+    {"type": "grafana", "id": "grafana", "name": "Grafana", "version": "11.0.0"},
+    {"type": "datasource", "id": "postgres", "name": "PostgreSQL", "version": "1.0.0"},
+    {"type": "panel", "id": "barchart", "name": "Bar Chart", "version": ""},
+    {"type": "panel", "id": "bargauge", "name": "Bar Gauge", "version": ""},
+    {"type": "panel", "id": "piechart", "name": "Pie Chart", "version": ""},
+    {"type": "panel", "id": "stat", "name": "Stat", "version": ""},
+    {"type": "panel", "id": "table", "name": "Table", "version": ""},
+    {"type": "panel", "id": "text", "name": "Text", "version": ""},
+    {"type": "panel", "id": "timeseries", "name": "Time Series", "version": ""}
+  ],
+  "annotations": {"list": []},
+  "description": "Execution mode distribution, CI provider breakdown, parallelism analysis, and improvement suggestions",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+
+    {
+      "collapsed": false,
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 0},
+      "id": 1,
+      "title": "Summary",
+      "type": "row"
+    },
+
+    {
+      "datasource": {"type": "postgres", "uid": "${DS_POSTGRES}"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "thresholds": {"mode": "absolute", "steps": [{"color": "blue", "value": null}]},
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 4, "w": 4, "x": 0, "y": 1},
+      "id": 2,
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "orientation": "auto", "textMode": "auto", "colorMode": "background", "graphMode": "none"},
+      "title": "Total Runs",
+      "type": "stat",
+      "targets": [{
+        "datasource": {"type": "postgres", "uid": "${DS_POSTGRES}"},
+        "rawSql": "SELECT COUNT(*) AS value FROM test_executions WHERE executed_at >= NOW() - INTERVAL '30 days'",
+        "format": "table"
+      }]
+    },
+
+    {
+      "datasource": {"type": "postgres", "uid": "${DS_POSTGRES}"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "thresholds": {"mode": "absolute", "steps": [
+            {"color": "red", "value": null},
+            {"color": "yellow", "value": 30},
+            {"color": "green", "value": 60}
+          ]},
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 4, "w": 4, "x": 4, "y": 1},
+      "id": 3,
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "orientation": "auto", "textMode": "auto", "colorMode": "background", "graphMode": "none"},
+      "title": "Parallel Runs %",
+      "type": "stat",
+      "targets": [{
+        "datasource": {"type": "postgres", "uid": "${DS_POSTGRES}"},
+        "rawSql": "SELECT ROUND((COUNT(*) FILTER (WHERE execution_mode = 'PARALLEL') * 100.0 / NULLIF(COUNT(*), 0))::numeric, 1) AS value FROM test_executions WHERE executed_at >= NOW() - INTERVAL '30 days'",
+        "format": "table"
+      }]
+    },
+
+    {
+      "datasource": {"type": "postgres", "uid": "${DS_POSTGRES}"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "thresholds": {"mode": "absolute", "steps": [
+            {"color": "green", "value": null},
+            {"color": "yellow", "value": 500},
+            {"color": "orange", "value": 1000},
+            {"color": "red", "value": 3000}
+          ]},
+          "unit": "ms"
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 4, "w": 4, "x": 8, "y": 1},
+      "id": 4,
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "orientation": "auto", "textMode": "auto", "colorMode": "background", "graphMode": "none"},
+      "title": "Avg Duration (ms)",
+      "type": "stat",
+      "targets": [{
+        "datasource": {"type": "postgres", "uid": "${DS_POSTGRES}"},
+        "rawSql": "SELECT ROUND(AVG(duration_ms)::numeric, 0) AS value FROM test_executions WHERE executed_at >= NOW() - INTERVAL '30 days' AND duration_ms IS NOT NULL",
+        "format": "table"
+      }]
+    },
+
+    {
+      "datasource": {"type": "postgres", "uid": "${DS_POSTGRES}"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "thresholds": {"mode": "absolute", "steps": [
+            {"color": "red", "value": null},
+            {"color": "yellow", "value": 70},
+            {"color": "green", "value": 90}
+          ]},
+          "unit": "percent"
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 4, "w": 4, "x": 12, "y": 1},
+      "id": 5,
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "orientation": "auto", "textMode": "auto", "colorMode": "background", "graphMode": "none"},
+      "title": "Overall Pass Rate",
+      "type": "stat",
+      "targets": [{
+        "datasource": {"type": "postgres", "uid": "${DS_POSTGRES}"},
+        "rawSql": "SELECT ROUND((SUM(passed) * 100.0 / NULLIF(SUM(total_tests), 0))::numeric, 1) AS value FROM test_executions WHERE executed_at >= NOW() - INTERVAL '30 days'",
+        "format": "table"
+      }]
+    },
+
+    {
+      "datasource": {"type": "postgres", "uid": "${DS_POSTGRES}"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "thresholds": {"mode": "absolute", "steps": [{"color": "purple", "value": null}]},
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 4, "w": 4, "x": 16, "y": 1},
+      "id": 6,
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "orientation": "auto", "textMode": "auto", "colorMode": "background", "graphMode": "none"},
+      "title": "Active CI Providers",
+      "type": "stat",
+      "targets": [{
+        "datasource": {"type": "postgres", "uid": "${DS_POSTGRES}"},
+        "rawSql": "SELECT COUNT(DISTINCT ci_provider) AS value FROM test_executions WHERE executed_at >= NOW() - INTERVAL '30 days' AND ci_provider IS NOT NULL",
+        "format": "table"
+      }]
+    },
+
+    {
+      "datasource": {"type": "postgres", "uid": "${DS_POSTGRES}"},
+      "fieldConfig": {
+        "defaults": {
+          "color": {"mode": "thresholds"},
+          "thresholds": {"mode": "absolute", "steps": [{"color": "teal", "value": null}]},
+          "unit": "short"
+        },
+        "overrides": []
+      },
+      "gridPos": {"h": 4, "w": 4, "x": 20, "y": 1},
+      "id": 7,
+      "options": {"reduceOptions": {"calcs": ["lastNotNull"]}, "orientation": "auto", "textMode": "auto", "colorMode": "background", "graphMode": "none"},
+      "title": "Distinct Suites",
+      "type": "stat",
+      "targets": [{
+        "datasource": {"type": "postgres", "uid": "${DS_POSTGRES}"},
+        "rawSql": "SELECT COUNT(DISTINCT suite_name) AS value FROM test_executions WHERE executed_at >= NOW() - INTERVAL '30 days' AND suite_name <> ''",
+        "format": "table"
+      }]
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 5},
+      "id": 10,
+      "title": "Execution Mode Distribution",
+      "type": "row"
+    },
+
+    {
+      "datasource": {"type": "postgres", "uid": "${DS_POSTGRES}"},
+      "fieldConfig": {
+        "defaults": {"color": {"mode": "palette-classic"}, "unit": "short"},
+        "overrides": [
+          {"matcher": {"id": "byName", "options": "PARALLEL"},  "properties": [{"id": "color", "value": {"fixedColor": "green",  "mode": "fixed"}}]},
+          {"matcher": {"id": "byName", "options": "SEQUENTIAL"},"properties": [{"id": "color", "value": {"fixedColor": "blue",   "mode": "fixed"}}]},
+          {"matcher": {"id": "byName", "options": "UNKNOWN"},   "properties": [{"id": "color", "value": {"fixedColor": "orange", "mode": "fixed"}}]}
+        ]
+      },
+      "gridPos": {"h": 8, "w": 6, "x": 0, "y": 6},
+      "id": 11,
+      "options": {
+        "pieType": "pie",
+        "legend": {"displayMode": "table", "placement": "right", "values": ["percent", "value"]},
+        "tooltip": {"mode": "single"}
+      },
+      "title": "Execution Mode (30 days)",
+      "type": "piechart",
+      "targets": [{
+        "datasource": {"type": "postgres", "uid": "${DS_POSTGRES}"},
+        "rawSql": "SELECT execution_mode AS metric, COUNT(*) AS value FROM test_executions WHERE executed_at >= NOW() - INTERVAL '30 days' GROUP BY execution_mode ORDER BY value DESC",
+        "format": "table"
+      }]
+    },
+
+    {
+      "datasource": {"type": "postgres", "uid": "${DS_POSTGRES}"},
+      "fieldConfig": {
+        "defaults": {"color": {"mode": "palette-classic"}, "unit": "short"},
+        "overrides": []
+      },
+      "gridPos": {"h": 8, "w": 6, "x": 6, "y": 6},
+      "id": 12,
+      "options": {
+        "pieType": "pie",
+        "legend": {"displayMode": "table", "placement": "right", "values": ["percent", "value"]},
+        "tooltip": {"mode": "single"}
+      },
+      "title": "CI Provider (30 days)",
+      "type": "piechart",
+      "targets": [{
+        "datasource": {"type": "postgres", "uid": "${DS_POSTGRES}"},
+        "rawSql": "SELECT COALESCE(ci_provider, 'unknown') AS metric, COUNT(*) AS value FROM test_executions WHERE executed_at >= NOW() - INTERVAL '30 days' GROUP BY ci_provider ORDER BY value DESC",
+        "format": "table"
+      }]
+    },
+
+    {
+      "datasource": {"type": "postgres", "uid": "${DS_POSTGRES}"},
+      "fieldConfig": {
+        "defaults": {"color": {"mode": "palette-classic"}, "unit": "short"},
+        "overrides": []
+      },
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 6},
+      "id": 13,
+      "options": {
+        "xField": "week",
+        "orientation": "vertical",
+        "stacking": "normal",
+        "legend": {"displayMode": "list", "placement": "bottom"},
+        "tooltip": {"mode": "multi"}
+      },
+      "title": "Execution Mode Trend (weekly)",
+      "type": "barchart",
+      "targets": [{
+        "datasource": {"type": "postgres", "uid": "${DS_POSTGRES}"},
+        "rawSql": "SELECT DATE_TRUNC('week', executed_at)::date AS week, execution_mode, COUNT(*) AS runs FROM test_executions WHERE executed_at >= NOW() - INTERVAL '90 days' GROUP BY week, execution_mode ORDER BY week",
+        "format": "table"
+      }]
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 14},
+      "id": 20,
+      "title": "Parallelism & Duration Analysis",
+      "type": "row"
+    },
+
+    {
+      "datasource": {"type": "postgres", "uid": "${DS_POSTGRES}"},
+      "fieldConfig": {
+        "defaults": {"unit": "short", "color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 4}, {"color": "red", "value": 8}]}},
+        "overrides": []
+      },
+      "gridPos": {"h": 8, "w": 8, "x": 0, "y": 15},
+      "id": 21,
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "reduceOptions": {"calcs": ["lastNotNull"]},
+        "minViz": 16, "maxViz": 300,
+        "legend": {"displayMode": "auto"}
+      },
+      "title": "Parallelism Distribution",
+      "type": "bargauge",
+      "targets": [{
+        "datasource": {"type": "postgres", "uid": "${DS_POSTGRES}"},
+        "rawSql": "SELECT CASE WHEN parallelism = 0 THEN 'unknown' WHEN parallelism = 1 THEN '1 (single)' WHEN parallelism <= 4 THEN '2-4 threads' WHEN parallelism <= 8 THEN '5-8 threads' ELSE '9+ threads' END AS threads, COUNT(*) AS runs FROM test_executions WHERE executed_at >= NOW() - INTERVAL '30 days' GROUP BY 1 ORDER BY MIN(parallelism)",
+        "format": "table"
+      }]
+    },
+
+    {
+      "datasource": {"type": "postgres", "uid": "${DS_POSTGRES}"},
+      "fieldConfig": {
+        "defaults": {"unit": "ms", "color": {"mode": "palette-classic"}},
+        "overrides": []
+      },
+      "gridPos": {"h": 8, "w": 8, "x": 8, "y": 15},
+      "id": 22,
+      "options": {
+        "xField": "execution_mode",
+        "orientation": "vertical",
+        "stacking": "none",
+        "legend": {"displayMode": "list", "placement": "bottom"},
+        "tooltip": {"mode": "single"}
+      },
+      "title": "Avg Duration by Execution Mode",
+      "type": "barchart",
+      "targets": [{
+        "datasource": {"type": "postgres", "uid": "${DS_POSTGRES}"},
+        "rawSql": "SELECT execution_mode, ROUND(AVG(duration_ms)::numeric, 0) AS avg_duration_ms FROM test_executions WHERE executed_at >= NOW() - INTERVAL '30 days' AND duration_ms IS NOT NULL GROUP BY execution_mode ORDER BY avg_duration_ms",
+        "format": "table"
+      }]
+    },
+
+    {
+      "datasource": {"type": "postgres", "uid": "${DS_POSTGRES}"},
+      "fieldConfig": {
+        "defaults": {"unit": "percent", "color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "yellow", "value": 70}, {"color": "green", "value": 85}]}},
+        "overrides": []
+      },
+      "gridPos": {"h": 8, "w": 8, "x": 16, "y": 15},
+      "id": 23,
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "reduceOptions": {"calcs": ["lastNotNull"]},
+        "legend": {"displayMode": "auto"}
+      },
+      "title": "Pass Rate by Execution Mode",
+      "type": "bargauge",
+      "targets": [{
+        "datasource": {"type": "postgres", "uid": "${DS_POSTGRES}"},
+        "rawSql": "SELECT execution_mode, ROUND((SUM(passed) * 100.0 / NULLIF(SUM(total_tests), 0))::numeric, 1) AS pass_rate FROM test_executions WHERE executed_at >= NOW() - INTERVAL '30 days' GROUP BY execution_mode ORDER BY pass_rate DESC",
+        "format": "table"
+      }]
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 23},
+      "id": 30,
+      "title": "Build Environment & CI Providers",
+      "type": "row"
+    },
+
+    {
+      "datasource": {"type": "postgres", "uid": "${DS_POSTGRES}"},
+      "fieldConfig": {
+        "defaults": {"unit": "ms", "color": {"mode": "palette-classic"}},
+        "overrides": []
+      },
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 24},
+      "id": 31,
+      "options": {
+        "xField": "ci_provider",
+        "orientation": "vertical",
+        "stacking": "none",
+        "legend": {"displayMode": "list", "placement": "bottom"},
+        "tooltip": {"mode": "single"}
+      },
+      "title": "Avg Run Duration by CI Provider",
+      "type": "barchart",
+      "targets": [{
+        "datasource": {"type": "postgres", "uid": "${DS_POSTGRES}"},
+        "rawSql": "SELECT COALESCE(ci_provider, 'unknown') AS ci_provider, ROUND(AVG(duration_ms)::numeric, 0) AS avg_duration_ms FROM test_executions WHERE executed_at >= NOW() - INTERVAL '30 days' AND duration_ms IS NOT NULL GROUP BY ci_provider ORDER BY avg_duration_ms",
+        "format": "table"
+      }]
+    },
+
+    {
+      "datasource": {"type": "postgres", "uid": "${DS_POSTGRES}"},
+      "fieldConfig": {
+        "defaults": {"unit": "percent", "color": {"mode": "thresholds"}, "thresholds": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "yellow", "value": 70}, {"color": "green", "value": 85}]}},
+        "overrides": []
+      },
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 24},
+      "id": 32,
+      "options": {
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "reduceOptions": {"calcs": ["lastNotNull"]},
+        "legend": {"displayMode": "auto"}
+      },
+      "title": "Pass Rate by CI Provider",
+      "type": "bargauge",
+      "targets": [{
+        "datasource": {"type": "postgres", "uid": "${DS_POSTGRES}"},
+        "rawSql": "SELECT COALESCE(ci_provider, 'unknown') AS ci_provider, ROUND((SUM(passed) * 100.0 / NULLIF(SUM(total_tests), 0))::numeric, 1) AS pass_rate FROM test_executions WHERE executed_at >= NOW() - INTERVAL '30 days' GROUP BY ci_provider ORDER BY pass_rate DESC",
+        "format": "table"
+      }]
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 32},
+      "id": 40,
+      "title": "Top Suites & Test Frameworks",
+      "type": "row"
+    },
+
+    {
+      "datasource": {"type": "postgres", "uid": "${DS_POSTGRES}"},
+      "fieldConfig": {
+        "defaults": {"custom": {"align": "auto", "inspect": false}, "unit": "short"},
+        "overrides": [
+          {"matcher": {"id": "byName", "options": "pass_rate"}, "properties": [
+            {"id": "unit", "value": "percent"},
+            {"id": "custom.displayMode", "value": "color-background"},
+            {"id": "thresholds", "value": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "yellow", "value": 70}, {"color": "green", "value": 85}]}}
+          ]},
+          {"matcher": {"id": "byName", "options": "avg_duration_ms"}, "properties": [{"id": "unit", "value": "ms"}]}
+        ]
+      },
+      "gridPos": {"h": 10, "w": 12, "x": 0, "y": 33},
+      "id": 41,
+      "options": {"footer": {"show": false}, "showHeader": true},
+      "title": "Top Suites (by run count, 30 days)",
+      "type": "table",
+      "targets": [{
+        "datasource": {"type": "postgres", "uid": "${DS_POSTGRES}"},
+        "rawSql": "SELECT suite_name, COUNT(*) AS runs, SUM(total_tests) AS total_tests, ROUND((SUM(passed) * 100.0 / NULLIF(SUM(total_tests), 0))::numeric, 1) AS pass_rate, ROUND(AVG(duration_ms)::numeric, 0) AS avg_duration_ms, execution_mode FROM test_executions WHERE executed_at >= NOW() - INTERVAL '30 days' AND suite_name <> '' GROUP BY suite_name, execution_mode ORDER BY runs DESC LIMIT 20",
+        "format": "table"
+      }]
+    },
+
+    {
+      "datasource": {"type": "postgres", "uid": "${DS_POSTGRES}"},
+      "fieldConfig": {
+        "defaults": {"custom": {"align": "auto"}, "unit": "short"},
+        "overrides": [
+          {"matcher": {"id": "byName", "options": "pass_rate"}, "properties": [
+            {"id": "unit", "value": "percent"},
+            {"id": "custom.displayMode", "value": "color-background"},
+            {"id": "thresholds", "value": {"mode": "absolute", "steps": [{"color": "red", "value": null}, {"color": "yellow", "value": 70}, {"color": "green", "value": 85}]}}
+          ]}
+        ]
+      },
+      "gridPos": {"h": 10, "w": 12, "x": 12, "y": 33},
+      "id": 42,
+      "options": {"footer": {"show": false}, "showHeader": true},
+      "title": "Test Framework Distribution (30 days)",
+      "type": "table",
+      "targets": [{
+        "datasource": {"type": "postgres", "uid": "${DS_POSTGRES}"},
+        "rawSql": "SELECT source_format AS framework, COUNT(*) AS runs, SUM(total_tests) AS total_tests, ROUND((SUM(passed) * 100.0 / NULLIF(SUM(total_tests), 0))::numeric, 1) AS pass_rate, COALESCE(STRING_AGG(DISTINCT execution_mode, ', '), 'UNKNOWN') AS modes FROM test_executions WHERE executed_at >= NOW() - INTERVAL '30 days' GROUP BY source_format ORDER BY runs DESC",
+        "format": "table"
+      }]
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 43},
+      "id": 50,
+      "title": "Improvement Suggestions",
+      "type": "row"
+    },
+
+    {
+      "datasource": {"type": "postgres", "uid": "${DS_POSTGRES}"},
+      "fieldConfig": {
+        "defaults": {"custom": {"align": "auto", "wrap": true, "inspect": true}, "unit": "short"},
+        "overrides": [
+          {"matcher": {"id": "byName", "options": "suggestion"}, "properties": [
+            {"id": "custom.width", "value": 500},
+            {"id": "custom.displayMode", "value": "color-background"},
+            {"id": "mappings", "value": []},
+            {"id": "color", "value": {"mode": "fixed", "fixedColor": "yellow"}}
+          ]},
+          {"matcher": {"id": "byName", "options": "priority"}, "properties": [
+            {"id": "custom.displayMode", "value": "color-background"},
+            {"id": "thresholds", "value": {"mode": "absolute", "steps": [{"color": "green", "value": null}, {"color": "yellow", "value": 2}, {"color": "red", "value": 3}]}},
+            {"id": "mappings", "value": [
+              {"type": "value", "options": {"1": {"text": "LOW"}, "2": {"text": "MEDIUM"}, "3": {"text": "HIGH"}}}
+            ]}
+          ]}
+        ]
+      },
+      "gridPos": {"h": 12, "w": 24, "x": 0, "y": 44},
+      "id": 51,
+      "options": {"footer": {"show": false}, "showHeader": true},
+      "title": "Actionable Improvement Suggestions",
+      "description": "Auto-generated suggestions based on execution metadata from the last 30 days. Priority: 3=HIGH, 2=MEDIUM, 1=LOW",
+      "type": "table",
+      "targets": [{
+        "datasource": {"type": "postgres", "uid": "${DS_POSTGRES}"},
+        "rawSql": "WITH stats AS (\n  SELECT\n    COUNT(*) AS total_runs,\n    COUNT(*) FILTER (WHERE execution_mode = 'SEQUENTIAL') AS sequential_runs,\n    COUNT(*) FILTER (WHERE execution_mode = 'PARALLEL')   AS parallel_runs,\n    COUNT(*) FILTER (WHERE execution_mode = 'UNKNOWN')    AS unknown_runs,\n    COUNT(*) FILTER (WHERE ci_provider = 'local')         AS local_runs,\n    COUNT(*) FILTER (WHERE ci_provider IS NULL OR ci_provider = 'unknown') AS no_ci_runs,\n    ROUND((AVG(duration_ms) FILTER (WHERE execution_mode = 'SEQUENTIAL'))::numeric, 0) AS avg_seq_ms,\n    ROUND((AVG(duration_ms) FILTER (WHERE execution_mode = 'PARALLEL'))::numeric, 0)   AS avg_par_ms,\n    ROUND((SUM(passed) * 100.0 / NULLIF(SUM(total_tests), 0))::numeric, 1)            AS overall_pass_rate,\n    ROUND((SUM(passed) FILTER (WHERE ci_provider = 'local') * 100.0 / NULLIF(SUM(total_tests) FILTER (WHERE ci_provider = 'local'), 0))::numeric, 1) AS local_pass_rate,\n    ROUND((SUM(passed) FILTER (WHERE ci_provider <> 'local' AND ci_provider IS NOT NULL) * 100.0 / NULLIF(SUM(total_tests) FILTER (WHERE ci_provider <> 'local' AND ci_provider IS NOT NULL), 0))::numeric, 1) AS ci_pass_rate\n  FROM test_executions\n  WHERE executed_at >= NOW() - INTERVAL '30 days'\n)\nSELECT suggestion, priority, evidence FROM (\n  SELECT\n    'Enable parallel execution: ' || sequential_runs || ' sequential suites could run faster — parallel suites average ' || COALESCE(avg_par_ms::text, 'N/A') || 'ms vs sequential ' || COALESCE(avg_seq_ms::text, 'N/A') || 'ms' AS suggestion,\n    CASE WHEN sequential_runs > 10 AND (avg_par_ms IS NULL OR avg_seq_ms > avg_par_ms * 1.5) THEN 3\n         WHEN sequential_runs > 5  THEN 2 ELSE 1 END AS priority,\n    sequential_runs::text || ' sequential runs detected in the last 30 days' AS evidence\n  FROM stats WHERE sequential_runs > 0\n  UNION ALL\n  SELECT\n    'Migrate ' || local_runs || ' local runs to CI — local pass rate is ' || COALESCE(local_pass_rate::text, 'N/A') || '% vs CI ' || COALESCE(ci_pass_rate::text, 'N/A') || '%' AS suggestion,\n    CASE WHEN local_runs > 20 THEN 3 WHEN local_runs > 5 THEN 2 ELSE 1 END AS priority,\n    'Running tests locally reduces reproducibility and traceability' AS evidence\n  FROM stats WHERE local_runs > 0\n  UNION ALL\n  SELECT\n    'Add execution metadata: ' || unknown_runs || ' runs have UNKNOWN execution mode — add executionMode to your CI upload command' AS suggestion,\n    CASE WHEN unknown_runs * 100.0 / NULLIF(total_runs, 0) > 50 THEN 3\n         WHEN unknown_runs * 100.0 / NULLIF(total_runs, 0) > 20 THEN 2 ELSE 1 END AS priority,\n    ROUND((unknown_runs * 100.0 / NULLIF(total_runs, 0))::numeric, 0)::text || '% of runs missing execution mode metadata' AS evidence\n  FROM stats WHERE unknown_runs > 0\n  UNION ALL\n  SELECT\n    'Address failing suites — overall pass rate is ' || overall_pass_rate || '%. Investigate top failing suites in the Suite Distribution panel' AS suggestion,\n    CASE WHEN overall_pass_rate < 70 THEN 3 WHEN overall_pass_rate < 85 THEN 2 ELSE 1 END AS priority,\n    'Target: >85% pass rate for healthy CI pipelines' AS evidence\n  FROM stats WHERE overall_pass_rate IS NOT NULL AND overall_pass_rate < 85\n) suggestions ORDER BY priority DESC, suggestion",
+        "format": "table"
+      }]
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": {"h": 1, "w": 24, "x": 0, "y": 56},
+      "id": 60,
+      "title": "Trends Over Time",
+      "type": "row"
+    },
+
+    {
+      "datasource": {"type": "postgres", "uid": "${DS_POSTGRES}"},
+      "fieldConfig": {
+        "defaults": {"unit": "short", "color": {"mode": "palette-classic"}},
+        "overrides": []
+      },
+      "gridPos": {"h": 8, "w": 12, "x": 0, "y": 57},
+      "id": 61,
+      "options": {
+        "legend": {"displayMode": "list", "placement": "bottom"},
+        "tooltip": {"mode": "multi"}
+      },
+      "title": "Daily Runs by Execution Mode",
+      "type": "timeseries",
+      "targets": [{
+        "datasource": {"type": "postgres", "uid": "${DS_POSTGRES}"},
+        "rawSql": "SELECT DATE_TRUNC('day', executed_at) AS time, execution_mode AS metric, COUNT(*) AS value FROM test_executions WHERE executed_at >= NOW() - INTERVAL '30 days' GROUP BY time, execution_mode ORDER BY time",
+        "format": "time_series"
+      }]
+    },
+
+    {
+      "datasource": {"type": "postgres", "uid": "${DS_POSTGRES}"},
+      "fieldConfig": {
+        "defaults": {"unit": "short", "color": {"mode": "palette-classic"}},
+        "overrides": []
+      },
+      "gridPos": {"h": 8, "w": 12, "x": 12, "y": 57},
+      "id": 62,
+      "options": {
+        "legend": {"displayMode": "list", "placement": "bottom"},
+        "tooltip": {"mode": "multi"}
+      },
+      "title": "Daily Runs by CI Provider",
+      "type": "timeseries",
+      "targets": [{
+        "datasource": {"type": "postgres", "uid": "${DS_POSTGRES}"},
+        "rawSql": "SELECT DATE_TRUNC('day', executed_at) AS time, COALESCE(ci_provider, 'unknown') AS metric, COUNT(*) AS value FROM test_executions WHERE executed_at >= NOW() - INTERVAL '30 days' GROUP BY time, ci_provider ORDER BY time",
+        "format": "time_series"
+      }]
+    }
+
+  ],
+  "refresh": "5m",
+  "schemaVersion": 39,
+  "tags": ["execution", "ci", "parallel", "platform"],
+  "templating": {
+    "list": [
+      {
+        "current": {},
+        "hide": 0,
+        "includeAll": false,
+        "multi": false,
+        "name": "DS_POSTGRES",
+        "options": [],
+        "query": "postgres",
+        "refresh": 1,
+        "type": "datasource",
+        "label": "PostgreSQL"
+      },
+      {
+        "current": {"selected": false, "text": "All", "value": "$__all"},
+        "datasource": {"type": "postgres", "uid": "${DS_POSTGRES}"},
+        "definition": "SELECT DISTINCT COALESCE(ci_provider, 'unknown') FROM test_executions ORDER BY 1",
+        "hide": 0,
+        "includeAll": true,
+        "multi": true,
+        "name": "ci_provider",
+        "options": [],
+        "query": "SELECT DISTINCT COALESCE(ci_provider, 'unknown') FROM test_executions ORDER BY 1",
+        "refresh": 2,
+        "sort": 1,
+        "type": "query",
+        "label": "CI Provider"
+      },
+      {
+        "current": {"selected": false, "text": "All", "value": "$__all"},
+        "hide": 0,
+        "includeAll": true,
+        "multi": false,
+        "name": "execution_mode",
+        "options": [
+          {"selected": true, "text": "All", "value": "$__all"},
+          {"selected": false, "text": "PARALLEL", "value": "PARALLEL"},
+          {"selected": false, "text": "SEQUENTIAL", "value": "SEQUENTIAL"},
+          {"selected": false, "text": "UNKNOWN", "value": "UNKNOWN"}
+        ],
+        "query": "PARALLEL,SEQUENTIAL,UNKNOWN",
+        "type": "custom",
+        "label": "Execution Mode"
+      }
+    ]
+  },
+  "time": {"from": "now-30d", "to": "now"},
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Execution Overview",
+  "uid": "execution-overview",
+  "version": 1
+}

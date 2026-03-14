@@ -1,0 +1,775 @@
+{
+  "title": "Platform Health",
+  "uid": "platform-health",
+  "description": "JVM metrics, HTTP request rates, Kafka throughput, database connection pool usage, ingestion throughput, AI analysis, and quality gate metrics for all platform services.",
+  "tags": ["health", "jvm", "prometheus", "kafka", "ingestion", "ai", "quality"],
+  "schemaVersion": 39,
+  "version": 2,
+  "refresh": "30s",
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "editable": true,
+  "graphTooltip": 1,
+  "templating": {
+    "list": [
+      {
+        "name": "service",
+        "type": "query",
+        "label": "Service",
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "query": { "query": "label_values(jvm_memory_used_bytes, application)", "refId": "A" },
+        "multi": true,
+        "includeAll": true,
+        "allValue": ".*",
+        "current": {},
+        "refresh": 2,
+        "sort": 1
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Services Up",
+      "description": "Number of platform service instances currently reachable by Prometheus.",
+      "gridPos": { "x": 0, "y": 0, "w": 6, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "yellow", "value": 1 }, { "color": "green", "value": 4 }] }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "count(up{job=~\"platform-.*\"} == 1)",
+          "instant": true,
+          "legendFormat": "Up"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Avg JVM Heap Used",
+      "gridPos": { "x": 6, "y": 0, "w": 6, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "bytes",
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "orange", "value": 536870912 }, { "color": "red", "value": 805306368 }] }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "avg(jvm_memory_used_bytes{area=\"heap\", application=~\"$service\"})",
+          "instant": true,
+          "legendFormat": "Heap Used"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "HTTP Request Rate",
+      "description": "Total HTTP requests per second across all services.",
+      "gridPos": { "x": 12, "y": 0, "w": 6, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(http_server_requests_seconds_count{application=~\"$service\"}[2m]))",
+          "instant": true,
+          "legendFormat": "req/s"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "HTTP Error Rate",
+      "description": "Percentage of 5xx responses in the last 2 minutes.",
+      "gridPos": { "x": 18, "y": 0, "w": 6, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "orange", "value": 1 }, { "color": "red", "value": 5 }] }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "100 * sum(rate(http_server_requests_seconds_count{status=~\"5..\", application=~\"$service\"}[2m])) / (sum(rate(http_server_requests_seconds_count{application=~\"$service\"}[2m])) > 0)",
+          "instant": true,
+          "legendFormat": "Error %"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "HTTP Request Rate by Service",
+      "description": "Requests per second for each platform service.",
+      "gridPos": { "x": 0, "y": 4, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": {
+        "tooltip": { "mode": "multi", "sort": "none" },
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }
+      },
+      "fieldConfig": {
+        "defaults": { "unit": "reqps", "custom": { "lineWidth": 2, "fillOpacity": 5 } },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (application) (rate(http_server_requests_seconds_count{application=~\"$service\"}[2m]))",
+          "legendFormat": "{{application}}"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "timeseries",
+      "title": "HTTP P95 Latency by Service",
+      "description": "95th-percentile HTTP response time per service.",
+      "gridPos": { "x": 12, "y": 4, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": {
+        "tooltip": { "mode": "multi", "sort": "none" },
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }
+      },
+      "fieldConfig": {
+        "defaults": { "unit": "s", "custom": { "lineWidth": 2, "fillOpacity": 5 } },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "histogram_quantile(0.95, sum by (application, le) (rate(http_server_requests_seconds_bucket{application=~\"$service\"}[2m])))",
+          "legendFormat": "{{application}} p95"
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "type": "timeseries",
+      "title": "JVM Heap Memory",
+      "description": "Heap used vs. committed per service.",
+      "gridPos": { "x": 0, "y": 12, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": {
+        "tooltip": { "mode": "multi", "sort": "none" },
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }
+      },
+      "fieldConfig": {
+        "defaults": { "unit": "bytes", "custom": { "lineWidth": 2, "fillOpacity": 8 } },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (application) (jvm_memory_used_bytes{area=\"heap\", application=~\"$service\"})",
+          "legendFormat": "{{application}} used"
+        },
+        {
+          "refId": "B",
+          "expr": "sum by (application) (jvm_memory_committed_bytes{area=\"heap\", application=~\"$service\"})",
+          "legendFormat": "{{application}} committed"
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "timeseries",
+      "title": "GC Pause Time",
+      "description": "Garbage collection pause duration per service.",
+      "gridPos": { "x": 12, "y": 12, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": {
+        "tooltip": { "mode": "multi", "sort": "none" },
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }
+      },
+      "fieldConfig": {
+        "defaults": { "unit": "s", "custom": { "lineWidth": 2 } },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "rate(jvm_gc_pause_seconds_sum{application=~\"$service\"}[2m])",
+          "legendFormat": "{{application}} {{action}}"
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "type": "timeseries",
+      "title": "HikariCP — Active DB Connections",
+      "description": "Number of active database connections from the Hikari connection pool.",
+      "gridPos": { "x": 0, "y": 20, "w": 12, "h": 7 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": {
+        "tooltip": { "mode": "multi", "sort": "none" },
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }
+      },
+      "fieldConfig": {
+        "defaults": { "custom": { "lineWidth": 2 } },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "hikaricp_connections_active{application=~\"$service\"}",
+          "legendFormat": "{{application}}"
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "type": "timeseries",
+      "title": "Kafka Producer — Records Sent/sec",
+      "description": "Kafka messages produced per second by each service.",
+      "gridPos": { "x": 12, "y": 20, "w": 12, "h": 7 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": {
+        "tooltip": { "mode": "multi", "sort": "none" },
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }
+      },
+      "fieldConfig": {
+        "defaults": { "unit": "short", "custom": { "lineWidth": 2 } },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "rate(kafka_producer_record_send_total{application=~\"$service\"}[2m])",
+          "legendFormat": "{{application}}"
+        }
+      ]
+    },
+
+    {
+      "id": 11,
+      "type": "row",
+      "title": "Ingestion Throughput",
+      "gridPos": { "x": 0, "y": 27, "w": 24, "h": 1 },
+      "collapsed": false
+    },
+    {
+      "id": 12,
+      "type": "stat",
+      "title": "Runs Ingested / min",
+      "description": "Test result submissions received per minute.",
+      "gridPos": { "x": 0, "y": 28, "w": 6, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(ingestion_results_total[2m])) * 60",
+          "instant": true,
+          "legendFormat": "runs/min"
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "type": "stat",
+      "title": "Tests Ingested / min",
+      "description": "Individual test cases received per minute.",
+      "gridPos": { "x": 6, "y": 28, "w": 6, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(ingestion_tests_total[2m])) * 60",
+          "instant": true,
+          "legendFormat": "tests/min"
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "type": "stat",
+      "title": "Failed Tests / min",
+      "description": "Failed test cases received per minute.",
+      "gridPos": { "x": 12, "y": 28, "w": 6, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background",
+        "graphMode": "area",
+        "textMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "orange", "value": 1 }, { "color": "red", "value": 5 }] }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(rate(ingestion_tests_failed_total[2m])) * 60",
+          "instant": true,
+          "legendFormat": "failures/min"
+        }
+      ]
+    },
+    {
+      "id": 15,
+      "type": "stat",
+      "title": "Failure Rate %",
+      "description": "Percentage of ingested tests that are failing.",
+      "gridPos": { "x": 18, "y": 28, "w": 6, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "orange", "value": 10 }, { "color": "red", "value": 25 }] }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "100 * sum(rate(ingestion_tests_failed_total[5m])) / (sum(rate(ingestion_tests_total[5m])) > 0)",
+          "instant": true,
+          "legendFormat": "failure %"
+        }
+      ]
+    },
+    {
+      "id": 16,
+      "type": "timeseries",
+      "title": "Ingestion Rate by Execution Mode",
+      "description": "Test runs ingested per second, broken down by execution mode (PARALLEL vs SEQUENTIAL).",
+      "gridPos": { "x": 0, "y": 32, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": {
+        "tooltip": { "mode": "multi", "sort": "none" },
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }
+      },
+      "fieldConfig": {
+        "defaults": { "unit": "short", "custom": { "lineWidth": 2, "fillOpacity": 8 } },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (mode) (rate(ingestion_execution_mode_total[5m]))",
+          "legendFormat": "{{mode}}"
+        }
+      ]
+    },
+    {
+      "id": 17,
+      "type": "timeseries",
+      "title": "Ingestion Rate by CI Provider",
+      "description": "Test runs ingested per second, broken down by CI provider.",
+      "gridPos": { "x": 12, "y": 32, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": {
+        "tooltip": { "mode": "multi", "sort": "none" },
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }
+      },
+      "fieldConfig": {
+        "defaults": { "unit": "short", "custom": { "lineWidth": 2, "fillOpacity": 8 } },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (provider) (rate(ingestion_ci_provider_total[5m]))",
+          "legendFormat": "{{provider}}"
+        }
+      ]
+    },
+
+    {
+      "id": 18,
+      "type": "row",
+      "title": "AI Analysis",
+      "gridPos": { "x": 0, "y": 40, "w": 24, "h": 1 },
+      "collapsed": false
+    },
+    {
+      "id": 19,
+      "type": "stat",
+      "title": "Analyses (last 1h)",
+      "description": "Number of AI failure analyses completed in the last hour.",
+      "gridPos": { "x": 0, "y": 41, "w": 6, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(ai_analyses_total[1h]))",
+          "instant": true,
+          "legendFormat": "analyses"
+        }
+      ]
+    },
+    {
+      "id": 20,
+      "type": "stat",
+      "title": "Input Tokens / hour",
+      "description": "AI input tokens consumed in the last hour.",
+      "gridPos": { "x": 6, "y": 41, "w": 6, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(ai_tokens_input_total[1h]))",
+          "instant": true,
+          "legendFormat": "input tokens"
+        }
+      ]
+    },
+    {
+      "id": 21,
+      "type": "stat",
+      "title": "Output Tokens / hour",
+      "description": "AI output tokens generated in the last hour.",
+      "gridPos": { "x": 12, "y": 41, "w": 6, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "value",
+        "graphMode": "area",
+        "textMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum(increase(ai_tokens_output_total[1h]))",
+          "instant": true,
+          "legendFormat": "output tokens"
+        }
+      ]
+    },
+    {
+      "id": 22,
+      "type": "stat",
+      "title": "Token Cost Est. / hour",
+      "description": "Estimated cost based on claude-opus-4-6 pricing ($5/M input, $25/M output).",
+      "gridPos": { "x": 18, "y": 41, "w": 6, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "value",
+        "graphMode": "none",
+        "textMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "currencyUSD",
+          "decimals": 4,
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "orange", "value": 1 }, { "color": "red", "value": 10 }] }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "(sum(increase(ai_tokens_input_total[1h])) * 5 / 1000000) + (sum(increase(ai_tokens_output_total[1h])) * 25 / 1000000)",
+          "instant": true,
+          "legendFormat": "USD"
+        }
+      ]
+    },
+    {
+      "id": 23,
+      "type": "timeseries",
+      "title": "AI Analyses by Failure Category",
+      "description": "Number of AI analyses per hour, broken down by failure category.",
+      "gridPos": { "x": 0, "y": 45, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": {
+        "tooltip": { "mode": "multi", "sort": "none" },
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }
+      },
+      "fieldConfig": {
+        "defaults": { "unit": "short", "custom": { "lineWidth": 2, "fillOpacity": 8 } },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (category) (rate(ai_analyses_total[10m]))",
+          "legendFormat": "{{category}}"
+        }
+      ]
+    },
+    {
+      "id": 24,
+      "type": "timeseries",
+      "title": "AI Token Consumption Rate",
+      "description": "Input and output token usage per minute.",
+      "gridPos": { "x": 12, "y": 45, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": {
+        "tooltip": { "mode": "multi", "sort": "none" },
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }
+      },
+      "fieldConfig": {
+        "defaults": { "unit": "short", "custom": { "lineWidth": 2, "fillOpacity": 5 } },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (provider) (rate(ai_tokens_input_total[2m])) * 60",
+          "legendFormat": "input ({{provider}})"
+        },
+        {
+          "refId": "B",
+          "expr": "sum by (provider) (rate(ai_tokens_output_total[2m])) * 60",
+          "legendFormat": "output ({{provider}})"
+        }
+      ]
+    },
+
+    {
+      "id": 25,
+      "type": "row",
+      "title": "Quality & Flakiness",
+      "gridPos": { "x": 0, "y": 53, "w": 24, "h": 1 },
+      "collapsed": false
+    },
+    {
+      "id": 26,
+      "type": "stat",
+      "title": "Critical Flaky Tests",
+      "description": "Number of tests currently classified as CRITICAL_FLAKY (score > 0.60).",
+      "gridPos": { "x": 0, "y": 54, "w": 6, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "orange", "value": 3 }, { "color": "red", "value": 6 }] }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "platform_flakiness_critical_count",
+          "instant": true,
+          "legendFormat": "CRITICAL_FLAKY"
+        }
+      ]
+    },
+    {
+      "id": 27,
+      "type": "stat",
+      "title": "Watch-Band Tests",
+      "description": "Number of tests currently in the WATCH flakiness band (score 0.10–0.30).",
+      "gridPos": { "x": 6, "y": 54, "w": 6, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background",
+        "graphMode": "none",
+        "textMode": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 10 }, { "color": "orange", "value": 21 }] }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "platform_flakiness_watch_count",
+          "instant": true,
+          "legendFormat": "WATCH"
+        }
+      ]
+    },
+    {
+      "id": 28,
+      "type": "timeseries",
+      "title": "Quality Gate Pass Rate by Project",
+      "description": "Most recent quality gate pass rate per project/branch (1.0 = 100% pass).",
+      "gridPos": { "x": 12, "y": 54, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": {
+        "tooltip": { "mode": "multi", "sort": "none" },
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "min": 0,
+          "max": 1,
+          "custom": { "lineWidth": 2 },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "orange", "value": 0.6 }, { "color": "green", "value": 0.8 }] }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "platform_quality_gate_pass_rate",
+          "legendFormat": "{{project}} / {{branch}}"
+        }
+      ]
+    },
+    {
+      "id": 29,
+      "type": "timeseries",
+      "title": "Flakiness Count Trend",
+      "description": "CRITICAL_FLAKY and WATCH test counts over time.",
+      "gridPos": { "x": 0, "y": 58, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "options": {
+        "tooltip": { "mode": "multi", "sort": "none" },
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }
+      },
+      "fieldConfig": {
+        "defaults": { "unit": "short", "custom": { "lineWidth": 2, "fillOpacity": 5 } },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "platform_flakiness_critical_count",
+          "legendFormat": "CRITICAL_FLAKY"
+        },
+        {
+          "refId": "B",
+          "expr": "platform_flakiness_watch_count",
+          "legendFormat": "WATCH"
+        }
+      ]
+    }
+  ]
+}

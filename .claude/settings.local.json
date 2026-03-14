@@ -1,0 +1,42 @@
+{
+  "permissions": {
+    "allow": [
+      "*",
+      "Skill(*)",
+      "Bash(*)",
+      "WebSearch",
+      "Bash(java:*)",
+      "Bash(mvn clean:*)",
+      "Bash(mvn test:*)",
+      "Bash(mvn:*)",
+      "Bash(mvn install:*)",
+      "Skill(claude-api)",
+      "Bash(jar tf:*)",
+      "Bash(javap:*)",
+      "Bash(grep:*)",
+      "Bash(docker compose:*)",
+      "Bash(docker system:*)",
+      "Bash(docker info:*)",
+      "Bash(docker image:*)",
+      "Bash(docker:*)",
+      "Bash(mvn package:*)",
+      "Bash(lsof:*)",
+      "Bash(curl:*)",
+      "Bash(xargs -I{} bash -c 'echo \"\"=== {} ===\"\" && jar -tf \"\"{}\"\" 2>/dev/null | grep -i \"\"EntityScan\"\"')",
+      "Bash(xargs bash:*)",
+      "Bash(jar:*)",
+      "Bash(xargs jar:*)",
+      "Bash(unzip:*)",
+      "Bash(xargs -I{} jar tf {})",
+      "Bash(do echo:*)",
+      "Bash(echo Triggering analysis for project $proj_id ...:*)",
+      "Bash(export:*)",
+      "Bash(python3:*)",
+      "Bash(PLAYWRIGHT_BROWSERS_PATH=~/.cache/ms-playwright mvn exec:java:*)",
+      "Bash(nc:*)",
+      "Bash(npm run:*)",
+      "Bash(ls:*)",
+      "Bash(npm install:*)"
+    ]
+  }
+}

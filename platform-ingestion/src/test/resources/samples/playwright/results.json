@@ -1,0 +1,58 @@
+{
+  "config": { "rootDir": "/app/tests" },
+  "suites": [
+    {
+      "title": "Payment Flow",
+      "file": "tests/payment.spec.ts",
+      "specs": [
+        {
+          "title": "should complete checkout",
+          "ok": true,
+          "tests": [
+            {
+              "status": "expected",
+              "results": [
+                { "status": "passed", "duration": 1240, "retry": 0, "attachments": [] }
+              ]
+            }
+          ]
+        },
+        {
+          "title": "should apply discount code",
+          "ok": false,
+          "tests": [
+            {
+              "status": "unexpected",
+              "results": [
+                {
+                  "status": "failed",
+                  "duration": 3100,
+                  "retry": 0,
+                  "error": {
+                    "message": "Error: expect(received).toBe(expected)\n  Expected: 90\n  Received: 100",
+                    "stack": "Error: expect(received).toBe(expected)\n    at tests/payment.spec.ts:34:22"
+                  },
+                  "attachments": []
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "title": "should show order confirmation",
+          "ok": true,
+          "tests": [
+            {
+              "status": "expected",
+              "results": [
+                { "status": "skipped", "duration": 0, "retry": 0, "attachments": [] }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": { "expected": 1, "unexpected": 1, "skipped": 1, "duration": 4340 }
+}

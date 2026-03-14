@@ -1,0 +1,107 @@
+# platform-ci-templates/azure-devops/test-impact-analysis.yml
+#
+# Azure DevOps pipeline template for Test Impact Analysis.
+#
+# Usage — reference from your azure-pipelines.yml:
+#
+#   variables:
+#     PLATFORM_URL:        http://platform:8082
+#     PLATFORM_PROJECT_ID: $(platformProjectId)  # from variable group
+#
+#   stages:
+#     - stage: Test
+#       jobs:
+#         - job: SmartTest
+#           steps:
+#             - template: platform-ci-templates/azure-devops/test-impact-analysis.yml
+#               parameters:
+#                 platformUrl:    $(PLATFORM_URL)
+#                 projectId:      $(PLATFORM_PROJECT_ID)
+#                 apiKey:         $(PLATFORM_API_KEY)      # link from Key Vault / variable group (secret)
+#
+#             - script: |
+#                 if [ "$(TIA_RISK)" = "CRITICAL" ] || [ "$(TIA_SELECTED)" = "0" ]; then
+#                   mvn test
+#                 else
+#                   mvn test -Dtest="$(TIA_MAVEN_FILTER)"
+#                 fi
+#               displayName: Run tests
+
+parameters:
+  - name:    platformUrl
+    type:    string
+    default: ''
+  - name:    projectId
+    type:    string
+    default: ''
+  - name:    apiKey
+    type:    string
+    default: ''
+  - name:    baseRef
+    type:    string
+    default: origin/main
+  - name:    maxFiles
+    type:    number
+    default: 200
+
+steps:
+  - script: |
+      set -e
+
+      # Install jq if not present
+      which jq || sudo apt-get install -yq jq 2>/dev/null || true
+
+      # Fetch base branch for diff
+      git fetch origin "${{ parameters.baseRef }}" --depth=1 2>/dev/null || true
+
+      CHANGED=$(git diff --name-only "${{ parameters.baseRef }}" HEAD \
+        | grep -E '\.(java|kt|scala|ts|tsx|js|jsx|py|rb|go|cs)$' \
+        | head -${{ parameters.maxFiles }} \
+        | tr '\n' ',' | sed 's/,$//')
+
+      echo "##vso[task.setvariable variable=TIA_RISK]LOW"
+      echo "##vso[task.setvariable variable=TIA_SELECTED]0"
+      echo "##vso[task.setvariable variable=TIA_TOTAL]0"
+      echo "##vso[task.setvariable variable=TIA_REDUCTION]0%"
+      echo "##vso[task.setvariable variable=TIA_MAVEN_FILTER]"
+      echo "##vso[task.setvariable variable=TIA_GRADLE_FILTER]"
+
+      PLATFORM_URL="${{ parameters.platformUrl }}"
+      PROJECT_ID="${{ parameters.projectId }}"
+      API_KEY="${{ parameters.apiKey }}"
+
+      if [ -z "$CHANGED" ]; then
+        echo "##vso[task.logissue type=warning][TIA] No source files changed — full suite recommended"
+        exit 0
+      fi
+
+      if [ -z "$PLATFORM_URL" ] || [ -z "$PROJECT_ID" ]; then
+        echo "##vso[task.logissue type=warning][TIA] platformUrl or projectId not set — skipping"
+        exit 0
+      fi
+
+      PARAMS=$(echo "$CHANGED" | tr ',' '\n' | sed 's/.*/changedFiles=&/' | tr '\n' '&' | sed 's/&$//')
+
+      RESPONSE=$(curl -sf \
+        -H "X-API-Key: ${API_KEY}" \
+        "${PLATFORM_URL}/api/v1/analytics/${PROJECT_ID}/impact?${PARAMS}" \
+        || echo '{}')
+
+      SELECTED=$(echo "$RESPONSE"    | jq -r '.selectedTests // 0')
+      TOTAL=$(echo "$RESPONSE"       | jq -r '.totalTests // 0')
+      RISK=$(echo "$RESPONSE"        | jq -r '.riskLevel // "CRITICAL"')
+      REDUCTION=$(echo "$RESPONSE"   | jq -r '.estimatedReduction // "0%"')
+      MAVEN_F=$(echo "$RESPONSE"     | jq -r '.mavenFilter // ""')
+      GRADLE_F=$(echo "$RESPONSE"    | jq -r '.gradleFilter // ""')
+
+      echo "##vso[task.setvariable variable=TIA_RISK]${RISK}"
+      echo "##vso[task.setvariable variable=TIA_SELECTED]${SELECTED}"
+      echo "##vso[task.setvariable variable=TIA_TOTAL]${TOTAL}"
+      echo "##vso[task.setvariable variable=TIA_REDUCTION]${REDUCTION}"
+      echo "##vso[task.setvariable variable=TIA_MAVEN_FILTER]${MAVEN_F}"
+      echo "##vso[task.setvariable variable=TIA_GRADLE_FILTER]${GRADLE_F}"
+
+      echo "##[section][TIA] ${SELECTED}/${TOTAL} tests selected (${REDUCTION} reduction) risk=${RISK}"
+    displayName: '[TIA] Query Test Impact Analysis'
+    env:
+      PLATFORM_API_KEY: ${{ parameters.apiKey }}

@@ -1,0 +1,49 @@
+spring:
+  application:
+    name: platform-ai
+  datasource:
+    url: ${DATASOURCE_URL:jdbc:postgresql://localhost:5432/platform}
+    username: ${DATASOURCE_USERNAME:platform}
+    password: ${DATASOURCE_PASSWORD:platform}
+  jpa:
+    hibernate:
+      ddl-auto: none
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+  flyway:
+    locations: classpath:db/migration
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    consumer:
+      group-id: platform-ai
+      auto-offset-reset: earliest
+
+server:
+  port: 8084
+
+anthropic:
+  api-key: ${ANTHROPIC_API_KEY:}
+
+openai:
+  api-key: ${OPENAI_API_KEY:}
+  model: ${OPENAI_MODEL:gpt-4o}
+
+ai:
+  # Provider selection: "claude" (default) or "openai"
+  provider: ${AI_PROVIDER:claude}
+  batch:
+    cron: "0 0 2 * * *"
+  realtime:
+    # Set to true to classify failures immediately as they arrive via Kafka
+    enabled: ${AI_REALTIME_ENABLED:false}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,prometheus
+
+logging:
+  level:
+    com.platform: INFO

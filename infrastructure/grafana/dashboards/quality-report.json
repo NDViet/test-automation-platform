@@ -1,0 +1,676 @@
+{
+  "title": "Test Quality Report",
+  "uid": "test-quality-report",
+  "description": "Organization-wide quality intelligence: pass rates, flakiness, AI failure analysis, and trends.",
+  "tags": ["quality", "tests", "postgres"],
+  "schemaVersion": 39,
+  "version": 2,
+  "refresh": "1m",
+  "time": { "from": "now-7d", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "editable": true,
+  "graphTooltip": 1,
+
+  "templating": {
+    "list": [
+      {
+        "name": "team",
+        "label": "Team",
+        "type": "query",
+        "datasource": { "type": "postgres", "uid": "platform-postgres" },
+        "query": "SELECT slug FROM teams ORDER BY name",
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": "All",
+        "multi": false,
+        "sort": 1,
+        "current": { "text": "All", "value": "$__all" },
+        "hide": 0
+      },
+      {
+        "name": "project",
+        "label": "Project",
+        "type": "query",
+        "datasource": { "type": "postgres", "uid": "platform-postgres" },
+        "query": "SELECT p.slug FROM projects p JOIN teams t ON t.id = p.team_id WHERE '$team' = 'All' OR t.slug = '$team' ORDER BY p.name",
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": "All",
+        "multi": false,
+        "sort": 1,
+        "current": { "text": "All", "value": "$__all" },
+        "hide": 0
+      }
+    ]
+  },
+
+  "panels": [
+
+    {
+      "id": 1,
+      "type": "row",
+      "title": "Organization Overview",
+      "collapsed": false,
+      "gridPos": { "x": 0, "y": 0, "w": 24, "h": 1 }
+    },
+
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Test Runs",
+      "description": "Total test executions in the selected time range and scope.",
+      "gridPos": { "x": 0, "y": 1, "w": 6, "h": 4 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "value", "graphMode": "none", "justifyMode": "auto", "textMode": "auto", "orientation": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawQuery": true,
+          "rawSql": "SELECT count(*) AS \"Test Runs\" FROM test_executions te JOIN projects p ON p.id = te.project_id JOIN teams t ON t.id = p.team_id WHERE $__timeFilter(te.executed_at) AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project')",
+          "format": "table"
+        }
+      ]
+    },
+
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "Total Test Cases",
+      "description": "Sum of individual test cases executed.",
+      "gridPos": { "x": 6, "y": 1, "w": 6, "h": 4 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "value", "graphMode": "none", "justifyMode": "auto", "textMode": "auto", "orientation": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawQuery": true,
+          "rawSql": "SELECT SUM(te.total_tests) AS \"Total Tests\" FROM test_executions te JOIN projects p ON p.id = te.project_id JOIN teams t ON t.id = p.team_id WHERE $__timeFilter(te.executed_at) AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project')",
+          "format": "table"
+        }
+      ]
+    },
+
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Pass Rate",
+      "description": "Org-wide pass rate across all test executions in the time range.",
+      "gridPos": { "x": 12, "y": 1, "w": 6, "h": 4 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "background", "graphMode": "none", "justifyMode": "auto", "textMode": "auto", "orientation": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1,
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "orange", "value": 80 },
+              { "color": "green", "value": 95 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawQuery": true,
+          "rawSql": "SELECT ROUND(100.0 * SUM(te.passed) / NULLIF(SUM(te.total_tests), 0), 1) AS \"Pass Rate\" FROM test_executions te JOIN projects p ON p.id = te.project_id JOIN teams t ON t.id = p.team_id WHERE $__timeFilter(te.executed_at) AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project')",
+          "format": "table"
+        }
+      ]
+    },
+
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Flaky Tests",
+      "description": "Tests classified as FLAKY or CRITICAL_FLAKY.",
+      "gridPos": { "x": 18, "y": 1, "w": 6, "h": 4 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+        "colorMode": "background", "graphMode": "none", "justifyMode": "auto", "textMode": "auto", "orientation": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 1 },
+              { "color": "red", "value": 10 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawQuery": true,
+          "rawSql": "SELECT count(*) AS \"Flaky Tests\" FROM flakiness_scores fs JOIN projects p ON p.id = fs.project_id JOIN teams t ON t.id = p.team_id WHERE fs.classification IN ('FLAKY','CRITICAL_FLAKY') AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project')",
+          "format": "table"
+        }
+      ]
+    },
+
+    {
+      "id": 10,
+      "type": "row",
+      "title": "Team Breakdown",
+      "collapsed": false,
+      "gridPos": { "x": 0, "y": 5, "w": 24, "h": 1 }
+    },
+
+    {
+      "id": 11,
+      "type": "table",
+      "title": "Quality by Team",
+      "description": "Pass rate, test volume, and failure count per team.",
+      "gridPos": { "x": 0, "y": 6, "w": 12, "h": 8 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": { "footer": { "show": false }, "showHeader": true, "sortBy": [{ "displayName": "Pass Rate %", "desc": true }] },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Pass Rate %" }, "properties": [
+            { "id": "custom.width", "value": 110 },
+            { "id": "unit", "value": "none" },
+            { "id": "custom.displayMode", "value": "color-background" },
+            { "id": "color", "value": { "mode": "thresholds" } },
+            { "id": "thresholds", "value": { "mode": "absolute", "steps": [
+              { "color": "red", "value": null },
+              { "color": "orange", "value": 80 },
+              { "color": "green", "value": 95 }
+            ]}}
+          ]},
+          { "matcher": { "id": "byName", "options": "Failures" }, "properties": [
+            { "id": "custom.width", "value": 80 },
+            { "id": "custom.displayMode", "value": "color-text" },
+            { "id": "color", "value": { "mode": "thresholds" } },
+            { "id": "thresholds", "value": { "mode": "absolute", "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 1 },
+              { "color": "red", "value": 10 }
+            ]}}
+          ]}
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawQuery": true,
+          "rawSql": "SELECT t.name AS \"Team\", ROUND(100.0 * SUM(te.passed) / NULLIF(SUM(te.total_tests), 0), 1) AS \"Pass Rate %\", SUM(te.total_tests) AS \"Total Tests\", SUM(te.failed) AS \"Failures\", SUM(te.skipped) AS \"Skipped\", count(DISTINCT te.id) AS \"Runs\" FROM test_executions te JOIN projects p ON p.id = te.project_id JOIN teams t ON t.id = p.team_id WHERE $__timeFilter(te.executed_at) AND ('$team' = 'All' OR t.slug = '$team') GROUP BY t.name ORDER BY 2 DESC",
+          "format": "table"
+        }
+      ]
+    },
+
+    {
+      "id": 12,
+      "type": "bargauge",
+      "title": "Pass Rate by Team",
+      "description": "Horizontal bar gauge of pass rate per team.",
+      "gridPos": { "x": 12, "y": 6, "w": 12, "h": 8 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": true },
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "minVizWidth": 0,
+        "minVizHeight": 10,
+        "namePlacement": "auto",
+        "valueMode": "color"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "none",
+          "min": 0,
+          "max": 100,
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "orange", "value": 80 },
+              { "color": "green", "value": 95 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawQuery": true,
+          "rawSql": "SELECT t.name AS \"metric\", ROUND(100.0 * SUM(te.passed) / NULLIF(SUM(te.total_tests), 0), 1) AS \"Pass Rate %\" FROM test_executions te JOIN projects p ON p.id = te.project_id JOIN teams t ON t.id = p.team_id WHERE $__timeFilter(te.executed_at) AND ('$team' = 'All' OR t.slug = '$team') GROUP BY t.name ORDER BY 2 DESC",
+          "format": "table"
+        }
+      ]
+    },
+
+    {
+      "id": 20,
+      "type": "row",
+      "title": "Test Result Trends",
+      "collapsed": false,
+      "gridPos": { "x": 0, "y": 14, "w": 24, "h": 1 }
+    },
+
+    {
+      "id": 21,
+      "type": "timeseries",
+      "title": "Pass Rate Trend",
+      "description": "Pass rate over time bucketed by the dashboard time interval.",
+      "gridPos": { "x": 0, "y": 15, "w": 16, "h": 8 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": {
+        "tooltip": { "mode": "multi", "sort": "none" },
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "custom": { "lineWidth": 2, "fillOpacity": 15 },
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "orange", "value": 80 },
+              { "color": "green", "value": 95 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawQuery": true,
+          "rawSql": "SELECT $__timeGroup(te.executed_at, $__interval) AS time, ROUND(100.0 * SUM(te.passed) / NULLIF(SUM(te.total_tests), 0), 1) AS \"Pass Rate %\" FROM test_executions te JOIN projects p ON p.id = te.project_id JOIN teams t ON t.id = p.team_id WHERE $__timeFilter(te.executed_at) AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project') GROUP BY 1 ORDER BY 1",
+          "format": "time_series"
+        }
+      ]
+    },
+
+    {
+      "id": 22,
+      "type": "piechart",
+      "title": "Overall Status Distribution",
+      "description": "Breakdown of all test case results in the selected scope and time range.",
+      "gridPos": { "x": 16, "y": 15, "w": 8, "h": 8 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": {
+        "pieType": "donut",
+        "displayLabels": ["name", "percent"],
+        "legend": { "displayMode": "table", "placement": "right", "showLegend": true, "values": ["value", "percent"] }
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "PASSED" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "green" } }] },
+          { "matcher": { "id": "byName", "options": "FAILED" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } }] },
+          { "matcher": { "id": "byName", "options": "SKIPPED" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "yellow" } }] },
+          { "matcher": { "id": "byName", "options": "BROKEN" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "orange" } }] }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawQuery": true,
+          "rawSql": "SELECT tcr.status, count(*) AS count FROM test_case_results tcr JOIN test_executions te ON te.id = tcr.execution_id JOIN projects p ON p.id = te.project_id JOIN teams t ON t.id = p.team_id WHERE $__timeFilter(tcr.created_at) AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project') GROUP BY tcr.status ORDER BY count DESC",
+          "format": "table"
+        }
+      ]
+    },
+
+    {
+      "id": 30,
+      "type": "row",
+      "title": "Project / Module Breakdown",
+      "collapsed": false,
+      "gridPos": { "x": 0, "y": 23, "w": 24, "h": 1 }
+    },
+
+    {
+      "id": 31,
+      "type": "table",
+      "title": "Quality by Project",
+      "description": "Pass rate, failure count, and last run time per project (module).",
+      "gridPos": { "x": 0, "y": 24, "w": 24, "h": 8 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": { "footer": { "show": false }, "showHeader": true, "sortBy": [{ "displayName": "Pass Rate %", "desc": false }] },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Pass Rate %" }, "properties": [
+            { "id": "custom.width", "value": 110 },
+            { "id": "custom.displayMode", "value": "color-background" },
+            { "id": "color", "value": { "mode": "thresholds" } },
+            { "id": "thresholds", "value": { "mode": "absolute", "steps": [
+              { "color": "red", "value": null },
+              { "color": "orange", "value": 80 },
+              { "color": "green", "value": 95 }
+            ]}}
+          ]},
+          { "matcher": { "id": "byName", "options": "Failures" }, "properties": [
+            { "id": "custom.width", "value": 80 },
+            { "id": "custom.displayMode", "value": "color-text" },
+            { "id": "color", "value": { "mode": "thresholds" } },
+            { "id": "thresholds", "value": { "mode": "absolute", "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 1 },
+              { "color": "red", "value": 10 }
+            ]}}
+          ]},
+          { "matcher": { "id": "byName", "options": "Project" }, "properties": [{ "id": "custom.width", "value": 200 }] },
+          { "matcher": { "id": "byName", "options": "Team" }, "properties": [{ "id": "custom.width", "value": 140 }] }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawQuery": true,
+          "rawSql": "SELECT p.name AS \"Project\", t.name AS \"Team\", ROUND(100.0 * SUM(te.passed) / NULLIF(SUM(te.total_tests), 0), 1) AS \"Pass Rate %\", SUM(te.total_tests) AS \"Total Tests\", SUM(te.failed) AS \"Failures\", SUM(te.skipped) AS \"Skipped\", count(DISTINCT te.id) AS \"Runs\", MAX(te.executed_at) AS \"Last Run\" FROM test_executions te JOIN projects p ON p.id = te.project_id JOIN teams t ON t.id = p.team_id WHERE $__timeFilter(te.executed_at) AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project') GROUP BY p.name, t.name ORDER BY 3 ASC",
+          "format": "table"
+        }
+      ]
+    },
+
+    {
+      "id": 40,
+      "type": "row",
+      "title": "Flakiness Intelligence",
+      "collapsed": false,
+      "gridPos": { "x": 0, "y": 32, "w": 24, "h": 1 }
+    },
+
+    {
+      "id": 41,
+      "type": "piechart",
+      "title": "Flakiness Classification",
+      "description": "Distribution of test stability classifications from the flakiness scorer.",
+      "gridPos": { "x": 0, "y": 33, "w": 8, "h": 8 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": {
+        "pieType": "donut",
+        "displayLabels": ["name", "percent"],
+        "legend": { "displayMode": "table", "placement": "right", "showLegend": true, "values": ["value", "percent"] }
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "STABLE" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "green" } }] },
+          { "matcher": { "id": "byName", "options": "WATCH" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "yellow" } }] },
+          { "matcher": { "id": "byName", "options": "FLAKY" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "orange" } }] },
+          { "matcher": { "id": "byName", "options": "CRITICAL_FLAKY" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } }] }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawQuery": true,
+          "rawSql": "SELECT fs.classification, count(*) AS count FROM flakiness_scores fs JOIN projects p ON p.id = fs.project_id JOIN teams t ON t.id = p.team_id WHERE ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project') GROUP BY fs.classification ORDER BY CASE fs.classification WHEN 'STABLE' THEN 1 WHEN 'WATCH' THEN 2 WHEN 'FLAKY' THEN 3 ELSE 4 END",
+          "format": "table"
+        }
+      ]
+    },
+
+    {
+      "id": 42,
+      "type": "table",
+      "title": "Top 15 Flakiest Tests",
+      "description": "Tests with FLAKY or CRITICAL_FLAKY classification, sorted by flakiness score descending.",
+      "gridPos": { "x": 8, "y": 33, "w": 16, "h": 8 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": { "footer": { "show": false }, "showHeader": true, "sortBy": [{ "displayName": "Score", "desc": true }] },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Score" }, "properties": [
+            { "id": "custom.width", "value": 70 },
+            { "id": "decimals", "value": 2 },
+            { "id": "custom.displayMode", "value": "color-background" },
+            { "id": "color", "value": { "mode": "thresholds" } },
+            { "id": "thresholds", "value": { "mode": "absolute", "steps": [
+              { "color": "yellow", "value": null },
+              { "color": "orange", "value": 0.3 },
+              { "color": "red", "value": 0.6 }
+            ]}}
+          ]},
+          { "matcher": { "id": "byName", "options": "Classification" }, "properties": [{ "id": "custom.width", "value": 120 }] },
+          { "matcher": { "id": "byName", "options": "Test ID" }, "properties": [{ "id": "custom.width", "value": 300 }] },
+          { "matcher": { "id": "byName", "options": "Project" }, "properties": [{ "id": "custom.width", "value": 140 }] }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawQuery": true,
+          "rawSql": "SELECT fs.test_id AS \"Test ID\", p.name AS \"Project\", fs.classification AS \"Classification\", fs.score AS \"Score\", fs.failure_count AS \"Failures\", fs.total_runs AS \"Runs\", ROUND(fs.failure_rate * 100, 1) AS \"Fail Rate %\", fs.last_failed_at AS \"Last Failed\" FROM flakiness_scores fs JOIN projects p ON p.id = fs.project_id JOIN teams t ON t.id = p.team_id WHERE fs.classification IN ('FLAKY','CRITICAL_FLAKY') AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project') ORDER BY fs.score DESC LIMIT 15",
+          "format": "table"
+        }
+      ]
+    },
+
+    {
+      "id": 50,
+      "type": "row",
+      "title": "Failure Analysis (AI)",
+      "collapsed": false,
+      "gridPos": { "x": 0, "y": 41, "w": 24, "h": 1 }
+    },
+
+    {
+      "id": 51,
+      "type": "piechart",
+      "title": "Failure Root-Cause Categories",
+      "description": "AI-classified failure categories from the platform-ai service (Claude).",
+      "gridPos": { "x": 0, "y": 42, "w": 8, "h": 8 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": {
+        "pieType": "donut",
+        "displayLabels": ["name", "percent"],
+        "legend": { "displayMode": "table", "placement": "right", "showLegend": true, "values": ["value", "percent"] }
+      },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "APPLICATION_BUG" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } }] },
+          { "matcher": { "id": "byName", "options": "TEST_DEFECT" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "orange" } }] },
+          { "matcher": { "id": "byName", "options": "INFRASTRUCTURE" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "yellow" } }] },
+          { "matcher": { "id": "byName", "options": "FLAKY_TEST" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "purple" } }] },
+          { "matcher": { "id": "byName", "options": "UNKNOWN" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "grey" } }] }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawQuery": true,
+          "rawSql": "SELECT fa.category, count(*) AS count FROM failure_analyses fa JOIN projects p ON p.id = fa.project_id JOIN teams t ON t.id = p.team_id WHERE $__timeFilter(fa.analysed_at) AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project') GROUP BY fa.category ORDER BY count DESC",
+          "format": "table"
+        }
+      ]
+    },
+
+    {
+      "id": 52,
+      "type": "table",
+      "title": "Top Failing Tests",
+      "description": "Tests with most failures; includes AI root cause if available.",
+      "gridPos": { "x": 8, "y": 42, "w": 16, "h": 8 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": { "footer": { "show": false }, "showHeader": true, "sortBy": [{ "displayName": "Failures", "desc": true }] },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Failures" }, "properties": [
+            { "id": "custom.width", "value": 80 },
+            { "id": "custom.displayMode", "value": "color-background" },
+            { "id": "color", "value": { "mode": "thresholds" } },
+            { "id": "thresholds", "value": { "mode": "absolute", "steps": [
+              { "color": "orange", "value": null },
+              { "color": "red", "value": 5 }
+            ]}}
+          ]},
+          { "matcher": { "id": "byName", "options": "Test" }, "properties": [{ "id": "custom.width", "value": 300 }] },
+          { "matcher": { "id": "byName", "options": "Category" }, "properties": [{ "id": "custom.width", "value": 140 }] }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawQuery": true,
+          "rawSql": "SELECT COALESCE(tcr.display_name, tcr.method_name, tcr.test_id) AS \"Test\", p.name AS \"Project\", count(*) AS \"Failures\", MAX(fa.category) AS \"Category\", MAX(tcr.created_at) AS \"Last Failure\" FROM test_case_results tcr JOIN test_executions te ON te.id = tcr.execution_id JOIN projects p ON p.id = te.project_id JOIN teams t ON t.id = p.team_id LEFT JOIN failure_analyses fa ON fa.test_case_result_id = tcr.id WHERE tcr.status = 'FAILED' AND $__timeFilter(tcr.created_at) AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project') GROUP BY COALESCE(tcr.display_name, tcr.method_name, tcr.test_id), p.name ORDER BY 3 DESC LIMIT 15",
+          "format": "table"
+        }
+      ]
+    },
+
+    {
+      "id": 60,
+      "type": "row",
+      "title": "Analytics",
+      "collapsed": false,
+      "gridPos": { "x": 0, "y": 50, "w": 24, "h": 1 }
+    },
+
+    {
+      "id": 61,
+      "type": "timeseries",
+      "title": "Test Results Over Time",
+      "description": "Passed, failed, and skipped test counts bucketed by time interval.",
+      "gridPos": { "x": 0, "y": 51, "w": 12, "h": 8 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": {
+        "tooltip": { "mode": "multi", "sort": "none" },
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }
+      },
+      "fieldConfig": {
+        "defaults": { "custom": { "lineWidth": 2, "fillOpacity": 10 } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Passed" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "green" } }] },
+          { "matcher": { "id": "byName", "options": "Failed" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } }] },
+          { "matcher": { "id": "byName", "options": "Skipped" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "yellow" } }] }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawQuery": true,
+          "rawSql": "SELECT $__timeGroup(te.executed_at, $__interval) AS time, SUM(te.passed) AS \"Passed\", SUM(te.failed) AS \"Failed\", SUM(te.skipped) AS \"Skipped\" FROM test_executions te JOIN projects p ON p.id = te.project_id JOIN teams t ON t.id = p.team_id WHERE $__timeFilter(te.executed_at) AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project') GROUP BY 1 ORDER BY 1",
+          "format": "time_series"
+        }
+      ]
+    },
+
+    {
+      "id": 62,
+      "type": "timeseries",
+      "title": "Test Volume Growth",
+      "description": "Total test cases executed per time bucket — indicates growing or shrinking coverage.",
+      "gridPos": { "x": 12, "y": 51, "w": 12, "h": 8 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": {
+        "tooltip": { "mode": "single", "sort": "none" },
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }
+      },
+      "fieldConfig": {
+        "defaults": { "custom": { "lineWidth": 2, "fillOpacity": 20 }, "color": { "mode": "fixed", "fixedColor": "blue" } },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawQuery": true,
+          "rawSql": "SELECT $__timeGroup(te.executed_at, $__interval) AS time, SUM(te.total_tests) AS \"Total Tests\" FROM test_executions te JOIN projects p ON p.id = te.project_id JOIN teams t ON t.id = p.team_id WHERE $__timeFilter(te.executed_at) AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project') GROUP BY 1 ORDER BY 1",
+          "format": "time_series"
+        }
+      ]
+    },
+
+    {
+      "id": 70,
+      "type": "row",
+      "title": "Recent Test Runs",
+      "collapsed": false,
+      "gridPos": { "x": 0, "y": 59, "w": 24, "h": 1 }
+    },
+
+    {
+      "id": 71,
+      "type": "table",
+      "title": "Recent Executions",
+      "description": "Last 20 test runs with team, project, and result summary.",
+      "gridPos": { "x": 0, "y": 60, "w": 24, "h": 8 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": { "footer": { "show": false }, "showHeader": true },
+      "fieldConfig": {
+        "defaults": {},
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Run ID" }, "properties": [{ "id": "custom.width", "value": 240 }] },
+          { "matcher": { "id": "byName", "options": "Team" }, "properties": [{ "id": "custom.width", "value": 120 }] },
+          { "matcher": { "id": "byName", "options": "Project" }, "properties": [{ "id": "custom.width", "value": 140 }] },
+          { "matcher": { "id": "byName", "options": "Source" }, "properties": [{ "id": "custom.width", "value": 130 }] },
+          { "matcher": { "id": "byName", "options": "Env" }, "properties": [{ "id": "custom.width", "value": 90 }] },
+          { "matcher": { "id": "byName", "options": "Total" }, "properties": [{ "id": "custom.width", "value": 60 }] },
+          { "matcher": { "id": "byName", "options": "Passed" }, "properties": [
+            { "id": "custom.width", "value": 65 },
+            { "id": "custom.displayMode", "value": "color-text" },
+            { "id": "color", "value": { "mode": "fixed", "fixedColor": "green" } }
+          ]},
+          { "matcher": { "id": "byName", "options": "Failed" }, "properties": [
+            { "id": "custom.width", "value": 60 },
+            { "id": "custom.displayMode", "value": "color-text" },
+            { "id": "color", "value": { "mode": "thresholds" } },
+            { "id": "thresholds", "value": { "mode": "absolute", "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 1 }
+            ]}}
+          ]}
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "rawQuery": true,
+          "rawSql": "SELECT te.run_id AS \"Run ID\", t.name AS \"Team\", p.name AS \"Project\", te.source_format AS \"Source\", te.environment AS \"Env\", te.total_tests AS \"Total\", te.passed AS \"Passed\", te.failed AS \"Failed\", te.skipped AS \"Skipped\", te.executed_at AS \"Executed At\" FROM test_executions te JOIN projects p ON p.id = te.project_id JOIN teams t ON t.id = p.team_id WHERE $__timeFilter(te.executed_at) AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project') ORDER BY te.executed_at DESC LIMIT 20",
+          "format": "table"
+        }
+      ]
+    }
+
+  ]
+}

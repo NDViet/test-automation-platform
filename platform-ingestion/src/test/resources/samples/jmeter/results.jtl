@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testResults version="1.2">
+  <httpSample t="125" it="0" lt="120" ct="5" ts="1700000000000" s="true" lb="Homepage - GET /" rc="200" rm="OK" tn="ThreadGroup 1-1" dt="text" by="1240" sby="128" ng="1" na="10"/>
+  <httpSample t="89" it="0" lt="85" ct="4" ts="1700000000100" s="true" lb="Homepage - GET /" rc="200" rm="OK" tn="ThreadGroup 1-2" dt="text" by="1240" sby="128" ng="2" na="10"/>
+  <httpSample t="342" it="0" lt="335" ct="7" ts="1700000000200" s="true" lb="Login - POST /auth/login" rc="200" rm="OK" tn="ThreadGroup 1-1" dt="text" by="512" sby="256" ng="1" na="10"/>
+  <httpSample t="2100" it="0" lt="2095" ct="5" ts="1700000000300" s="false" lb="Login - POST /auth/login" rc="500" rm="Internal Server Error" tn="ThreadGroup 1-2" dt="text" by="256" sby="128" ng="2" na="10">
+    <responseData class="java.lang.String">Internal server error during authentication</responseData>
+  </httpSample>
+  <httpSample t="67" it="0" lt="63" ct="4" ts="1700000000400" s="true" lb="Homepage - GET /" rc="200" rm="OK" tn="ThreadGroup 1-3" dt="text" by="1240" sby="128" ng="3" na="10"/>
+  <httpSample t="450" it="0" lt="445" ct="5" ts="1700000000500" s="true" lb="Search - GET /search?q=test" rc="200" rm="OK" tn="ThreadGroup 1-1" dt="text" by="4096" sby="256" ng="1" na="10"/>
+  <httpSample t="510" it="0" lt="505" ct="5" ts="1700000000600" s="true" lb="Search - GET /search?q=test" rc="200" rm="OK" tn="ThreadGroup 1-2" dt="text" by="4096" sby="256" ng="2" na="10"/>
+  <httpSample t="1800" it="0" lt="1795" ct="5" ts="1700000000700" s="false" lb="Search - GET /search?q=test" rc="504" rm="Gateway Timeout" tn="ThreadGroup 1-3" dt="text" by="128" sby="128" ng="3" na="10"/>
+  <httpSample t="95" it="0" lt="91" ct="4" ts="1700000000800" s="true" lb="Add to Cart - POST /cart" rc="201" rm="Created" tn="ThreadGroup 1-1" dt="text" by="256" sby="192" ng="1" na="10"/>
+  <httpSample t="102" it="0" lt="98" ct="4" ts="1700000000900" s="true" lb="Add to Cart - POST /cart" rc="201" rm="Created" tn="ThreadGroup 1-2" dt="text" by="256" sby="192" ng="2" na="10"/>
+</testResults>

@@ -1,0 +1,11 @@
+{
+  "uuid": "ccc-333",
+  "historyId": "hist-ccc",
+  "name": "Should handle currency conversion",
+  "fullName": "com.example.PaymentTest#shouldHandleCurrency",
+  "status": "skipped",
+  "start": 1741334404000,
+  "stop":  1741334404000,
+  "labels": [{ "name": "feature", "value": "Payment" }],
+  "statusDetails": { "message": "Skipped: not implemented" }
+}

@@ -1,0 +1,37 @@
+{
+  "index_patterns": ["test_execution_logs-*"],
+  "template": {
+    "settings": {
+      "number_of_shards": 1,
+      "number_of_replicas": 0,
+      "index.refresh_interval": "5s"
+    },
+    "mappings": {
+      "dynamic": false,
+      "properties": {
+        "@timestamp":  { "type": "date" },
+        "level":       { "type": "keyword" },
+        "message":     { "type": "text", "analyzer": "standard",
+                         "fields": { "raw": { "type": "keyword" } } },
+        "logger":      { "type": "keyword" },
+        "thread":      { "type": "keyword" },
+
+        "run_id":      { "type": "keyword" },
+        "test_id":     { "type": "keyword" },
+        "team_id":     { "type": "keyword" },
+        "project_id":  { "type": "keyword" },
+        "trace_id":    { "type": "keyword" },
+        "test_method": { "type": "keyword" },
+        "test_class":  { "type": "keyword" },
+        "step":        { "type": "text",
+                         "fields": { "raw": { "type": "keyword" } } },
+
+        "hostname":    { "type": "keyword" },
+        "ci_provider": { "type": "keyword" },
+        "build_id":    { "type": "keyword" },
+
+        "stack_trace": { "type": "text" }
+      }
+    }
+  }
+}

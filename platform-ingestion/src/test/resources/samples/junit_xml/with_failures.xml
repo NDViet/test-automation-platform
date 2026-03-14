@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.example.CheckoutTest" tests="4" failures="1" errors="1" skipped="1" time="3.100">
+    <testcase classname="com.example.CheckoutTest" name="shouldCompleteCheckout" time="0.800"/>
+    <testcase classname="com.example.CheckoutTest" name="shouldApplyCoupon" time="0.600">
+        <failure message="Expected 10.00 but was 12.00">
+            org.junit.AssertionError: Expected 10.00 but was 12.00
+                at com.example.CheckoutTest.shouldApplyCoupon(CheckoutTest.java:42)
+        </failure>
+    </testcase>
+    <testcase classname="com.example.CheckoutTest" name="shouldHandleOutOfStock" time="0.100">
+        <skipped/>
+    </testcase>
+    <testcase classname="com.example.CheckoutTest" name="shouldTimeoutGracefully" time="1.600">
+        <error message="Connection timed out">
+            java.net.SocketTimeoutException: Connection timed out
+                at com.example.CheckoutTest.shouldTimeoutGracefully(CheckoutTest.java:78)
+        </error>
+    </testcase>
+</testsuite>

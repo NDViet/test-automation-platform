@@ -1,0 +1,27 @@
+{
+  "name": "@platform/playwright-reporter",
+  "version": "1.0.0",
+  "description": "Playwright reporter that publishes test results to the Test Automation Platform",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc",
+    "build:watch": "tsc --watch",
+    "test": "node --experimental-vm-modules node_modules/.bin/jest",
+    "lint": "eslint src --ext .ts"
+  },
+  "peerDependencies": {
+    "@playwright/test": ">=1.40.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.51.0",
+    "@types/node": "^22.0.0",
+    "typescript": "~5.8.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": ["playwright", "reporter", "test-automation", "platform"],
+  "license": "MIT"
+}
