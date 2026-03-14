@@ -1,0 +1,443 @@
+{
+  "__inputs": [
+    {
+      "name": "DS_OPENSEARCH",
+      "label": "OpenSearch",
+      "description": "Test execution logs datasource",
+      "type": "datasource",
+      "pluginId": "grafana-opensearch-datasource",
+      "pluginName": "OpenSearch"
+    }
+  ],
+  "__requires": [
+    { "type": "grafana",    "id": "grafana",                      "name": "Grafana",    "version": "10.0.0" },
+    { "type": "datasource", "id": "grafana-opensearch-datasource", "name": "OpenSearch", "version": "2.0.0" },
+    { "type": "panel",      "id": "logs",                         "name": "Logs",       "version": "" },
+    { "type": "panel",      "id": "stat",                         "name": "Stat",       "version": "" },
+    { "type": "panel",      "id": "timeseries",                   "name": "Time series","version": "" },
+    { "type": "panel",      "id": "piechart",                     "name": "Pie chart",  "version": "" }
+  ],
+  "annotations": { "list": [] },
+  "description": "Test execution logs from OpenSearch — filter by run_id, team, project, or log level",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [],
+  "panels": [
+
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 100,
+      "title": "Run summary",
+      "type": "row"
+    },
+
+    {
+      "datasource": { "type": "grafana-opensearch-datasource", "uid": "opensearch" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "text",  "value": null },
+              { "color": "green", "value": 1 }
+            ]
+          },
+          "mappings": []
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 1 },
+      "id": 1,
+      "options": { "reduceOptions": { "calcs": ["sum"] }, "orientation": "auto", "textMode": "value_and_name", "colorMode": "background", "graphMode": "none" },
+      "title": "Total log lines",
+      "type": "stat",
+      "targets": [
+        {
+          "datasource": { "type": "grafana-opensearch-datasource", "uid": "opensearch" },
+          "query": "run_id:\"$run_id\"",
+          "queryType": "lucene",
+          "metrics": [{ "id": "1", "type": "count" }],
+          "timeField": "@timestamp",
+          "bucketAggs": [
+            { "id": "2", "type": "date_histogram", "field": "@timestamp", "settings": { "interval": "auto", "min_doc_count": "0" } }
+          ],
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "datasource": { "type": "grafana-opensearch-datasource", "uid": "opensearch" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "orange", "value": 1 },
+              { "color": "red",   "value": 10 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 1 },
+      "id": 2,
+      "options": { "reduceOptions": { "calcs": ["sum"] }, "orientation": "auto", "textMode": "value_and_name", "colorMode": "background", "graphMode": "none" },
+      "title": "ERROR lines",
+      "type": "stat",
+      "targets": [
+        {
+          "datasource": { "type": "grafana-opensearch-datasource", "uid": "opensearch" },
+          "query": "run_id:\"$run_id\" AND level:ERROR",
+          "queryType": "lucene",
+          "metrics": [{ "id": "1", "type": "count" }],
+          "timeField": "@timestamp",
+          "bucketAggs": [
+            { "id": "2", "type": "date_histogram", "field": "@timestamp", "settings": { "interval": "auto", "min_doc_count": "0" } }
+          ],
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "datasource": { "type": "grafana-opensearch-datasource", "uid": "opensearch" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green",  "value": null },
+              { "color": "yellow", "value": 1 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 1 },
+      "id": 3,
+      "options": { "reduceOptions": { "calcs": ["sum"] }, "orientation": "auto", "textMode": "value_and_name", "colorMode": "background", "graphMode": "none" },
+      "title": "WARN lines",
+      "type": "stat",
+      "targets": [
+        {
+          "datasource": { "type": "grafana-opensearch-datasource", "uid": "opensearch" },
+          "query": "run_id:\"$run_id\" AND level:WARN",
+          "queryType": "lucene",
+          "metrics": [{ "id": "1", "type": "count" }],
+          "timeField": "@timestamp",
+          "bucketAggs": [
+            { "id": "2", "type": "date_histogram", "field": "@timestamp", "settings": { "interval": "auto", "min_doc_count": "0" } }
+          ],
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "datasource": { "type": "grafana-opensearch-datasource", "uid": "opensearch" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "text", "value": null }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "gridPos": { "h": 4, "w": 12, "x": 12, "y": 1 },
+      "id": 4,
+      "options": { "reduceOptions": { "calcs": ["max"] }, "orientation": "auto", "textMode": "value_and_name", "colorMode": "none", "graphMode": "none" },
+      "title": "Distinct test_ids in run",
+      "type": "stat",
+      "targets": [
+        {
+          "datasource": { "type": "grafana-opensearch-datasource", "uid": "opensearch" },
+          "query": "run_id:\"$run_id\"",
+          "queryType": "lucene",
+          "metrics": [{ "id": "1", "type": "cardinality", "field": "test_id" }],
+          "timeField": "@timestamp",
+          "bucketAggs": [
+            { "id": "2", "type": "date_histogram", "field": "@timestamp", "settings": { "interval": "auto", "min_doc_count": "0" } }
+          ],
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+      "id": 101,
+      "title": "Log volume over time",
+      "type": "row"
+    },
+
+    {
+      "datasource": { "type": "grafana-opensearch-datasource", "uid": "opensearch" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "palette-classic" },
+          "custom": { "lineWidth": 1, "fillOpacity": 10 }
+        },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "ERROR" }, "properties": [ { "id": "color", "value": { "fixedColor": "red",    "mode": "fixed" } } ] },
+          { "matcher": { "id": "byName", "options": "WARN"  }, "properties": [ { "id": "color", "value": { "fixedColor": "orange", "mode": "fixed" } } ] },
+          { "matcher": { "id": "byName", "options": "INFO"  }, "properties": [ { "id": "color", "value": { "fixedColor": "green",  "mode": "fixed" } } ] }
+        ]
+      },
+      "gridPos": { "h": 7, "w": 18, "x": 0, "y": 6 },
+      "id": 5,
+      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "list", "placement": "bottom" } },
+      "title": "Log lines per minute — by level",
+      "type": "timeseries",
+      "targets": [
+        {
+          "datasource": { "type": "grafana-opensearch-datasource", "uid": "opensearch" },
+          "query": "run_id:\"$run_id\"",
+          "queryType": "lucene",
+          "metrics": [{ "id": "1", "type": "count" }],
+          "timeField": "@timestamp",
+          "bucketAggs": [
+            { "id": "2", "type": "terms",       "field": "level",       "settings": { "size": "10", "order": "desc", "orderBy": "1" } },
+            { "id": "3", "type": "date_histogram", "field": "@timestamp", "settings": { "interval": "auto", "min_doc_count": "0" } }
+          ],
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "datasource": { "type": "grafana-opensearch-datasource", "uid": "opensearch" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" } },
+        "overrides": []
+      },
+      "gridPos": { "h": 7, "w": 6, "x": 18, "y": 6 },
+      "id": 6,
+      "options": { "pieType": "pie", "tooltip": { "mode": "single" }, "legend": { "displayMode": "list", "placement": "bottom" } },
+      "title": "Lines by level",
+      "type": "piechart",
+      "targets": [
+        {
+          "datasource": { "type": "grafana-opensearch-datasource", "uid": "opensearch" },
+          "query": "run_id:\"$run_id\"",
+          "queryType": "lucene",
+          "metrics": [{ "id": "1", "type": "count" }],
+          "timeField": "@timestamp",
+          "bucketAggs": [
+            { "id": "2", "type": "terms", "field": "level", "settings": { "size": "10", "order": "desc", "orderBy": "1" } }
+          ],
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 13 },
+      "id": 102,
+      "title": "Full log stream",
+      "type": "row"
+    },
+
+    {
+      "datasource": { "type": "grafana-opensearch-datasource", "uid": "opensearch" },
+      "gridPos": { "h": 20, "w": 24, "x": 0, "y": 14 },
+      "id": 7,
+      "options": {
+        "showTime": true,
+        "showLabels": true,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": false,
+        "enableLogDetails": true,
+        "dedupStrategy": "none",
+        "sortOrder": "Ascending"
+      },
+      "title": "Logs — run: $run_id  |  test: $test_id  |  level: $log_level",
+      "type": "logs",
+      "targets": [
+        {
+          "datasource": { "type": "grafana-opensearch-datasource", "uid": "opensearch" },
+          "query": "run_id:\"$run_id\" $test_id_filter $level_filter",
+          "queryType": "lucene",
+          "metrics": [{ "id": "1", "type": "logs" }],
+          "timeField": "@timestamp",
+          "bucketAggs": [],
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 34 },
+      "id": 103,
+      "title": "Errors & warnings detail",
+      "type": "row"
+    },
+
+    {
+      "datasource": { "type": "grafana-opensearch-datasource", "uid": "opensearch" },
+      "gridPos": { "h": 12, "w": 24, "x": 0, "y": 35 },
+      "id": 8,
+      "options": {
+        "showTime": true,
+        "showLabels": true,
+        "showCommonLabels": false,
+        "wrapLogMessage": true,
+        "prettifyLogMessage": false,
+        "enableLogDetails": true,
+        "dedupStrategy": "none",
+        "sortOrder": "Ascending"
+      },
+      "title": "Errors and warnings only",
+      "type": "logs",
+      "targets": [
+        {
+          "datasource": { "type": "grafana-opensearch-datasource", "uid": "opensearch" },
+          "query": "run_id:\"$run_id\" AND level:(ERROR OR WARN) $test_id_filter",
+          "queryType": "lucene",
+          "metrics": [{ "id": "1", "type": "logs" }],
+          "timeField": "@timestamp",
+          "bucketAggs": [],
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 47 },
+      "id": 104,
+      "title": "Per-test breakdown",
+      "type": "row"
+    },
+
+    {
+      "datasource": { "type": "grafana-opensearch-datasource", "uid": "opensearch" },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" }, "custom": { "lineWidth": 1, "fillOpacity": 10 } },
+        "overrides": []
+      },
+      "gridPos": { "h": 8, "w": 24, "x": 0, "y": 48 },
+      "id": 9,
+      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "list", "placement": "right" } },
+      "title": "Log lines per test_id (top 20)",
+      "type": "timeseries",
+      "targets": [
+        {
+          "datasource": { "type": "grafana-opensearch-datasource", "uid": "opensearch" },
+          "query": "run_id:\"$run_id\" AND level:(ERROR OR WARN)",
+          "queryType": "lucene",
+          "metrics": [{ "id": "1", "type": "count" }],
+          "timeField": "@timestamp",
+          "bucketAggs": [
+            { "id": "2", "type": "terms",          "field": "test_id",     "settings": { "size": "20", "order": "desc", "orderBy": "1" } },
+            { "id": "3", "type": "date_histogram", "field": "@timestamp",  "settings": { "interval": "auto" } }
+          ],
+          "refId": "A"
+        }
+      ]
+    }
+
+  ],
+
+  "refresh": "30s",
+  "schemaVersion": 38,
+  "tags": ["test-logs", "opensearch"],
+  "templating": {
+    "list": [
+
+      {
+        "current": {},
+        "datasource": { "type": "grafana-opensearch-datasource", "uid": "opensearch" },
+        "definition": "{\"find\":\"terms\",\"field\":\"run_id\",\"query\":\"*\",\"size\":50}",
+        "hide": 0,
+        "includeAll": false,
+        "label": "Run ID",
+        "multi": false,
+        "name": "run_id",
+        "options": [],
+        "query": "{\"find\":\"terms\",\"field\":\"run_id\",\"query\":\"*\",\"size\":50}",
+        "refresh": 2,
+        "sort": 1,
+        "type": "query",
+        "description": "Suite-level run ID — all tests in one mvn test invocation share this"
+      },
+
+      {
+        "current": { "selected": true, "text": "All", "value": "" },
+        "datasource": { "type": "grafana-opensearch-datasource", "uid": "opensearch" },
+        "definition": "{\"find\":\"terms\",\"field\":\"test_id\",\"query\":\"run_id:\\\"$run_id\\\"\",\"size\":200}",
+        "hide": 0,
+        "includeAll": true,
+        "label": "Test / Scenario",
+        "multi": false,
+        "name": "test_id",
+        "options": [],
+        "query": "{\"find\":\"terms\",\"field\":\"test_id\",\"query\":\"run_id:\\\"$run_id\\\"\",\"size\":200}",
+        "refresh": 2,
+        "sort": 1,
+        "type": "query",
+        "description": "Scope log stream to a single scenario or JUnit method"
+      },
+
+      {
+        "current": { "selected": true, "text": "All", "value": "All" },
+        "hide": 0,
+        "includeAll": true,
+        "label": "Log Level",
+        "multi": false,
+        "name": "log_level",
+        "options": [
+          { "selected": true, "text": "All",   "value": "All"   },
+          { "selected": false,"text": "INFO",  "value": "INFO"  },
+          { "selected": false,"text": "WARN",  "value": "WARN"  },
+          { "selected": false,"text": "ERROR", "value": "ERROR" },
+          { "selected": false,"text": "DEBUG", "value": "DEBUG" }
+        ],
+        "query": "All,INFO,WARN,ERROR,DEBUG",
+        "type": "custom"
+      },
+
+      {
+        "current": { "selected": true, "text": "", "value": "" },
+        "description": "Lucene snippet injected into log stream query — leave blank for all tests",
+        "hide": 2,
+        "label": "test_id filter (internal)",
+        "name": "test_id_filter",
+        "query": "${test_id:raw}",
+        "type": "constant"
+      },
+
+      {
+        "current": { "selected": true, "text": "", "value": "" },
+        "description": "Level filter injected into log stream query — blank = all levels",
+        "hide": 2,
+        "label": "level filter (internal)",
+        "name": "level_filter",
+        "query": "${log_level:raw}",
+        "type": "constant"
+      }
+
+    ]
+  },
+  "time": { "from": "now-3h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "Test Execution Logs",
+  "uid": "test-execution-logs",
+  "version": 2
+}

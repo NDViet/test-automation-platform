@@ -1,0 +1,20 @@
+<configuration>
+
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} [%thread] %-5level %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- Suppress noisy third-party loggers -->
+    <logger name="io.cucumber"            level="WARN"/>
+    <logger name="io.github.bonigarcia"   level="WARN"/>
+    <logger name="org.openqa.selenium"    level="WARN"/>
+    <logger name="org.testng"             level="WARN"/>
+    <logger name="com.platform"           level="INFO"/>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+    </root>
+
+</configuration>

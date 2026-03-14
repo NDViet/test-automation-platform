@@ -1,0 +1,133 @@
+# platform-ci-templates/github-actions/test-impact-analysis.yml
+#
+# Composite action: run Test Impact Analysis and export Maven/Gradle filter strings.
+#
+# Usage in your workflow:
+#
+#   steps:
+#     - uses: actions/checkout@v4
+#       with:
+#         fetch-depth: 0          # required: needs full history for git diff
+#
+#     - name: Test Impact Analysis
+#       id: tia
+#       uses: ./.github/actions/test-impact-analysis   # copy this file there
+#       with:
+#         platform-url:    ${{ vars.PLATFORM_URL }}        # e.g. http://platform:8082
+#         api-key:         ${{ secrets.PLATFORM_API_KEY }}
+#         project-id:      ${{ vars.PLATFORM_PROJECT_ID }}
+#         base-ref:        ${{ github.event.pull_request.base.sha || 'origin/main' }}
+#
+#     - name: Run impacted tests (Maven)
+#       if: steps.tia.outputs.risk-level != 'CRITICAL' && steps.tia.outputs.selected-tests != '0'
+#       run: mvn test -Dtest="${{ steps.tia.outputs.maven-filter }}"
+#
+#     - name: Run full suite (fallback for CRITICAL risk or no mappings)
+#       if: steps.tia.outputs.risk-level == 'CRITICAL' || steps.tia.outputs.selected-tests == '0'
+#       run: mvn test
+
+name: Test Impact Analysis
+description: Query the platform to determine which tests are affected by the current PR changes.
+
+inputs:
+  platform-url:
+    description: Base URL of the platform analytics service (e.g. http://platform:8082)
+    required: true
+  api-key:
+    description: Platform API key (X-API-Key header)
+    required: false
+    default: ''
+  project-id:
+    description: Platform project UUID or slug
+    required: true
+  base-ref:
+    description: Git ref to diff against (base branch SHA or branch name)
+    required: false
+    default: 'origin/main'
+  max-reduction:
+    description: |
+      Maximum allowed test reduction percentage (0-100).
+      If TIA recommends more reduction than this threshold, fall back to full suite.
+    required: false
+    default: '90'
+
+outputs:
+  recommended-tests:
+    description: Comma-separated list of recommended test IDs
+    value: ${{ steps.query.outputs.recommended-tests }}
+  maven-filter:
+    description: Maven Surefire -Dtest= filter string
+    value: ${{ steps.query.outputs.maven-filter }}
+  gradle-filter:
+    description: Gradle --tests filter string
+    value: ${{ steps.query.outputs.gradle-filter }}
+  selected-tests:
+    description: Number of tests selected
+    value: ${{ steps.query.outputs.selected-tests }}
+  total-tests:
+    description: Total number of mapped tests
+    value: ${{ steps.query.outputs.total-tests }}
+  estimated-reduction:
+    description: Estimated CI time reduction (e.g. "74%")
+    value: ${{ steps.query.outputs.estimated-reduction }}
+  risk-level:
+    description: Risk level (LOW / MEDIUM / HIGH / CRITICAL)
+    value: ${{ steps.query.outputs.risk-level }}
+
+runs:
+  using: composite
+  steps:
+    - name: Get changed files
+      id: changed
+      shell: bash
+      run: |
+        CHANGED=$(git diff --name-only "${{ inputs.base-ref }}" HEAD \
+          | grep -E '\.(java|kt|scala|ts|tsx|js|jsx|py|rb|go|cs)$' \
+          | head -200 \
+          | tr '\n' ',' \
+          | sed 's/,$//')
+        echo "files=${CHANGED}" >> "$GITHUB_OUTPUT"
+        echo "::notice::Changed source files: $(echo $CHANGED | tr ',' '\n' | wc -l)"
+
+    - name: Query Test Impact Analysis
+      id: query
+      shell: bash
+      env:
+        PLATFORM_URL: ${{ inputs.platform-url }}
+        PROJECT_ID:   ${{ inputs.project-id }}
+        API_KEY:      ${{ inputs.api-key }}
+        CHANGED:      ${{ steps.changed.outputs.files }}
+      run: |
+        if [ -z "$CHANGED" ]; then
+          echo "No source files changed — running full suite"
+          echo "selected-tests=0" >> "$GITHUB_OUTPUT"
+          echo "risk-level=LOW" >> "$GITHUB_OUTPUT"
+          echo "estimated-reduction=0%" >> "$GITHUB_OUTPUT"
+          exit 0
+        fi
+
+        # Build query params
+        PARAMS=$(echo "$CHANGED" | tr ',' '\n' | sed 's/.*/changedFiles=&/' | tr '\n' '&' | sed 's/&$//')
+
+        RESPONSE=$(curl -sf \
+          -H "X-API-Key: ${API_KEY}" \
+          "${PLATFORM_URL}/api/v1/analytics/${PROJECT_ID}/impact?${PARAMS}" \
+          || echo '{}')
+
+        SELECTED=$(echo "$RESPONSE"    | jq -r '.selectedTests // 0')
+        TOTAL=$(echo "$RESPONSE"       | jq -r '.totalTests // 0')
+        REDUCTION=$(echo "$RESPONSE"   | jq -r '.estimatedReduction // "0%"')
+        RISK=$(echo "$RESPONSE"        | jq -r '.riskLevel // "CRITICAL"')
+        MAVEN_F=$(echo "$RESPONSE"     | jq -r '.mavenFilter // ""')
+        GRADLE_F=$(echo "$RESPONSE"    | jq -r '.gradleFilter // ""')
+        TESTS=$(echo "$RESPONSE"       | jq -r '.recommendedTests // [] | join(",")')
+
+        echo "selected-tests=${SELECTED}"    >> "$GITHUB_OUTPUT"
+        echo "total-tests=${TOTAL}"          >> "$GITHUB_OUTPUT"
+        echo "estimated-reduction=${REDUCTION}" >> "$GITHUB_OUTPUT"
+        echo "risk-level=${RISK}"            >> "$GITHUB_OUTPUT"
+        echo "maven-filter=${MAVEN_F}"       >> "$GITHUB_OUTPUT"
+        echo "gradle-filter=${GRADLE_F}"     >> "$GITHUB_OUTPUT"
+        echo "recommended-tests=${TESTS}"    >> "$GITHUB_OUTPUT"
+
+        echo "::notice::TIA: ${SELECTED}/${TOTAL} tests (${REDUCTION} reduction) risk=${RISK}"

@@ -1,0 +1,104 @@
+groups:
+  - name: platform-quality-alerts
+    interval: 60s
+    rules:
+
+      # --- Pass Rate ---
+
+      - alert: TeamPassRateDropped
+        expr: |
+          (
+            platform_quality_gate_pass_rate < 0.80
+          )
+        for: 5m
+        labels:
+          severity: high
+        annotations:
+          summary: "Pass rate below 80% for {{ $labels.team }}/{{ $labels.project }}"
+          description: >
+            The test pass rate for project {{ $labels.project }} (team {{ $labels.team }},
+            branch {{ $labels.branch }}) dropped to {{ $value | humanizePercentage }},
+            which is below the 80% threshold.
+            Investigate recent failures and consider blocking deployments.
+
+      - alert: MainBranchPassRateCritical
+        expr: |
+          (
+            platform_quality_gate_pass_rate{branch="main"} < 0.60
+          )
+        for: 2m
+        labels:
+          severity: critical
+          branch: main
+        annotations:
+          summary: "CRITICAL: Main branch pass rate below 60% for {{ $labels.project }}"
+          description: >
+            The main branch pass rate for project {{ $labels.project }} (team {{ $labels.team }})
+            is {{ $value | humanizePercentage }}. This is a critical threshold breach.
+            Halt deployments and investigate immediately.
+
+      # --- Flakiness ---
+
+      - alert: HighFlakinessDetected
+        expr: |
+          (
+            platform_flakiness_critical_count > 5
+          )
+        for: 10m
+        labels:
+          severity: medium
+        annotations:
+          summary: "More than 5 CRITICAL_FLAKY tests in {{ $labels.application }}"
+          description: >
+            {{ $value }} tests are classified as CRITICAL_FLAKY in {{ $labels.application }}.
+            Review the flakiness dashboard and prioritise stabilisation.
+
+      - alert: FlakinessScoreSpiked
+        expr: |
+          (
+            platform_flakiness_watch_count > 20
+          )
+        for: 15m
+        labels:
+          severity: low
+        annotations:
+          summary: "High number of WATCH-level flaky tests"
+          description: >
+            {{ $value }} tests have entered the WATCH flakiness band in
+            {{ $labels.application }}. Monitor for escalation to FLAKY.
+
+      # --- Failure Spikes ---
+
+      - alert: FailureSpike
+        expr: |
+          (
+            increase(ingestion_tests_failed_total[10m]) > 10
+          )
+        for: 0m
+        labels:
+          severity: high
+        annotations:
+          summary: "Failure spike detected in {{ $labels.application }}"
+          description: >
+            {{ $value }} test failures were ingested in the last 10 minutes by
+            {{ $labels.application }}. Check the test dashboard for the root cause.
+
+      # --- Service Health ---
+
+      - alert: IngestionServiceDown
+        expr: up{job="platform-ingestion"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "platform-ingestion is down"
+          description: "The ingestion service has been unreachable for more than 2 minutes."
+
+      - alert: AnalyticsServiceDown
+        expr: up{job="platform-analytics"} == 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "platform-analytics is down"
+          description: "The analytics service has been unreachable for more than 2 minutes."

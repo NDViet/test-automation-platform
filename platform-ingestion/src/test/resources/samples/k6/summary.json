@@ -1,0 +1,74 @@
+{
+  "root_group": {
+    "name": "",
+    "path": "",
+    "id": "d41d8cd98f00b204e9800998ecf8427e",
+    "groups": [
+      {
+        "name": "Homepage",
+        "path": "::Homepage",
+        "id": "homepage",
+        "groups": [],
+        "checks": [
+          {
+            "name": "status is 200",
+            "path": "::Homepage::status is 200",
+            "id": "status_200",
+            "passes": 100,
+            "fails": 0
+          },
+          {
+            "name": "response time < 500ms",
+            "path": "::Homepage::response time < 500ms",
+            "id": "response_time",
+            "passes": 95,
+            "fails": 5
+          }
+        ]
+      },
+      {
+        "name": "Login",
+        "path": "::Login",
+        "id": "login",
+        "groups": [],
+        "checks": [
+          {
+            "name": "status is 200",
+            "path": "::Login::status is 200",
+            "id": "login_status",
+            "passes": 50,
+            "fails": 0
+          }
+        ]
+      }
+    ],
+    "checks": [
+      {
+        "name": "health check passed",
+        "path": "::health check passed",
+        "id": "health_check",
+        "passes": 10,
+        "fails": 0
+      }
+    ]
+  },
+  "metrics": {
+    "http_req_duration": {
+      "avg": 123.45,
+      "min": 45.2,
+      "med": 110.0,
+      "max": 980.5,
+      "p(90)": 350.0,
+      "p(95)": 500.0
+    },
+    "http_reqs": {
+      "count": 160,
+      "rate": 10.5
+    },
+    "vus": {
+      "value": 10,
+      "min": 1,
+      "max": 10
+    }
+  }
+}

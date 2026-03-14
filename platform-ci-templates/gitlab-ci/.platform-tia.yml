@@ -1,0 +1,76 @@
+# platform-ci-templates/gitlab-ci/.platform-tia.yml
+#
+# GitLab CI template for Test Impact Analysis.
+#
+# Usage — include in your .gitlab-ci.yml:
+#
+#   include:
+#     - project: your-org/test-automation-platform
+#       file: platform-ci-templates/gitlab-ci/.platform-tia.yml
+#       ref: main
+#
+#   variables:
+#     PLATFORM_URL:        http://platform:8082
+#     PLATFORM_PROJECT_ID: <your-project-uuid>
+#     # PLATFORM_API_KEY set as CI/CD masked variable in project settings
+#
+#   test:smart:
+#     extends: .platform-tia
+#     script:
+#       - |
+#         if [ "$TIA_RISK" = "CRITICAL" ] || [ "$TIA_SELECTED" = "0" ]; then
+#           mvn test   # full suite
+#         else
+#           mvn test -Dtest="$TIA_MAVEN_FILTER"
+#         fi
+
+.platform-tia:
+  stage: test
+  variables:
+    PLATFORM_URL:        ""          # override in project CI/CD variables
+    PLATFORM_PROJECT_ID: ""          # override in project CI/CD variables
+    PLATFORM_API_KEY:    ""          # set as masked CI/CD variable — never in code
+    TIA_BASE_REF:        "origin/$CI_DEFAULT_BRANCH"
+    TIA_MAX_FILES:       "200"
+
+  before_script:
+    - |
+      # Install jq if not present
+      which jq || (apt-get update -qq && apt-get install -yq jq) 2>/dev/null || true
+
+      # Get changed source files vs. base branch
+      git fetch origin "$CI_DEFAULT_BRANCH" --depth=1 2>/dev/null || true
+      CHANGED=$(git diff --name-only "$TIA_BASE_REF" HEAD \
+        | grep -E '\.(java|kt|scala|ts|tsx|js|jsx|py|rb|go|cs)$' \
+        | head -$TIA_MAX_FILES \
+        | tr '\n' ',' \
+        | sed 's/,$//')
+
+      export TIA_SELECTED=0
+      export TIA_TOTAL=0
+      export TIA_RISK=LOW
+      export TIA_REDUCTION="0%"
+      export TIA_MAVEN_FILTER=""
+      export TIA_GRADLE_FILTER=""
+
+      if [ -z "$CHANGED" ]; then
+        echo "[TIA] No source files changed — full suite will run"
+      elif [ -z "$PLATFORM_URL" ] || [ -z "$PLATFORM_PROJECT_ID" ]; then
+        echo "[TIA] PLATFORM_URL or PLATFORM_PROJECT_ID not set — skipping TIA"
+      else
+        PARAMS=$(echo "$CHANGED" | tr ',' '\n' | sed 's/.*/changedFiles=&/' | tr '\n' '&' | sed 's/&$//')
+        RESPONSE=$(curl -sf \
+          -H "X-API-Key: ${PLATFORM_API_KEY}" \
+          "${PLATFORM_URL}/api/v1/analytics/${PLATFORM_PROJECT_ID}/impact?${PARAMS}" || echo '{}')
+
+        TIA_SELECTED=$(echo "$RESPONSE"    | jq -r '.selectedTests // 0')
+        TIA_TOTAL=$(echo "$RESPONSE"       | jq -r '.totalTests // 0')
+        TIA_RISK=$(echo "$RESPONSE"        | jq -r '.riskLevel // "CRITICAL"')
+        TIA_REDUCTION=$(echo "$RESPONSE"   | jq -r '.estimatedReduction // "0%"')
+        TIA_MAVEN_FILTER=$(echo "$RESPONSE"| jq -r '.mavenFilter // ""')
+        TIA_GRADLE_FILTER=$(echo "$RESPONSE"| jq -r '.gradleFilter // ""')
+
+        export TIA_SELECTED TIA_TOTAL TIA_RISK TIA_REDUCTION TIA_MAVEN_FILTER TIA_GRADLE_FILTER
+
+        echo "[TIA] Selected ${TIA_SELECTED}/${TIA_TOTAL} tests (${TIA_REDUCTION} reduction) risk=${TIA_RISK}"
+      fi

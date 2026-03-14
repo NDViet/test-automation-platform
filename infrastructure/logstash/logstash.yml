@@ -1,0 +1,13 @@
+##############################################################################
+# Logstash node settings
+##############################################################################
+node.name: platform-logstash
+path.data: /usr/share/logstash/data
+path.logs: /usr/share/logstash/logs
+
+# Single pipeline defined in /usr/share/logstash/pipeline/
+pipeline.workers: 2
+pipeline.batch.size: 125
+pipeline.batch.delay: 50
+
+# Monitoring: not available in OSS image — Prometheus scrapes platform services directly

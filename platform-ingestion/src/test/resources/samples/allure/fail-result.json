@@ -1,0 +1,17 @@
+{
+  "uuid": "bbb-222",
+  "historyId": "hist-bbb",
+  "name": "Should process refund",
+  "fullName": "com.example.PaymentTest#shouldProcessRefund",
+  "status": "failed",
+  "start": 1741334402000,
+  "stop":  1741334403540,
+  "labels": [
+    { "name": "feature", "value": "Payment" },
+    { "name": "story",   "value": "PROJ-101" }
+  ],
+  "statusDetails": {
+    "message": "Expected status 200 but was 422",
+    "trace": "java.lang.AssertionError: Expected status 200 but was 422\n\tat com.example.PaymentTest.shouldProcessRefund(PaymentTest.java:87)"
+  }
+}

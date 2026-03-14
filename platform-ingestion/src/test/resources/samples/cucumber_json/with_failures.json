@@ -1,0 +1,32 @@
+[
+  {
+    "uri": "features/payment.feature",
+    "name": "Payment Processing",
+    "elements": [
+      {
+        "name": "Successful payment",
+        "tags": [{"name": "@payment"}, {"name": "@smoke"}],
+        "steps": [
+          {"result": {"status": "passed", "duration": 120000000}},
+          {"result": {"status": "passed", "duration": 80000000}}
+        ]
+      },
+      {
+        "name": "Failed refund",
+        "tags": [{"name": "@payment"}],
+        "steps": [
+          {"result": {"status": "passed", "duration": 50000000}},
+          {"result": {"status": "failed", "duration": 30000000,
+            "error_message": "AssertionError: Expected status 200 but was 422\n  at features/payment.feature:24"}}
+        ]
+      },
+      {
+        "name": "Pending void transaction",
+        "tags": [],
+        "steps": [
+          {"result": {"status": "skipped", "duration": 0}}
+        ]
+      }
+    ]
+  }
+]

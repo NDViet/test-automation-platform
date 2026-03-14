@@ -1,0 +1,15 @@
+{
+  "uuid": "aaa-111",
+  "historyId": "hist-aaa",
+  "name": "Should process payment successfully",
+  "fullName": "com.example.PaymentTest#shouldProcessPayment",
+  "status": "passed",
+  "start": 1741334400000,
+  "stop":  1741334401200,
+  "labels": [
+    { "name": "feature", "value": "Payment" },
+    { "name": "story",   "value": "PROJ-100" },
+    { "name": "suite",   "value": "PaymentTest" }
+  ],
+  "statusDetails": {}
+}

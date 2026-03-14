@@ -1,0 +1,141 @@
+{
+  "title": "Platform Logs",
+  "uid": "platform-logs",
+  "description": "Structured log stream from all platform services via Loki. Filter by service, level, or trace ID.",
+  "tags": ["logs", "loki", "observability"],
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "30s",
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "editable": true,
+  "graphTooltip": 0,
+  "templating": {
+    "list": [
+      {
+        "name": "service",
+        "type": "query",
+        "label": "Service",
+        "datasource": { "type": "loki", "uid": "loki" },
+        "query": "label_values(service)",
+        "multi": false,
+        "includeAll": true,
+        "allValue": ".*",
+        "current": {},
+        "refresh": 2,
+        "sort": 1
+      },
+      {
+        "name": "level",
+        "type": "custom",
+        "label": "Level",
+        "options": [
+          { "text": "All",   "value": ".*",   "selected": true },
+          { "text": "ERROR", "value": "ERROR" },
+          { "text": "WARN",  "value": "WARN"  },
+          { "text": "INFO",  "value": "INFO"  },
+          { "text": "DEBUG", "value": "DEBUG" }
+        ],
+        "multi": false,
+        "includeAll": false,
+        "current": { "text": "All", "value": ".*" }
+      },
+      {
+        "name": "search",
+        "type": "textbox",
+        "label": "Search",
+        "query": "",
+        "current": { "text": "", "value": "" }
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "timeseries",
+      "title": "Log Volume by Level",
+      "description": "Log lines per second, coloured by severity level.",
+      "gridPos": { "x": 0, "y": 0, "w": 24, "h": 6 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": {
+        "tooltip": { "mode": "multi", "sort": "none" },
+        "legend": { "displayMode": "list", "placement": "bottom", "showLegend": true }
+      },
+      "fieldConfig": {
+        "defaults": { "unit": "short", "custom": { "lineWidth": 1, "fillOpacity": 20 } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "ERROR" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } }] },
+          { "matcher": { "id": "byName", "options": "WARN"  }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "orange" } }] },
+          { "matcher": { "id": "byName", "options": "INFO"  }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "blue" } }] },
+          { "matcher": { "id": "byName", "options": "DEBUG" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "gray" } }] }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "sum by (level) (rate({service=~\"$service\"} | json | level=~\"ERROR\" [2m]))",
+          "legendFormat": "ERROR"
+        },
+        {
+          "refId": "B",
+          "expr": "sum by (level) (rate({service=~\"$service\"} | json | level=~\"WARN\" [2m]))",
+          "legendFormat": "WARN"
+        },
+        {
+          "refId": "C",
+          "expr": "sum by (level) (rate({service=~\"$service\"} | json | level=~\"INFO\" [2m]))",
+          "legendFormat": "INFO"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "logs",
+      "title": "Error & Warning Logs",
+      "description": "ERROR and WARN messages from all services. Includes exception stack traces when present.",
+      "gridPos": { "x": 0, "y": 6, "w": 24, "h": 10 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": {
+        "dedupStrategy": "none",
+        "enableLogDetails": true,
+        "prettifyLogMessage": false,
+        "showLabels": false,
+        "showTime": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": true
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{service=~\"$service\"} | json | level=~\"ERROR|WARN\" |~ \"$search\"",
+          "legendFormat": ""
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "logs",
+      "title": "All Logs",
+      "description": "Full log stream. Use the Level and Search variables above to filter.",
+      "gridPos": { "x": 0, "y": 16, "w": 24, "h": 12 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "options": {
+        "dedupStrategy": "none",
+        "enableLogDetails": true,
+        "prettifyLogMessage": false,
+        "showLabels": true,
+        "showTime": true,
+        "sortOrder": "Descending",
+        "wrapLogMessage": false
+      },
+      "targets": [
+        {
+          "refId": "A",
+          "expr": "{service=~\"$service\"} | json | level=~\"$level\" |~ \"$search\"",
+          "legendFormat": ""
+        }
+      ]
+    }
+  ]
+}
