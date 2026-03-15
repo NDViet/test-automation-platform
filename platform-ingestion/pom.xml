@@ -6,7 +6,7 @@
     <modelVersion>4.0.0</modelVersion>
 
     <parent>
-        <groupId>com.platform</groupId>
+        <groupId>org.ndviet</groupId>
         <artifactId>test-automation-platform</artifactId>
         <version>1.0.0-SNAPSHOT</version>
     </parent>
@@ -17,11 +17,11 @@
 
     <dependencies>
         <dependency>
-            <groupId>com.platform</groupId>
+            <groupId>org.ndviet</groupId>
             <artifactId>platform-common</artifactId>
         </dependency>
         <dependency>
-            <groupId>com.platform</groupId>
+            <groupId>org.ndviet</groupId>
             <artifactId>platform-core</artifactId>
         </dependency>
 

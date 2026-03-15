@@ -1,0 +1,40 @@
+<!DOCTYPE aspectj PUBLIC "-//AspectJ//DTD//EN" "http://www.eclipse.org/aspectj/dtd/aspectj.dtd">
+<!--
+  AspectJ Load-Time Weaving configuration for platform-testkit-java.
+
+  This file is picked up automatically by the AspectJ weaver agent when it is on
+  the classpath. It registers StepAspect for LTW so that @Step-annotated methods
+  in any loaded class are intercepted without compile-time weaving.
+
+  Activation (add to Surefire argLine):
+    -javaagent:${org.aspectj:aspectjweaver:jar}
+
+  The <weaver> section limits weaving to non-JDK classes for performance.
+  Internal platform and JUnit classes are excluded — only test code and page
+  objects need to be woven.
+-->
+<aspectj>
+    <aspects>
+        <aspect name="com.platform.testframework.step.StepAspect"/>
+    </aspects>
+
+    <weaver>
+        <!-- Exclude JDK and framework internals — weaving them is unnecessary and slow -->
+        <exclude within="java..*"/>
+        <exclude within="javax..*"/>
+        <exclude within="sun..*"/>
+        <exclude within="com.sun..*"/>
+        <exclude within="org.junit..*"/>
+        <exclude within="org.testng..*"/>
+        <exclude within="io.cucumber..*"/>
+        <exclude within="org.springframework..*"/>
+        <!-- Exclude the aspect itself and platform internals — not test code -->
+        <exclude within="com.platform.testframework.step.StepAspect"/>
+        <exclude within="com.platform.testframework.step.AllureStepBridge"/>
+        <exclude within="com.platform.testframework.step.StepNameResolver"/>
+        <exclude within="com.platform.testframework.context..*"/>
+        <exclude within="com.platform.testframework.extension..*"/>
+        <exclude within="com.platform.testframework.report..*"/>
+        <exclude within="com.platform.testframework.logging..*"/>
+    </weaver>
+</aspectj>

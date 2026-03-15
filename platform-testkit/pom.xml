@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+         https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.ndviet</groupId>
+        <artifactId>test-automation-platform</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>platform-testkit</artifactId>
+    <packaging>pom</packaging>
+    <name>Platform Testkit</name>
+    <description>
+        Native integration library for test automation frameworks. Teams add the
+        language-specific sub-module as a dependency to their framework base layer
+        to get structured step tracking, OpenTelemetry tracing, @AffectedBy coverage
+        annotations, retry support, soft assertions, and per-test failure classification.
+        Results are published natively (not via output file parsing) with full context.
+        Unlike platform-adapters, this requires test code to opt in to the richer API.
+    </description>
+
+    <modules>
+        <module>java</module>
+        <!-- Future: python, js -->
+    </modules>
+</project>
