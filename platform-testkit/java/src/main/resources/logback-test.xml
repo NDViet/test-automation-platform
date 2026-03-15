@@ -1,0 +1,87 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  Standard logback configuration for platform-testkit-java.
+
+  Three appenders:
+    CONSOLE  — human-readable for local development
+    FILE     — rolling file in target/platform-logs/  (CI artifact capture)
+    LOGSTASH — JSON over TCP → Logstash → OpenSearch  (filter by run_id)
+
+  The LOGSTASH appender is active when LOGSTASH_ENABLED=true (env var) or
+  when LOGSTASH_HOST is explicitly set. It fails silently if Logstash is
+  unreachable — tests are never blocked by log shipping.
+
+  MDC fields carried in every log line:
+    run_id, testId, testClass, testMethod, traceId, team_id, project_id, step
+-->
+<configuration>
+
+    <!-- ── CONSOLE ─────────────────────────────────────────────────────────── -->
+    <appender name="CONSOLE" class="ch.qos.logback.core.ConsoleAppender">
+        <encoder>
+            <pattern>%d{HH:mm:ss.SSS} %-5level [%X{testMethod:-?}] [%X{step:-}] %logger{36} - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- ── FILE ────────────────────────────────────────────────────────────── -->
+    <appender name="FILE" class="ch.qos.logback.core.rolling.RollingFileAppender">
+        <file>target/platform-logs/test.log</file>
+        <rollingPolicy class="ch.qos.logback.core.rolling.SizeAndTimeBasedRollingPolicy">
+            <fileNamePattern>target/platform-logs/test.%d{yyyy-MM-dd}.%i.log</fileNamePattern>
+            <maxFileSize>50MB</maxFileSize>
+            <maxHistory>7</maxHistory>
+        </rollingPolicy>
+        <encoder>
+            <pattern>%d{ISO8601} %-5level run_id="%X{run_id:-}" testId="%X{testId:-}" traceId="%X{traceId:-}" step="%X{step:-}" logger="%logger{0}" - %msg%n</pattern>
+        </encoder>
+    </appender>
+
+    <!-- ── LOGSTASH ─────────────────────────────────────────────────────────
+         Sends structured JSON events to Logstash (TCP) → OpenSearch.
+         All MDC fields are included automatically at the top level of the JSON.
+         Connection failures are handled internally — logs are buffered and
+         retried; tests are never blocked.
+    ─────────────────────────────────────────────────────────────────────── -->
+    <appender name="LOGSTASH" class="net.logstash.logback.appender.LogstashTcpSocketAppender">
+        <!-- Override via env vars: LOGSTASH_HOST / LOGSTASH_PORT -->
+        <destination>${LOGSTASH_HOST:-localhost}:${LOGSTASH_PORT:-5044}</destination>
+
+        <encoder class="net.logstash.logback.encoder.LogstashEncoder">
+            <!-- Include all MDC fields at JSON top level -->
+            <includeContext>false</includeContext>
+            <includeMdc>true</includeMdc>
+            <!-- Tag every event with source for multi-pipeline setups -->
+            <customFields>{"app":"test-execution","source":"platform-testkit-java"}</customFields>
+        </encoder>
+
+        <!-- Reconnect quickly; buffer up to 8192 events if Logstash is down -->
+        <reconnectionDelay>5 seconds</reconnectionDelay>
+        <keepAliveDuration>5 minutes</keepAliveDuration>
+        <writeBufferSize>8192</writeBufferSize>
+    </appender>
+
+    <!-- Async wrapper keeps the LOGSTASH appender off the test thread -->
+    <appender name="ASYNC_LOGSTASH" class="ch.qos.logback.classic.AsyncAppender">
+        <appender-ref ref="LOGSTASH"/>
+        <queueSize>512</queueSize>
+        <discardingThreshold>0</discardingThreshold>
+        <neverBlock>true</neverBlock>
+    </appender>
+
+    <!-- Platform framework internals -->
+    <logger name="com.platform.sdk.publisher" level="INFO"/>
+    <logger name="com.platform.testframework"  level="DEBUG"/>
+    <logger name="io.opentelemetry"            level="WARN"/>
+    <logger name="org.apache.kafka"            level="WARN"/>
+    <logger name="org.springframework"         level="WARN"/>
+
+    <!-- Suppress Logstash appender's own connection-retry noise -->
+    <logger name="net.logstash.logback" level="WARN"/>
+
+    <root level="INFO">
+        <appender-ref ref="CONSOLE"/>
+        <appender-ref ref="FILE"/>
+        <appender-ref ref="ASYNC_LOGSTASH"/>
+    </root>
+
+</configuration>

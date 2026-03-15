@@ -36,7 +36,9 @@
       "Bash(nc:*)",
       "Bash(npm run:*)",
       "Bash(ls:*)",
-      "Bash(npm install:*)"
+      "Bash(npm install:*)",
+      "Bash(sed:*)",
+      "Bash(do:*)"
     ]
   }
 }

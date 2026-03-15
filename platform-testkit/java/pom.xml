@@ -1,0 +1,176 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+         https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.ndviet</groupId>
+        <artifactId>platform-testkit</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+        <relativePath>../pom.xml</relativePath>
+    </parent>
+
+    <artifactId>platform-testkit-java</artifactId>
+    <name>Platform Testkit — Java</name>
+    <description>
+        Java library that teams add as a dependency to their test automation framework
+        base layer to get native platform integration. Provides structured step tracking,
+        OpenTelemetry tracing, @AffectedBy coverage annotations, @Retryable retry support,
+        soft assertions, and per-test failure classification. Results are published natively
+        (not via output file parsing) with full debugging context.
+        Teams never write tests directly against this library — it is imported into their
+        framework base (e.g. a shared base test class or listener), not used standalone.
+    </description>
+
+    <dependencies>
+        <!-- Platform Adapter Java — HTTP publisher to the ingestion service -->
+        <dependency>
+            <groupId>org.ndviet</groupId>
+            <artifactId>platform-adapter-java</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.ndviet</groupId>
+            <artifactId>platform-common</artifactId>
+        </dependency>
+
+        <!-- ─────────────────────────────────────────────────────────────
+             Test runner adapters — all OPTIONAL/PROVIDED.
+             Teams include only what they actually use.
+             ───────────────────────────────────────────────────────────── -->
+
+        <!-- JUnit 5 — adapter in extension/ and base/ -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-api</artifactId>
+            <!-- compile scope: JUnit5 is the default / most common -->
+        </dependency>
+
+        <!-- TestNG — adapter in testng/ -->
+        <dependency>
+            <groupId>org.testng</groupId>
+            <artifactId>testng</artifactId>
+            <version>7.11.0</version>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- Cucumber — adapter in cucumber/ -->
+        <dependency>
+            <groupId>io.cucumber</groupId>
+            <artifactId>cucumber-java</artifactId>
+            <version>7.22.2</version>
+            <optional>true</optional>
+        </dependency>
+        <dependency>
+            <groupId>io.cucumber</groupId>
+            <artifactId>cucumber-plugin</artifactId>
+            <version>7.22.2</version>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- Playwright (Java) — adapter in playwright/ -->
+        <dependency>
+            <groupId>com.microsoft.playwright</groupId>
+            <artifactId>playwright</artifactId>
+            <version>1.49.0</version>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- AssertJ — soft assertion support -->
+        <dependency>
+            <groupId>org.assertj</groupId>
+            <artifactId>assertj-core</artifactId>
+        </dependency>
+
+        <!-- Logging -->
+        <dependency>
+            <groupId>org.slf4j</groupId>
+            <artifactId>slf4j-api</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>ch.qos.logback</groupId>
+            <artifactId>logback-classic</artifactId>
+        </dependency>
+
+        <!-- OpenTelemetry API — trace/span IDs in MDC; no SDK forced on teams -->
+        <dependency>
+            <groupId>io.opentelemetry</groupId>
+            <artifactId>opentelemetry-api</artifactId>
+            <version>1.49.0</version>
+        </dependency>
+
+        <!-- Logstash log shipping — structured JSON over TCP to Logstash/OpenSearch -->
+        <dependency>
+            <groupId>net.logstash.logback</groupId>
+            <artifactId>logstash-logback-encoder</artifactId>
+            <version>8.0</version>
+        </dependency>
+
+        <!-- Jackson — serialize UnifiedTestResult for native publishing -->
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.datatype</groupId>
+            <artifactId>jackson-datatype-jsr310</artifactId>
+        </dependency>
+
+        <!-- AspectJ — runtime library for @Aspect / @Around annotations -->
+        <dependency>
+            <groupId>org.aspectj</groupId>
+            <artifactId>aspectjrt</artifactId>
+            <version>${aspectj.version}</version>
+        </dependency>
+        <!--
+            aspectjweaver — load-time weaving agent.
+            Declared optional so downstream projects only pull it when they
+            choose to enable @Step interception.
+            Activate by adding to Surefire argLine:
+              -javaagent:${org.aspectj:aspectjweaver:jar}
+        -->
+        <dependency>
+            <groupId>org.aspectj</groupId>
+            <artifactId>aspectjweaver</artifactId>
+            <version>${aspectj.version}</version>
+            <optional>true</optional>
+        </dependency>
+
+        <!--
+            Allure — optional local report integration.
+            When allure-java-commons is on the classpath, @Step writes to both
+            the platform context and the Allure lifecycle, producing a local
+            HTML report with step-by-step detail at no extra cost.
+        -->
+        <dependency>
+            <groupId>io.qameta.allure</groupId>
+            <artifactId>allure-java-commons</artifactId>
+            <version>${allure.version}</version>
+            <optional>true</optional>
+        </dependency>
+
+        <!-- Test -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-engine</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-junit-jupiter</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
+    <build>
+        <plugins>
+            <!-- No spring-boot-maven-plugin — this is a library, not an app -->
+
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+            </plugin>
+        </plugins>
+    </build>
+</project>
