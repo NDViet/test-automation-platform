@@ -16,6 +16,16 @@ async function post<T>(path: string, body: unknown): Promise<T> {
   return res.json() as Promise<T>
 }
 
+async function put<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(BASE + path, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) throw new Error(`PUT ${path} → ${res.status}`)
+  return res.json() as Promise<T>
+}
+
 async function del(path: string): Promise<void> {
   const res = await fetch(BASE + path, { method: 'DELETE' })
   if (!res.ok) throw new Error(`DELETE ${path} → ${res.status}`)
@@ -45,4 +55,9 @@ export const api = {
     const params = changedFiles.map(f => `changedFiles=${encodeURIComponent(f)}`).join('&')
     return get<import('./types').TestImpactResult>(`/projects/${projectId}/impact?${params}`)
   },
+  aiSettings: () => get<import('./types').AiSettings>('/ai/settings'),
+  updateAiSettings: (body: import('./types').AiSettingsUpdate) => put<import('./types').AiSettings>('/ai/settings', body),
+  testAiConnection: (body: { provider?: string; model?: string; apiKey?: string }) => post<import('./types').TestConnectionResult>('/ai/settings/test', body),
+  analyseResult: (projectId: string, resultId: string) => post<import('./types').FailureAnalysis>(`/ai/projects/${projectId}/results/${resultId}/analyse`, {}),
+  analyseNow: (hours = 24) => post<import('./types').AnalyseNowResult>(`/ai/analyse/run-now?hours=${hours}`, {}),
 }

@@ -7,6 +7,8 @@ import com.platform.core.domain.FailureAnalysis;
 import com.platform.core.domain.TestCaseResult;
 import com.platform.core.repository.FailureAnalysisRepository;
 import com.platform.core.repository.TestCaseResultRepository;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -14,7 +16,12 @@ import org.springframework.web.bind.annotation.*;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+
+import static com.platform.common.enums.TestStatus.BROKEN;
+import static com.platform.common.enums.TestStatus.FAILED;
 
 /**
  * REST API for querying and triggering AI failure analysis.
@@ -29,6 +36,8 @@ import java.util.UUID;
 @RestController
 @RequestMapping("/api/v1")
 public class AiAnalysisController {
+
+    private static final Logger log = LoggerFactory.getLogger(AiAnalysisController.class);
 
     private final FailureAnalysisRepository analysisRepo;
     private final TestCaseResultRepository resultRepo;
@@ -115,11 +124,49 @@ public class AiAnalysisController {
             return ResponseEntity.notFound().build();
         }
 
-        if (result.getStatus() != TestStatus.FAILED) {
+        if (result.getStatus() != FAILED && result.getStatus() != BROKEN) {
             return ResponseEntity.badRequest().build();
         }
 
         FailureAnalysis analysis = classificationService.classify(result, projectId);
         return ResponseEntity.ok(FailureAnalysisDto.from(analysis));
+    }
+
+    /**
+     * On-demand batch: classify all unanalysed FAILED/BROKEN results from the
+     * last {@code hours} hours (default 24). Runs asynchronously; returns the
+     * count of items queued immediately so the UI can show feedback.
+     *
+     * POST /api/v1/analyse/run-now?hours=24
+     */
+    @PostMapping("/analyse/run-now")
+    public ResponseEntity<Map<String, Object>> runNow(
+            @RequestParam(defaultValue = "24") int hours) {
+
+        Instant since = Instant.now().minus(hours, ChronoUnit.HOURS);
+
+        List<TestCaseResult> pending = resultRepo
+                .findByStatusInSince(List.of(FAILED, BROKEN), since)
+                .stream()
+                .filter(r -> !analysisRepo.existsSuccessfulAnalysis(r.getId()))
+                .toList();
+
+        int queued = pending.size();
+        log.info("[AI On-Demand] {} unanalysed failures queued for classification (last {}h)", queued, hours);
+
+        CompletableFuture.runAsync(() -> {
+            int done = 0;
+            for (TestCaseResult r : pending) {
+                try {
+                    classificationService.classify(r, r.getExecution().getProject().getId());
+                    done++;
+                } catch (Exception e) {
+                    log.warn("[AI On-Demand] Classification failed for testId={}: {}", r.getTestId(), e.getMessage());
+                }
+            }
+            log.info("[AI On-Demand] Completed {}/{} classifications", done, queued);
+        });
+
+        return ResponseEntity.accepted().body(Map.of("queued", queued, "hours", hours));
     }
 }

@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 import java.time.Instant;
+import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
 
@@ -52,4 +53,18 @@ public interface TestCaseResultRepository extends JpaRepository<TestCaseResult, 
     List<TestCaseResult> findByStatusSince(
             @Param("status") TestStatus status,
             @Param("since") Instant since);
+
+    /** FAILED or BROKEN results across all projects since the given instant (for nightly batch). */
+    @Query("SELECT r FROM TestCaseResult r JOIN FETCH r.execution e " +
+           "WHERE r.status IN :statuses AND r.createdAt >= :since ORDER BY r.createdAt DESC")
+    List<TestCaseResult> findByStatusInSince(
+            @Param("statuses") Collection<TestStatus> statuses,
+            @Param("since") Instant since);
+
+    /** FAILED or BROKEN results for a specific execution (for real-time AI consumer). */
+    @Query("SELECT r FROM TestCaseResult r WHERE r.execution.id = :executionId " +
+           "AND r.status IN :statuses")
+    List<TestCaseResult> findByExecutionIdAndStatusIn(
+            @Param("executionId") UUID executionId,
+            @Param("statuses") Collection<TestStatus> statuses);
 }

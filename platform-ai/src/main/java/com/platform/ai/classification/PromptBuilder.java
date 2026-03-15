@@ -7,6 +7,7 @@ import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 import java.util.stream.Collectors;
 
 /**
@@ -40,12 +41,27 @@ public class PromptBuilder {
             "APPLICATION_BUG=defect in app code | TEST_DEFECT=bad assertion/selector/data | " +
             "ENVIRONMENT=infra/CI/config issue | FLAKY_TIMING=race condition/async | " +
             "DEPENDENCY=external service/DB unavailable | UNKNOWN=insufficient info\n" +
-            "Rules: confidence 0-1; rootCause <=120 chars; suggestedFix actionable; no markdown.";
+            "Rules: confidence 0-1; rootCause <=120 chars; suggestedFix actionable; no markdown.\n" +
+            "When page HTML is provided, inspect the DOM and suggest correct alternative selectors in suggestedFix.";
 
     public String buildUserPrompt(String testId,
                                   String failureMessage,
                                   String stackTrace,
                                   List<TestCaseResult> history) {
+        return buildUserPrompt(testId, failureMessage, stackTrace, history, Map.of());
+    }
+
+    /**
+     * Build a user prompt enriched with locator diagnostics captured by the testkit.
+     *
+     * @param diagnostics may contain {@code platform.diagnostic.dom} (page HTML) and
+     *                    {@code platform.diagnostic.selector} (failed CSS/XPath selector)
+     */
+    public String buildUserPrompt(String testId,
+                                  String failureMessage,
+                                  String stackTrace,
+                                  List<TestCaseResult> history,
+                                  Map<String, String> diagnostics) {
         StringBuilder sb = new StringBuilder(512);
 
         sb.append("Test: ").append(testId).append('\n');
@@ -72,6 +88,17 @@ public class PromptBuilder {
                 if (i < limit - 1) sb.append(' ');
             }
             sb.append('\n');
+        }
+
+        // Locator diagnostics forwarded from the testkit browser session
+        String selector = diagnostics.get("platform.diagnostic.selector");
+        String dom      = diagnostics.get("platform.diagnostic.dom");
+
+        if (selector != null && !selector.isBlank()) {
+            sb.append("Failed selector: ").append(selector).append('\n');
+        }
+        if (dom != null && !dom.isBlank()) {
+            sb.append("Page HTML (truncated):\n```html\n").append(dom).append("\n```\n");
         }
 
         sb.append("Reply JSON only.");

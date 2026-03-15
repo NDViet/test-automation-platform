@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 /**
@@ -57,8 +58,22 @@ public class FailureClassificationService {
      */
     @Transactional
     public FailureAnalysis classify(TestCaseResult failure, UUID projectId) {
-        if (analysisRepo.existsByTestCaseResultId(failure.getId())) {
-            log.debug("[AI] Already analysed testCaseResultId={}", failure.getId());
+        return classify(failure, projectId, Map.of());
+    }
+
+    /**
+     * Classify with additional diagnostic context (DOM snapshot, selector) forwarded
+     * from the testkit via the test result environment map.
+     *
+     * @param diagnostics key-value pairs from {@code TestCaseResultDto.environment()} —
+     *                    may contain {@code platform.diagnostic.dom} and
+     *                    {@code platform.diagnostic.selector}
+     */
+    @Transactional
+    public FailureAnalysis classify(TestCaseResult failure, UUID projectId,
+                                    Map<String, String> diagnostics) {
+        if (analysisRepo.existsSuccessfulAnalysis(failure.getId())) {
+            log.debug("[AI] Already successfully analysed testCaseResultId={}", failure.getId());
             return analysisRepo
                     .findTopByTestIdAndProjectIdOrderByAnalysedAtDesc(failure.getTestId(), projectId)
                     .orElseThrow(() -> new IllegalStateException(
@@ -72,15 +87,37 @@ public class FailureClassificationService {
                 failure.getTestId(),
                 failure.getFailureMessage(),
                 failure.getStackTrace(),
-                history);
+                history,
+                diagnostics);
 
-        log.info("[AI] Classifying failure testId={} projectId={} provider={}",
-                failure.getTestId(), projectId, aiClient.providerName());
+        log.info("[AI] Classifying failure testId={} projectId={} provider={} hasDom={}",
+                failure.getTestId(), projectId, aiClient.providerName(),
+                diagnostics.containsKey("platform.diagnostic.dom"));
 
-        AiAnalysisResponse response = aiClient.analyse(PromptBuilder.SYSTEM_PROMPT, userPrompt);
+        AiAnalysisResponse response;
+        try {
+            response = aiClient.analyse(PromptBuilder.SYSTEM_PROMPT, userPrompt);
+        } catch (Exception e) {
+            // Persist an ERROR record so the failure is visible and retried next time.
+            String errorMsg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
+            log.error("[AI] API call failed for testId={}: {}", failure.getTestId(), errorMsg);
+            FailureAnalysis errorRecord = FailureAnalysis.builder()
+                    .testId(failure.getTestId())
+                    .projectId(projectId)
+                    .testCaseResultId(failure.getId())
+                    .category("UNKNOWN")
+                    .confidence(0.0)
+                    .rootCause("AI analysis failed — will be retried")
+                    .modelVersion(aiClient.providerName())
+                    .analysisStatus("ERROR")
+                    .errorMessage(errorMsg)
+                    .build();
+            analysisRepo.save(errorRecord);
+            throw e;   // re-throw so batch/on-demand callers can count/log it
+        }
+
         ClaudeAnalysisResult result = response.result();
 
-        // Persist
         FailureAnalysis analysis = FailureAnalysis.builder()
                 .testId(failure.getTestId())
                 .projectId(projectId)
@@ -95,6 +132,7 @@ public class FailureClassificationService {
                 .modelVersion(aiClient.providerName())
                 .inputTokens(response.inputTokens())
                 .outputTokens(response.outputTokens())
+                .analysisStatus("SUCCESS")
                 .build();
 
         FailureAnalysis saved = analysisRepo.save(analysis);

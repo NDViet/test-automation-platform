@@ -9,11 +9,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.platform.ai.classification.ClaudeAnalysisResult;
 import com.platform.ai.client.AiAnalysisResponse;
 import com.platform.ai.client.AiClient;
-import jakarta.annotation.PostConstruct;
+import com.platform.core.repository.PlatformSettingRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 /**
@@ -23,37 +22,58 @@ import org.springframework.stereotype.Component;
  * Wraps the Anthropic Java SDK; parses the JSON response after stripping
  * any optional markdown fences. Reports real token usage from the API response.</p>
  */
-@Component
-@ConditionalOnProperty(name = "ai.provider", havingValue = "claude", matchIfMissing = true)
+@Component("claudeAiClient")
 public class ClaudeApiClient implements AiClient {
 
     private static final Logger log = LoggerFactory.getLogger(ClaudeApiClient.class);
     private static final int MAX_TOKENS = 1024;
 
-    private final ObjectMapper objectMapper;
-    private final String apiKey;
+    private static final String DB_KEY_NAME = "ai.api-key";
 
-    private AnthropicClient client;
+    private final ObjectMapper objectMapper;
+    private final String envApiKey;          // from application.yml / ANTHROPIC_API_KEY env var
+    private final PlatformSettingRepository settingRepo;
+
+    // Cached client — rebuilt only when the resolved key changes
+    private volatile String cachedKey    = null;
+    private volatile AnthropicClient client = null;
 
     public ClaudeApiClient(ObjectMapper objectMapper,
-                           @Value("${anthropic.api-key:}") String apiKey) {
-        this.objectMapper = objectMapper;
-        this.apiKey = apiKey;
+                           @Value("${anthropic.api-key:}") String envApiKey,
+                           PlatformSettingRepository settingRepo) {
+        this.objectMapper  = objectMapper;
+        this.envApiKey     = envApiKey;
+        this.settingRepo   = settingRepo;
     }
 
-    @PostConstruct
-    void init() {
-        if (apiKey != null && !apiKey.isBlank()) {
-            client = AnthropicOkHttpClient.builder().apiKey(apiKey).build();
-            log.info("[AI] Claude client initialised with explicit API key");
-        } else {
-            try {
-                client = AnthropicOkHttpClient.fromEnv();
-                log.info("[AI] Claude client initialised from ANTHROPIC_API_KEY env var");
-            } catch (Exception e) {
-                log.warn("[AI] ANTHROPIC_API_KEY not configured — Claude calls will return UNKNOWN");
-            }
+    /**
+     * Resolves the API key to use, in priority order:
+     * 1. Key saved via Portal (platform_settings table) — updated at runtime
+     * 2. Key from application.yml / ANTHROPIC_API_KEY env var — set at startup
+     */
+    private String resolveApiKey() {
+        String dbKey = settingRepo.findById(DB_KEY_NAME)
+                .map(s -> s.getValue())
+                .filter(v -> v != null && !v.isBlank())
+                .orElse(null);
+        if (dbKey != null) return dbKey;
+        if (envApiKey != null && !envApiKey.isBlank()) return envApiKey;
+        return null;
+    }
+
+    /** Returns a cached client, rebuilding it only if the active key has changed. */
+    private synchronized AnthropicClient getClient() {
+        String key = resolveApiKey();
+        if (key == null || key.isBlank()) {
+            log.warn("[AI] No API key configured — set it in AI Settings or via ANTHROPIC_API_KEY");
+            return null;
         }
+        if (!key.equals(cachedKey)) {
+            log.info("[AI] API key changed — rebuilding Claude client");
+            cachedKey = key;
+            client = AnthropicOkHttpClient.builder().apiKey(key).build();
+        }
+        return client;
     }
 
     @Override
@@ -63,37 +83,33 @@ public class ClaudeApiClient implements AiClient {
 
     @Override
     public AiAnalysisResponse analyse(String systemPrompt, String userPrompt) {
-        if (client == null) {
-            log.warn("[AI] Claude client not initialised");
-            return AiAnalysisResponse.ofResult(
-                    unknownResult("Claude client not initialised — set ANTHROPIC_API_KEY"));
+        AnthropicClient c = getClient();
+        if (c == null) {
+            throw new IllegalStateException("Claude API key is not configured — set it in AI Settings");
         }
-        try {
-            MessageCreateParams params = MessageCreateParams.builder()
-                    .model(Model.CLAUDE_OPUS_4_6)
-                    .maxTokens(MAX_TOKENS)
-                    .system(systemPrompt)
-                    .addUserMessage(userPrompt)
-                    .build();
 
-            Message message = client.messages().create(params);
+        MessageCreateParams params = MessageCreateParams.builder()
+                .model(Model.CLAUDE_OPUS_4_6)
+                .maxTokens(MAX_TOKENS)
+                .system(systemPrompt)
+                .addUserMessage(userPrompt)
+                .build();
 
-            int inputTokens  = (int) message.usage().inputTokens();
-            int outputTokens = (int) message.usage().outputTokens();
+        // Let SDK exceptions propagate — callers (FailureClassificationService) catch and
+        // persist an ERROR record so the analysis can be retried once the key is corrected.
+        Message message = c.messages().create(params);
 
-            String responseText = message.content().stream()
-                    .flatMap(block -> block.text().stream())
-                    .map(textBlock -> textBlock.text())
-                    .findFirst()
-                    .orElse("");
+        int inputTokens  = (int) message.usage().inputTokens();
+        int outputTokens = (int) message.usage().outputTokens();
 
-            log.debug("[AI] Claude token usage: input={} output={}", inputTokens, outputTokens);
-            return new AiAnalysisResponse(parseResponse(responseText), inputTokens, outputTokens);
+        String responseText = message.content().stream()
+                .flatMap(block -> block.text().stream())
+                .map(textBlock -> textBlock.text())
+                .findFirst()
+                .orElse("");
 
-        } catch (Exception e) {
-            log.error("[AI] Claude API call failed: {}", e.getMessage(), e);
-            return AiAnalysisResponse.ofResult(unknownResult("API error: " + e.getMessage()));
-        }
+        log.debug("[AI] Claude token usage: input={} output={}", inputTokens, outputTokens);
+        return new AiAnalysisResponse(parseResponse(responseText), inputTokens, outputTokens);
     }
 
     private ClaudeAnalysisResult parseResponse(String raw) {

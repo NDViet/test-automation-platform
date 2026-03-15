@@ -2,10 +2,13 @@ package com.platform.testframework.testng;
 
 import com.platform.common.enums.TestStatus;
 import com.platform.sdk.config.PlatformConfig;
+import com.platform.testframework.classify.FailureCategory;
 import com.platform.testframework.classify.FailureClassifier;
 import com.platform.testframework.classify.FailureHint;
 import com.platform.testframework.context.TestContext;
 import com.platform.testframework.context.TestContextHolder;
+import com.platform.testframework.diagnostics.DiagnosticsRegistry;
+import com.platform.testframework.diagnostics.LocatorAiAnalyzer;
 import com.platform.testframework.report.EnvironmentInfo;
 import com.platform.testframework.report.NativeReportPublisher;
 import org.slf4j.Logger;
@@ -132,6 +135,12 @@ public class PlatformTestNGListener implements ITestListener {
             ctx.putEnvironment("platform.hint.category",    hint.category().name());
             ctx.putEnvironment("platform.hint.confidence",  String.format("%.2f", hint.confidence()));
             ctx.putEnvironment("platform.hint.message",     hint.message());
+
+            // AI locator analysis — triggered for BAD_LOCATOR failures when a
+            // DiagnosticsProvider is registered on this thread (e.g. from BaseTest).
+            if (hint.category() == FailureCategory.BAD_LOCATOR) {
+                runAiLocatorAnalysis(result.getThrowable(), ctx);
+            }
         }
 
         TestContext.Snapshot snap = ctx.snapshot();
@@ -157,6 +166,34 @@ public class PlatformTestNGListener implements ITestListener {
         MDC.remove("testMethod");
         MDC.remove("traceId");
         MDC.remove("step");
+    }
+
+    private void runAiLocatorAnalysis(Throwable t, TestContext ctx) {
+        DiagnosticsRegistry.get().ifPresentOrElse(provider -> {
+            String selector = extractSelector(t.getMessage());
+            LocatorAiAnalyzer.attach(selector, provider, ctx);
+            log.info("[Diagnostics] Diagnostic data attached — platform-ai will classify on the backend");
+        }, () -> log.debug("[Diagnostics] No DiagnosticsProvider registered — skipping"));
+    }
+
+    private String extractSelector(String msg) {
+        if (msg == null) return "(unknown)";
+        for (String prefix : java.util.List.of("By.cssSelector:", "By.xpath:", "By.id:",
+                                                "By.name:", "By.className:")) {
+            int idx = msg.indexOf(prefix);
+            if (idx >= 0) {
+                String rest = msg.substring(idx + prefix.length()).trim();
+                int end = rest.indexOf('\n');
+                return prefix.trim().replace(":", "=") + (end > 0 ? rest.substring(0, end).trim() : rest.trim());
+            }
+        }
+        return firstLine(msg);
+    }
+
+    private String firstLine(String s) {
+        if (s == null || s.isBlank()) return "(no message)";
+        int nl = s.indexOf('\n');
+        return nl > 0 ? s.substring(0, nl).trim() : s.trim();
     }
 
     private String stackTrace(Throwable t) {

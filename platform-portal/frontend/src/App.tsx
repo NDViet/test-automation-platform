@@ -5,6 +5,7 @@ import ProjectDetail from './pages/ProjectDetail'
 import RunDetail from './pages/RunDetail'
 import AlertsPage from './pages/AlertsPage'
 import ApiKeysPage from './pages/ApiKeysPage'
+import AiSettingsPage from './pages/AiSettingsPage'
 
 export default function App() {
   return (
@@ -16,6 +17,7 @@ export default function App() {
           <Route path="runs/:runId" element={<RunDetail />} />
           <Route path="alerts" element={<AlertsPage />} />
           <Route path="settings/api-keys" element={<ApiKeysPage />} />
+          <Route path="settings/ai" element={<AiSettingsPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
       </Routes>

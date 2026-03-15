@@ -109,7 +109,7 @@ class FailureClassificationServiceTest {
                 .category("TEST_DEFECT").confidence(0.8)
                 .build();
 
-        when(analysisRepo.existsByTestCaseResultId(isNull())).thenReturn(true);
+        when(analysisRepo.existsSuccessfulAnalysis(isNull())).thenReturn(true);
         when(analysisRepo.findTopByTestIdAndProjectIdOrderByAnalysedAtDesc(any(), any()))
                 .thenReturn(Optional.of(existing));
 

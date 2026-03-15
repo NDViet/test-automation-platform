@@ -4,11 +4,14 @@ import com.platform.common.enums.TestStatus;
 import com.platform.sdk.config.PlatformConfig;
 import com.platform.testframework.annotation.AffectedBy;
 import com.platform.testframework.annotation.TestMetadata;
+import com.platform.testframework.classify.FailureCategory;
 import com.platform.testframework.classify.FailureClassifier;
 import com.platform.testframework.classify.FailureHint;
 import com.platform.testframework.context.TestContext;
 import com.platform.testframework.context.TestContextHolder;
 import com.platform.testframework.context.RunContext;
+import com.platform.testframework.diagnostics.DiagnosticsRegistry;
+import com.platform.testframework.diagnostics.LocatorAiAnalyzer;
 import com.platform.testframework.report.EnvironmentInfo;
 import com.platform.testframework.report.NativeReportPublisher;
 import io.opentelemetry.api.GlobalOpenTelemetry;
@@ -140,6 +143,12 @@ public class PlatformExtension
             testCtx.putEnvironment("platform.hint.category",    hint.category().name());
             testCtx.putEnvironment("platform.hint.confidence",  String.format("%.2f", hint.confidence()));
             testCtx.putEnvironment("platform.hint.message",     hint.message());
+
+            // AI locator analysis — triggered for BAD_LOCATOR failures when a
+            // DiagnosticsProvider is registered on this thread (e.g. from BaseTest).
+            if (hint.category() == FailureCategory.BAD_LOCATOR) {
+                runAiLocatorAnalysis(t, testCtx);
+            }
         } else {
             status = TestStatus.PASSED;
         }
@@ -264,6 +273,29 @@ public class PlatformExtension
         MDC.remove("ci_provider");
         MDC.remove("build_id");
         MDC.remove("step");
+    }
+
+    private void runAiLocatorAnalysis(Throwable t, TestContext ctx) {
+        DiagnosticsRegistry.get().ifPresentOrElse(provider -> {
+            String selector = extractSelector(t.getMessage());
+            LocatorAiAnalyzer.attach(selector, provider, ctx);
+            log.info("[Diagnostics] Diagnostic data attached — platform-ai will classify on the backend");
+        }, () -> log.debug("[Diagnostics] No DiagnosticsProvider registered — skipping"));
+    }
+
+    private String extractSelector(String msg) {
+        if (msg == null) return "(unknown)";
+        for (String prefix : List.of("By.cssSelector:", "By.xpath:", "By.id:",
+                                     "By.name:", "By.className:")) {
+            int idx = msg.indexOf(prefix);
+            if (idx >= 0) {
+                String rest = msg.substring(idx + prefix.length()).trim();
+                int end = rest.indexOf('\n');
+                return prefix.trim().replace(":", "=") + (end > 0 ? rest.substring(0, end).trim() : rest.trim());
+            }
+        }
+        int nl = msg.indexOf('\n');
+        return nl > 0 ? msg.substring(0, nl).trim() : msg.trim();
     }
 
     private String stackTraceToString(Throwable t) {
