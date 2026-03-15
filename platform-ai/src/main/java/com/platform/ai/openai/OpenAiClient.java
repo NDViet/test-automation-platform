@@ -6,11 +6,10 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.platform.ai.classification.ClaudeAnalysisResult;
 import com.platform.ai.client.AiAnalysisResponse;
 import com.platform.ai.client.AiClient;
-import jakarta.annotation.PostConstruct;
+import com.platform.core.repository.PlatformSettingRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.web.client.RestClient;
 
@@ -26,74 +25,106 @@ import java.util.Map;
  * eliminating the need for markdown-fence stripping on the happy path.
  * Reports real token usage from the API response.</p>
  */
-@Component
-@ConditionalOnProperty(name = "ai.provider", havingValue = "openai")
+@Component("openAiClient")
 public class OpenAiClient implements AiClient {
 
     private static final Logger log = LoggerFactory.getLogger(OpenAiClient.class);
     private static final String COMPLETIONS_URL = "https://api.openai.com/v1/chat/completions";
     private static final int MAX_TOKENS = 1024;
 
-    private final ObjectMapper objectMapper;
-    private final String apiKey;
-    private final String model;
+    private static final String DB_KEY_NAME   = "ai.api-key";
+    private static final String DB_MODEL_NAME = "ai.model";
+    private static final String DEFAULT_MODEL = "gpt-4o";
 
-    private RestClient restClient;
+    private final ObjectMapper objectMapper;
+    private final String envApiKey;
+    private final String envModel;
+    private final PlatformSettingRepository settingRepo;
+
+    // Cached client — rebuilt only when key or model changes
+    private volatile String cachedKey   = null;
+    private volatile String cachedModel = null;
+    private volatile RestClient restClient = null;
 
     public OpenAiClient(ObjectMapper objectMapper,
-                        @Value("${openai.api-key:}") String apiKey,
-                        @Value("${openai.model:gpt-4o}") String model) {
+                        @Value("${openai.api-key:}") String envApiKey,
+                        @Value("${openai.model:gpt-4o}") String envModel,
+                        PlatformSettingRepository settingRepo) {
         this.objectMapper = objectMapper;
-        this.apiKey = apiKey;
-        this.model = model;
+        this.envApiKey    = envApiKey;
+        this.envModel     = envModel;
+        this.settingRepo  = settingRepo;
     }
 
-    @PostConstruct
-    void init() {
-        if (apiKey != null && !apiKey.isBlank()) {
-            restClient = RestClient.builder()
+    private String resolveApiKey() {
+        String dbKey = settingRepo.findById(DB_KEY_NAME)
+                .map(s -> s.getValue())
+                .filter(v -> v != null && !v.isBlank())
+                .orElse(null);
+        if (dbKey != null) return dbKey;
+        if (envApiKey != null && !envApiKey.isBlank()) return envApiKey;
+        return null;
+    }
+
+    private String resolveModel() {
+        return settingRepo.findById(DB_MODEL_NAME)
+                .map(s -> s.getValue())
+                .filter(v -> v != null && !v.isBlank())
+                .orElse(envModel != null && !envModel.isBlank() ? envModel : DEFAULT_MODEL);
+    }
+
+    private synchronized RestClient getRestClient() {
+        String key   = resolveApiKey();
+        String model = resolveModel();
+        if (key == null || key.isBlank()) {
+            log.warn("[AI] No OpenAI API key configured — set it in AI Settings or via OPENAI_API_KEY");
+            return null;
+        }
+        if (!key.equals(cachedKey) || !model.equals(cachedModel)) {
+            log.info("[AI] OpenAI config changed — rebuilding REST client (model={})", model);
+            cachedKey   = key;
+            cachedModel = model;
+            restClient  = RestClient.builder()
                     .baseUrl(COMPLETIONS_URL)
-                    .defaultHeader("Authorization", "Bearer " + apiKey)
+                    .defaultHeader("Authorization", "Bearer " + key)
                     .defaultHeader("Content-Type", "application/json")
                     .build();
-            log.info("[AI] OpenAI client initialised (model={})", model);
-        } else {
-            log.warn("[AI] OPENAI_API_KEY not configured — OpenAI calls will return UNKNOWN");
         }
+        return restClient;
     }
 
     @Override
     public String providerName() {
-        return "openai/" + model;
+        return "openai/" + resolveModel();
     }
 
     @Override
     public AiAnalysisResponse analyse(String systemPrompt, String userPrompt) {
-        if (restClient == null) {
-            return AiAnalysisResponse.ofResult(
-                    unknownResult("OpenAI client not initialised — set OPENAI_API_KEY"));
+        RestClient client = getRestClient();
+        if (client == null) {
+            throw new IllegalStateException("OpenAI API key is not configured — set it in AI Settings");
         }
-        try {
-            Map<String, Object> request = Map.of(
-                    "model", model,
-                    "max_tokens", MAX_TOKENS,
-                    "response_format", Map.of("type", "json_object"),
-                    "messages", List.of(
-                            Map.of("role", "system", "content", systemPrompt),
-                            Map.of("role", "user",   "content", userPrompt)
-                    )
-            );
 
-            String responseBody = restClient.post()
+        String model = resolveModel();
+        Map<String, Object> request = Map.of(
+                "model", model,
+                "max_tokens", MAX_TOKENS,
+                "response_format", Map.of("type", "json_object"),
+                "messages", List.of(
+                        Map.of("role", "system", "content", systemPrompt),
+                        Map.of("role", "user",   "content", userPrompt)
+                )
+        );
+
+        try {
+            String responseBody = client.post()
                     .body(objectMapper.writeValueAsString(request))
                     .retrieve()
                     .body(String.class);
-
             return parseResponse(responseBody);
-
         } catch (Exception e) {
             log.error("[AI] OpenAI API call failed: {}", e.getMessage(), e);
-            return AiAnalysisResponse.ofResult(unknownResult("API error: " + e.getMessage()));
+            throw new RuntimeException("OpenAI API call failed: " + e.getMessage(), e);
         }
     }
 

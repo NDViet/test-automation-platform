@@ -32,5 +32,11 @@ public interface FailureAnalysisRepository extends JpaRepository<FailureAnalysis
             @Param("category") String category,
             Pageable pageable);
 
-    boolean existsByTestCaseResultId(UUID testCaseResultId);
+    /** Returns true only when a SUCCESSFUL analysis exists — ERROR records are retried. */
+    boolean existsByTestCaseResultIdAndAnalysisStatus(UUID testCaseResultId, String analysisStatus);
+
+    /** Convenience wrapper — callers use this instead of the raw method. */
+    default boolean existsSuccessfulAnalysis(UUID testCaseResultId) {
+        return existsByTestCaseResultIdAndAnalysisStatus(testCaseResultId, "SUCCESS");
+    }
 }

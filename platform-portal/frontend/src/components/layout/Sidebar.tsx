@@ -1,6 +1,6 @@
 import { NavLink } from 'react-router-dom'
 import {
-  LayoutDashboard, FolderOpen, Bell, Key, Activity,
+  LayoutDashboard, FolderOpen, Bell, Key, Activity, Bot,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -8,6 +8,7 @@ const nav = [
   { to: '/',                   label: 'Overview',    icon: LayoutDashboard },
   { to: '/alerts',             label: 'Alerts',      icon: Bell },
   { to: '/settings/api-keys',  label: 'API Keys',    icon: Key },
+  { to: '/settings/ai',        label: 'AI Settings', icon: Bot },
 ]
 
 export default function Sidebar() {

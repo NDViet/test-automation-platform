@@ -1,7 +1,6 @@
 package com.platform.ai.batch;
 
 import com.platform.ai.classification.FailureClassificationService;
-import com.platform.common.enums.TestStatus;
 import com.platform.core.domain.TestCaseResult;
 import com.platform.core.repository.FailureAnalysisRepository;
 import com.platform.core.repository.TestCaseResultRepository;
@@ -14,6 +13,9 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
 import java.util.UUID;
+
+import static com.platform.common.enums.TestStatus.BROKEN;
+import static com.platform.common.enums.TestStatus.FAILED;
 
 /**
  * Scheduled job that runs nightly (default: 02:00 UTC) to classify any
@@ -45,9 +47,9 @@ public class NightlyAnalysisBatchJob {
         log.info("[AI Batch] Starting nightly failure classification since={}", since);
 
         List<TestCaseResult> failures = resultRepo
-                .findByStatusSince(TestStatus.FAILED, since)
+                .findByStatusInSince(List.of(FAILED, BROKEN), since)
                 .stream()
-                .filter(r -> !analysisRepo.existsByTestCaseResultId(r.getId()))
+                .filter(r -> !analysisRepo.existsSuccessfulAnalysis(r.getId()))
                 .toList();
 
         log.info("[AI Batch] Found {} unanalysed failures in the last 24 h", failures.size());

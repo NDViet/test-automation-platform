@@ -163,3 +163,29 @@ export interface FailureAnalysis {
   flakyCandidate: boolean
   analysedAt: string
 }
+
+export interface AiSettings {
+  enabled: boolean
+  realtimeEnabled: boolean
+  provider: 'anthropic' | 'openai'
+  model: string
+  apiKeySet: boolean
+}
+
+export interface AiSettingsUpdate {
+  enabled?: boolean
+  realtimeEnabled?: boolean
+  provider?: string
+  model?: string
+  apiKey?: string
+}
+
+export interface TestConnectionResult {
+  success: boolean
+  message: string
+}
+
+export interface AnalyseNowResult {
+  queued: number
+  hours: number
+}

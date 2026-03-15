@@ -63,6 +63,14 @@ public class FailureAnalysis {
     @Column(name = "output_tokens", nullable = false)
     private int outputTokens;
 
+    /** {@code SUCCESS} or {@code ERROR}. ERROR rows are eligible for retry. */
+    @Column(name = "analysis_status", nullable = false, length = 20)
+    private String analysisStatus = "SUCCESS";
+
+    /** Populated when {@code analysisStatus = ERROR}; stores the exception message. */
+    @Column(name = "error_message", columnDefinition = "TEXT")
+    private String errorMessage;
+
     @CreatedDate
     @Column(name = "analysed_at", nullable = false, updatable = false)
     private Instant analysedAt;
@@ -83,6 +91,8 @@ public class FailureAnalysis {
         this.modelVersion     = b.modelVersion;
         this.inputTokens      = b.inputTokens;
         this.outputTokens     = b.outputTokens;
+        this.analysisStatus   = b.analysisStatus != null ? b.analysisStatus : "SUCCESS";
+        this.errorMessage     = b.errorMessage;
     }
 
     public static Builder builder() { return new Builder(); }
@@ -103,6 +113,9 @@ public class FailureAnalysis {
     public int getOutputTokens()       { return outputTokens; }
     public int getTotalTokens()        { return inputTokens + outputTokens; }
     public Instant getAnalysedAt()     { return analysedAt; }
+    public String getAnalysisStatus()  { return analysisStatus; }
+    public String getErrorMessage()    { return errorMessage; }
+    public boolean isSuccess()         { return "SUCCESS".equals(analysisStatus); }
 
     @Override
     public boolean equals(Object o) {
@@ -128,6 +141,8 @@ public class FailureAnalysis {
         private String modelVersion;
         private int inputTokens;
         private int outputTokens;
+        private String analysisStatus = "SUCCESS";
+        private String errorMessage;
 
         public Builder testId(String v)            { this.testId = v; return this; }
         public Builder projectId(UUID v)           { this.projectId = v; return this; }
@@ -142,6 +157,8 @@ public class FailureAnalysis {
         public Builder modelVersion(String v)      { this.modelVersion = v; return this; }
         public Builder inputTokens(int v)          { this.inputTokens = v; return this; }
         public Builder outputTokens(int v)         { this.outputTokens = v; return this; }
+        public Builder analysisStatus(String v)    { this.analysisStatus = v; return this; }
+        public Builder errorMessage(String v)      { this.errorMessage = v; return this; }
         public FailureAnalysis build()             { return new FailureAnalysis(this); }
     }
 }
