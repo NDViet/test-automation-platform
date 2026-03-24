@@ -28,8 +28,10 @@
         <exclude within="org.testng..*"/>
         <exclude within="io.cucumber..*"/>
         <exclude within="org.springframework..*"/>
-        <!-- Exclude the aspect itself and platform internals — not test code -->
-        <exclude within="com.platform.testframework.step.StepAspect"/>
+        <!-- Exclude platform internals that don't contain @Step usage — not test code.
+             NOTE: StepAspect must NOT be excluded: AspectJ injects the static
+             aspectOf() factory into every aspect class during weaving; excluding
+             the class prevents that injection, causing NoSuchMethodError at runtime. -->
         <exclude within="com.platform.testframework.step.AllureStepBridge"/>
         <exclude within="com.platform.testframework.step.StepNameResolver"/>
         <exclude within="com.platform.testframework.context..*"/>
