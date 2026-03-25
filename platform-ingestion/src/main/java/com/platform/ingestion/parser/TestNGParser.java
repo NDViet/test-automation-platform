@@ -89,7 +89,8 @@ public class TestNGParser implements ResultParser {
                 allCases.size(), passed, failed, skipped, broken,
                 totalDurationMs > 0 ? totalDurationMs : null,
                 SourceFormat.TESTNG, allCases,
-                ctx.executionMode(), ctx.parallelism(), suiteName
+                ctx.executionMode(), ctx.parallelism(), suiteName,
+                null, null
         ));
     }
 

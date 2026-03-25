@@ -83,7 +83,8 @@ public class NewmanParser implements ResultParser {
                 allCases.size(), passed, failed, skipped, broken,
                 totalMs > 0 ? totalMs : null,
                 SourceFormat.NEWMAN, allCases,
-                ctx.executionMode(), ctx.parallelism(), ctx.suiteName()
+                ctx.executionMode(), ctx.parallelism(), ctx.suiteName(),
+                null, null
         ));
     }
 

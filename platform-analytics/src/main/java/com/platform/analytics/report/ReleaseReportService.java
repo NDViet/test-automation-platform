@@ -164,7 +164,8 @@ public class ReleaseReportService {
                 latest.getSkipped(), latest.getBroken(),
                 latest.getDurationMs(), latest.getSourceFormat(),
                 List.of(),
-                latest.getExecutionMode(), latest.getParallelism(), latest.getSuiteName()
+                latest.getExecutionMode(), latest.getParallelism(), latest.getSuiteName(),
+                null, null
         );
         return gateEvaluator.evaluate(stub, projectId);
     }

@@ -1,6 +1,7 @@
 package com.platform.core.domain;
 
 import com.platform.common.enums.SourceFormat;
+import com.platform.common.enums.TestType;
 import com.platform.common.enums.TriggerType;
 import jakarta.persistence.*;
 import org.springframework.data.annotation.CreatedDate;
@@ -49,6 +50,10 @@ public class TestExecution {
     @Enumerated(EnumType.STRING)
     @Column(name = "source_format", nullable = false, length = 30)
     private SourceFormat sourceFormat;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "test_type", nullable = false, length = 20)
+    private TestType testType = TestType.FUNCTIONAL;
 
     @Column(name = "ci_provider", length = 30)
     private String ciProvider;
@@ -103,6 +108,7 @@ public class TestExecution {
         this.environment = b.environment;
         this.triggerType = b.triggerType;
         this.sourceFormat = b.sourceFormat;
+        this.testType = b.testType != null ? b.testType : TestType.from(b.sourceFormat);
         this.ciProvider = b.ciProvider;
         this.ciRunUrl = b.ciRunUrl;
         this.totalTests = b.totalTests;
@@ -128,6 +134,7 @@ public class TestExecution {
     public String getEnvironment() { return environment; }
     public TriggerType getTriggerType() { return triggerType; }
     public SourceFormat getSourceFormat() { return sourceFormat; }
+    public TestType getTestType() { return testType; }
     public String getCiProvider() { return ciProvider; }
     public String getCiRunUrl() { return ciRunUrl; }
     public int getTotalTests() { return totalTests; }
@@ -161,6 +168,7 @@ public class TestExecution {
         private String environment = "unknown";
         private TriggerType triggerType;
         private SourceFormat sourceFormat;
+        private TestType testType;
         private String ciProvider;
         private String ciRunUrl;
         private int totalTests;
@@ -181,6 +189,7 @@ public class TestExecution {
         public Builder environment(String v) { this.environment = v; return this; }
         public Builder triggerType(TriggerType v) { this.triggerType = v; return this; }
         public Builder sourceFormat(SourceFormat v) { this.sourceFormat = v; return this; }
+        public Builder testType(TestType v) { this.testType = v; return this; }
         public Builder ciProvider(String v) { this.ciProvider = v; return this; }
         public Builder ciRunUrl(String v) { this.ciRunUrl = v; return this; }
         public Builder totalTests(int v) { this.totalTests = v; return this; }

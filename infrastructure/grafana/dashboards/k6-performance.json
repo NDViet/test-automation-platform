@@ -1,0 +1,766 @@
+{
+  "title": "K6 Performance Tests",
+  "uid": "k6-performance",
+  "description": "Pass rates, check failures, suite breakdown, and flakiness for K6 load tests ingested via format=K6.",
+  "tags": ["k6", "performance", "load-testing", "postgres"],
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "1m",
+  "time": { "from": "now-30d", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "editable": true,
+  "graphTooltip": 1,
+
+  "templating": {
+    "list": [
+      {
+        "name": "team",
+        "label": "Team",
+        "type": "query",
+        "datasource": { "type": "postgres", "uid": "platform-postgres" },
+        "query": "SELECT slug FROM teams ORDER BY name",
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": "All",
+        "multi": false,
+        "sort": 1,
+        "current": { "text": "All", "value": "$__all" },
+        "hide": 0
+      },
+      {
+        "name": "project",
+        "label": "Project",
+        "type": "query",
+        "datasource": { "type": "postgres", "uid": "platform-postgres" },
+        "query": "SELECT p.slug FROM projects p JOIN teams t ON t.id = p.team_id WHERE '$team' = 'All' OR t.slug = '$team' ORDER BY p.name",
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": "All",
+        "multi": false,
+        "sort": 1,
+        "current": { "text": "All", "value": "$__all" },
+        "hide": 0
+      },
+      {
+        "name": "suite",
+        "label": "Suite",
+        "type": "query",
+        "datasource": { "type": "postgres", "uid": "platform-postgres" },
+        "query": "SELECT DISTINCT te.suite_name FROM test_executions te JOIN projects p ON p.id = te.project_id JOIN teams t ON t.id = p.team_id WHERE te.source_format = 'K6' AND te.suite_name <> '' AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project') ORDER BY te.suite_name",
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": "All",
+        "multi": false,
+        "sort": 1,
+        "current": { "text": "All", "value": "$__all" },
+        "hide": 0
+      },
+      {
+        "name": "environment",
+        "label": "Environment",
+        "type": "query",
+        "datasource": { "type": "postgres", "uid": "platform-postgres" },
+        "query": "SELECT DISTINCT te.environment FROM test_executions te WHERE te.source_format = 'K6' ORDER BY te.environment",
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": "All",
+        "multi": false,
+        "sort": 1,
+        "current": { "text": "All", "value": "$__all" },
+        "hide": 0
+      }
+    ]
+  },
+
+  "panels": [
+
+    {
+      "id": 1, "type": "row", "title": "Overview",
+      "collapsed": false, "gridPos": { "x": 0, "y": 0, "w": 24, "h": 1 }
+    },
+
+    {
+      "id": 2, "type": "stat",
+      "title": "Total Runs",
+      "description": "K6 test executions ingested in the selected time range.",
+      "gridPos": { "x": 0, "y": 1, "w": 4, "h": 4 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background", "graphMode": "none", "textMode": "auto", "orientation": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] }
+        },
+        "overrides": []
+      },
+      "targets": [{
+        "refId": "A", "rawQuery": true,
+        "rawSql": "SELECT COUNT(*) AS \"Total Runs\" FROM test_executions te JOIN projects p ON p.id = te.project_id JOIN teams t ON t.id = p.team_id WHERE $__timeFilter(te.executed_at) AND te.source_format = 'K6' AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project') AND ('$suite' = 'All' OR te.suite_name = '$suite') AND ('$environment' = 'All' OR te.environment = '$environment')",
+        "format": "table"
+      }]
+    },
+
+    {
+      "id": 3, "type": "stat",
+      "title": "Avg Pass Rate",
+      "description": "Average check pass rate across all K6 runs in the time range.",
+      "gridPos": { "x": 4, "y": 1, "w": 4, "h": 4 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background", "graphMode": "none", "textMode": "auto", "orientation": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red",    "value": null },
+              { "color": "yellow", "value": 80 },
+              { "color": "green",  "value": 95 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [{
+        "refId": "A", "rawQuery": true,
+        "rawSql": "SELECT ROUND((SUM(passed) * 100.0 / NULLIF(SUM(total_tests), 0))::numeric, 1) AS \"Pass Rate\" FROM test_executions te JOIN projects p ON p.id = te.project_id JOIN teams t ON t.id = p.team_id WHERE $__timeFilter(te.executed_at) AND te.source_format = 'K6' AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project') AND ('$suite' = 'All' OR te.suite_name = '$suite') AND ('$environment' = 'All' OR te.environment = '$environment')",
+        "format": "table"
+      }]
+    },
+
+    {
+      "id": 4, "type": "stat",
+      "title": "Total Checks",
+      "description": "Sum of all individual K6 checks executed.",
+      "gridPos": { "x": 8, "y": 1, "w": 4, "h": 4 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "value", "graphMode": "none", "textMode": "auto", "orientation": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "text", "value": null }] }
+        },
+        "overrides": []
+      },
+      "targets": [{
+        "refId": "A", "rawQuery": true,
+        "rawSql": "SELECT SUM(total_tests) AS \"Total Checks\" FROM test_executions te JOIN projects p ON p.id = te.project_id JOIN teams t ON t.id = p.team_id WHERE $__timeFilter(te.executed_at) AND te.source_format = 'K6' AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project') AND ('$suite' = 'All' OR te.suite_name = '$suite') AND ('$environment' = 'All' OR te.environment = '$environment')",
+        "format": "table"
+      }]
+    },
+
+    {
+      "id": 5, "type": "stat",
+      "title": "Failed Checks",
+      "description": "Total check failures across all K6 runs.",
+      "gridPos": { "x": 12, "y": 1, "w": 4, "h": 4 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "background", "graphMode": "none", "textMode": "auto", "orientation": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 1 },
+              { "color": "red",   "value": 10 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [{
+        "refId": "A", "rawQuery": true,
+        "rawSql": "SELECT SUM(failed) AS \"Failed Checks\" FROM test_executions te JOIN projects p ON p.id = te.project_id JOIN teams t ON t.id = p.team_id WHERE $__timeFilter(te.executed_at) AND te.source_format = 'K6' AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project') AND ('$suite' = 'All' OR te.suite_name = '$suite') AND ('$environment' = 'All' OR te.environment = '$environment')",
+        "format": "table"
+      }]
+    },
+
+    {
+      "id": 6, "type": "stat",
+      "title": "Suites Run",
+      "description": "Distinct K6 test suites seen in the time range.",
+      "gridPos": { "x": 16, "y": 1, "w": 4, "h": 4 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "value", "graphMode": "none", "textMode": "auto", "orientation": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "purple", "value": null }] }
+        },
+        "overrides": []
+      },
+      "targets": [{
+        "refId": "A", "rawQuery": true,
+        "rawSql": "SELECT COUNT(DISTINCT suite_name) AS \"Suites\" FROM test_executions te JOIN projects p ON p.id = te.project_id JOIN teams t ON t.id = p.team_id WHERE $__timeFilter(te.executed_at) AND te.source_format = 'K6' AND te.suite_name <> '' AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project') AND ('$environment' = 'All' OR te.environment = '$environment')",
+        "format": "table"
+      }]
+    },
+
+    {
+      "id": 7, "type": "stat",
+      "title": "Last Run",
+      "description": "Time since the most recent K6 execution was ingested.",
+      "gridPos": { "x": 20, "y": 1, "w": 4, "h": 4 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "colorMode": "value", "graphMode": "none", "textMode": "auto", "orientation": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "dateTimeFromNow",
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "text", "value": null }] }
+        },
+        "overrides": []
+      },
+      "targets": [{
+        "refId": "A", "rawQuery": true,
+        "rawSql": "SELECT EXTRACT(EPOCH FROM MAX(te.executed_at)) * 1000 AS \"Last Run\" FROM test_executions te JOIN projects p ON p.id = te.project_id JOIN teams t ON t.id = p.team_id WHERE te.source_format = 'K6' AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project') AND ('$suite' = 'All' OR te.suite_name = '$suite') AND ('$environment' = 'All' OR te.environment = '$environment')",
+        "format": "table"
+      }]
+    },
+
+    {
+      "id": 10, "type": "row", "title": "Trends",
+      "collapsed": false, "gridPos": { "x": 0, "y": 5, "w": 24, "h": 1 }
+    },
+
+    {
+      "id": 11, "type": "timeseries",
+      "title": "Pass Rate Over Time",
+      "description": "Daily check pass rate. Drop below 95% indicates degraded performance thresholds.",
+      "gridPos": { "x": 0, "y": 6, "w": 16, "h": 8 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": {
+        "tooltip": { "mode": "multi", "sort": "none" },
+        "legend": { "displayMode": "list", "placement": "bottom" }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0, "max": 100,
+          "custom": { "lineWidth": 2, "fillOpacity": 10 },
+          "color": { "mode": "palette-classic" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 80 },
+              { "color": "green", "value": 95 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "refId": "A", "rawQuery": true,
+          "rawSql": "SELECT DATE_TRUNC('day', te.executed_at) AS time, te.suite_name AS metric, ROUND((SUM(te.passed) * 100.0 / NULLIF(SUM(te.total_tests), 0))::numeric, 1) AS \"Pass Rate\" FROM test_executions te JOIN projects p ON p.id = te.project_id JOIN teams t ON t.id = p.team_id WHERE $__timeFilter(te.executed_at) AND te.source_format = 'K6' AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project') AND ('$suite' = 'All' OR te.suite_name = '$suite') AND ('$environment' = 'All' OR te.environment = '$environment') GROUP BY DATE_TRUNC('day', te.executed_at), te.suite_name ORDER BY time",
+          "format": "time_series"
+        }
+      ]
+    },
+
+    {
+      "id": 12, "type": "timeseries",
+      "title": "Checks Volume",
+      "description": "Daily count of passed vs failed checks.",
+      "gridPos": { "x": 16, "y": 6, "w": 8, "h": 8 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": {
+        "tooltip": { "mode": "multi", "sort": "none" },
+        "legend": { "displayMode": "list", "placement": "bottom" }
+      },
+      "fieldConfig": {
+        "defaults": { "custom": { "lineWidth": 2, "fillOpacity": 15 }, "color": { "mode": "palette-classic" } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Passed" }, "properties": [{ "id": "color", "value": { "fixedColor": "#73BF69", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "Failed" }, "properties": [{ "id": "color", "value": { "fixedColor": "#F2495C", "mode": "fixed" } }] }
+        ]
+      },
+      "targets": [
+        {
+          "refId": "A", "rawQuery": true,
+          "rawSql": "SELECT DATE_TRUNC('day', te.executed_at) AS time, 'Passed' AS metric, SUM(te.passed)::bigint AS value FROM test_executions te JOIN projects p ON p.id = te.project_id JOIN teams t ON t.id = p.team_id WHERE $__timeFilter(te.executed_at) AND te.source_format = 'K6' AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project') AND ('$suite' = 'All' OR te.suite_name = '$suite') AND ('$environment' = 'All' OR te.environment = '$environment') GROUP BY 1 ORDER BY 1",
+          "format": "time_series"
+        },
+        {
+          "refId": "B", "rawQuery": true,
+          "rawSql": "SELECT DATE_TRUNC('day', te.executed_at) AS time, 'Failed' AS metric, SUM(te.failed)::bigint AS value FROM test_executions te JOIN projects p ON p.id = te.project_id JOIN teams t ON t.id = p.team_id WHERE $__timeFilter(te.executed_at) AND te.source_format = 'K6' AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project') AND ('$suite' = 'All' OR te.suite_name = '$suite') AND ('$environment' = 'All' OR te.environment = '$environment') GROUP BY 1 ORDER BY 1",
+          "format": "time_series"
+        }
+      ]
+    },
+
+    {
+      "id": 20, "type": "row", "title": "Suite Breakdown",
+      "collapsed": false, "gridPos": { "x": 0, "y": 14, "w": 24, "h": 1 }
+    },
+
+    {
+      "id": 21, "type": "barchart",
+      "title": "Pass Rate by Suite",
+      "description": "Current pass rate per K6 suite (test file) over the selected period.",
+      "gridPos": { "x": 0, "y": 15, "w": 12, "h": 8 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": {
+        "xField": "Suite",
+        "orientation": "horizontal",
+        "tooltip": { "mode": "single" },
+        "legend": { "displayMode": "list", "placement": "bottom" },
+        "barWidth": 0.7
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent", "min": 0, "max": 100,
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "yellow", "value": 80 },
+              { "color": "green", "value": 95 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [{
+        "refId": "A", "rawQuery": true,
+        "rawSql": "SELECT te.suite_name AS \"Suite\", ROUND((SUM(te.passed) * 100.0 / NULLIF(SUM(te.total_tests), 0))::numeric, 1) AS \"Pass Rate\" FROM test_executions te JOIN projects p ON p.id = te.project_id JOIN teams t ON t.id = p.team_id WHERE $__timeFilter(te.executed_at) AND te.source_format = 'K6' AND te.suite_name <> '' AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project') AND ('$environment' = 'All' OR te.environment = '$environment') GROUP BY te.suite_name ORDER BY \"Pass Rate\" ASC",
+        "format": "table"
+      }]
+    },
+
+    {
+      "id": 22, "type": "table",
+      "title": "Suite Summary",
+      "description": "Aggregate totals per K6 suite.",
+      "gridPos": { "x": 12, "y": 15, "w": 12, "h": 8 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": {
+        "sortBy": [{ "displayName": "Pass Rate", "desc": false }],
+        "footer": { "show": false }
+      },
+      "fieldConfig": {
+        "defaults": { "custom": { "align": "left", "displayMode": "auto" } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Pass Rate" }, "properties": [{ "id": "unit", "value": "percent" }, { "id": "custom.displayMode", "value": "color-background" }, { "id": "thresholds", "value": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "yellow", "value": 80 }, { "color": "green", "value": 95 }] } }] },
+          { "matcher": { "id": "byName", "options": "Runs" }, "properties": [{ "id": "custom.width", "value": 60 }] }
+        ]
+      },
+      "targets": [{
+        "refId": "A", "rawQuery": true,
+        "rawSql": "SELECT te.suite_name AS \"Suite\", COUNT(*) AS \"Runs\", SUM(te.total_tests) AS \"Checks\", SUM(te.passed) AS \"Passed\", SUM(te.failed) AS \"Failed\", ROUND((SUM(te.passed) * 100.0 / NULLIF(SUM(te.total_tests), 0))::numeric, 1) AS \"Pass Rate\" FROM test_executions te JOIN projects p ON p.id = te.project_id JOIN teams t ON t.id = p.team_id WHERE $__timeFilter(te.executed_at) AND te.source_format = 'K6' AND te.suite_name <> '' AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project') AND ('$environment' = 'All' OR te.environment = '$environment') GROUP BY te.suite_name ORDER BY \"Pass Rate\" ASC",
+        "format": "table"
+      }]
+    },
+
+    {
+      "id": 30, "type": "row", "title": "Check Analysis",
+      "collapsed": false, "gridPos": { "x": 0, "y": 23, "w": 24, "h": 1 }
+    },
+
+    {
+      "id": 31, "type": "table",
+      "title": "Top Failing Checks",
+      "description": "K6 checks with the most failures. test_id shows group path (e.g. 'Login Flow / status is 200').",
+      "gridPos": { "x": 0, "y": 24, "w": 14, "h": 10 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": {
+        "sortBy": [{ "displayName": "Failures", "desc": true }],
+        "footer": { "show": false }
+      },
+      "fieldConfig": {
+        "defaults": { "custom": { "align": "left", "displayMode": "auto" } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Failure Rate" }, "properties": [{ "id": "unit", "value": "percent" }, { "id": "custom.displayMode", "value": "color-background" }, { "id": "thresholds", "value": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 5 }, { "color": "red", "value": 20 }] } }] },
+          { "matcher": { "id": "byName", "options": "Check" }, "properties": [{ "id": "custom.width", "value": 350 }] }
+        ]
+      },
+      "targets": [{
+        "refId": "A", "rawQuery": true,
+        "rawSql": "SELECT tcr.test_id AS \"Check\", COUNT(*) AS \"Failures\", ROUND(COUNT(*) * 100.0 / (SELECT COUNT(*) FROM test_case_results x JOIN test_executions xe ON xe.id = x.execution_id WHERE x.test_id = tcr.test_id AND xe.source_format = 'K6')::numeric, 1) AS \"Failure Rate\", MAX(tcr.failure_message) AS \"Last Failure\" FROM test_case_results tcr JOIN test_executions te ON te.id = tcr.execution_id JOIN projects p ON p.id = te.project_id JOIN teams t ON t.id = p.team_id WHERE $__timeFilter(te.executed_at) AND te.source_format = 'K6' AND tcr.status IN ('FAILED', 'BROKEN') AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project') AND ('$suite' = 'All' OR te.suite_name = '$suite') AND ('$environment' = 'All' OR te.environment = '$environment') GROUP BY tcr.test_id ORDER BY \"Failures\" DESC LIMIT 20",
+        "format": "table"
+      }]
+    },
+
+    {
+      "id": 32, "type": "piechart",
+      "title": "Check Status Distribution",
+      "description": "Proportion of PASSED / FAILED / SKIPPED checks.",
+      "gridPos": { "x": 14, "y": 24, "w": 10, "h": 10 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": {
+        "pieType": "donut",
+        "tooltip": { "mode": "multi" },
+        "legend": { "displayMode": "list", "placement": "right" }
+      },
+      "fieldConfig": {
+        "defaults": { "color": { "mode": "palette-classic" } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "PASSED" },  "properties": [{ "id": "color", "value": { "fixedColor": "#73BF69", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "FAILED" },  "properties": [{ "id": "color", "value": { "fixedColor": "#F2495C", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "SKIPPED" }, "properties": [{ "id": "color", "value": { "fixedColor": "#B0B0B0", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "BROKEN" },  "properties": [{ "id": "color", "value": { "fixedColor": "#FF9830", "mode": "fixed" } }] }
+        ]
+      },
+      "targets": [{
+        "refId": "A", "rawQuery": true,
+        "rawSql": "SELECT tcr.status AS \"metric\", COUNT(*) AS \"value\" FROM test_case_results tcr JOIN test_executions te ON te.id = tcr.execution_id JOIN projects p ON p.id = te.project_id JOIN teams t ON t.id = p.team_id WHERE $__timeFilter(te.executed_at) AND te.source_format = 'K6' AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project') AND ('$suite' = 'All' OR te.suite_name = '$suite') AND ('$environment' = 'All' OR te.environment = '$environment') GROUP BY tcr.status",
+        "format": "table"
+      }]
+    },
+
+    {
+      "id": 40, "type": "row", "title": "Flakiness",
+      "collapsed": false, "gridPos": { "x": 0, "y": 34, "w": 24, "h": 1 }
+    },
+
+    {
+      "id": 41, "type": "table",
+      "title": "Flaky K6 Checks",
+      "description": "Checks classified FLAKY or CRITICAL_FLAKY by the platform's flakiness scorer. Score 0–1; higher = more flaky.",
+      "gridPos": { "x": 0, "y": 35, "w": 24, "h": 8 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": {
+        "sortBy": [{ "displayName": "Score", "desc": true }],
+        "footer": { "show": false }
+      },
+      "fieldConfig": {
+        "defaults": { "custom": { "align": "left", "displayMode": "auto" } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Score" }, "properties": [{ "id": "unit", "value": "percentunit" }, { "id": "custom.displayMode", "value": "color-background" }, { "id": "custom.width", "value": 100 }, { "id": "thresholds", "value": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 0.1 }, { "color": "orange", "value": 0.3 }, { "color": "red", "value": 0.6 }] } }] },
+          { "matcher": { "id": "byName", "options": "Fail Rate" }, "properties": [{ "id": "unit", "value": "percentunit" }, { "id": "custom.width", "value": 90 }] },
+          { "matcher": { "id": "byName", "options": "Class" }, "properties": [{ "id": "custom.width", "value": 200 }] },
+          { "matcher": { "id": "byName", "options": "Check" }, "properties": [{ "id": "custom.width", "value": 320 }] }
+        ]
+      },
+      "targets": [{
+        "refId": "A", "rawQuery": true,
+        "rawSql": "SELECT fs.test_id AS \"Check\", fs.classification AS \"Class\", fs.score AS \"Score\", fs.failure_rate AS \"Fail Rate\", fs.total_runs AS \"Runs\", fs.failure_count AS \"Fails\", fs.last_failed_at AS \"Last Failed\" FROM flakiness_scores fs JOIN projects p ON p.id = fs.project_id JOIN teams t ON t.id = p.team_id WHERE fs.classification IN ('FLAKY', 'CRITICAL_FLAKY') AND fs.test_id IN (SELECT DISTINCT tcr.test_id FROM test_case_results tcr JOIN test_executions te ON te.id = tcr.execution_id WHERE te.source_format = 'K6' AND te.project_id = fs.project_id) AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project') ORDER BY fs.score DESC LIMIT 25",
+        "format": "table"
+      }]
+    },
+
+    {
+      "id": 50, "type": "row", "title": "Run History",
+      "collapsed": false, "gridPos": { "x": 0, "y": 43, "w": 24, "h": 1 }
+    },
+
+    {
+      "id": 51, "type": "table",
+      "title": "Recent K6 Runs",
+      "description": "Latest K6 executions. Click run_id to open CI link.",
+      "gridPos": { "x": 0, "y": 44, "w": 24, "h": 10 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": {
+        "sortBy": [{ "displayName": "Executed At", "desc": true }],
+        "footer": { "show": false }
+      },
+      "fieldConfig": {
+        "defaults": { "custom": { "align": "left", "displayMode": "auto" } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Pass Rate" }, "properties": [{ "id": "unit", "value": "percent" }, { "id": "custom.displayMode", "value": "color-background" }, { "id": "custom.width", "value": 110 }, { "id": "thresholds", "value": { "mode": "absolute", "steps": [{ "color": "red", "value": null }, { "color": "yellow", "value": 80 }, { "color": "green", "value": 95 }] } }] },
+          { "matcher": { "id": "byName", "options": "Suite" },      "properties": [{ "id": "custom.width", "value": 160 }] },
+          { "matcher": { "id": "byName", "options": "Run ID" },     "properties": [{ "id": "custom.width", "value": 220 }] },
+          { "matcher": { "id": "byName", "options": "Env" },        "properties": [{ "id": "custom.width", "value": 70 }] },
+          { "matcher": { "id": "byName", "options": "Branch" },     "properties": [{ "id": "custom.width", "value": 100 }] },
+          { "matcher": { "id": "byName", "options": "Executed At" },"properties": [{ "id": "custom.width", "value": 160 }] },
+          { "matcher": { "id": "byName", "options": "CI" }, "properties": [{ "id": "custom.displayMode", "value": "auto" }, { "id": "links", "value": [{ "title": "Open CI run", "url": "${__data.fields.CI}" }] }] }
+        ]
+      },
+      "targets": [{
+        "refId": "A", "rawQuery": true,
+        "rawSql": "SELECT te.run_id AS \"Run ID\", te.suite_name AS \"Suite\", te.environment AS \"Env\", te.branch AS \"Branch\", te.total_tests AS \"Checks\", te.passed AS \"Passed\", te.failed AS \"Failed\", ROUND((te.passed * 100.0 / NULLIF(te.total_tests, 0))::numeric, 1) AS \"Pass Rate\", te.ci_run_url AS \"CI\", te.executed_at AS \"Executed At\" FROM test_executions te JOIN projects p ON p.id = te.project_id JOIN teams t ON t.id = p.team_id WHERE $__timeFilter(te.executed_at) AND te.source_format = 'K6' AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project') AND ('$suite' = 'All' OR te.suite_name = '$suite') AND ('$environment' = 'All' OR te.environment = '$environment') ORDER BY te.executed_at DESC LIMIT 50",
+        "format": "table"
+      }]
+    },
+
+    {
+      "id": 60, "type": "row", "title": "Performance Signals",
+      "description": "Response-time percentiles, throughput, error rate, and VU counts from the performance_metrics table (K6, Gatling, JMeter).",
+      "collapsed": false, "gridPos": { "x": 0, "y": 55, "w": 24, "h": 1 }
+    },
+
+    {
+      "id": 61, "type": "stat",
+      "title": "Avg p95 Response Time",
+      "description": "Mean p95 HTTP response time across K6 runs in the selected time range.",
+      "gridPos": { "x": 0, "y": 56, "w": 4, "h": 4 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": {
+        "reduceOptions": { "calcs": ["mean"] },
+        "colorMode": "background", "graphMode": "none", "textMode": "auto", "orientation": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green",  "value": null },
+            { "color": "yellow", "value": 500 },
+            { "color": "orange", "value": 1000 },
+            { "color": "red",    "value": 2000 }
+          ]}
+        },
+        "overrides": []
+      },
+      "targets": [{
+        "refId": "A", "rawQuery": true,
+        "rawSql": "SELECT AVG(pm.p95_ms) AS \"p95 ms\" FROM performance_metrics pm JOIN test_executions te ON te.id = pm.execution_id JOIN projects p ON p.id = te.project_id JOIN teams t ON t.id = p.team_id WHERE $__timeFilter(te.executed_at) AND te.source_format = 'K6' AND pm.p95_ms IS NOT NULL AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project') AND ('$suite' = 'All' OR te.suite_name = '$suite') AND ('$environment' = 'All' OR te.environment = '$environment')",
+        "format": "table"
+      }]
+    },
+
+    {
+      "id": 62, "type": "stat",
+      "title": "Avg p90 Response Time",
+      "description": "Mean p90 HTTP response time across K6 runs in the selected time range.",
+      "gridPos": { "x": 4, "y": 56, "w": 4, "h": 4 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": {
+        "reduceOptions": { "calcs": ["mean"] },
+        "colorMode": "background", "graphMode": "none", "textMode": "auto", "orientation": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green",  "value": null },
+            { "color": "yellow", "value": 300 },
+            { "color": "orange", "value": 700 },
+            { "color": "red",    "value": 1500 }
+          ]}
+        },
+        "overrides": []
+      },
+      "targets": [{
+        "refId": "A", "rawQuery": true,
+        "rawSql": "SELECT AVG(pm.p90_ms) AS \"p90 ms\" FROM performance_metrics pm JOIN test_executions te ON te.id = pm.execution_id JOIN projects p ON p.id = te.project_id JOIN teams t ON t.id = p.team_id WHERE $__timeFilter(te.executed_at) AND te.source_format = 'K6' AND pm.p90_ms IS NOT NULL AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project') AND ('$suite' = 'All' OR te.suite_name = '$suite') AND ('$environment' = 'All' OR te.environment = '$environment')",
+        "format": "table"
+      }]
+    },
+
+    {
+      "id": 63, "type": "stat",
+      "title": "Avg Error Rate",
+      "description": "Mean HTTP error rate (failed requests / total requests) across K6 runs.",
+      "gridPos": { "x": 8, "y": 56, "w": 4, "h": 4 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": {
+        "reduceOptions": { "calcs": ["mean"] },
+        "colorMode": "background", "graphMode": "none", "textMode": "auto", "orientation": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green",  "value": null },
+            { "color": "yellow", "value": 0.01 },
+            { "color": "orange", "value": 0.05 },
+            { "color": "red",    "value": 0.10 }
+          ]}
+        },
+        "overrides": []
+      },
+      "targets": [{
+        "refId": "A", "rawQuery": true,
+        "rawSql": "SELECT AVG(pm.error_rate) AS \"error_rate\" FROM performance_metrics pm JOIN test_executions te ON te.id = pm.execution_id JOIN projects p ON p.id = te.project_id JOIN teams t ON t.id = p.team_id WHERE $__timeFilter(te.executed_at) AND te.source_format = 'K6' AND pm.error_rate IS NOT NULL AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project') AND ('$suite' = 'All' OR te.suite_name = '$suite') AND ('$environment' = 'All' OR te.environment = '$environment')",
+        "format": "table"
+      }]
+    },
+
+    {
+      "id": 64, "type": "stat",
+      "title": "Avg Throughput",
+      "description": "Mean HTTP requests per second across K6 runs.",
+      "gridPos": { "x": 12, "y": 56, "w": 4, "h": 4 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": {
+        "reduceOptions": { "calcs": ["mean"] },
+        "colorMode": "background", "graphMode": "none", "textMode": "auto", "orientation": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "blue", "value": null }] }
+        },
+        "overrides": []
+      },
+      "targets": [{
+        "refId": "A", "rawQuery": true,
+        "rawSql": "SELECT AVG(pm.requests_per_second) AS \"req/s\" FROM performance_metrics pm JOIN test_executions te ON te.id = pm.execution_id JOIN projects p ON p.id = te.project_id JOIN teams t ON t.id = p.team_id WHERE $__timeFilter(te.executed_at) AND te.source_format = 'K6' AND pm.requests_per_second IS NOT NULL AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project') AND ('$suite' = 'All' OR te.suite_name = '$suite') AND ('$environment' = 'All' OR te.environment = '$environment')",
+        "format": "table"
+      }]
+    },
+
+    {
+      "id": 65, "type": "stat",
+      "title": "Peak VUs (Max)",
+      "description": "Maximum VUs recorded across any K6 run in the selected time range.",
+      "gridPos": { "x": 16, "y": 56, "w": 4, "h": 4 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": {
+        "reduceOptions": { "calcs": ["max"] },
+        "colorMode": "background", "graphMode": "none", "textMode": "auto", "orientation": "auto"
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [{ "color": "purple", "value": null }] }
+        },
+        "overrides": []
+      },
+      "targets": [{
+        "refId": "A", "rawQuery": true,
+        "rawSql": "SELECT MAX(pm.vus_max) AS \"vus_max\" FROM performance_metrics pm JOIN test_executions te ON te.id = pm.execution_id JOIN projects p ON p.id = te.project_id JOIN teams t ON t.id = p.team_id WHERE $__timeFilter(te.executed_at) AND te.source_format = 'K6' AND pm.vus_max IS NOT NULL AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project') AND ('$suite' = 'All' OR te.suite_name = '$suite') AND ('$environment' = 'All' OR te.environment = '$environment')",
+        "format": "table"
+      }]
+    },
+
+    {
+      "id": 66, "type": "timeseries",
+      "title": "Response Time Trend",
+      "description": "p50 / p90 / p95 / p99 response time per K6 run over time. Helps spot performance regressions across deployments or load changes.",
+      "gridPos": { "x": 0, "y": 60, "w": 16, "h": 8 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": {
+        "tooltip": { "mode": "multi", "sort": "none" },
+        "legend": { "displayMode": "list", "placement": "bottom" }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "ms",
+          "custom": { "lineWidth": 2, "fillOpacity": 10, "gradientMode": "none", "spanNulls": true }
+        },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "p50" }, "properties": [{ "id": "color", "value": { "fixedColor": "#73BF69", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "p90" }, "properties": [{ "id": "color", "value": { "fixedColor": "#FADE2A", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "p95" }, "properties": [{ "id": "color", "value": { "fixedColor": "#FF9830", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "p99" }, "properties": [{ "id": "color", "value": { "fixedColor": "#F2495C", "mode": "fixed" } }] }
+        ]
+      },
+      "targets": [{
+        "refId": "A", "rawQuery": true,
+        "rawSql": "SELECT te.executed_at AS time, pm.median_ms AS \"p50\", pm.p90_ms AS \"p90\", pm.p95_ms AS \"p95\", pm.p99_ms AS \"p99\" FROM performance_metrics pm JOIN test_executions te ON te.id = pm.execution_id JOIN projects p ON p.id = te.project_id JOIN teams t ON t.id = p.team_id WHERE $__timeFilter(te.executed_at) AND te.source_format = 'K6' AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project') AND ('$suite' = 'All' OR te.suite_name = '$suite') AND ('$environment' = 'All' OR te.environment = '$environment') ORDER BY te.executed_at",
+        "format": "time_series"
+      }]
+    },
+
+    {
+      "id": 67, "type": "timeseries",
+      "title": "Error Rate Trend",
+      "description": "HTTP error rate per K6 run over time. Sustained rise in error rate indicates a reliability regression.",
+      "gridPos": { "x": 16, "y": 60, "w": 8, "h": 8 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": {
+        "tooltip": { "mode": "single", "sort": "none" },
+        "legend": { "displayMode": "list", "placement": "bottom" }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percentunit",
+          "custom": { "lineWidth": 2, "fillOpacity": 15, "gradientMode": "none", "spanNulls": true },
+          "color": { "mode": "thresholds" },
+          "thresholds": { "mode": "absolute", "steps": [
+            { "color": "green",  "value": null },
+            { "color": "yellow", "value": 0.01 },
+            { "color": "red",    "value": 0.05 }
+          ]}
+        },
+        "overrides": []
+      },
+      "targets": [{
+        "refId": "A", "rawQuery": true,
+        "rawSql": "SELECT te.executed_at AS time, pm.error_rate AS \"Error Rate\" FROM performance_metrics pm JOIN test_executions te ON te.id = pm.execution_id JOIN projects p ON p.id = te.project_id JOIN teams t ON t.id = p.team_id WHERE $__timeFilter(te.executed_at) AND te.source_format = 'K6' AND pm.error_rate IS NOT NULL AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project') AND ('$suite' = 'All' OR te.suite_name = '$suite') AND ('$environment' = 'All' OR te.environment = '$environment') ORDER BY te.executed_at",
+        "format": "time_series"
+      }]
+    },
+
+    {
+      "id": 68, "type": "timeseries",
+      "title": "Throughput & VUs over Time",
+      "description": "Requests/second and peak VU count per K6 run. Correlated view shows if throughput scales with VU ramp.",
+      "gridPos": { "x": 0, "y": 68, "w": 16, "h": 8 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": {
+        "tooltip": { "mode": "multi", "sort": "none" },
+        "legend": { "displayMode": "list", "placement": "bottom" }
+      },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "lineWidth": 2, "fillOpacity": 10, "gradientMode": "none", "spanNulls": true }
+        },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "req/s" },   "properties": [{ "id": "unit", "value": "reqps" }, { "id": "color", "value": { "fixedColor": "#5794F2", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "VUs Max" }, "properties": [{ "id": "unit", "value": "short" }, { "id": "custom.axisPlacement", "value": "right" }, { "id": "color", "value": { "fixedColor": "#B877D9", "mode": "fixed" } }] }
+        ]
+      },
+      "targets": [{
+        "refId": "A", "rawQuery": true,
+        "rawSql": "SELECT te.executed_at AS time, pm.requests_per_second AS \"req/s\", pm.vus_max AS \"VUs Max\" FROM performance_metrics pm JOIN test_executions te ON te.id = pm.execution_id JOIN projects p ON p.id = te.project_id JOIN teams t ON t.id = p.team_id WHERE $__timeFilter(te.executed_at) AND te.source_format = 'K6' AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project') AND ('$suite' = 'All' OR te.suite_name = '$suite') AND ('$environment' = 'All' OR te.environment = '$environment') ORDER BY te.executed_at",
+        "format": "time_series"
+      }]
+    },
+
+    {
+      "id": 69, "type": "table",
+      "title": "Performance Metrics History",
+      "description": "Raw performance metrics per K6 run — response time percentiles, throughput, error rate, and VU count.",
+      "gridPos": { "x": 0, "y": 76, "w": 24, "h": 10 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": {
+        "sortBy": [{ "displayName": "Executed At", "desc": true }],
+        "footer": { "show": false }
+      },
+      "fieldConfig": {
+        "defaults": { "custom": { "align": "right", "displayMode": "auto" } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Suite" },       "properties": [{ "id": "custom.align", "value": "left" }, { "id": "custom.width", "value": 160 }] },
+          { "matcher": { "id": "byName", "options": "Env" },         "properties": [{ "id": "custom.align", "value": "left" }, { "id": "custom.width", "value": 80 }] },
+          { "matcher": { "id": "byName", "options": "Branch" },      "properties": [{ "id": "custom.align", "value": "left" }, { "id": "custom.width", "value": 100 }] },
+          { "matcher": { "id": "byName", "options": "Executed At" }, "properties": [{ "id": "custom.align", "value": "left" }, { "id": "custom.width", "value": 155 }] },
+          { "matcher": { "id": "byName", "options": "p95 (ms)" },    "properties": [{ "id": "unit", "value": "ms" }, { "id": "custom.width", "value": 80 }, { "id": "custom.displayMode", "value": "color-background" }, { "id": "thresholds", "value": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 500 }, { "color": "red", "value": 1000 }] } }] },
+          { "matcher": { "id": "byName", "options": "p90 (ms)" },    "properties": [{ "id": "unit", "value": "ms" }, { "id": "custom.width", "value": 80 }] },
+          { "matcher": { "id": "byName", "options": "p50 (ms)" },    "properties": [{ "id": "unit", "value": "ms" }, { "id": "custom.width", "value": 80 }] },
+          { "matcher": { "id": "byName", "options": "Avg (ms)" },    "properties": [{ "id": "unit", "value": "ms" }, { "id": "custom.width", "value": 80 }] },
+          { "matcher": { "id": "byName", "options": "Req/s" },       "properties": [{ "id": "unit", "value": "reqps" }, { "id": "custom.width", "value": 80 }] },
+          { "matcher": { "id": "byName", "options": "Error %" },     "properties": [{ "id": "unit", "value": "percentunit" }, { "id": "custom.width", "value": 80 }, { "id": "custom.displayMode", "value": "color-background" }, { "id": "thresholds", "value": { "mode": "absolute", "steps": [{ "color": "green", "value": null }, { "color": "yellow", "value": 0.01 }, { "color": "red", "value": 0.05 }] } }] },
+          { "matcher": { "id": "byName", "options": "VUs Max" },     "properties": [{ "id": "custom.width", "value": 80 }] },
+          { "matcher": { "id": "byName", "options": "Requests" },    "properties": [{ "id": "custom.width", "value": 90 }] }
+        ]
+      },
+      "targets": [{
+        "refId": "A", "rawQuery": true,
+        "rawSql": "SELECT te.executed_at AS \"Executed At\", te.suite_name AS \"Suite\", te.environment AS \"Env\", te.branch AS \"Branch\", ROUND(pm.avg_ms::numeric, 1) AS \"Avg (ms)\", ROUND(pm.median_ms::numeric, 1) AS \"p50 (ms)\", ROUND(pm.p90_ms::numeric, 1) AS \"p90 (ms)\", ROUND(pm.p95_ms::numeric, 1) AS \"p95 (ms)\", ROUND(pm.p99_ms::numeric, 1) AS \"p99 (ms)\", ROUND(pm.requests_per_second::numeric, 1) AS \"Req/s\", pm.requests_total AS \"Requests\", ROUND(pm.error_rate::numeric, 4) AS \"Error %\", pm.vus_max AS \"VUs Max\" FROM performance_metrics pm JOIN test_executions te ON te.id = pm.execution_id JOIN projects p ON p.id = te.project_id JOIN teams t ON t.id = p.team_id WHERE $__timeFilter(te.executed_at) AND te.source_format = 'K6' AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project') AND ('$suite' = 'All' OR te.suite_name = '$suite') AND ('$environment' = 'All' OR te.environment = '$environment') ORDER BY te.executed_at DESC LIMIT 50",
+        "format": "table"
+      }]
+    }
+
+  ]
+}

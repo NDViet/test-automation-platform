@@ -74,7 +74,8 @@ public class PlaywrightParser implements ResultParser {
                 allCases.size(), passed, failed, skipped, broken,
                 totalMs > 0 ? totalMs : null,
                 SourceFormat.PLAYWRIGHT, allCases,
-                ctx.executionMode(), ctx.parallelism(), ctx.suiteName()
+                ctx.executionMode(), ctx.parallelism(), ctx.suiteName(),
+                null, null
         ));
     }
 

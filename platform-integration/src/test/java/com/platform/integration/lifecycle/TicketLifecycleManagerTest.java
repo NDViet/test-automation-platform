@@ -189,7 +189,7 @@ class TicketLifecycleManagerTest {
         return new UnifiedTestResult("run-1", "team-a", "proj-x", branch, "staging",
                 null, null, null, null, Instant.now(),
                 1, 0, 1, 0, 0, 100L, SourceFormat.JUNIT_XML, List.of(tc),
-                "UNKNOWN", 0, "");
+                "UNKNOWN", 0, "", null, null);
     }
 
     private UnifiedTestResult passingResult(String testId) {
@@ -198,7 +198,7 @@ class TicketLifecycleManagerTest {
         return new UnifiedTestResult("run-2", "team-a", "proj-x", "main", "staging",
                 null, null, null, null, Instant.now(),
                 1, 1, 0, 0, 0, 100L, SourceFormat.JUNIT_XML, List.of(tc),
-                "UNKNOWN", 0, "");
+                "UNKNOWN", 0, "", null, null);
     }
 
     private IntegrationConfig config(UUID teamId, String trackerType, String projectKey) {

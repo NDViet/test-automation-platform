@@ -2,10 +2,12 @@ package com.platform.ingestion.parser;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.platform.common.dto.PerformanceMetricsDto;
 import com.platform.common.dto.TestCaseResultDto;
 import com.platform.common.dto.UnifiedTestResult;
 import com.platform.common.enums.SourceFormat;
 import com.platform.common.enums.TestStatus;
+import com.platform.common.enums.TestType;
 import com.platform.ingestion.exception.ParseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -47,6 +49,7 @@ public class K6JsonParser implements ResultParser {
         }
 
         List<TestCaseResultDto> allCases = new ArrayList<>();
+        PerformanceMetricsDto perfMetrics = null;
 
         for (byte[] file : files) {
             try {
@@ -56,6 +59,12 @@ public class K6JsonParser implements ResultParser {
                     throw new ParseException("Invalid k6 summary: missing 'root_group'", SourceFormat.K6);
                 }
                 parseGroup(rootGroup, "", allCases);
+
+                // Extract rich performance metrics from the top-level "metrics" section
+                JsonNode metricsNode = root.path("metrics");
+                if (!metricsNode.isMissingNode()) {
+                    perfMetrics = extractPerformanceMetrics(metricsNode, root);
+                }
             } catch (ParseException e) {
                 throw e;
             } catch (Exception e) {
@@ -70,14 +79,20 @@ public class K6JsonParser implements ResultParser {
         long totalMs = allCases.stream()
                 .mapToLong(t -> t.durationMs() != null ? t.durationMs() : 0L).sum();
 
+        // Prefer perfMetrics duration (actual load-test wall-clock) over sum of check durations
+        Long durationMs = (perfMetrics != null && perfMetrics.durationMs() != null)
+                ? perfMetrics.durationMs()
+                : (totalMs > 0 ? totalMs : null);
+
         return List.of(new UnifiedTestResult(
                 ctx.runId(), ctx.teamId(), ctx.projectId(),
                 ctx.branch(), ctx.environment(), ctx.commitSha(),
                 null, ctx.ciProvider(), ctx.ciRunUrl(), Instant.now(),
                 allCases.size(), passed, failed, skipped, broken,
-                totalMs > 0 ? totalMs : null,
+                durationMs,
                 SourceFormat.K6, allCases,
-                ctx.executionMode(), ctx.parallelism(), ctx.suiteName()
+                ctx.executionMode(), ctx.parallelism(), ctx.suiteName(),
+                TestType.PERFORMANCE, perfMetrics
         ));
     }
 
@@ -105,6 +120,77 @@ public class K6JsonParser implements ResultParser {
                 parseGroup(subGroup, groupPath, results);
             }
         }
+    }
+
+    /**
+     * Extracts HTTP response time percentiles, throughput, error rate, and VU count
+     * from the top-level {@code metrics} node of a k6 summary JSON.
+     *
+     * <p>K6 metric keys of interest:
+     * <ul>
+     *   <li>{@code http_req_duration} — avg/min/med/max/p(90)/p(95)/p(99) in ms</li>
+     *   <li>{@code http_reqs} — count (total requests), rate (req/s)</li>
+     *   <li>{@code http_req_failed} — passes/fails used to compute error rate</li>
+     *   <li>{@code vus_max} — value (peak concurrent VUs)</li>
+     *   <li>{@code test_duration} — test wall-clock duration in ms (custom metric or inferred)</li>
+     * </ul>
+     */
+    private PerformanceMetricsDto extractPerformanceMetrics(JsonNode metrics, JsonNode root) {
+        JsonNode dur = metrics.path("http_req_duration");
+        Double avgMs    = doubleOrNull(dur, "avg");
+        Double minMs    = doubleOrNull(dur, "min");
+        Double medianMs = doubleOrNull(dur, "med");
+        Double maxMs    = doubleOrNull(dur, "max");
+        Double p90Ms    = doubleOrNull(dur, "p(90)");
+        Double p95Ms    = doubleOrNull(dur, "p(95)");
+        Double p99Ms    = doubleOrNull(dur, "p(99)");
+
+        JsonNode reqs = metrics.path("http_reqs");
+        Long   requestsTotal    = longOrNull(reqs, "count");
+        Double requestsPerSecond = doubleOrNull(reqs, "rate");
+
+        // Error rate: fails / (passes + fails)
+        Double errorRate = null;
+        JsonNode failed = metrics.path("http_req_failed");
+        if (!failed.isMissingNode()) {
+            long passes = failed.path("passes").asLong(0);
+            long fails  = failed.path("fails").asLong(0);
+            long total  = passes + fails;
+            if (total > 0) errorRate = (double) fails / total;
+        }
+
+        JsonNode vusMax = metrics.path("vus_max");
+        Integer vusMaxVal = vusMax.isMissingNode() ? null : (int) vusMax.path("value").asLong(0);
+
+        // Wall-clock duration: prefer test_duration metric, fall back to iteration_duration max
+        Long durationMs = null;
+        JsonNode testDur = metrics.path("test_duration");
+        if (!testDur.isMissingNode()) {
+            double v = testDur.path("value").asDouble(0);
+            if (v > 0) durationMs = (long) v;
+        }
+        if (durationMs == null) {
+            JsonNode iterDur = metrics.path("iteration_duration");
+            Double maxIter = doubleOrNull(iterDur, "max");
+            if (maxIter != null && maxIter > 0) durationMs = maxIter.longValue();
+        }
+
+        return PerformanceMetricsDto.of(
+                avgMs, minMs, medianMs, maxMs, p90Ms, p95Ms, p99Ms,
+                requestsTotal, requestsPerSecond,
+                errorRate, vusMaxVal, durationMs);
+    }
+
+    private static Double doubleOrNull(JsonNode node, String field) {
+        if (node.isMissingNode()) return null;
+        JsonNode f = node.path(field);
+        return f.isMissingNode() ? null : f.asDouble();
+    }
+
+    private static Long longOrNull(JsonNode node, String field) {
+        if (node.isMissingNode()) return null;
+        JsonNode f = node.path(field);
+        return f.isMissingNode() ? null : f.asLong();
     }
 
     private TestCaseResultDto parseCheck(JsonNode check, String groupPath) {

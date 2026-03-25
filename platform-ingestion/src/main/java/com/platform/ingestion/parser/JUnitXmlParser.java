@@ -97,7 +97,8 @@ public class JUnitXmlParser implements ResultParser {
                 allCases,
                 ctx.executionMode(),
                 ctx.parallelism(),
-                suiteName
+                suiteName,
+                null, null
         );
 
         return List.of(result);

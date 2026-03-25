@@ -1,0 +1,448 @@
+{
+  "__inputs": [],
+  "__requires": [
+    { "type": "grafana",    "id": "grafana",  "name": "Grafana",  "version": "12.0.0" },
+    { "type": "datasource", "id": "influxdb", "name": "InfluxDB", "version": "1.0.0" }
+  ],
+  "annotations": { "list": [] },
+  "description": "K6 real-time metrics streamed via --out influxdb. Filter by team / project / environment tags.",
+  "editable": true,
+  "fiscalYearStartMonth": 0,
+  "graphTooltip": 1,
+  "id": null,
+  "links": [
+    {
+      "title": "K6 History (Platform)",
+      "url": "/d/k6-performance",
+      "type": "link",
+      "icon": "external link",
+      "targetBlank": false
+    }
+  ],
+  "panels": [
+
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "id": 1,
+      "title": "Overview",
+      "type": "row"
+    },
+
+    {
+      "datasource": { "type": "influxdb", "uid": "influxdb-k6" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green",  "value": null },
+              { "color": "yellow", "value": 500 },
+              { "color": "red",    "value": 2000 }
+            ]
+          },
+          "unit": "ms",
+          "mappings": []
+        }
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 0, "y": 1 },
+      "id": 2,
+      "options": { "reduceOptions": { "calcs": ["mean"] }, "orientation": "auto", "textMode": "auto", "colorMode": "background" },
+      "title": "Avg Response Time",
+      "type": "stat",
+      "targets": [
+        {
+          "query": "SELECT mean(\"value\") FROM \"http_req_duration\" WHERE $timeFilter AND \"team\" =~ /^$team$/ AND \"project\" =~ /^$project$/ AND \"environment\" =~ /^$environment$/",
+          "rawQuery": true,
+          "resultFormat": "time_series",
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "datasource": { "type": "influxdb", "uid": "influxdb-k6" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green",  "value": null },
+              { "color": "yellow", "value": 500 },
+              { "color": "red",    "value": 2000 }
+            ]
+          },
+          "unit": "ms",
+          "mappings": []
+        }
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 4, "y": 1 },
+      "id": 3,
+      "options": { "reduceOptions": { "calcs": ["mean"] }, "colorMode": "background" },
+      "title": "p95 Response Time",
+      "type": "stat",
+      "targets": [
+        {
+          "query": "SELECT percentile(\"value\", 95) FROM \"http_req_duration\" WHERE $timeFilter AND \"team\" =~ /^$team$/ AND \"project\" =~ /^$project$/ AND \"environment\" =~ /^$environment$/",
+          "rawQuery": true,
+          "resultFormat": "time_series",
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "datasource": { "type": "influxdb", "uid": "influxdb-k6" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green",  "value": null },
+              { "color": "yellow", "value": 0.01 },
+              { "color": "red",    "value": 0.05 }
+            ]
+          },
+          "unit": "percentunit",
+          "mappings": []
+        }
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 8, "y": 1 },
+      "id": 4,
+      "options": { "reduceOptions": { "calcs": ["mean"] }, "colorMode": "background" },
+      "title": "Error Rate",
+      "type": "stat",
+      "targets": [
+        {
+          "query": "SELECT mean(\"value\") FROM \"http_req_failed\" WHERE $timeFilter AND \"team\" =~ /^$team$/ AND \"project\" =~ /^$project$/ AND \"environment\" =~ /^$environment$/",
+          "rawQuery": true,
+          "resultFormat": "time_series",
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "datasource": { "type": "influxdb", "uid": "influxdb-k6" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "blue", "value": null }]
+          },
+          "unit": "short",
+          "mappings": []
+        }
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 12, "y": 1 },
+      "id": 5,
+      "options": { "reduceOptions": { "calcs": ["max"] }, "colorMode": "background" },
+      "title": "Peak VUs",
+      "type": "stat",
+      "targets": [
+        {
+          "query": "SELECT max(\"value\") FROM \"vus\" WHERE $timeFilter AND \"team\" =~ /^$team$/ AND \"project\" =~ /^$project$/ AND \"environment\" =~ /^$environment$/",
+          "rawQuery": true,
+          "resultFormat": "time_series",
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "datasource": { "type": "influxdb", "uid": "influxdb-k6" },
+      "fieldConfig": {
+        "defaults": {
+          "color": { "mode": "thresholds" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [{ "color": "purple", "value": null }]
+          },
+          "unit": "short",
+          "mappings": []
+        }
+      },
+      "gridPos": { "h": 4, "w": 4, "x": 16, "y": 1 },
+      "id": 6,
+      "options": { "reduceOptions": { "calcs": ["sum"] }, "colorMode": "background" },
+      "title": "Total Requests",
+      "type": "stat",
+      "targets": [
+        {
+          "query": "SELECT sum(\"value\") FROM \"http_reqs\" WHERE $timeFilter AND \"team\" =~ /^$team$/ AND \"project\" =~ /^$project$/ AND \"environment\" =~ /^$environment$/",
+          "rawQuery": true,
+          "resultFormat": "time_series",
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 5 },
+      "id": 10,
+      "title": "Virtual Users & Throughput",
+      "type": "row"
+    },
+
+    {
+      "datasource": { "type": "influxdb", "uid": "influxdb-k6" },
+      "fieldConfig": {
+        "defaults": { "custom": { "lineWidth": 2 }, "color": { "mode": "palette-classic" } },
+        "overrides": [
+          {
+            "matcher": { "id": "byName", "options": "VUs" },
+            "properties": [
+              { "id": "color", "value": { "fixedColor": "#5794F2", "mode": "fixed" } },
+              { "id": "custom.fillOpacity", "value": 20 }
+            ]
+          }
+        ]
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+      "id": 11,
+      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "list", "placement": "bottom" } },
+      "title": "Virtual Users",
+      "type": "timeseries",
+      "targets": [
+        {
+          "alias": "VUs",
+          "query": "SELECT last(\"value\") FROM \"vus\" WHERE $timeFilter AND \"team\" =~ /^$team$/ AND \"project\" =~ /^$project$/ AND \"environment\" =~ /^$environment$/ GROUP BY time($__interval) fill(0)",
+          "rawQuery": true,
+          "resultFormat": "time_series",
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "datasource": { "type": "influxdb", "uid": "influxdb-k6" },
+      "fieldConfig": {
+        "defaults": { "custom": { "lineWidth": 2 }, "unit": "reqps", "color": { "mode": "palette-classic" } }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+      "id": 12,
+      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "list", "placement": "bottom" } },
+      "title": "Request Rate (req/s)",
+      "type": "timeseries",
+      "targets": [
+        {
+          "alias": "req/s",
+          "query": "SELECT non_negative_derivative(sum(\"value\"), 1s) FROM \"http_reqs\" WHERE $timeFilter AND \"team\" =~ /^$team$/ AND \"project\" =~ /^$project$/ AND \"environment\" =~ /^$environment$/ GROUP BY time($__interval) fill(0)",
+          "rawQuery": true,
+          "resultFormat": "time_series",
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 14 },
+      "id": 20,
+      "title": "Response Time",
+      "type": "row"
+    },
+
+    {
+      "datasource": { "type": "influxdb", "uid": "influxdb-k6" },
+      "fieldConfig": {
+        "defaults": { "custom": { "lineWidth": 2 }, "unit": "ms", "color": { "mode": "palette-classic" } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "p95" },    "properties": [{ "id": "color", "value": { "fixedColor": "#F2495C", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "p90" },    "properties": [{ "id": "color", "value": { "fixedColor": "#FF9830", "mode": "fixed" } }] },
+          { "matcher": { "id": "byName", "options": "median" }, "properties": [{ "id": "color", "value": { "fixedColor": "#73BF69", "mode": "fixed" } }] }
+        ]
+      },
+      "gridPos": { "h": 9, "w": 16, "x": 0, "y": 15 },
+      "id": 21,
+      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "list", "placement": "bottom" } },
+      "title": "Response Time Percentiles",
+      "type": "timeseries",
+      "targets": [
+        {
+          "alias": "p95",
+          "query": "SELECT percentile(\"value\", 95) FROM \"http_req_duration\" WHERE $timeFilter AND \"team\" =~ /^$team$/ AND \"project\" =~ /^$project$/ AND \"environment\" =~ /^$environment$/ GROUP BY time($__interval) fill(null)",
+          "rawQuery": true,
+          "resultFormat": "time_series",
+          "refId": "A"
+        },
+        {
+          "alias": "p90",
+          "query": "SELECT percentile(\"value\", 90) FROM \"http_req_duration\" WHERE $timeFilter AND \"team\" =~ /^$team$/ AND \"project\" =~ /^$project$/ AND \"environment\" =~ /^$environment$/ GROUP BY time($__interval) fill(null)",
+          "rawQuery": true,
+          "resultFormat": "time_series",
+          "refId": "B"
+        },
+        {
+          "alias": "median",
+          "query": "SELECT median(\"value\") FROM \"http_req_duration\" WHERE $timeFilter AND \"team\" =~ /^$team$/ AND \"project\" =~ /^$project$/ AND \"environment\" =~ /^$environment$/ GROUP BY time($__interval) fill(null)",
+          "rawQuery": true,
+          "resultFormat": "time_series",
+          "refId": "C"
+        },
+        {
+          "alias": "avg",
+          "query": "SELECT mean(\"value\") FROM \"http_req_duration\" WHERE $timeFilter AND \"team\" =~ /^$team$/ AND \"project\" =~ /^$project$/ AND \"environment\" =~ /^$environment$/ GROUP BY time($__interval) fill(null)",
+          "rawQuery": true,
+          "resultFormat": "time_series",
+          "refId": "D"
+        }
+      ]
+    },
+
+    {
+      "datasource": { "type": "influxdb", "uid": "influxdb-k6" },
+      "fieldConfig": {
+        "defaults": { "custom": { "lineWidth": 2 }, "unit": "ms", "color": { "mode": "palette-classic" } }
+      },
+      "gridPos": { "h": 9, "w": 8, "x": 16, "y": 15 },
+      "id": 22,
+      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "list", "placement": "bottom" } },
+      "title": "Response Time by Group",
+      "type": "timeseries",
+      "targets": [
+        {
+          "alias": "$tag_group",
+          "query": "SELECT mean(\"value\") FROM \"http_req_duration\" WHERE $timeFilter AND \"team\" =~ /^$team$/ AND \"project\" =~ /^$project$/ AND \"environment\" =~ /^$environment$/ AND \"group\" != '' GROUP BY time($__interval), \"group\" fill(null)",
+          "rawQuery": true,
+          "resultFormat": "time_series",
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "collapsed": false,
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 24 },
+      "id": 30,
+      "title": "Errors",
+      "type": "row"
+    },
+
+    {
+      "datasource": { "type": "influxdb", "uid": "influxdb-k6" },
+      "fieldConfig": {
+        "defaults": {
+          "custom": { "lineWidth": 2 },
+          "unit": "percentunit",
+          "color": { "mode": "fixed", "fixedColor": "#F2495C" },
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green",  "value": null },
+              { "color": "yellow", "value": 0.01 },
+              { "color": "red",    "value": 0.05 }
+            ]
+          }
+        }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 25 },
+      "id": 31,
+      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "list", "placement": "bottom" } },
+      "title": "Error Rate",
+      "type": "timeseries",
+      "targets": [
+        {
+          "alias": "error rate",
+          "query": "SELECT mean(\"value\") FROM \"http_req_failed\" WHERE $timeFilter AND \"team\" =~ /^$team$/ AND \"project\" =~ /^$project$/ AND \"environment\" =~ /^$environment$/ GROUP BY time($__interval) fill(0)",
+          "rawQuery": true,
+          "resultFormat": "time_series",
+          "refId": "A"
+        }
+      ]
+    },
+
+    {
+      "datasource": { "type": "influxdb", "uid": "influxdb-k6" },
+      "fieldConfig": {
+        "defaults": { "custom": { "lineWidth": 2 }, "unit": "ms", "color": { "mode": "palette-classic" } }
+      },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 25 },
+      "id": 32,
+      "options": { "tooltip": { "mode": "multi" }, "legend": { "displayMode": "list", "placement": "bottom" } },
+      "title": "Connection & Waiting Time",
+      "type": "timeseries",
+      "targets": [
+        {
+          "alias": "connecting",
+          "query": "SELECT mean(\"value\") FROM \"http_req_connecting\" WHERE $timeFilter AND \"team\" =~ /^$team$/ AND \"project\" =~ /^$project$/ AND \"environment\" =~ /^$environment$/ GROUP BY time($__interval) fill(null)",
+          "rawQuery": true,
+          "resultFormat": "time_series",
+          "refId": "A"
+        },
+        {
+          "alias": "waiting (TTFB)",
+          "query": "SELECT mean(\"value\") FROM \"http_req_waiting\" WHERE $timeFilter AND \"team\" =~ /^$team$/ AND \"project\" =~ /^$project$/ AND \"environment\" =~ /^$environment$/ GROUP BY time($__interval) fill(null)",
+          "rawQuery": true,
+          "resultFormat": "time_series",
+          "refId": "B"
+        },
+        {
+          "alias": "receiving",
+          "query": "SELECT mean(\"value\") FROM \"http_req_receiving\" WHERE $timeFilter AND \"team\" =~ /^$team$/ AND \"project\" =~ /^$project$/ AND \"environment\" =~ /^$environment$/ GROUP BY time($__interval) fill(null)",
+          "rawQuery": true,
+          "resultFormat": "time_series",
+          "refId": "C"
+        }
+      ]
+    }
+
+  ],
+  "refresh": "5s",
+  "schemaVersion": 39,
+  "tags": ["k6", "performance", "realtime", "influxdb"],
+  "templating": {
+    "list": [
+      {
+        "name": "team",
+        "label": "Team",
+        "type": "query",
+        "datasource": { "type": "influxdb", "uid": "influxdb-k6" },
+        "query": "SHOW TAG VALUES FROM \"vus\" WITH KEY = \"team\"",
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": false,
+        "refresh": 2,
+        "sort": 1,
+        "current": { "text": "All", "value": "$__all" }
+      },
+      {
+        "name": "project",
+        "label": "Project",
+        "type": "query",
+        "datasource": { "type": "influxdb", "uid": "influxdb-k6" },
+        "query": "SHOW TAG VALUES FROM \"vus\" WITH KEY = \"project\" WHERE \"team\" =~ /^$team$/",
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": false,
+        "refresh": 2,
+        "sort": 1,
+        "current": { "text": "All", "value": "$__all" }
+      },
+      {
+        "name": "environment",
+        "label": "Environment",
+        "type": "query",
+        "datasource": { "type": "influxdb", "uid": "influxdb-k6" },
+        "query": "SHOW TAG VALUES FROM \"vus\" WITH KEY = \"environment\"",
+        "includeAll": true,
+        "allValue": ".*",
+        "multi": false,
+        "refresh": 2,
+        "sort": 1,
+        "current": { "text": "All", "value": "$__all" }
+      }
+    ]
+  },
+  "time": { "from": "now-1h", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "title": "K6 Real-time Metrics",
+  "uid": "k6-realtime",
+  "version": 1
+}

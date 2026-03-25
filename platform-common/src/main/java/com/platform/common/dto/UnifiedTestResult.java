@@ -1,6 +1,7 @@
 package com.platform.common.dto;
 
 import com.platform.common.enums.SourceFormat;
+import com.platform.common.enums.TestType;
 import com.platform.common.enums.TriggerType;
 
 import java.time.Instant;
@@ -37,13 +38,20 @@ public record UnifiedTestResult(
         // Execution metadata — for distribution and performance analysis
         String executionMode,   // PARALLEL | SEQUENTIAL | UNKNOWN
         int    parallelism,     // thread / fork count; 0 = unknown
-        String suiteName        // top-level suite / class / feature file
+        String suiteName,       // top-level suite / class / feature file
+
+        // Classification — inferred from sourceFormat if not supplied explicitly
+        TestType testType,
+
+        // Non-null only for PERFORMANCE test types (K6, Gatling, JMeter)
+        PerformanceMetricsDto performanceMetrics
 ) {
     public UnifiedTestResult {
-        if (testCases == null)    testCases    = List.of();
-        if (environment == null)  environment  = "unknown";
-        if (branch == null)       branch       = "unknown";
+        if (testCases == null)     testCases    = List.of();
+        if (environment == null)   environment  = "unknown";
+        if (branch == null)        branch       = "unknown";
         if (executionMode == null) executionMode = "UNKNOWN";
-        if (suiteName == null)    suiteName    = "";
+        if (suiteName == null)     suiteName    = "";
+        if (testType == null)      testType     = TestType.from(sourceFormat);
     }
 }
