@@ -35,6 +35,17 @@ datasources:
     jsonData:
       maxLines: 1000
 
+  # K6 real-time metrics — streamed via k6 --out influxdb=http://localhost:8086/k6
+  - name: InfluxDB-K6
+    type: influxdb
+    uid: influxdb-k6
+    url: http://platform-influxdb:8086
+    access: proxy
+    jsonData:
+      dbName: k6
+      httpMode: GET
+      timeInterval: 5s
+
   # Test execution logs — shipped by logstash-logback-encoder → Logstash → OpenSearch
   - name: OpenSearch
     type: grafana-opensearch-datasource

@@ -1,0 +1,15 @@
+{
+  "name": "@platform/adapter-k6",
+  "version": "1.0.0",
+  "description": "K6 handleSummary adapter that publishes load-test results and performance metrics to the Test Automation Platform",
+  "main": "src/index.js",
+  "files": ["src"],
+  "scripts": {
+    "bundle": "esbuild src/index.js --bundle --outfile=dist/platform-k6-adapter.js --format=esm --target=es2020"
+  },
+  "devDependencies": {
+    "esbuild": "^0.23.0"
+  },
+  "keywords": ["k6", "load-test", "performance", "reporter", "test-automation", "platform"],
+  "license": "MIT"
+}

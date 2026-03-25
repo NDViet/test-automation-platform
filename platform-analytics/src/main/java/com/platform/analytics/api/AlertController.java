@@ -110,7 +110,8 @@ public class AlertController {
                 exec.getSkipped(), exec.getBroken(),
                 exec.getDurationMs(), exec.getSourceFormat(),
                 List.of(),
-                exec.getExecutionMode(), exec.getParallelism(), exec.getSuiteName()
+                exec.getExecutionMode(), exec.getParallelism(), exec.getSuiteName(),
+                null, null
         );
     }
 }

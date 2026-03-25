@@ -86,7 +86,8 @@ public final class NativeReportPublisher {
                 List.of(tc),
                 EnvironmentInfo.detectExecutionMode(),
                 EnvironmentInfo.detectParallelism(),
-                snap.className() != null ? snap.className() : ""
+                snap.className() != null ? snap.className() : "",
+                null, null
         );
 
         reporter.publishNative(result);

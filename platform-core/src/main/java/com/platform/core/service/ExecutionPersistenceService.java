@@ -1,11 +1,15 @@
 package com.platform.core.service;
 
+import com.platform.common.dto.PerformanceMetricsDto;
 import com.platform.common.dto.TestCaseResultDto;
 import com.platform.common.dto.UnifiedTestResult;
+import com.platform.common.enums.TestType;
+import com.platform.core.domain.PerformanceMetric;
 import com.platform.core.domain.Project;
 import com.platform.core.domain.Team;
 import com.platform.core.domain.TestCaseResult;
 import com.platform.core.domain.TestExecution;
+import com.platform.core.repository.PerformanceMetricRepository;
 import com.platform.core.repository.ProjectRepository;
 import com.platform.core.repository.TeamRepository;
 import com.platform.core.repository.TestCaseResultRepository;
@@ -25,16 +29,19 @@ public class ExecutionPersistenceService {
     private final TestCaseResultRepository testCaseResultRepository;
     private final TeamRepository teamRepository;
     private final ProjectRepository projectRepository;
+    private final PerformanceMetricRepository performanceMetricRepository;
 
     public ExecutionPersistenceService(
             TestExecutionRepository executionRepository,
             TestCaseResultRepository testCaseResultRepository,
             TeamRepository teamRepository,
-            ProjectRepository projectRepository) {
+            ProjectRepository projectRepository,
+            PerformanceMetricRepository performanceMetricRepository) {
         this.executionRepository = executionRepository;
         this.testCaseResultRepository = testCaseResultRepository;
         this.teamRepository = teamRepository;
         this.projectRepository = projectRepository;
+        this.performanceMetricRepository = performanceMetricRepository;
     }
 
     @Transactional
@@ -51,10 +58,11 @@ public class ExecutionPersistenceService {
         execution = executionRepository.save(execution);
 
         persistTestCases(execution, result);
+        persistPerformanceMetrics(execution, result);
 
-        log.info("Persisted execution runId={} teamId={} projectId={} total={} failed={}",
+        log.info("Persisted execution runId={} teamId={} projectId={} testType={} total={} failed={}",
                 result.runId(), result.teamId(), result.projectId(),
-                result.total(), result.failed());
+                execution.getTestType(), result.total(), result.failed());
 
         return execution;
     }
@@ -109,6 +117,7 @@ public class ExecutionPersistenceService {
                 .environment(r.environment())
                 .triggerType(r.triggerType())
                 .sourceFormat(r.sourceFormat())
+                .testType(r.testType())             // explicit; falls back to TestType.from(sourceFormat) if null
                 .ciProvider(r.ciProvider())
                 .ciRunUrl(r.ciRunUrl())
                 .totalTests(r.total())
@@ -122,6 +131,23 @@ public class ExecutionPersistenceService {
                 .suiteName(r.suiteName())
                 .executedAt(r.executedAt())
                 .build();
+    }
+
+    private void persistPerformanceMetrics(TestExecution execution, UnifiedTestResult result) {
+        if (result.testType() != TestType.PERFORMANCE) return;
+        PerformanceMetricsDto dto = result.performanceMetrics();
+        if (dto == null) return;
+
+        var pm = new PerformanceMetric(
+                execution,
+                dto.avgMs(), dto.minMs(), dto.medianMs(), dto.maxMs(),
+                dto.p90Ms(), dto.p95Ms(), dto.p99Ms(),
+                dto.requestsTotal(), dto.requestsPerSecond(),
+                dto.errorRate(), dto.vusMax(), dto.durationMs());
+        performanceMetricRepository.save(pm);
+
+        log.info("Persisted performance metrics runId={} p90={}ms p95={}ms errorRate={} vusMax={}",
+                result.runId(), dto.p90Ms(), dto.p95Ms(), dto.errorRate(), dto.vusMax());
     }
 
     private void persistTestCases(TestExecution execution, UnifiedTestResult result) {

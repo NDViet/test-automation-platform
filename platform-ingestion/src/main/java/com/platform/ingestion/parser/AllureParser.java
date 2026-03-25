@@ -74,7 +74,8 @@ public class AllureParser implements ResultParser {
                 allCases.size(), passed, failed, skipped, broken,
                 totalMs > 0 ? totalMs : null,
                 SourceFormat.ALLURE, allCases,
-                ctx.executionMode(), ctx.parallelism(), ctx.suiteName()
+                ctx.executionMode(), ctx.parallelism(), ctx.suiteName(),
+                null, null
         ));
     }
 

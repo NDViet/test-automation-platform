@@ -2,10 +2,12 @@ package com.platform.ingestion.parser;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.platform.common.dto.PerformanceMetricsDto;
 import com.platform.common.dto.TestCaseResultDto;
 import com.platform.common.dto.UnifiedTestResult;
 import com.platform.common.enums.SourceFormat;
 import com.platform.common.enums.TestStatus;
+import com.platform.common.enums.TestType;
 import com.platform.ingestion.exception.ParseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -70,6 +72,17 @@ public class GatlingStatsJsonParser implements ResultParser {
         long totalMs = allCases.stream()
                 .mapToLong(t -> t.durationMs() != null ? t.durationMs() : 0L).sum();
 
+        // Aggregate mean response time across all requests as a basic performance signal.
+        // p95 is not aggregatable across requests without raw data — left null.
+        double avgMs = allCases.isEmpty() ? 0 :
+                allCases.stream().mapToLong(t -> t.durationMs() != null ? t.durationMs() : 0L).average().orElse(0);
+        double errorRate = allCases.isEmpty() ? 0 :
+                (double) failed / allCases.size();
+        PerformanceMetricsDto perfMetrics = PerformanceMetricsDto.of(
+                avgMs, null, null, null, null, null, null,
+                (long) allCases.size(), null,
+                errorRate, null, totalMs > 0 ? totalMs : null);
+
         return List.of(new UnifiedTestResult(
                 ctx.runId(), ctx.teamId(), ctx.projectId(),
                 ctx.branch(), ctx.environment(), ctx.commitSha(),
@@ -77,7 +90,8 @@ public class GatlingStatsJsonParser implements ResultParser {
                 allCases.size(), passed, failed, skipped, broken,
                 totalMs > 0 ? totalMs : null,
                 SourceFormat.GATLING, allCases,
-                ctx.executionMode(), ctx.parallelism(), ctx.suiteName()
+                ctx.executionMode(), ctx.parallelism(), ctx.suiteName(),
+                TestType.PERFORMANCE, perfMetrics
         ));
     }
 

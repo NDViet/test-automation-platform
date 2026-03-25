@@ -153,6 +153,22 @@ services:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.retention.time=30d'
 
+  influxdb:
+    image: influxdb:1.8
+    container_name: platform-influxdb
+    ports:
+      - "8086:8086"
+    environment:
+      INFLUXDB_DB: k6
+      INFLUXDB_HTTP_AUTH_ENABLED: "false"
+    volumes:
+      - influxdb_data:/var/lib/influxdb
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8086/ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   # Runs all Flyway migrations before any platform service starts.
   # Idempotent — safe to run on every `docker compose up`.
   # First-time users get the full schema without needing to start the Spring Boot services.
@@ -295,3 +311,4 @@ volumes:
   grafana_data:
   prometheus_data:
   loki_data:
+  influxdb_data:
