@@ -1,0 +1,115 @@
+name: Publish Playwright Adapter
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'platform-adapters/js/playwright/**'
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+# Only one publish runs at a time — prevents version collision on rapid merges.
+concurrency:
+  group: publish-adapter-playwright
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    name: Build & Publish to GitHub Packages
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: platform-adapters/js/playwright
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # setup-node with registry-url writes an .npmrc that maps NODE_AUTH_TOKEN
+      # to the GitHub Packages npm registry automatically.
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://npm.pkg.github.com'
+          cache: 'npm'
+          cache-dependency-path: platform-adapters/js/playwright/package-lock.json
+
+      # Strip -SNAPSHOT / pre-release suffix and set exact version from tag.
+      # e.g. tag v1.2.3 → npm version 1.2.3 (no git tag, already tagged).
+      - name: Set version from tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "Setting version: $VERSION"
+          npm version "$VERSION" --no-git-tag-version
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build (TypeScript → dist/)
+        run: npm run build
+
+      # Verify the dist/ output is present before publishing.
+      - name: Verify dist output
+        run: |
+          echo "Contents of dist/:"
+          ls -la dist/
+          test -f dist/index.js  || (echo "ERROR: dist/index.js missing" && exit 1)
+          test -f dist/index.d.ts || (echo "ERROR: dist/index.d.ts missing" && exit 1)
+
+      - name: Publish to GitHub Packages
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Write publish summary
+        run: |
+          PKG_NAME=$(node -p "require('./package.json').name")
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          cat >> "$GITHUB_STEP_SUMMARY" <<EOF
+          ## Published \`${PKG_NAME}@${PKG_VERSION}\`
+
+          | Field | Value |
+          |---|---|
+          | Package | \`${PKG_NAME}\` |
+          | Version | \`${PKG_VERSION}\` |
+          | Registry | GitHub Packages (npm) |
+          | Trigger | \`${{ github.event_name }}\` on \`${{ github.ref_name }}\` |
+
+          ### Install
+
+          \`\`\`bash
+          # .npmrc
+          @platform:registry=https://npm.pkg.github.com
+          //npm.pkg.github.com/:_authToken=YOUR_GITHUB_TOKEN
+
+          # then
+          npm install ${PKG_NAME}@${PKG_VERSION}
+          \`\`\`
+
+          ### playwright.config.ts
+
+          \`\`\`typescript
+          import type { PlaywrightTestConfig } from '@playwright/test';
+          const config: PlaywrightTestConfig = {
+            reporter: [
+              ['list'],
+              ['${PKG_NAME}', {
+                endpoint:  process.env.PLATFORM_URL,
+                apiKey:    process.env.PLATFORM_API_KEY,
+                teamId:    'your-team',
+                projectId: 'your-project',
+              }],
+            ],
+          };
+          export default config;
+          \`\`\`
+          EOF
