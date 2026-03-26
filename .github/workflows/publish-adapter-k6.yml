@@ -40,10 +40,19 @@ jobs:
           cache: 'npm'
           cache-dependency-path: platform-adapters/js/k6/package.json
 
-      - name: Set version from tag
-        if: startsWith(github.ref, 'refs/tags/v')
+      # Tagged release (v1.2.3) → publish as "latest" with exact version.
+      # Master push → publish as "next" with a dev pre-release version so it
+      # never conflicts with a previously published version.
+      - name: Set version
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+            echo "PUBLISH_TAG=latest" >> "$GITHUB_ENV"
+          else
+            BASE=$(node -p "require('./package.json').version" | sed 's/-.*$//')
+            VERSION="${BASE}-next.${GITHUB_SHA::7}"
+            echo "PUBLISH_TAG=next" >> "$GITHUB_ENV"
+          fi
           echo "Setting version: $VERSION"
           npm version "$VERSION" --no-git-tag-version
 
@@ -65,7 +74,7 @@ jobs:
           test -f dist/platform-k6-adapter.js  || (echo "ERROR: dist/platform-k6-adapter.js missing" && exit 1)
 
       - name: Publish to GitHub Packages
-        run: npm publish --access public
+        run: npm publish --access public --tag "$PUBLISH_TAG"
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN }}
 
@@ -81,6 +90,7 @@ jobs:
           | Package | \`${PKG_NAME}\` |
           | Version | \`${PKG_VERSION}\` |
           | Registry | GitHub Packages (npm) |
+          | Dist-tag | \`${PUBLISH_TAG}\` |
           | Trigger | \`${{ github.event_name }}\` on \`${{ github.ref_name }}\` |
 
           ### Two ways to use this adapter
