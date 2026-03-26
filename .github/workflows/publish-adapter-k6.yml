@@ -1,0 +1,127 @@
+name: Publish K6 Adapter
+
+on:
+  push:
+    branches:
+      - master
+    paths:
+      - 'platform-adapters/js/k6/**'
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+concurrency:
+  group: publish-adapter-k6
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    name: Build & Publish to GitHub Packages
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        working-directory: platform-adapters/js/k6
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://npm.pkg.github.com'
+          # No package-lock.json — cache by package.json hash instead
+          cache: 'npm'
+          cache-dependency-path: platform-adapters/js/k6/package.json
+
+      - name: Set version from tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          VERSION="${GITHUB_REF_NAME#v}"
+          echo "Setting version: $VERSION"
+          npm version "$VERSION" --no-git-tag-version
+
+      # No package-lock.json committed — use npm install (not npm ci)
+      - name: Install dev dependencies
+        run: npm install --ignore-scripts
+
+      # Bundle src/index.js → dist/platform-k6-adapter.js (ESM, for direct k6 import)
+      - name: Bundle with esbuild
+        run: npm run bundle
+
+      - name: Verify build artifacts
+        run: |
+          echo "src/:"
+          ls -la src/
+          echo "dist/:"
+          ls -la dist/
+          test -f src/index.js                 || (echo "ERROR: src/index.js missing" && exit 1)
+          test -f dist/platform-k6-adapter.js  || (echo "ERROR: dist/platform-k6-adapter.js missing" && exit 1)
+
+      - name: Publish to GitHub Packages
+        run: npm publish --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Write publish summary
+        run: |
+          PKG_NAME=$(node -p "require('./package.json').name")
+          PKG_VERSION=$(node -p "require('./package.json').version")
+          cat >> "$GITHUB_STEP_SUMMARY" <<EOF
+          ## Published \`${PKG_NAME}@${PKG_VERSION}\`
+
+          | Field | Value |
+          |---|---|
+          | Package | \`${PKG_NAME}\` |
+          | Version | \`${PKG_VERSION}\` |
+          | Registry | GitHub Packages (npm) |
+          | Trigger | \`${{ github.event_name }}\` on \`${{ github.ref_name }}\` |
+
+          ### Two ways to use this adapter
+
+          #### Option A — Copy bundled file (recommended for k6)
+
+          Download \`dist/platform-k6-adapter.js\` from the package and place it alongside your k6 script:
+
+          \`\`\`bash
+          # Download the bundled adapter
+          curl -L https://github.com/${{ github.repository }}/releases/download/v${PKG_VERSION}/platform-k6-adapter.js \
+            -o platform-k6-adapter.js
+          \`\`\`
+
+          \`\`\`javascript
+          // your-load-test.js
+          import { platformHandleSummary } from './platform-k6-adapter.js';
+          export { platformHandleSummary as handleSummary };
+          \`\`\`
+
+          #### Option B — npm install (for bundler-based k6 setups)
+
+          \`\`\`bash
+          # .npmrc
+          @platform:registry=https://npm.pkg.github.com
+          //npm.pkg.github.com/:_authToken=YOUR_GITHUB_TOKEN
+
+          npm install ${PKG_NAME}@${PKG_VERSION}
+          \`\`\`
+
+          \`\`\`javascript
+          import { platformHandleSummary } from '@platform/adapter-k6';
+          export { platformHandleSummary as handleSummary };
+          \`\`\`
+
+          ### Required env vars at runtime
+
+          | Variable | Description |
+          |---|---|
+          | \`PLATFORM_URL\` | Platform base URL |
+          | \`PLATFORM_API_KEY\` | API key (X-API-Key header) |
+          | \`PLATFORM_TEAM_ID\` | Team slug |
+          | \`PLATFORM_PROJECT_ID\` | Project slug |
+          EOF

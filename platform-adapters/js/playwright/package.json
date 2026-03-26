@@ -23,5 +23,8 @@
     "node": ">=18.0.0"
   },
   "keywords": ["playwright", "reporter", "test-automation", "platform"],
-  "license": "MIT"
+  "license": "MIT",
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  }
 }
