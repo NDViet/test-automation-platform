@@ -1,5 +1,7 @@
 package com.platform.testframework.testng;
 
+import com.platform.testframework.annotation.AffectedBy;
+import com.platform.testframework.annotation.TestMetadata;
 import com.platform.common.enums.TestStatus;
 import com.platform.sdk.config.PlatformConfig;
 import com.platform.testframework.classify.FailureCategory;
@@ -16,10 +18,11 @@ import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 import org.testng.*;
 
+import java.lang.reflect.Method;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
-import java.util.stream.Collectors;
 
 /**
  * TestNG listener that integrates with platform-testkit-java.
@@ -67,6 +70,8 @@ public class PlatformTestNGListener implements ITestListener {
         String displayName = result.getMethod().getDescription() != null
                 && !result.getMethod().getDescription().isBlank()
                 ? result.getMethod().getDescription() : methodName;
+        Method method = result.getMethod().getConstructorOrMethod().getMethod();
+        Class<?> clazz = result.getTestClass().getRealClass();
 
         String traceId = UUID.randomUUID().toString().replace("-", "");
 
@@ -76,8 +81,8 @@ public class PlatformTestNGListener implements ITestListener {
         MDC.put("testMethod", methodName);
         MDC.put("traceId",   traceId);
 
-        // Tags from TestNG groups
-        List<String> tags = Arrays.asList(result.getMethod().getGroups());
+        List<String> tags = collectTags(result, clazz, method);
+        List<String> coveredClasses = collectCoveredClasses(clazz, method);
 
         PlatformConfig config = PlatformConfig.load();
 
@@ -85,6 +90,7 @@ public class PlatformTestNGListener implements ITestListener {
                 testId, displayName, className, methodName, tags,
                 traceId, config.getTeamId(), config.getProjectId()
         );
+        ctx.setCoveredClasses(coveredClasses);
         ctx.putAllEnvironment(EnvironmentInfo.collect());
         TestContextHolder.set(ctx);
 
@@ -201,5 +207,43 @@ public class PlatformTestNGListener implements ITestListener {
         var sw = new java.io.StringWriter();
         t.printStackTrace(new java.io.PrintWriter(sw));
         return sw.toString();
+    }
+
+    private List<String> collectTags(ITestResult result, Class<?> clazz, Method method) {
+        List<String> tags = new ArrayList<>(Arrays.asList(result.getMethod().getGroups()));
+
+        TestMetadata meta = method != null ? method.getAnnotation(TestMetadata.class) : null;
+        if (meta == null) {
+            meta = clazz.getAnnotation(TestMetadata.class);
+        }
+
+        if (meta != null) {
+            if (!meta.feature().isBlank()) {
+                tags.add("feature:" + meta.feature());
+            }
+            if (!meta.story().isBlank()) {
+                tags.add("story:" + meta.story());
+            }
+            if (!meta.owner().isBlank()) {
+                tags.add("owner:" + meta.owner());
+            }
+            tags.add("severity:" + meta.severity().name().toLowerCase());
+        }
+
+        return tags;
+    }
+
+    private List<String> collectCoveredClasses(Class<?> clazz, Method method) {
+        AffectedBy methodAnn = method != null ? method.getAnnotation(AffectedBy.class) : null;
+        if (methodAnn != null) {
+            return List.of(methodAnn.value());
+        }
+
+        AffectedBy classAnn = clazz.getAnnotation(AffectedBy.class);
+        if (classAnn != null) {
+            return List.of(classAnn.value());
+        }
+
+        return List.of();
     }
 }

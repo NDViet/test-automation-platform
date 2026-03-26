@@ -45,7 +45,7 @@ public class TestImpactController {
     }
 
     @GetMapping("/{projectId}/impact")
-    @Transactional(readOnly = true)
+    @Transactional
     @Operation(
             summary = "Analyse test impact for a set of changed files",
             description = "Returns the recommended tests to run given a list of changed source files. " +
@@ -60,12 +60,19 @@ public class TestImpactController {
 
             @Parameter(description = "Comma-separated or repeated list of fully qualified class names " +
                        "to check directly (alternative to changedFiles)")
-            @RequestParam(required = false) List<String> changedClasses
+            @RequestParam(required = false) List<String> changedClasses,
+
+            @Parameter(description = "Git branch — stored in TIA event for filtering")
+            @RequestParam(required = false) String branch,
+
+            @Parameter(description = "Who triggered the query: api | ci | portal")
+            @RequestParam(required = false, defaultValue = "api") String triggeredBy
     ) {
         long totalTests = coverageRepo.countMappedTestsByProject(projectId);
 
         TestImpactResult result = impactService.analyse(
-                projectId, changedFiles, changedClasses, (int) totalTests);
+                projectId, changedFiles, changedClasses, (int) totalTests,
+                branch, triggeredBy);
 
         return ResponseEntity.ok(result);
     }

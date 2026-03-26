@@ -1,6 +1,11 @@
 package com.platform.analytics.impact;
 
+import com.platform.core.domain.TiaEvent;
+import com.platform.core.repository.TiaEventRepository;
 import com.platform.core.repository.TestCoverageMappingRepository;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.Timer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -21,6 +26,8 @@ import java.util.stream.Collectors;
  *   <li>Collect distinct test IDs that cover any matched class.</li>
  *   <li>Assess risk: are all changed classes covered? What % is uncovered?</li>
  * </ol>
+ *
+ * <p>Every call is recorded as a {@link TiaEvent} row for dashboard trending.</p>
  */
 @Service
 public class TestImpactService {
@@ -28,15 +35,42 @@ public class TestImpactService {
     private static final Logger log = LoggerFactory.getLogger(TestImpactService.class);
 
     private final TestCoverageMappingRepository coverageRepo;
+    private final TiaEventRepository            tiaEventRepo;
 
-    public TestImpactService(TestCoverageMappingRepository coverageRepo) {
+    private final Counter queriesTotal;
+    private final Timer   queryTimer;
+
+    public TestImpactService(TestCoverageMappingRepository coverageRepo,
+                             TiaEventRepository tiaEventRepo,
+                             MeterRegistry meterRegistry) {
         this.coverageRepo = coverageRepo;
+        this.tiaEventRepo = tiaEventRepo;
+        this.queriesTotal = Counter.builder("tia.queries.total")
+                .description("Total number of TIA analyse() calls")
+                .register(meterRegistry);
+        this.queryTimer = Timer.builder("tia.query.duration")
+                .description("Duration of TIA analyse() calls")
+                .register(meterRegistry);
     }
 
-    @Transactional(readOnly = true)
+    @Transactional
     public TestImpactResult analyse(UUID projectId, List<String> changedFiles,
                                     List<String> changedClasses, int totalTestCount) {
+        return analyse(projectId, changedFiles, changedClasses, totalTestCount, null, "api");
+    }
 
+    @Transactional
+    public TestImpactResult analyse(UUID projectId, List<String> changedFiles,
+                                    List<String> changedClasses, int totalTestCount,
+                                    String branch, String triggeredBy) {
+
+        return queryTimer.record(() -> doAnalyse(
+                projectId, changedFiles, changedClasses, totalTestCount, branch, triggeredBy));
+    }
+
+    private TestImpactResult doAnalyse(UUID projectId, List<String> changedFiles,
+                                       List<String> changedClasses, int totalTestCount,
+                                       String branch, String triggeredBy) {
         // Normalise inputs to fully qualified class names
         Set<String> classesToCheck = new LinkedHashSet<>();
         for (String file : (changedFiles != null ? changedFiles : List.<String>of())) {
@@ -52,10 +86,10 @@ public class TestImpactService {
         if (classesToCheck.isEmpty()) {
             return TestImpactResult.noChanges(totalTestCount);
         }
+        queriesTotal.increment();
 
-        // Query coverage mappings
-        var mappings = coverageRepo.findByProjectIdAndClassNameIn(projectId,
-                classesToCheck);
+        // Query coverage mappings — exact class names
+        var mappings = coverageRepo.findByProjectIdAndClassNameIn(projectId, classesToCheck);
 
         // Group: class → set of test IDs
         Map<String, Set<String>> classToTests = new LinkedHashMap<>();
@@ -63,6 +97,21 @@ public class TestImpactService {
             classToTests
                     .computeIfAbsent(m.getClassName(), k -> new LinkedHashSet<>())
                     .add(m.getTestCaseId());
+        }
+
+        // Resolve wildcard mappings — e.g. @AffectedBy("com.example.catalog.*")
+        // matches any changed class whose package starts with "com.example.catalog."
+        var wildcardMappings = coverageRepo.findWildcardMappingsByProject(projectId);
+        for (var wm : wildcardMappings) {
+            String pattern = wm.getClassName(); // "com.example.catalog.*"
+            String prefix  = pattern.substring(0, pattern.length() - 1); // "com.example.catalog."
+            for (String cls : classesToCheck) {
+                if (cls.startsWith(prefix)) {
+                    classToTests
+                            .computeIfAbsent(cls, k -> new LinkedHashSet<>())
+                            .add(wm.getTestCaseId());
+                }
+            }
         }
 
         Set<String> recommendedTests = classToTests.values().stream()
@@ -85,7 +134,7 @@ public class TestImpactService {
         log.info("TIA projectId={} changedClasses={} recommended={}/{} risk={}",
                 projectId, classesToCheck.size(), selected, totalTestCount, risk);
 
-        return new TestImpactResult(
+        TestImpactResult result = new TestImpactResult(
                 new ArrayList<>(recommendedTests),
                 totalTestCount,
                 selected,
@@ -97,6 +146,21 @@ public class TestImpactService {
                 buildMavenFilter(recommendedTests),
                 buildGradleFilter(recommendedTests)
         );
+
+        // Persist event for dashboard trending
+        tiaEventRepo.save(new TiaEvent(
+                projectId,
+                classesToCheck.size(),
+                totalTestCount,
+                selected,
+                uncoveredClasses.size(),
+                Math.max(0, reduction),
+                risk.name(),
+                branch,
+                triggeredBy
+        ));
+
+        return result;
     }
 
     // ── Helpers ──────────────────────────────────────────────────────────────

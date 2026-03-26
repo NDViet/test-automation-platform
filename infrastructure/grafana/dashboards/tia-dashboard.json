@@ -1,0 +1,336 @@
+{
+  "title": "Test Impact Analysis",
+  "uid": "tia-dashboard",
+  "description": "TIA request volume, reduction %, risk level distribution, and coverage breadth trends. All data from tia_events and test_coverage_mappings tables.",
+  "tags": ["tia", "test-impact", "coverage", "postgres"],
+  "schemaVersion": 39,
+  "version": 1,
+  "refresh": "5m",
+  "time": { "from": "now-30d", "to": "now" },
+  "timepicker": {},
+  "timezone": "browser",
+  "editable": true,
+  "graphTooltip": 1,
+
+  "templating": {
+    "list": [
+      {
+        "name": "team",
+        "label": "Team",
+        "type": "query",
+        "datasource": { "type": "postgres", "uid": "platform-postgres" },
+        "query": "SELECT slug FROM teams ORDER BY name",
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": "All",
+        "multi": false,
+        "sort": 1,
+        "current": { "text": "All", "value": "$__all" },
+        "hide": 0
+      },
+      {
+        "name": "project",
+        "label": "Project",
+        "type": "query",
+        "datasource": { "type": "postgres", "uid": "platform-postgres" },
+        "query": "SELECT p.slug FROM projects p JOIN teams t ON t.id = p.team_id WHERE '$team' = 'All' OR t.slug = '$team' ORDER BY p.name",
+        "refresh": 2,
+        "includeAll": true,
+        "allValue": "All",
+        "multi": false,
+        "sort": 1,
+        "current": { "text": "All", "value": "$__all" },
+        "hide": 0
+      },
+      {
+        "name": "days",
+        "label": "Window",
+        "type": "custom",
+        "options": [
+          { "text": "7d",  "value": "7" },
+          { "text": "14d", "value": "14" },
+          { "text": "30d", "value": "30" },
+          { "text": "90d", "value": "90" }
+        ],
+        "current": { "text": "30d", "value": "30" },
+        "hide": 0
+      }
+    ]
+  },
+
+  "panels": [
+
+    {
+      "id": 1, "type": "row", "title": "Overview",
+      "collapsed": false, "gridPos": { "x": 0, "y": 0, "w": 24, "h": 1 }
+    },
+
+    {
+      "id": 2, "type": "stat",
+      "title": "Total TIA Requests",
+      "description": "Number of analyse() calls in the selected window",
+      "gridPos": { "x": 0, "y": 1, "w": 4, "h": 4 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none" },
+      "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "blue" }, "unit": "none" } },
+      "targets": [{
+        "rawSql": "SELECT COUNT(*) AS value FROM tia_events e JOIN projects p ON p.id = e.project_id JOIN teams t ON t.id = p.team_id WHERE e.queried_at >= now() - ($days || ' days')::interval AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project')",
+        "format": "table"
+      }]
+    },
+
+    {
+      "id": 3, "type": "stat",
+      "title": "Avg Reduction %",
+      "description": "Average estimated CI runtime reduction from TIA selections",
+      "gridPos": { "x": 4, "y": 1, "w": 4, "h": 4 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none" },
+      "fieldConfig": { "defaults": { "unit": "percent", "decimals": 1,
+        "thresholds": { "mode": "absolute", "steps": [
+          { "value": null, "color": "red" },
+          { "value": 30, "color": "orange" },
+          { "value": 60, "color": "green" }
+        ]},
+        "color": { "mode": "thresholds" }
+      }},
+      "targets": [{
+        "rawSql": "SELECT AVG(e.reduction_pct) AS value FROM tia_events e JOIN projects p ON p.id = e.project_id JOIN teams t ON t.id = p.team_id WHERE e.queried_at >= now() - ($days || ' days')::interval AND e.reduction_pct IS NOT NULL AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project')",
+        "format": "table"
+      }]
+    },
+
+    {
+      "id": 4, "type": "stat",
+      "title": "Mapped Tests",
+      "description": "Total distinct tests with @AffectedBy coverage data",
+      "gridPos": { "x": 8, "y": 1, "w": 4, "h": 4 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none" },
+      "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "purple" }, "unit": "none" } },
+      "targets": [{
+        "rawSql": "SELECT COUNT(DISTINCT m.test_case_id) AS value FROM test_coverage_mappings m JOIN projects p ON p.id = m.project_id JOIN teams t ON t.id = p.team_id WHERE ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project')",
+        "format": "table"
+      }]
+    },
+
+    {
+      "id": 5, "type": "stat",
+      "title": "Mapped Classes",
+      "description": "Total distinct production classes covered by at least one test",
+      "gridPos": { "x": 12, "y": 1, "w": 4, "h": 4 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none" },
+      "fieldConfig": { "defaults": { "color": { "mode": "fixed", "fixedColor": "teal" }, "unit": "none" } },
+      "targets": [{
+        "rawSql": "SELECT COUNT(DISTINCT m.class_name) AS value FROM test_coverage_mappings m JOIN projects p ON p.id = m.project_id JOIN teams t ON t.id = p.team_id WHERE ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project')",
+        "format": "table"
+      }]
+    },
+
+    {
+      "id": 6, "type": "stat",
+      "title": "% Queries LOW Risk",
+      "description": "Fraction of TIA queries that returned LOW risk (all changed classes covered)",
+      "gridPos": { "x": 16, "y": 1, "w": 4, "h": 4 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none" },
+      "fieldConfig": { "defaults": { "unit": "percent", "decimals": 1,
+        "thresholds": { "mode": "absolute", "steps": [
+          { "value": null, "color": "red" },
+          { "value": 50, "color": "orange" },
+          { "value": 80, "color": "green" }
+        ]},
+        "color": { "mode": "thresholds" }
+      }},
+      "targets": [{
+        "rawSql": "SELECT 100.0 * SUM(CASE WHEN e.risk_level = 'LOW' THEN 1 ELSE 0 END) / NULLIF(COUNT(*), 0) AS value FROM tia_events e JOIN projects p ON p.id = e.project_id JOIN teams t ON t.id = p.team_id WHERE e.queried_at >= now() - ($days || ' days')::interval AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project')",
+        "format": "table"
+      }]
+    },
+
+    {
+      "id": 7, "type": "stat",
+      "title": "Projects with TIA",
+      "description": "Projects that have at least one coverage mapping",
+      "gridPos": { "x": 20, "y": 1, "w": 4, "h": 4 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "none", "graphMode": "none" },
+      "fieldConfig": { "defaults": { "unit": "none" } },
+      "targets": [{
+        "rawSql": "SELECT COUNT(DISTINCT m.project_id) AS value FROM test_coverage_mappings m",
+        "format": "table"
+      }]
+    },
+
+    {
+      "id": 10, "type": "row", "title": "Risk & Reduction Trends",
+      "collapsed": false, "gridPos": { "x": 0, "y": 5, "w": 24, "h": 1 }
+    },
+
+    {
+      "id": 11, "type": "piechart",
+      "title": "Risk Level Distribution",
+      "description": "Breakdown of TIA query outcomes by risk level in the selected window",
+      "gridPos": { "x": 0, "y": 6, "w": 8, "h": 8 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": { "pieType": "donut", "legend": { "displayMode": "table", "placement": "right" } },
+      "fieldConfig": {
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "LOW" },      "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "green" } }] },
+          { "matcher": { "id": "byName", "options": "MEDIUM" },   "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "yellow" } }] },
+          { "matcher": { "id": "byName", "options": "HIGH" },     "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "orange" } }] },
+          { "matcher": { "id": "byName", "options": "CRITICAL" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } }] }
+        ]
+      },
+      "targets": [{
+        "rawSql": "SELECT e.risk_level AS metric, COUNT(*) AS value FROM tia_events e JOIN projects p ON p.id = e.project_id JOIN teams t ON t.id = p.team_id WHERE e.queried_at >= now() - ($days || ' days')::interval AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project') GROUP BY e.risk_level",
+        "format": "table"
+      }]
+    },
+
+    {
+      "id": 12, "type": "timeseries",
+      "title": "Avg Reduction % Over Time",
+      "description": "Daily average estimated reduction %. Higher = more tests skipped safely.",
+      "gridPos": { "x": 8, "y": 6, "w": 16, "h": 8 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": { "tooltip": { "mode": "multi" } },
+      "fieldConfig": { "defaults": { "unit": "percent", "min": 0, "max": 100,
+        "custom": { "lineWidth": 2, "fillOpacity": 10 },
+        "color": { "mode": "fixed", "fixedColor": "green" }
+      }},
+      "targets": [{
+        "rawSql": "SELECT date_trunc('day', e.queried_at) AS time, AVG(e.reduction_pct) AS \"Reduction %\" FROM tia_events e JOIN projects p ON p.id = e.project_id JOIN teams t ON t.id = p.team_id WHERE e.queried_at >= now() - ($days || ' days')::interval AND e.reduction_pct IS NOT NULL AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project') GROUP BY date_trunc('day', e.queried_at) ORDER BY time",
+        "format": "time_series"
+      }]
+    },
+
+    {
+      "id": 13, "type": "timeseries",
+      "title": "Risk Level Events Over Time",
+      "description": "Daily count of TIA queries by risk level — rising CRITICAL/HIGH means coverage gaps are growing.",
+      "gridPos": { "x": 0, "y": 14, "w": 24, "h": 8 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": { "tooltip": { "mode": "multi" } },
+      "fieldConfig": {
+        "defaults": { "unit": "none", "custom": { "lineWidth": 2, "fillOpacity": 15, "stacking": { "mode": "normal" } } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "LOW" },      "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "green" } }] },
+          { "matcher": { "id": "byName", "options": "MEDIUM" },   "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "yellow" } }] },
+          { "matcher": { "id": "byName", "options": "HIGH" },     "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "orange" } }] },
+          { "matcher": { "id": "byName", "options": "CRITICAL" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "red" } }] }
+        ]
+      },
+      "targets": [
+        {
+          "rawSql": "SELECT date_trunc('day', e.queried_at) AS time, COUNT(*) FILTER (WHERE e.risk_level = 'LOW') AS \"LOW\", COUNT(*) FILTER (WHERE e.risk_level = 'MEDIUM') AS \"MEDIUM\", COUNT(*) FILTER (WHERE e.risk_level = 'HIGH') AS \"HIGH\", COUNT(*) FILTER (WHERE e.risk_level = 'CRITICAL') AS \"CRITICAL\" FROM tia_events e JOIN projects p ON p.id = e.project_id JOIN teams t ON t.id = p.team_id WHERE e.queried_at >= now() - ($days || ' days')::interval AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project') GROUP BY date_trunc('day', e.queried_at) ORDER BY time",
+          "format": "time_series"
+        }
+      ]
+    },
+
+    {
+      "id": 20, "type": "row", "title": "Coverage Breadth",
+      "collapsed": false, "gridPos": { "x": 0, "y": 22, "w": 24, "h": 1 }
+    },
+
+    {
+      "id": 21, "type": "timeseries",
+      "title": "Coverage Breadth Growth",
+      "description": "Distinct mapped tests and classes per day (from last_seen_at). Growing lines = teams are adding @AffectedBy coverage.",
+      "gridPos": { "x": 0, "y": 23, "w": 16, "h": 8 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": { "tooltip": { "mode": "multi" } },
+      "fieldConfig": {
+        "defaults": { "unit": "none", "custom": { "lineWidth": 2, "fillOpacity": 8 } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Mapped Tests" },   "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "blue" } }] },
+          { "matcher": { "id": "byName", "options": "Mapped Classes" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "teal" } }] }
+        ]
+      },
+      "targets": [{
+        "rawSql": "SELECT date_trunc('day', m.last_seen_at) AS time, COUNT(DISTINCT m.test_case_id) AS \"Mapped Tests\", COUNT(DISTINCT m.class_name) AS \"Mapped Classes\" FROM test_coverage_mappings m JOIN projects p ON p.id = m.project_id JOIN teams t ON t.id = p.team_id WHERE m.last_seen_at >= now() - ($days || ' days')::interval AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project') GROUP BY date_trunc('day', m.last_seen_at) ORDER BY time",
+        "format": "time_series"
+      }]
+    },
+
+    {
+      "id": 22, "type": "bargauge",
+      "title": "Selected vs Total Tests",
+      "description": "Avg selected tests vs avg total tests per TIA query — shows how much of the suite is being skipped.",
+      "gridPos": { "x": 16, "y": 23, "w": 8, "h": 8 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": { "orientation": "horizontal", "reduceOptions": { "calcs": ["lastNotNull"] } },
+      "fieldConfig": {
+        "defaults": { "unit": "none", "min": 0 },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Avg Selected" }, "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "blue" } }] },
+          { "matcher": { "id": "byName", "options": "Avg Total" },    "properties": [{ "id": "color", "value": { "mode": "fixed", "fixedColor": "gray" } }] }
+        ]
+      },
+      "targets": [{
+        "rawSql": "SELECT AVG(e.selected_tests) AS \"Avg Selected\", AVG(e.total_tests) AS \"Avg Total\" FROM tia_events e JOIN projects p ON p.id = e.project_id JOIN teams t ON t.id = p.team_id WHERE e.queried_at >= now() - ($days || ' days')::interval AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project')",
+        "format": "table"
+      }]
+    },
+
+    {
+      "id": 23, "type": "table",
+      "title": "Coverage Breadth by Project",
+      "description": "Per-project count of mapped tests, mapped classes, and last coverage update.",
+      "gridPos": { "x": 0, "y": 31, "w": 24, "h": 7 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": { "sortBy": [{ "displayName": "Mapped Tests", "desc": true }] },
+      "fieldConfig": {
+        "defaults": { "custom": { "align": "left" } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Mapped Tests" },   "properties": [{ "id": "custom.width", "value": 140 }] },
+          { "matcher": { "id": "byName", "options": "Mapped Classes" }, "properties": [{ "id": "custom.width", "value": 140 }] },
+          { "matcher": { "id": "byName", "options": "Last Seen" },      "properties": [{ "id": "unit", "value": "dateTimeAsIso" }, { "id": "custom.width", "value": 200 }] }
+        ]
+      },
+      "targets": [{
+        "rawSql": "SELECT t.slug AS \"Team\", p.slug AS \"Project\", COUNT(DISTINCT m.test_case_id) AS \"Mapped Tests\", COUNT(DISTINCT m.class_name) AS \"Mapped Classes\", MAX(m.last_seen_at) AS \"Last Seen\" FROM test_coverage_mappings m JOIN projects p ON p.id = m.project_id JOIN teams t ON t.id = p.team_id GROUP BY t.slug, p.slug ORDER BY \"Mapped Tests\" DESC",
+        "format": "table"
+      }]
+    },
+
+    {
+      "id": 30, "type": "row", "title": "TIA Events History",
+      "collapsed": false, "gridPos": { "x": 0, "y": 38, "w": 24, "h": 1 }
+    },
+
+    {
+      "id": 31, "type": "table",
+      "title": "Recent TIA Events",
+      "description": "Every analyse() call — queried_at, project, changed classes, selected/total tests, reduction %, risk level, branch.",
+      "gridPos": { "x": 0, "y": 39, "w": 24, "h": 10 },
+      "datasource": { "type": "postgres", "uid": "platform-postgres" },
+      "options": { "sortBy": [{ "displayName": "Time", "desc": true }] },
+      "fieldConfig": {
+        "defaults": { "custom": { "align": "left" } },
+        "overrides": [
+          { "matcher": { "id": "byName", "options": "Time" },       "properties": [{ "id": "unit", "value": "dateTimeAsIso" }, { "id": "custom.width", "value": 200 }] },
+          { "matcher": { "id": "byName", "options": "Risk" },       "properties": [{ "id": "custom.width", "value": 90 },
+            { "id": "mappings", "value": [
+              { "type": "value", "options": { "LOW":      { "text": "LOW",      "color": "green"  } } },
+              { "type": "value", "options": { "MEDIUM":   { "text": "MEDIUM",   "color": "yellow" } } },
+              { "type": "value", "options": { "HIGH":     { "text": "HIGH",     "color": "orange" } } },
+              { "type": "value", "options": { "CRITICAL": { "text": "CRITICAL", "color": "red"    } } }
+            ]},
+            { "id": "custom.displayMode", "value": "color-background" }
+          ]},
+          { "matcher": { "id": "byName", "options": "Reduction %" }, "properties": [{ "id": "unit", "value": "percent" }, { "id": "custom.width", "value": 110 }] },
+          { "matcher": { "id": "byName", "options": "Selected" },    "properties": [{ "id": "custom.width", "value": 90 }] },
+          { "matcher": { "id": "byName", "options": "Total" },       "properties": [{ "id": "custom.width", "value": 80 }] }
+        ]
+      },
+      "targets": [{
+        "rawSql": "SELECT e.queried_at AS \"Time\", t.slug AS \"Team\", p.slug AS \"Project\", e.changed_classes AS \"Changed Classes\", e.selected_tests AS \"Selected\", e.total_tests AS \"Total\", e.reduction_pct AS \"Reduction %\", e.risk_level AS \"Risk\", COALESCE(e.branch, '') AS \"Branch\", e.triggered_by AS \"Triggered By\" FROM tia_events e JOIN projects p ON p.id = e.project_id JOIN teams t ON t.id = p.team_id WHERE e.queried_at >= now() - ($days || ' days')::interval AND ('$team' = 'All' OR t.slug = '$team') AND ('$project' = 'All' OR p.slug = '$project') ORDER BY e.queried_at DESC LIMIT 200",
+        "format": "table"
+      }]
+    }
+
+  ]
+}
