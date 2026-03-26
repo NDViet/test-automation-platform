@@ -42,13 +42,20 @@ jobs:
           cache: 'npm'
           cache-dependency-path: platform-adapters/js/playwright/package-lock.json
 
-      # Strip -SNAPSHOT / pre-release suffix and set exact version from tag.
-      # e.g. tag v1.2.3 → npm version 1.2.3 (no git tag, already tagged).
-      - name: Set version from tag
-        if: startsWith(github.ref, 'refs/tags/v')
+      # Tagged release (v1.2.3) → publish as "latest" with exact version.
+      # Master push → publish as "next" with a dev pre-release version so it
+      # never conflicts with a previously published version.
+      - name: Set version
         run: |
-          VERSION="${GITHUB_REF_NAME#v}"
-          echo "Setting version: $VERSION"
+          if [[ "${GITHUB_REF}" == refs/tags/v* ]]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+            echo "PUBLISH_TAG=latest" >> "$GITHUB_ENV"
+          else
+            BASE=$(node -p "require('./package.json').version" | sed 's/-.*$//')
+            VERSION="${BASE}-next.${GITHUB_SHA::7}"
+            echo "PUBLISH_TAG=next" >> "$GITHUB_ENV"
+          fi
+          echo "Setting version: $VERSION (tag: ${PUBLISH_TAG:-next})"
           npm version "$VERSION" --no-git-tag-version
 
       - name: Install dependencies
@@ -66,7 +73,7 @@ jobs:
           test -f dist/index.d.ts || (echo "ERROR: dist/index.d.ts missing" && exit 1)
 
       - name: Publish to GitHub Packages
-        run: npm publish --access public
+        run: npm publish --access public --tag "$PUBLISH_TAG"
         env:
           NODE_AUTH_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN }}
 
@@ -82,6 +89,7 @@ jobs:
           | Package | \`${PKG_NAME}\` |
           | Version | \`${PKG_VERSION}\` |
           | Registry | GitHub Packages (npm) |
+          | Dist-tag | \`${PUBLISH_TAG}\` |
           | Trigger | \`${{ github.event_name }}\` on \`${{ github.ref_name }}\` |
 
           ### Install
@@ -91,8 +99,10 @@ jobs:
           @ndviet:registry=https://npm.pkg.github.com
           //npm.pkg.github.com/:_authToken=YOUR_GITHUB_TOKEN
 
-          # then
-          npm install ${PKG_NAME}@${PKG_VERSION}
+          # stable release
+          npm install ${PKG_NAME}@latest
+          # pre-release / next
+          npm install ${PKG_NAME}@next
           \`\`\`
 
           ### playwright.config.ts
