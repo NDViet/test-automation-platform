@@ -1,5 +1,5 @@
 /**
- * @platform/adapter-k6 — K6 handleSummary adapter
+ * @ndviet/adapter-k6 — K6 handleSummary adapter
  *
  * Publishes K6 load-test results (checks + performance metrics) to the
  * Test Automation Platform after each run.

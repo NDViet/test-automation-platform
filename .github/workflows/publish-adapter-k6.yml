@@ -67,7 +67,7 @@ jobs:
       - name: Publish to GitHub Packages
         run: npm publish --access public
         env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          NODE_AUTH_TOKEN: ${{ secrets.GH_PACKAGES_TOKEN }}
 
       - name: Write publish summary
         run: |
@@ -105,14 +105,14 @@ jobs:
 
           \`\`\`bash
           # .npmrc
-          @platform:registry=https://npm.pkg.github.com
+          @ndviet:registry=https://npm.pkg.github.com
           //npm.pkg.github.com/:_authToken=YOUR_GITHUB_TOKEN
 
           npm install ${PKG_NAME}@${PKG_VERSION}
           \`\`\`
 
           \`\`\`javascript
-          import { platformHandleSummary } from '@platform/adapter-k6';
+          import { platformHandleSummary } from '@ndviet/adapter-k6';
           export { platformHandleSummary as handleSummary };
           \`\`\`
 

@@ -1,5 +1,5 @@
 {
-  "name": "@platform/adapter-playwright",
+  "name": "@ndviet/adapter-playwright",
   "version": "1.0.0",
   "description": "Zero-code Playwright reporter adapter that publishes test results to the Test Automation Platform without modifying test code",
   "main": "dist/index.js",

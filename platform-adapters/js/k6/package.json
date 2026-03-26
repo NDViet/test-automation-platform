@@ -1,5 +1,5 @@
 {
-  "name": "@platform/adapter-k6",
+  "name": "@ndviet/adapter-k6",
   "version": "1.0.0",
   "description": "K6 handleSummary adapter that publishes load-test results and performance metrics to the Test Automation Platform",
   "main": "src/index.js",
