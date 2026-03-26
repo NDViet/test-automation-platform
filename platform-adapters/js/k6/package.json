@@ -5,7 +5,7 @@
   "main": "src/index.js",
   "files": ["src", "dist"],
   "scripts": {
-    "bundle": "esbuild src/index.js --bundle --outfile=dist/platform-k6-adapter.js --format=esm --target=es2020"
+    "bundle": "esbuild src/index.js --bundle --outfile=dist/platform-k6-adapter.js --format=esm --target=es2020 --external:k6 --external:k6/*"
   },
   "devDependencies": {
     "esbuild": "^0.23.0"
