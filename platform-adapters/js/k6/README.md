@@ -1,4 +1,4 @@
-# @platform/adapter-k6
+# @ndviet/adapter-k6
 
 K6 `handleSummary` adapter — publishes load-test results and performance metrics
 (p90/p95 response times, throughput, error rate, VU count) to the Test Automation Platform.

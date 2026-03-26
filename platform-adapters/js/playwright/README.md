@@ -1,4 +1,4 @@
-# @platform/adapter-playwright
+# @ndviet/adapter-playwright
 
 Custom Playwright reporter that automatically publishes test results to the Test Automation Platform after every run. Zero test-code changes required — configure once in `playwright.config.ts`.
 
@@ -12,7 +12,7 @@ Custom Playwright reporter that automatically publishes test results to the Test
 ## Installation
 
 ```bash
-npm install @platform/adapter-playwright
+npm install @ndviet/adapter-playwright
 ```
 
 ## Configuration
@@ -26,7 +26,7 @@ export default defineConfig({
   reporter: [
     ['list'],                          // keep your existing reporters
     ['html', { open: 'never' }],
-    ['@platform/adapter-playwright', {
+    ['@ndviet/adapter-playwright', {
       endpoint:   'http://platform-ingestion:8081',   // ingestion service URL
       apiKey:     process.env.PLATFORM_API_KEY,        // from env, not hardcoded
       teamId:     'team-frontend',

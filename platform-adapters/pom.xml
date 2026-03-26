@@ -25,8 +25,9 @@
     <!--
         Maven modules (JVM-based adapters only).
         JS/TS adapters live under js/ but are npm packages, not Maven modules:
-          js/playwright/  →  @platform/adapter-playwright
-          js/(future)/    →  @platform/adapter-cypress, @platform/adapter-wdio, ...
+          js/playwright/  →  @ndviet/adapter-playwright
+          js/k6/          →  @ndviet/adapter-k6
+          js/(future)/    →  @ndviet/adapter-cypress, @ndviet/adapter-wdio, ...
     -->
     <modules>
         <module>java</module>
