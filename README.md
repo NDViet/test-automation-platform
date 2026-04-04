@@ -40,7 +40,82 @@ Cross-team quality intelligence platform that unifies test results, detects flak
 | `@ndviet/adapter-playwright` | Playwright | GitHub Packages |
 | `@ndviet/adapter-k6` | K6 | GitHub Packages |
 
-## Prerequisites
+## Quick start (pre-built images)
+
+No Java or Maven required — Docker is all you need.
+
+### Step 1 — Clone config files
+
+```bash
+git clone https://github.com/ndviet/test-automation-platform.git
+cd test-automation-platform
+```
+
+> Only the `infrastructure/` directory and `docker-compose.yml` are needed. You do **not** need to build anything.
+
+### Step 2 — Pull and start
+
+```bash
+# Pull pre-built platform images from GHCR
+docker compose --profile services pull
+
+# Start infrastructure + platform services
+docker compose --profile services up -d
+```
+
+Flyway migrations run automatically via the `db-migrate` one-shot container before any service starts.
+
+### Step 3 — Verify
+
+```bash
+docker compose ps
+```
+
+| Service | URL | Default credentials |
+|---|---|---|
+| Platform Portal | http://localhost:8085 | — |
+| Ingestion API | http://localhost:8081/swagger-ui.html | — |
+| Analytics API | http://localhost:8082/swagger-ui.html | — |
+| Integration API | http://localhost:8083/swagger-ui.html | — |
+| AI API | http://localhost:8084/swagger-ui.html | — |
+| Grafana | http://localhost:3000 | admin / admin |
+| Prometheus | http://localhost:9090 | — |
+| OpenSearch | http://localhost:9200 | — |
+| Kafka | localhost:9092 | — |
+| PostgreSQL | localhost:5432 db=platform | platform / platform |
+
+### Environment variables (optional)
+
+```bash
+# AI service — Claude (default) or OpenAI
+export ANTHROPIC_API_KEY=sk-ant-...
+export AI_PROVIDER=claude        # or: openai
+
+# OpenAI fallback
+export OPENAI_API_KEY=sk-...
+export OPENAI_MODEL=gpt-4o
+
+# API key auth (disabled by default for local dev)
+# Set to true in production and create keys via POST /api/v1/api-keys
+export API_KEY_AUTH_ENABLED=false
+```
+
+Create a `.env` file in the project root — Docker Compose picks it up automatically.
+
+### Stop everything
+
+```bash
+docker compose --profile services down
+
+# Remove volumes (wipes database and Kafka data)
+docker compose --profile services down -v
+```
+
+---
+
+## Build from source
+
+### Prerequisites
 
 | Tool | Version |
 |---|---|
@@ -48,8 +123,6 @@ Cross-team quality intelligence platform that unifies test results, detects flak
 | Maven | 3.9+ |
 | Docker + Docker Compose | 27+ |
 | Node.js | 20+ (adapter development only) |
-
-## Build
 
 ### All Java modules
 
@@ -85,75 +158,16 @@ npm install --ignore-scripts
 npm run bundle
 ```
 
-## Local deployment
-
-### Step 1 — Start infrastructure
-
-Start all backing services (PostgreSQL, Kafka, Redis, OpenSearch, Prometheus, Grafana, Loki):
+### Build and run locally with Docker
 
 ```bash
-docker compose up -d
-```
-
-This also runs Flyway migrations automatically via the `db-migrate` one-shot container.
-
-### Step 2 — Start platform services
-
-Platform services are gated behind the `services` profile so they don't start until their Docker images exist:
-
-```bash
-# Build all service images first
-docker compose --profile services build
-
-# Start everything (infrastructure + services)
-docker compose --profile services up -d
-```
-
-Or build and start in one command:
-
-```bash
+# Build images locally and start everything
 docker compose --profile services up -d --build
 ```
 
-### Step 3 — Verify
+### Run services without Docker
 
-```bash
-docker compose ps
-```
-
-| Service | URL | Default credentials |
-|---|---|---|
-| Platform Portal | http://localhost:8085 | — |
-| Ingestion API | http://localhost:8081/swagger-ui.html | — |
-| Analytics API | http://localhost:8082/swagger-ui.html | — |
-| AI API | http://localhost:8084/swagger-ui.html | — |
-| Grafana | http://localhost:3000 | admin / admin |
-| Prometheus | http://localhost:9090 | — |
-| OpenSearch | http://localhost:9200 | — |
-| Kafka | localhost:9092 | — |
-| PostgreSQL | localhost:5432 db=platform | platform / platform |
-
-### Environment variables (optional)
-
-```bash
-# AI service — Claude (default) or OpenAI
-export ANTHROPIC_API_KEY=sk-ant-...
-export AI_PROVIDER=claude        # or: openai
-
-# OpenAI fallback
-export OPENAI_API_KEY=sk-...
-export OPENAI_MODEL=gpt-4o
-
-# API key auth (disabled by default for local dev)
-# Set to true in production and create keys via POST /api/v1/api-keys
-export API_KEY_AUTH_ENABLED=false
-```
-
-Copy `.env.example` (if present) to `.env` — Docker Compose picks it up automatically.
-
-### Run services locally (without Docker)
-
-Useful when iterating on a single service. Start infrastructure first (Step 1), then:
+Useful when iterating on a single service. Start infrastructure first (`docker compose up -d`), then:
 
 ```bash
 # platform-ingestion
@@ -171,15 +185,6 @@ npm run dev    # proxies API calls to :8085
 ```
 
 Default `local` profile connects to `localhost:5432`, `localhost:9092`, etc.
-
-### Stop everything
-
-```bash
-docker compose --profile services down
-
-# Remove volumes (wipes database and Kafka data)
-docker compose --profile services down -v
-```
 
 ## Submitting test results
 
