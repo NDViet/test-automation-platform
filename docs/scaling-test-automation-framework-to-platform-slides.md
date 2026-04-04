@@ -1,35 +1,42 @@
 # Scaling Test Automation: From Framework to Platform
 
-**Time slot:** 07:30 PM – 08:15 PM
-**Talk:** 40 minutes (07:30 PM – 08:10 PM)
-**Q&A:** 5 minutes (08:10 PM – 08:15 PM)
+---
+
+## 1) Agenda
+
+1. **The scaling problem** — what frameworks can't solve alone
+2. **Building the right framework foundation** — five design decisions that compound over time
+3. **From framework to platform — the shift**
+   - Framework vs Platform: what changes and what stays
+   - Why move now: the signals that tell you it's time
+4. **Platform architecture**
+   - How the pieces connect — services, parsers, event bus
+   - The open-source stack — every component, zero vendor lock-in
+   - Two ways to connect your framework — adapter vs native library
+5. **Platform capabilities** — flakiness, TIA, quality gates, tickets, AI controls
+6. **AI — where it helps and where it hurts** — accelerators, risks, and guardrails
+7. **Demo — end-to-end: from test run to platform insight**
+   - A: Zero-code connection (`platform-adapters`)
+   - B: Native integration (`platform-testkit-java`)
+   - C: Test Impact Analysis
+   - D: Performance test in the same pipeline (k6)
+   - E: AI Settings — provider switch, real-time toggle, on-demand analysis
+   - F: Verify in Portal and DB
+8. **Trade-offs and migration path**
+   - Design choices and their costs
+   - Phased adoption — step by step
+9. **Key takeaways**
+10. **The next frontier — Agentic AI** — generate, execute, evaluate, maintain, repeat
+11. **Q&A**
 
 ---
 
-## 1) Opening
+## 2) About Me
 
-*Scaling Test Automation: From Framework to Platform*
-
-- You've built great test frameworks. Tests run. Teams are productive.
-- But at org scale, something breaks — and it isn't a test.
-- Tonight: what breaks, why, and how a platform mindset fixes it.
-
----
-
-## 2) Agenda
-
-*What we'll cover in 40 minutes*
-
-1. The scaling problem — what frameworks can't solve alone
-2. Building the right framework foundation
-3. From framework to platform — the shift
-4. Platform architecture walkthrough
-5. The open-source stack — what runs behind the scenes
-6. Platform capabilities — what it does with your test results
-7. Demo — connecting your framework to the platform
-8. Trade-offs and migration path
-9. The platform as foundation for Agentic AI — generate, execute, maintain, repeat
-10. Q&A
+- **Role:** QA Architect / Platform Engineer
+- Building test automation infrastructure across multiple teams and stacks
+- Focused on turning per-team quality data into org-wide quality intelligence
+- Open-source contributor — everything in this talk runs on freely available tools
 
 ---
 
@@ -59,39 +66,203 @@
 
 *Design your framework for scale before the platform layer*
 
-### Three principles that matter
+### Five design decisions that compound over time
 
-**1. Modular libraries, not monolithic framework jars**
+**1. Layered modules, not a monolithic jar**
 
-Each concern is its own library — UI, Config, API, Infrastructure, Listeners. Teams pull only what they need. Downstream framework projects (TestNG, Cucumber, Robot) all share the same base with no duplication.
+Every concern is its own published library — UI interactions, API, configuration, reusable utilities/helpers. Downstream projects declare only what they need. No duplication, no hidden coupling.
 
-**2. Centralized configuration cascade**
-
-One config resolution strategy across all environments:
 ```
-System Properties → environment config → base config
+┌────────────────────────────────────────────────────────────────────────-─┐
+│  SHARED LAYER  (published to GitHub Packages — versioned, immutable)     │
+│                                                                          │
+│  test-parent-pom                  ← dependency versions + plugin config  │
+│  └── test-automation-fwk                                                 │
+│          └── test-libraries                                              │
+│                  ├── test-libraries-utilities   config · YAML · helpers  │
+│                  ├── test-libraries-webui       Selenium UI              │
+│                  ├── test-libraries-api         REST (rest-assured)      │
+│                  └── ...                                                 │
+│                                                                          │
+│  platform-testkit-java            ← @Step · @Retryable · @AffectedBy     │
+│                                     OTel tracing · result publish        │
+└────────────────────────────────────────────────────────────────────────-─┘
+           │                                    │
+           │ declares only what it needs        │ declares only what it needs
+           ▼                                    ▼
+┌──────────────────────────┐      ┌──────────────────────────┐
+│  automation-team-alpha   │      │  automation-team-beta    │
+│  (Gradle · TestNG · UI)  │      │  (Gradle · TestNG · API) │
+│                          │      │                          │
+│  test-libraries-webui    │      │  test-libraries-api      │
+│  platform-testkit-java   │      │  platform-testkit-java   │
+│                          │      │                          │
+│  ← no UI lib duplicated  │      │  ← no API lib duplicated │
+│  ← no platform SDK copy  │      │  ← no platform SDK copy  │
+└──────────────────────────┘      └──────────────────────────┘
 ```
-No hardcoded URLs. No per-team config drift.
 
-**3. Container-first execution**
+Each team repo has **zero shared code of its own** — it pulls versioned libraries from the shared layer and writes only test logic. Upgrading the framework or SDK means bumping one version in one place.
 
-Same test code runs on a developer laptop, Selenium Grid, and a Kubernetes pod. The runner resolves the target — test code never knows.
+**2. Externalized locators — the object repository pattern**
 
-```text
-┌─ Test Pod ───────────────────────────────────┐
-│  JVM (TestNG / Cucumber / Robot)             │
-│           │                                  │
-│           ▼                                  │
-│  Selenium Node (Chrome / Firefox)            │
-└──────────────┬───────────────────────────────┘
-               │ results
-               ▼
-        Platform Ingestion API
+Locators live in YAML files, not in code. Each entry is a dot-notation path into a hierarchy. The locator type is declared by prefix (`xpath=`, `cssselector=`, `id=`, `role=`, …); no prefix defaults to XPath. FreeMarker `${variable}` syntax enables a single entry to cover all dynamic variations. Primary + fallback lists give the framework self-healing behaviour — if the primary locator fails, the next is tried automatically.
+
+```yaml
+Shared:
+  Payment Frame: id=payment-iframe
+
+Checkout:
+  Payment:
+    Option:
+      primary: cssselector=a[role="option"][data-value="${value}"]
+      fallbacks:
+        - xpath=//a[normalize-space()="${value}"]
+        - id=option-${value}
+      parent:
+        frameRef: Shared.Payment Frame
+```
+```java
+findTestObject("Checkout.Payment.Option", Map.of("value", "Credit Card"))
+// one entry — parameterized, self-healing, iframe-aware
 ```
 
-### Replicating this design to other stacks
+One entry covers parameterization (`${value}`), self-healing fallbacks, and a reusable parent reference — no duplication, no extra code in tests.
 
-This modular pattern is language-agnostic. With an LLM, the same architecture scaffolds in Python or TypeScript in hours — feed the existing design as the reference spec and generate the equivalent. This is how the JavaScript adapter for Playwright was built.
+**3. Configuration cascade — no hardcoded environment values**
+
+A single resolution strategy, applied at every entry point:
+
+```
+System properties  →  environment variables  →  ordering files  →  base config
+```
+
+`ConfigurationManager` is a ThreadLocal singleton — each parallel thread resolves its own isolated config. Teams override per environment without touching shared files.
+
+**4. Facade + Factory — the same API across all test stacks**
+
+Two static facades — `WebUI` for browser tests, `RestAssured` for API tests — give every team a single, stable call surface. The factory chain underneath resolves the target (local, remote Grid, containerised) and authentication strategy from configuration alone. Test code never references a specific driver or HTTP client directly.
+
+```
+WebUI.click(...)          RestAssured.post(...)
+      │                          │
+      ▼                          ▼
+ TargetFactory              TargetFactory (API)
+  └─ BrowserFactory enum     └─ AuthenticationStrategyFactory
+      ├─ CHROME                   ├─ Bearer token
+      ├─ FIREFOX                  ├─ Basic auth
+      ├─ EDGE                     └─ None
+      └─ SAFARI
+  └─ RemoteDriverFactory      └─ RequestSpecification
+      └─ Selenium Grid               (headers, base URL, auth)
+```
+
+**`automation-team-alpha` — UI tests call `WebUI` through page objects:**
+
+```java
+// CheckboxesPage.java — inside test-automation-fwk shared layer
+public class CheckboxesPage {
+    public void navigateTo(String baseUrl) {
+        WebUI.navigateToUrl(baseUrl + "/checkboxes");   // facade
+        WebUI.waitForPageLoaded(10);
+    }
+    public boolean isCheckbox1Checked() throws Exception {
+        return WebUI.isChecked(ObjectRepository.findTestObject("Checkboxes Page.Checkbox 1"));
+    }
+}
+
+// BaseTest.java — @BeforeMethod wires the factory once
+WebUI.openBrowser(browser, BASE_URL);   // TargetFactory → BrowserFactory(CHROME/FIREFOX/EDGE)
+                                        // or → RemoteDriverFactory → Selenium Grid
+                                        // resolved from ConfigurationManager — no code change
+```
+
+**`automation-team-beta` — API tests call `RestAssured` through client objects:**
+
+```java
+// CatalogClient.java — inside test-automation-fwk shared layer
+public class CatalogClient {
+    public Response createProduct(CreateProductRequest req) {
+        return RestAssured.post("/api/v1/products", req);   // facade
+    }
+    public Response adjustInventory(String sku, int delta) {
+        return RestAssured.patch("/api/v1/products/" + sku + "/inventory",
+                                 new AdjustInventoryRequest(delta));
+    }
+}
+
+// BaseApiTest.java — @BeforeMethod wires session once
+RestAssured.openSessionWithBearerToken(BASE_URL, BEARER_TOKEN);
+// TargetFactory → RequestSpecification (headers, content-type, auth)
+// → AuthenticationStrategyFactory resolves Bearer / Basic / None from config
+```
+
+Same test-author experience across both stacks. No `new ChromeDriver()`, no `given().header(...)` boilerplate — just the domain action.
+
+**5. Container-first execution — offline, reproducible, CI-ready**
+
+The image chain is built once and published. Every CI run pulls a versioned image — no network fetches, no credential leaks at runtime. The execution target (local browser, Selenium Grid, AUT endpoint) is resolved from configuration; test code never changes.
+
+```
+maven:3.9.11-eclipse-temurin-21          ← JDK 21 + Maven + Gradle
+    └── ndviet/test-automation-java-common  ← framework JARs + pre-seeded .m2
+            └── automation-team-alpha:sha  ← Gradle deps cached + test classes pre-compiled
+            └── automation-team-beta:sha   ← same pattern, API test classes
+```
+
+**What gets baked in at each layer:**
+
+```
+ndviet/test-automation-java-common
+  ├─ Maven repo pre-seeded (no mvn download in CI)
+  └─ Framework JARs: test-libraries-webui, test-libraries-api, …
+
+automation-team-alpha image (built in CI — linux/amd64 + linux/arm64)
+  ├─ Gradle dependency cache (GPR auth at build time only — not in final image)
+  ├─ SNAPSHOT cache frozen (init.d script — Gradle never hits network at runtime)
+  └─ Test classes pre-compiled — ./gradlew testClasses baked in
+
+automation-team-beta image (same multi-arch pattern)
+  ├─ Gradle dependency cache + SNAPSHOT freeze
+  └─ Test classes pre-compiled
+```
+
+**How CI uses the image — team-alpha (UI tests):**
+
+```bash
+# Job 1 — build once, push to GHCR
+docker buildx build --platform linux/amd64,linux/arm64 \
+  --build-arg BASE_IMAGE=ndviet/test-automation-java-common:latest \
+  --push -t ghcr.io/org/automation-team-alpha:$SHA .
+
+# Job 2 — pull image, start Selenium Grid, run tests (no build, no download)
+docker compose up -d --wait --wait-timeout 180   # hub + chrome + firefox + edge nodes
+docker run --rm --network automation-grid_default \
+  -e APP_URL=https://the-internet.herokuapp.com \
+  ghcr.io/org/automation-team-alpha:$SHA \
+  ./gradlew test --no-daemon \
+    -Dselenium.web_driver.target=REMOTE \
+    -Dselenium.hub.url=http://selenium-hub:4444/wd/hub
+```
+
+**How CI uses the image — team-beta (API tests):**
+
+```bash
+# Job 2 — pull image, start AUT stack (postgres + Spring Boot backend), run tests
+docker compose up -d --wait   # postgres:16 + ghcr.io/ndviet/aut-api-testing:latest
+docker run --rm --network automation-api-stack_default \
+  ghcr.io/org/automation-team-beta:$SHA \
+  ./gradlew test --no-daemon \
+    -Dapi.base.url=http://aut-backend:8080
+```
+
+Same image runs on a developer laptop (`docker compose --profile test up`) and in the pipeline. Credentials are needed only at image build time — never at test runtime.
+
+### The pattern this enables
+
+The same locator files, the same configuration cascade, and the same `WebUI` facade are shared across all test frameworks in the organisation. New stacks are onboarded by adding an adapter layer — not by rewriting shared logic.
+
+> This is also language-agnostic. The same architecture scaffolds in Python or TypeScript in hours — feed the design as a spec to an LLM and generate the equivalent. This is how the Playwright adapter for the platform was built.
 
 ---
 
@@ -206,7 +377,7 @@ flowchart LR
 |---|---|---|
 | **What it is** | Add to your framework base — deep, native integration | Reads existing report output files — no test code changes |
 | **Code change** | Add one dependency to your framework base; optional annotations on tests | Register one listener / extension / reporter |
-| **What you get** | Step tracking, distributed tracing, retry, coverage annotations, failure hints | Automatic upload of existing XML / JSON report files |
+| **What you get** | `@Step` AOP tracking (auto-named, nested, param-interpolated), distributed tracing, `@Retryable`, `@AffectedBy` coverage, failure hints | Automatic upload of existing XML / JSON report files |
 | **Best for** | New frameworks or teams wanting full observability | Existing projects with no appetite for code change |
 | **Language** | Java today · Python, JavaScript planned | Java · JavaScript / TypeScript |
 
@@ -224,9 +395,40 @@ flowchart LR
 - Org-wide dashboard across all teams and frameworks
 
 ### Test Impact Analysis
-- Maps each test to the production code it covers
-- At PR time: "of 340 tests, only 12 need to run — 96.5% reduction, LOW risk"
-- Outputs ready-to-use filter commands for Maven and Gradle
+
+Data flows from annotation → ingestion → coverage table → impact query → CI filter, automatically:
+
+```
+@AffectedBy({"com.example.PaymentService"})   ← declared once in test or step class
+       │
+       ▼  PlatformExtension.beforeEach() — reads annotation, stores in TestContext
+       │
+       ▼  afterEach() — snapshot() → NativeReportPublisher → multipart POST /ingest
+       │
+       ▼  CoverageIngestionService — upsert(projectId, testCaseId, className)
+       │
+       ▼  DB: test_coverage_mappings (projectId · testCaseId · className · lastSeenAt)
+       │
+       ▼  GET /api/v1/analytics/{projectId}/impact?changedFiles=...
+       │   TestImpactService:
+       │     1. file path → fully qualified class name
+       │     2. findByProjectIdAndClassNameIn(classesToCheck)
+       │     3. group by test ID, compute risk + reduction %
+       │     4. build Maven / Gradle filter strings
+       │
+       ▼  TestImpactResult { recommendedTests, riskLevel, estimatedReduction,
+                             mavenFilter, gradleFilter, uncoveredChangedClasses }
+       │
+       ├─→ Portal: TestImpactPanel — risk badge, metrics, copyable filter commands
+       └─→ CI: feed mavenFilter / gradleFilter into the test run command
+```
+
+**Risk levels:** `LOW` (all classes mapped) · `MEDIUM` (80%+ mapped) · `HIGH` (50%+) · `CRITICAL` (<50% — run full suite)
+
+**What the portal shows per project:**
+- Coverage health: `N tests mapped · M classes` — indicates TIA readiness
+- Paste changed file paths → instant risk level + recommended test list
+- Copy Maven (`-Dtest=...`) or Gradle (`--tests ...`) filter — one click to CI
 
 ### Quality Gates & Alerts
 - Configurable thresholds: max failure rate, max flaky %, min pass rate
@@ -239,27 +441,14 @@ flowchart LR
 - Test back to green → closes the ticket (opt-in per team)
 - Deduplication groups the same root cause into one ticket, not many
 
----
-
-## 11) Performance Tests in the Same Pipeline
-
-*k6, Gatling, and JMeter — first-class citizens*
-
-Teams submit load test results alongside functional tests. No separate dashboard. No manual comparison.
-
-| Tool | How to submit | What becomes a test case |
-|---|---|---|
-| k6 | `--summary-export=summary.json` + HTTP POST | Each `check` in a group |
-| Gatling | Upload `stats.json` from simulation report | Each `REQUEST` entry |
-| JMeter | Upload `results.jtl` from test plan | Each unique label (sampler name) |
-
-**Same flakiness scoring, same quality gates, same Jira integration.**
-
-A load test that starts failing 5% of the time shows up in the flakiness dashboard — no extra configuration.
+### AI Analysis Controls (Portal → AI Settings)
+- **Real-time toggle:** enable or disable automatic failure classification on every incoming run — change takes effect immediately, no service restart
+- **On-demand trigger:** "Analyze Now" button re-classifies all unanalysed failures from the last 24 hours — useful after configuring an API key or switching providers
+- **Provider & key hot-swap:** switch between Claude and OpenAI, or update API keys, from the Portal — the AI service picks up the new config on the next analysis call without restarting
 
 ---
 
-## 12) AI — Where It Helps and Where It Hurts
+## 11) AI — Where It Helps and Where It Hurts
 
 *Honest assessment*
 
@@ -275,13 +464,14 @@ A load test that starts failing 5% of the time shows up in the flakiness dashboa
 - False confidence when AI classifies a test as flaky but it is a real regression
 
 ### Guardrails in this platform
-- Real-time analysis is **opt-in per project** — teams enable it when they are ready
+- Real-time analysis is **opt-in** — toggled from the Portal AI Settings page; change takes effect immediately with no service restart
+- AI provider (Claude / OpenAI) and API key are **hot-swappable** from the Portal — the service resolves the active config on every analysis call without restarting
 - Prompts are bounded — stack trace and run history are capped to control cost and noise
-- Re-runs never create duplicate analyses — results are idempotent
+- Idempotency with retry: successful analyses are never duplicated; failed analyses (API errors, bad keys) are tracked as `ERROR` and automatically retried by the nightly batch and the on-demand trigger
 
 ---
 
-## 13) Demo
+## 12) Demo
 
 *End-to-end: from test run to platform insight*
 
@@ -292,6 +482,7 @@ A load test that starts failing 5% of the time shows up in the flakiness dashboa
 3. Run tests, watch results appear in the portal
 4. Trigger Test Impact Analysis on a changed file
 5. Submit a k6 load test result into the same pipeline
+6. Configure AI Settings: switch provider, toggle real-time analysis, trigger on-demand classification
 
 ---
 
@@ -336,7 +527,7 @@ PLATFORM_PROJECT_ID=proj-checkout
 ```typescript
 reporter: [
   ['list'],
-  ['@platform/adapter-playwright', {
+  ['@ndviet/adapter-playwright', {
     endpoint:  process.env.PLATFORM_URL,
     apiKey:    process.env.PLATFORM_API_KEY,
     teamId:    'team-frontend',
@@ -362,15 +553,14 @@ reporter: [
 </dependency>
 ```
 
-**Your framework base class wires it in — test authors see nothing new:**
+**Your framework base class wires it in — test authors see nothing new beyond annotations:**
 
 ```java
 // Your existing base class in test-automation-fwk
 public abstract class BaseUITest extends PlatformBaseTest {
-    protected WebDriver driver;
 
     @BeforeEach void setUp() {
-        driver = BrowserFactory.CHROME.createDriver(); // your existing setup
+        // your existing driver / client setup — no changes needed
     }
 }
 ```
@@ -378,20 +568,25 @@ public abstract class BaseUITest extends PlatformBaseTest {
 **Test authors get structured steps, retry, and coverage declarations for free:**
 
 ```java
-// test-cucumber-framework — step definition
+// test-cucumber-framework — step definitions
+// @Step intercepts the method via AspectJ LTW — no manual open/close needed
 public class CheckoutSteps {
-    private final TestLogger log = TestLogger.forClass(CheckoutSteps.class);
 
     @When("the user completes checkout")
-    @AffectedBy("com.example.CheckoutService")   // ← declares TIA coverage mapping
-    public void completeCheckout() {
-        log.step("Fill shipping address");
-          shippingPage.fill(address);
-        log.endStep();
+    @AffectedBy("com.example.CheckoutService")          // ← TIA coverage mapping
+    public void completeCheckout(Address address, Card card) {
+        fillShippingAddress(address);                   // child step — nested automatically
+        submitPayment("Visa", card);                    // child step
+    }
 
-        log.step("Submit payment");
-          paymentPage.pay(card);
-        log.endStep();
+    @Step                                               // ← name derived from method: "Fill Shipping Address"
+    public void fillShippingAddress(Address address) {
+        shippingPage.fill(address);
+    }
+
+    @Step("Submit payment with {cardType}")             // ← param interpolated at runtime
+    public void submitPayment(String cardType, Card card) {
+        paymentPage.pay(card);
     }
 }
 ```
@@ -400,17 +595,22 @@ public class CheckoutSteps {
 
 ```java
 @Test
-@Retryable(maxAttempts = 3)                       // ← retry with attempt tracking
-@AffectedBy("com.example.LoginService")           // ← TIA coverage
+@Retryable(maxAttempts = 3)                            // ← retry with attempt tracking
+@AffectedBy("com.example.LoginService")                // ← TIA coverage
 public void userCanLogin() {
-    log.step("Navigate to login page");
-      driver.get(baseUrl + "/login");
-    log.endStep();
+    navigateToLoginPage();
+    submitCredentials(user, pass);
+    softly(s -> s.assertThat(driver.getTitle()).contains("Dashboard"));
+}
 
-    log.step("Submit credentials and verify dashboard");
-      loginPage.login(user, pass);
-      softly(s -> s.assertThat(driver.getTitle()).contains("Dashboard"));
-    log.endStep();
+@Step                                                  // ← "Navigate To Login Page"
+private void navigateToLoginPage() {
+    driver.get(baseUrl + "/login");
+}
+
+@Step("Submit credentials for {username}")
+private void submitCredentials(String username, String password) {
+    loginPage.login(username, password);
 }
 ```
 
@@ -418,19 +618,78 @@ public void userCanLogin() {
 
 ### Demo C — Test Impact Analysis
 
+**Step 1 — Declare coverage in test code (once, in the framework base or step class):**
+
+```java
+// automation-team-alpha — CheckoutSteps.java
+@AffectedBy({"com.example.CheckoutService", "com.example.CartService"})
+public void completeCheckout(Address address, Card card) { ... }
+
+// automation-team-alpha — LoginTest.java
+@Test
+@AffectedBy("com.example.LoginService")
+public void userCanLogin() { ... }
+```
+
+`PlatformExtension` reads the annotation before each test → stores in `TestContext` → published automatically after each test via `NativeReportPublisher`.
+
+**Step 2 — Platform builds the coverage map (happens on every test run):**
+
+```
+test_coverage_mappings
+┌─────────────────────┬──────────────────────────┬───────────────────────────────┐
+│ project_id          │ test_case_id             │ class_name                    │
+├─────────────────────┼──────────────────────────┼───────────────────────────────┤
+│ the-internet        │ CheckoutSteps#complete.. │ com.example.CheckoutService   │
+│ the-internet        │ CheckoutSteps#complete.. │ com.example.CartService       │
+│ the-internet        │ LoginTest#userCanLogin   │ com.example.LoginService      │
+└─────────────────────┴──────────────────────────┴───────────────────────────────┘
+Upserted on every run — lastSeenAt refreshed, duplicates never inserted.
+```
+
+**Step 3 — At PR time, query which tests to run:**
+
 ```bash
-# At PR time: which tests cover the changed files?
-curl "http://localhost:8082/api/v1/analytics/proj-checkout/impact?\
-changedFiles=src/main/java/com/example/CheckoutService.java"
+# Changed files from git diff
+CHANGED="src/main/java/com/example/CheckoutService.java,\
+src/main/java/com/example/CartService.java"
+
+curl "http://localhost:8082/api/v1/analytics/the-internet/impact?changedFiles=${CHANGED}" \
+  -H "X-API-Key: local-dev"
 
 # Response:
-# { "selectedTests": 12, "totalTests": 340,
-#   "estimatedReduction": "96.5%", "riskLevel": "LOW",
-#   "mavenFilter": "CheckoutServiceTest+OrderFlowTest" }
+# {
+#   "selectedTests": 2,   "totalTests": 28,
+#   "estimatedReduction": "92.9%",
+#   "riskLevel": "LOW",
+#   "recommendedTests": ["CheckoutSteps#completeCheckout"],
+#   "uncoveredChangedClasses": [],
+#   "mavenFilter": "CheckoutSteps",
+#   "gradleFilter": "--tests CheckoutSteps"
+# }
 
 # Run only the relevant tests
-mvn test -Dtest="CheckoutServiceTest+OrderFlowTest"
+./gradlew test --no-daemon --tests CheckoutSteps
 ```
+
+**Step 4 — Coverage health summary (portal + CI gate):**
+
+```bash
+curl "http://localhost:8082/api/v1/analytics/the-internet/impact/summary" \
+  -H "X-API-Key: local-dev"
+
+# { "mappedTests": 18, "mappedClasses": 24, "tiaEnabled": true }
+# Portal: "18 tests mapped · 24 classes — TIA ready"
+```
+
+**Risk levels and what CI should do:**
+
+| Risk | Condition | CI action |
+|---|---|---|
+| `LOW` | All changed classes have mappings | Run `mavenFilter` / `gradleFilter` only |
+| `MEDIUM` | 80 %+ changed classes mapped | Run selected + smoke suite |
+| `HIGH` | 50 %+ mapped | Run selected + regression |
+| `CRITICAL` | < 50 % mapped | Run full suite — coverage gap too large |
 
 ---
 
@@ -451,7 +710,40 @@ curl -X POST http://localhost:8081/api/v1/results/ingest \
 
 ---
 
-### Demo E — Verify in Portal and DB
+### Demo E — AI Settings and On-Demand Analysis
+
+*Portal → Settings → AI Analysis*
+
+**Toggle real-time analysis on/off** — the Kafka consumer reads the flag from the database on every incoming message; no restart needed:
+
+```
+Portal → AI Settings → Real-time Analysis [toggle ON]
+# From this point every new test run with FAILED/BROKEN results is automatically classified
+```
+
+**Switch AI provider and API key** — the AI service resolves the active config on every call:
+
+```
+Portal → AI Settings → Provider: OpenAI
+                     → API Key: sk-...
+                     → Model:   gpt-4o
+# No service restart. Next analysis call uses OpenAI.
+```
+
+**On-demand batch trigger** — re-classifies all unanalysed failures from the last 24 hours, including any that failed due to a bad API key:
+
+```
+Portal → AI Settings → "Analyze Now"
+# Response: "47 failures queued for classification"
+# API call: POST /api/v1/analyse/run-now?hours=24
+# Returns: { "queued": 47, "hours": 24 }
+```
+
+**Retry behaviour** — analyses that failed (wrong key, provider outage) are stored with `status=ERROR` and automatically picked up by the nightly batch and the on-demand trigger; successful analyses are never re-run.
+
+---
+
+### Demo F — Verify in Portal and DB
 
 ```bash
 # Portal
@@ -466,7 +758,7 @@ docker exec platform-postgres psql -U platform -d platform -c "
 
 ---
 
-## 14) Trade-offs and Design Choices
+## 13) Trade-offs and Design Choices
 
 *What we chose and why it costs something*
 
@@ -480,7 +772,7 @@ docker exec platform-postgres psql -U platform -d platform -c "
 
 ---
 
-## 15) Practical Migration Path
+## 14) Practical Migration Path
 
 *From framework to platform — phased adoption at your own pace*
 
@@ -495,9 +787,7 @@ docker exec platform-postgres psql -U platform -d platform -c "
 
 ---
 
-## 16) Key Takeaways
-
-*What to remember from tonight*
+## 15) Key Takeaways
 
 - **Framework alone is not enough at scale** — design it modularly from day one, container-first
 - **The platform does not replace your framework** — it wraps it with shared services
@@ -509,7 +799,7 @@ docker exec platform-postgres psql -U platform -d platform -c "
 
 ---
 
-## 17) The Next Frontier — Agentic AI in Test Automation
+## 16) The Next Frontier — Agentic AI in Test Automation
 
 *The platform is not the destination — it is the foundation and the control plane*
 
@@ -577,9 +867,7 @@ The data model, the APIs, and the event stream are already agent-ready. The ques
 
 ---
 
-## 18) Q&A
-
-*5 minutes — 08:10 PM to 08:15 PM*
+## 17) Q&A
 
 Happy to continue the conversation offline after the session.
 

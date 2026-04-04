@@ -190,6 +190,7 @@ services:
 
   # Platform services
   platform-analytics:
+    image: ghcr.io/ndviet/platform-analytics:master
     build:
       context: .
       dockerfile: platform-analytics/Dockerfile
@@ -215,6 +216,7 @@ services:
       - services
 
   platform-integration:
+    image: ghcr.io/ndviet/platform-integration:master
     build:
       context: .
       dockerfile: platform-integration/Dockerfile
@@ -236,6 +238,7 @@ services:
       - services
 
   platform-ai:
+    image: ghcr.io/ndviet/platform-ai:master
     build:
       context: .
       dockerfile: platform-ai/Dockerfile
@@ -261,6 +264,7 @@ services:
       - services
 
   platform-ingestion:
+    image: ghcr.io/ndviet/platform-ingestion:master
     build:
       context: .
       dockerfile: platform-ingestion/Dockerfile
@@ -284,6 +288,7 @@ services:
       - services   # only start with: docker compose --profile services up
 
   platform-portal:
+    image: ghcr.io/ndviet/platform-portal:master
     build:
       context: .
       dockerfile: platform-portal/Dockerfile
