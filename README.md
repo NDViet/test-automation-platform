@@ -2,6 +2,10 @@
 
 Cross-team quality intelligence platform that unifies test results, detects flakiness, classifies failures with AI, and surfaces organisation-wide quality signals — without changing a line of test code.
 
+## Demo
+
+[![IMAGE ALT TEXT HERE](https://img.youtube.com/vi/8oQqHW5LBU0/0.jpg)](https://www.youtube.com/watch?v=8oQqHW5LBU0)
+
 ## Architecture
 
 ```
