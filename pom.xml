@@ -21,14 +21,17 @@
 
     <modules>
         <module>platform-common</module>
+        <module>platform-storage</module>
         <module>platform-core</module>
         <module>platform-ingestion</module>
         <module>platform-adapters</module>
         <module>platform-analytics</module>
         <module>platform-integration</module>
+        <module>platform-integration-config</module>
         <module>platform-ai</module>
         <module>platform-testkit</module>
         <module>platform-portal</module>
+        <module>platform-agent</module>
     </modules>
 
     <properties>
@@ -48,6 +51,7 @@
         <resilience4j.version>2.3.0</resilience4j.version>
         <aspectj.version>1.9.22.1</aspectj.version>
         <allure.version>2.29.1</allure.version>
+        <aws-sdk.version>2.30.0</aws-sdk.version>
     </properties>
 
     <dependencyManagement>
@@ -72,6 +76,31 @@
                 <groupId>org.ndviet</groupId>
                 <artifactId>platform-testkit-java</artifactId>
                 <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.ndviet</groupId>
+                <artifactId>platform-integration-config</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.ndviet</groupId>
+                <artifactId>platform-storage</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.ndviet</groupId>
+                <artifactId>platform-agent</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+
+            <!-- AWS SDK v2 BOM — covers S3, S3 Transfer Manager, and all service clients.
+                 Used by platform-storage; compatible with MinIO, AWS S3, and GCS XML API. -->
+            <dependency>
+                <groupId>software.amazon.awssdk</groupId>
+                <artifactId>bom</artifactId>
+                <version>${aws-sdk.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
             </dependency>
 
             <!-- Spring Kafka -->

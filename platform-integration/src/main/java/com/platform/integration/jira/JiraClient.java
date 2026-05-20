@@ -55,9 +55,12 @@ public class JiraClient {
     }
 
     public JsonNode searchIssues(String jql) {
-        String encoded = jql.replace(" ", "%20").replace("\"", "%22")
-                .replace("=", "%3D").replace("!", "%21");
-        return get("/rest/api/3/search?jql=" + encoded + "&maxResults=5&fields=key,status,summary");
+        // /rest/api/3/search was removed (410) — use POST /rest/api/3/search/jql
+        // https://developer.atlassian.com/changelog/#CHANGE-2046
+        String body = String.format(
+                "{\"jql\":\"%s\",\"maxResults\":5,\"fields\":[\"key\",\"status\",\"summary\"]}",
+                jql.replace("\"", "\\\""));
+        return post("/rest/api/3/search/jql", body);
     }
 
     // ── HTTP helpers ──────────────────────────────────────────────────────────

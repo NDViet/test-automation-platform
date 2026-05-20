@@ -1,0 +1,64 @@
+server:
+  port: 8086
+
+spring:
+  application:
+    name: platform-agent
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/platform}
+    username: ${DB_USERNAME:platform}
+    password: ${DB_PASSWORD:platform}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.apache.kafka.common.serialization.StringSerializer
+    consumer:
+      key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+      auto-offset-reset: earliest
+
+anthropic:
+  api-key: ${ANTHROPIC_API_KEY:}
+
+platform:
+  storage:
+    type: filesystem
+    filesystem-base-path: ${java.io.tmpdir}/platform-blobs
+  agent:
+    consumer-group: platform-agent
+    max-tokens: 8192
+    github:
+      webhook-secret: ${GITHUB_WEBHOOK_SECRET:}
+      token: ${GITHUB_TOKEN:}
+    jira:
+      webhook-secret: ${JIRA_WEBHOOK_SECRET:}
+    linear:
+      webhook-secret: ${LINEAR_WEBHOOK_SECRET:}
+    slack:
+      bot-token: ${SLACK_BOT_TOKEN:}
+      signing-secret: ${SLACK_SIGNING_SECRET:}
+      approval-channel: ${SLACK_APPROVAL_CHANNEL:#agent-approvals}
+    summarizer:
+      max-tokens: 200
+  analytics:
+    url: ${ANALYTICS_URL:http://localhost:8082}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus
+  metrics:
+    export:
+      prometheus:
+        enabled: true

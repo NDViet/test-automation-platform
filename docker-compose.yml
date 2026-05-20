@@ -21,14 +21,19 @@ services:
     image: apache/kafka:4.2.0
     container_name: platform-kafka
     ports:
-      - "9092:9092"
+      - "9092:9092"   # host-machine access (e.g. kafka-ui, local producers)
+      - "29092:29092" # not exposed externally; used only for intra-Docker traffic
     environment:
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
-      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092
+      # Two data-plane listeners:
+      #   PLAINTEXT  → host-machine clients connect via localhost:9092
+      #   INTERNAL   → Docker-network clients connect via kafka:29092
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,INTERNAL://0.0.0.0:29092,CONTROLLER://0.0.0.0:9093
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9092,INTERNAL://kafka:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,INTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
@@ -74,6 +79,45 @@ services:
       interval: 15s
       timeout: 10s
       retries: 10
+
+  minio:
+    image: minio/minio:latest
+    container_name: platform-minio
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"   # S3 API — used by platform services
+      - "9001:9001"   # MinIO Console UI — http://localhost:9001
+    environment:
+      MINIO_ROOT_USER: platform
+      MINIO_ROOT_PASSWORD: platform123
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:9000/minio/health/live"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+
+  # Creates buckets and applies lifecycle rules after MinIO is ready.
+  # Idempotent — safe to run on every `docker compose up`.
+  minio-init:
+    image: minio/mc:latest
+    container_name: platform-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+        mc alias set local http://minio:9000 platform platform123 &&
+        mc mb --ignore-existing local/platform-artifacts &&
+        mc mb --ignore-existing local/platform-knowledge &&
+        mc mb --ignore-existing local/platform-checkpoints &&
+        mc mb --ignore-existing local/platform-diffs &&
+        mc ilm rule add --expire-days 30 local/platform-checkpoints &&
+        mc ilm rule add --expire-days 7  local/platform-diffs &&
+        echo 'MinIO buckets ready'
+      "
+    restart: "no"
 
   logstash:
     image: opensearchproject/logstash-oss-with-opensearch-output-plugin:8.9.0
@@ -201,7 +245,7 @@ services:
       DB_URL: jdbc:postgresql://postgres:5432/platform
       DB_USERNAME: platform
       DB_PASSWORD: platform
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       OPENSEARCH_HOST: opensearch
       OPENSEARCH_PORT: "9200"
       SPRING_PROFILES_ACTIVE: docker
@@ -227,7 +271,7 @@ services:
       DB_URL: jdbc:postgresql://postgres:5432/platform
       DB_USERNAME: platform
       DB_PASSWORD: platform
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       SPRING_PROFILES_ACTIVE: docker
     depends_on:
       db-migrate:
@@ -249,17 +293,23 @@ services:
       DATASOURCE_URL: jdbc:postgresql://postgres:5432/platform
       DATASOURCE_USERNAME: platform
       DATASOURCE_PASSWORD: platform
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o}
       AI_PROVIDER: ${AI_PROVIDER:-claude}
+      PLATFORM_STORAGE_TYPE: minio
+      PLATFORM_STORAGE_ENDPOINT: http://minio:9000
+      PLATFORM_STORAGE_ACCESS_KEY: platform
+      PLATFORM_STORAGE_SECRET_KEY: platform123
       SPRING_PROFILES_ACTIVE: docker
     depends_on:
       db-migrate:
         condition: service_completed_successfully
       kafka:
         condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
     profiles:
       - services
 
@@ -275,7 +325,7 @@ services:
       DB_URL: jdbc:postgresql://postgres:5432/platform
       DB_USERNAME: platform
       DB_PASSWORD: platform
-      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       SPRING_PROFILES_ACTIVE: docker
       # Disable API key auth in local dev — set to true + create a key for production
       API_KEY_AUTH_ENABLED: "false"
@@ -300,10 +350,44 @@ services:
       ANALYTICS_URL: http://platform-analytics:8082
       INTEGRATION_URL: http://platform-integration:8083
       AI_URL: http://platform-ai:8084
+      AGENT_URL: http://platform-agent:8086
       SPRING_PROFILES_ACTIVE: docker
     depends_on:
       - platform-ingestion
       - platform-analytics
+    profiles:
+      - services
+
+  platform-agent:
+    image: ghcr.io/ndviet/platform-agent:master
+    build:
+      context: .
+      dockerfile: platform-agent/Dockerfile
+    container_name: platform-agent
+    ports:
+      - "8087:8086"
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/platform
+      DB_USERNAME: platform
+      DB_PASSWORD: platform
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      PLATFORM_STORAGE_TYPE: minio
+      PLATFORM_STORAGE_ENDPOINT: http://minio:9000
+      PLATFORM_STORAGE_ACCESS_KEY: platform
+      PLATFORM_STORAGE_SECRET_KEY: platform123
+      SPRING_PROFILES_ACTIVE: docker
+    depends_on:
+      db-migrate:
+        condition: service_completed_successfully
+      kafka:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      minio-init:
+        condition: service_completed_successfully
     profiles:
       - services
 
@@ -312,6 +396,7 @@ volumes:
   kafka_data:
   redis_data:
   opensearch_data:
+  minio_data:
   logstash_data:
   grafana_data:
   prometheus_data:

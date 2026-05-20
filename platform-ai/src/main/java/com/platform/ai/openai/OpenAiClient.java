@@ -32,7 +32,8 @@ public class OpenAiClient implements AiClient {
     private static final String COMPLETIONS_URL = "https://api.openai.com/v1/chat/completions";
     private static final int MAX_TOKENS = 1024;
 
-    private static final String DB_KEY_NAME   = "ai.api-key";
+    private static final String DB_KEY_NAME        = "ai.openai.api-key";
+    private static final String DB_KEY_NAME_LEGACY = "ai.api-key";
     private static final String DB_MODEL_NAME = "ai.model";
     private static final String DEFAULT_MODEL = "gpt-4o";
 
@@ -57,11 +58,19 @@ public class OpenAiClient implements AiClient {
     }
 
     private String resolveApiKey() {
+        // 1. Provider-specific DB key
         String dbKey = settingRepo.findById(DB_KEY_NAME)
                 .map(s -> s.getValue())
                 .filter(v -> v != null && !v.isBlank())
                 .orElse(null);
         if (dbKey != null) return dbKey;
+        // 2. Legacy shared DB key (migration compatibility)
+        String legacyKey = settingRepo.findById(DB_KEY_NAME_LEGACY)
+                .map(s -> s.getValue())
+                .filter(v -> v != null && !v.isBlank())
+                .orElse(null);
+        if (legacyKey != null) return legacyKey;
+        // 3. Environment variable
         if (envApiKey != null && !envApiKey.isBlank()) return envApiKey;
         return null;
     }

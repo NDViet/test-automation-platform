@@ -1,0 +1,27 @@
+spring:
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://postgres:5432/platform}
+  data:
+    redis:
+      host: ${REDIS_HOST:redis}
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:kafka:29092}
+
+platform:
+  storage:
+    type: ${PLATFORM_STORAGE_TYPE:minio}
+    endpoint: ${PLATFORM_STORAGE_ENDPOINT:http://minio:9000}
+    access-key: ${PLATFORM_STORAGE_ACCESS_KEY:platform}
+    secret-key: ${PLATFORM_STORAGE_SECRET_KEY:platform123}
+    path-style: true
+  agent:
+    jira:
+      webhook-secret: ${JIRA_WEBHOOK_SECRET:}
+    linear:
+      webhook-secret: ${LINEAR_WEBHOOK_SECRET:}
+    slack:
+      bot-token: ${SLACK_BOT_TOKEN:}
+      signing-secret: ${SLACK_SIGNING_SECRET:}
+      approval-channel: ${SLACK_APPROVAL_CHANNEL:#agent-approvals}
+  analytics:
+    url: ${ANALYTICS_URL:http://platform-analytics:8082}

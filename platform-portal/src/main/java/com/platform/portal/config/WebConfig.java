@@ -27,6 +27,9 @@ public class WebConfig implements WebMvcConfigurer {
     @Value("${portal.services.integration}")
     private String integrationUrl;
 
+    @Value("${portal.services.agent:http://localhost:8086}")
+    private String agentUrl;
+
     @Bean("ingestionClient")
     public RestClient ingestionClient() {
         return RestClient.builder().baseUrl(ingestionUrl).build();
@@ -45,6 +48,11 @@ public class WebConfig implements WebMvcConfigurer {
     @Bean("integrationClient")
     public RestClient integrationClient() {
         return RestClient.builder().baseUrl(integrationUrl).build();
+    }
+
+    @Bean("agentClient")
+    public RestClient agentClient() {
+        return RestClient.builder().baseUrl(agentUrl).build();
     }
 
     @Override

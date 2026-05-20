@@ -28,7 +28,8 @@ public class ClaudeApiClient implements AiClient {
     private static final Logger log = LoggerFactory.getLogger(ClaudeApiClient.class);
     private static final int MAX_TOKENS = 1024;
 
-    private static final String DB_KEY_NAME = "ai.api-key";
+    private static final String DB_KEY_NAME        = "ai.anthropic.api-key";
+    private static final String DB_KEY_NAME_LEGACY = "ai.api-key";
 
     private final ObjectMapper objectMapper;
     private final String envApiKey;          // from application.yml / ANTHROPIC_API_KEY env var
@@ -52,11 +53,19 @@ public class ClaudeApiClient implements AiClient {
      * 2. Key from application.yml / ANTHROPIC_API_KEY env var — set at startup
      */
     private String resolveApiKey() {
+        // 1. Provider-specific DB key
         String dbKey = settingRepo.findById(DB_KEY_NAME)
                 .map(s -> s.getValue())
                 .filter(v -> v != null && !v.isBlank())
                 .orElse(null);
         if (dbKey != null) return dbKey;
+        // 2. Legacy shared DB key (migration compatibility)
+        String legacyKey = settingRepo.findById(DB_KEY_NAME_LEGACY)
+                .map(s -> s.getValue())
+                .filter(v -> v != null && !v.isBlank())
+                .orElse(null);
+        if (legacyKey != null) return legacyKey;
+        // 3. Environment variable
         if (envApiKey != null && !envApiKey.isBlank()) return envApiKey;
         return null;
     }

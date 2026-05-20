@@ -12,6 +12,7 @@ portal:
     analytics:  ${ANALYTICS_URL:http://localhost:8082}
     integration: ${INTEGRATION_URL:http://localhost:8083}
     ai:         ${AI_URL:http://localhost:8084}
+    agent:      ${AGENT_URL:http://localhost:8086}
 
 management:
   endpoints:

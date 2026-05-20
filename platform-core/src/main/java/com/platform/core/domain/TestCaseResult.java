@@ -42,8 +42,8 @@ public class TestCaseResult {
     @Column(name = "method_name", length = 200)
     private String methodName;
 
-    @JdbcTypeCode(SqlTypes.ARRAY)
-    @Column(name = "tags", columnDefinition = "text[]")
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "tags", columnDefinition = "jsonb")
     private List<String> tags;
 
     @Enumerated(EnumType.STRING)
