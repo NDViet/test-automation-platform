@@ -3,8 +3,58 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import ErrorMessage from '@/components/ErrorMessage'
-import { Save, FlaskConical, Eye, EyeOff, CheckCircle, XCircle, Play } from 'lucide-react'
+import { Save, FlaskConical, Eye, EyeOff, CheckCircle, XCircle, Play, Info } from 'lucide-react'
 import type { AiSettingsUpdate } from '@/lib/types'
+
+function KeyField({
+  label,
+  hint,
+  isSet,
+  value,
+  onChange,
+  show,
+  onToggleShow,
+}: {
+  label: string
+  hint: string
+  isSet: boolean
+  value: string
+  onChange: (v: string) => void
+  show: boolean
+  onToggleShow: () => void
+}) {
+  return (
+    <div>
+      <label className="block text-sm font-medium text-slate-700 mb-1">
+        {label}
+        {isSet && (
+          <span className="ml-2 text-xs font-normal text-green-600">
+            (configured — enter new value to replace)
+          </span>
+        )}
+        {!isSet && (
+          <span className="ml-2 text-xs font-normal text-slate-400">(not set)</span>
+        )}
+      </label>
+      <div className="relative">
+        <input
+          type={show ? 'text' : 'password'}
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          placeholder={isSet ? '••••••••  (leave blank to keep current)' : hint}
+          className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 pr-10 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+        />
+        <button
+          type="button"
+          onClick={onToggleShow}
+          className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+        >
+          {show ? <EyeOff size={16} /> : <Eye size={16} />}
+        </button>
+      </div>
+    </div>
+  )
+}
 
 export default function AiSettingsPage() {
   const qc = useQueryClient()
@@ -18,12 +68,13 @@ export default function AiSettingsPage() {
   const [realtimeEnabled, setRealtime]    = useState(false)
   const [provider, setProvider]           = useState<'anthropic' | 'openai'>('anthropic')
   const [model, setModel]                 = useState('')
-  const [apiKey, setApiKey]               = useState('')
-  const [showKey, setShowKey]             = useState(false)
+  const [anthropicKey, setAnthropicKey]   = useState('')
+  const [openaiKey, setOpenaiKey]         = useState('')
+  const [showAnthropicKey, setShowAnthr]  = useState(false)
+  const [showOpenaiKey, setShowOpenai]    = useState(false)
   const [testResult, setTestResult]       = useState<{ success: boolean; message: string } | null>(null)
   const [analyseResult, setAnalyseResult] = useState<{ queued: number } | null>(null)
 
-  // Sync form from loaded settings
   useEffect(() => {
     if (settings) {
       setEnabled(settings.enabled)
@@ -38,11 +89,13 @@ export default function AiSettingsPage() {
   const saveMutation = useMutation({
     mutationFn: () => {
       const body: AiSettingsUpdate = { enabled, realtimeEnabled, provider, model: model || defaultModel }
-      if (apiKey.trim()) body.apiKey = apiKey.trim()
+      if (anthropicKey.trim()) body.anthropicApiKey = anthropicKey.trim()
+      if (openaiKey.trim())    body.openaiApiKey    = openaiKey.trim()
       return api.updateAiSettings(body)
     },
     onSuccess: () => {
-      setApiKey('')
+      setAnthropicKey('')
+      setOpenaiKey('')
       void qc.invalidateQueries({ queryKey: ['ai-settings'] })
     },
   })
@@ -54,12 +107,12 @@ export default function AiSettingsPage() {
   })
 
   const testMutation = useMutation({
-    mutationFn: () =>
-      api.testAiConnection({
-        provider,
-        model: model || defaultModel,
-        ...(apiKey.trim() ? { apiKey: apiKey.trim() } : {}),
-      }),
+    mutationFn: () => {
+      const testKey = provider === 'anthropic'
+        ? (anthropicKey.trim() || undefined)
+        : (openaiKey.trim() || undefined)
+      return api.testAiConnection({ provider, model: model || defaultModel, ...(testKey ? { apiKey: testKey } : {}) })
+    },
     onSuccess: (result) => setTestResult(result),
     onError: () => setTestResult({ success: false, message: 'Request failed — check console for details' }),
   })
@@ -72,8 +125,18 @@ export default function AiSettingsPage() {
       <div>
         <h1 className="text-2xl font-bold text-slate-900">AI Settings</h1>
         <p className="text-sm text-slate-500 mt-1">
-          Configure the AI provider used for automated failure analysis
+          Configure AI providers for failure analysis and agentic workflows
         </p>
+      </div>
+
+      {/* Callout: Anthropic is required for agent features */}
+      <div className="flex gap-3 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-sm text-blue-800">
+        <Info size={16} className="shrink-0 mt-0.5" />
+        <div>
+          <span className="font-semibold">Anthropic (Claude) key is required</span> for all agent features:
+          test case generation, automation code generation, and PR analysis.
+          OpenAI is only used for failure classification when selected as the active provider.
+        </div>
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm divide-y divide-slate-100">
@@ -128,17 +191,19 @@ export default function AiSettingsPage() {
           </button>
         </div>
 
-        {/* Provider */}
+        {/* Active provider for failure classification */}
         <div className="px-5 py-4">
-          <label className="block text-sm font-medium text-slate-700 mb-2">Provider</label>
+          <label className="block text-sm font-medium text-slate-700 mb-2">
+            Failure Classification Provider
+          </label>
+          <p className="text-xs text-slate-500 mb-3">
+            Which AI provider to use for automated failure classification
+          </p>
           <div className="flex gap-3">
             {(['anthropic', 'openai'] as const).map(p => (
               <button
                 key={p}
-                onClick={() => {
-                  setProvider(p)
-                  setModel('')
-                }}
+                onClick={() => { setProvider(p); setModel('') }}
                 className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${
                   provider === p
                     ? 'bg-blue-600 text-white border-blue-600'
@@ -164,36 +229,33 @@ export default function AiSettingsPage() {
           <p className="text-xs text-slate-400 mt-1">
             {provider === 'anthropic'
               ? 'e.g. claude-sonnet-4-6, claude-opus-4-6'
-              : 'e.g. gpt-4o, gpt-4o-mini, gpt-4-turbo'}
+              : 'e.g. gpt-4o, gpt-4o-mini'}
           </p>
         </div>
 
-        {/* API Key */}
-        <div className="px-5 py-4">
-          <label className="block text-sm font-medium text-slate-700 mb-2">
-            API Key
-            {settings?.apiKeySet && (
-              <span className="ml-2 text-xs font-normal text-green-600">
-                (key is configured — enter a new value to replace)
-              </span>
-            )}
-          </label>
-          <div className="relative">
-            <input
-              type={showKey ? 'text' : 'password'}
-              value={apiKey}
-              onChange={e => setApiKey(e.target.value)}
-              placeholder={settings?.apiKeySet ? '••••••••  (leave blank to keep current)' : 'sk-ant-... or sk-...'}
-              className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 pr-10 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
-            />
-            <button
-              type="button"
-              onClick={() => setShowKey(v => !v)}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
-            >
-              {showKey ? <EyeOff size={16} /> : <Eye size={16} />}
-            </button>
-          </div>
+        {/* API Keys — separate fields */}
+        <div className="px-5 py-4 space-y-4">
+          <p className="text-sm font-medium text-slate-700">API Keys</p>
+
+          <KeyField
+            label="Anthropic API Key"
+            hint="sk-ant-..."
+            isSet={settings?.anthropicKeySet ?? false}
+            value={anthropicKey}
+            onChange={setAnthropicKey}
+            show={showAnthropicKey}
+            onToggleShow={() => setShowAnthr(v => !v)}
+          />
+
+          <KeyField
+            label="OpenAI API Key"
+            hint="sk-..."
+            isSet={settings?.openaiKeySet ?? false}
+            value={openaiKey}
+            onChange={setOpenaiKey}
+            show={showOpenaiKey}
+            onToggleShow={() => setShowOpenai(v => !v)}
+          />
         </div>
 
         {/* Test connection result */}
@@ -211,10 +273,7 @@ export default function AiSettingsPage() {
         {/* Actions */}
         <div className="px-5 py-4 flex items-center gap-3">
           <button
-            onClick={() => {
-              setTestResult(null)
-              void testMutation.mutate()
-            }}
+            onClick={() => { setTestResult(null); void testMutation.mutate() }}
             disabled={testMutation.isPending}
             className="flex items-center gap-2 px-4 py-2 text-sm font-medium border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-50 transition-colors"
           >
@@ -252,10 +311,7 @@ export default function AiSettingsPage() {
 
         <div className="px-5 py-4 flex items-center gap-4">
           <button
-            onClick={() => {
-              setAnalyseResult(null)
-              void analyseNowMutation.mutate()
-            }}
+            onClick={() => { setAnalyseResult(null); void analyseNowMutation.mutate() }}
             disabled={!enabled || analyseNowMutation.isPending}
             className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-white text-sm font-medium rounded-lg hover:bg-slate-700 disabled:opacity-50 transition-colors"
           >

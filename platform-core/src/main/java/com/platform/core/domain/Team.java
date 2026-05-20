@@ -39,6 +39,8 @@ public class Team {
     public String getSlug() { return slug; }
     public Instant getCreatedAt() { return createdAt; }
 
+    public void setName(String name) { this.name = name; }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) return true;

@@ -1,0 +1,285 @@
+package com.platform.agent.node.impl;
+
+import com.anthropic.core.JsonValue;
+import com.anthropic.models.messages.Tool;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.platform.agent.node.AgentNode;
+import com.platform.agent.node.AgentOrchestrator;
+import com.platform.agent.node.tools.GitHubApiClient;
+import com.platform.agent.node.tools.PlatformQueryTools;
+import com.platform.common.agent.*;
+import com.platform.common.integration.IntegrationType;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.springframework.stereotype.Component;
+
+import java.util.ArrayList;
+import java.util.List;
+import java.util.Map;
+
+/**
+ * ANALYSIS node that performs PR coverage gap analysis.
+ * Uses GitHub to fetch changed files, platform TIA to identify impacted tests,
+ * and posts a structured review comment back to the PR.
+ *
+ * Tools available to Claude:
+ *   - github_get_pr_files: fetch changed files for a PR
+ *   - platform_get_tia_impact: get test impact analysis for changed files
+ *   - github_post_pr_comment: post a markdown comment on the PR
+ */
+@Component
+public class AnalysisNode implements AgentNode {
+
+    private static final Logger log = LoggerFactory.getLogger(AnalysisNode.class);
+
+    private final AgentOrchestrator orchestrator;
+    private final GitHubApiClient gitHubApiClient;
+    private final PlatformQueryTools platformQueryTools;
+    private final ObjectMapper mapper;
+
+    public AnalysisNode(AgentOrchestrator orchestrator,
+                        GitHubApiClient gitHubApiClient,
+                        PlatformQueryTools platformQueryTools,
+                        ObjectMapper mapper) {
+        this.orchestrator       = orchestrator;
+        this.gitHubApiClient    = gitHubApiClient;
+        this.platformQueryTools = platformQueryTools;
+        this.mapper             = mapper;
+    }
+
+    @Override
+    public AgentTaskType taskType() { return AgentTaskType.ANALYZE_PR_DIFF; }
+
+    @Override
+    public NodeType nodeType() { return NodeType.ANALYSIS; }
+
+    @Override
+    public String systemPrompt(ContextBundle bundle) {
+        String prUrl  = bundle.trigger() != null ? bundle.trigger().refUrl() : null;
+        String prNote = prUrl != null ? "\nPR URL: " + prUrl : "";
+        return """
+                You are the AnalysisNode — a QA coverage-gap agent that reviews GitHub pull requests.
+                Project: %s (ID: %s)%s
+
+                ## Your job
+                For every PR you receive, produce ONE structured markdown comment and post it to the PR.
+                The comment must tell engineers exactly which tests they need to run and flag any untested changes.
+
+                ## Step-by-step workflow (follow in order)
+                1. **Identify PR coordinates** — parse owner, repo, and PR number from the trigger URL above.
+                   GitHub URL format: https://github.com/{owner}/{repo}/pull/{number}
+
+                2. **Get changed files** — the user message may already contain a "PR changed files (pre-fetched)" block.
+                   If it does, use those file paths directly and skip calling `github_get_pr_files`.
+                   If it does not, call `github_get_pr_files` with the parsed owner/repo/pr_number.
+                   Collect only the `filename` values from the result.
+
+                3. **Run Test Impact Analysis** — call `platform_get_tia_impact` with the full list of changed file paths.
+                   The platform will return riskLevel, recommendedTests, selectedTests, totalTests,
+                   estimatedReduction, mavenFilter, gradleFilter, junitFilter, and uncoveredChangedClasses.
+
+                4. **Compose the PR comment** using the template below. Fill every placeholder from the TIA result.
+                   Choose the risk emoji: CRITICAL=🔴, HIGH=🟠, MEDIUM=🟡, LOW=🟢.
+
+                ```
+                ## 🤖 Test Impact Analysis
+
+                **Risk level:** {EMOJI} {RISK_LEVEL}
+                **Changed files:** {FILE_COUNT} | **Tests selected:** {SELECTED}/{TOTAL} ({REDUCTION} reduction)
+
+                ### Recommended tests
+                Run the {SELECTED} test(s) that cover the changed code:
+
+                <details>
+                <summary>Maven (Surefire)</summary>
+
+                ```bash
+                mvn test -Dtest="{MAVEN_FILTER}"
+                ```
+
+                </details>
+
+                <details>
+                <summary>Gradle</summary>
+
+                ```bash
+                ./gradlew test --tests "{GRADLE_FILTER}"
+                ```
+
+                </details>
+
+                <details>
+                <summary>JUnit platform filter</summary>
+
+                ```
+                {JUNIT_FILTER}
+                ```
+
+                </details>
+
+                {UNCOVERED_SECTION}
+
+                ---
+                *Generated by [Test Automation Platform](https://github.com) · AnalysisNode*
+                ```
+
+                For {UNCOVERED_SECTION}: if uncoveredChangedClasses is non-empty, insert:
+                ```
+                ### ⚠️ Uncovered changes
+                The following classes have no test mappings — consider adding coverage:
+                {LIST_OF_CLASSES}
+                ```
+                Otherwise omit the section entirely.
+
+                5. **Post the comment** — call `github_post_pr_comment` with the composed markdown body.
+
+                ## Rules
+                - Always run steps 1–5 in order. Never skip TIA.
+                - If `platform_get_tia_impact` returns an error, still post a comment noting TIA is unavailable.
+                - If changed file count is 0, post a brief comment: "No source files changed — TIA skipped."
+                - Keep the comment to one top-level block. Do not post multiple comments.
+                - After posting the comment, reply with a one-sentence summary of what you did.
+                """.formatted(bundle.projectSlug(), bundle.projectId(), prNote);
+    }
+
+    @Override
+    public NodeResult execute(ContextBundle bundle) {
+        return orchestrator.run(bundle, this);
+    }
+
+    @Override
+    public List<Tool> tools() {
+        return List.of(
+
+                Tool.builder()
+                        .name("github_get_pr_files")
+                        .description("Gets the list of changed files in a GitHub pull request. " +
+                                "Returns a JSON array of file objects with filename, status, additions, deletions.")
+                        .inputSchema(Tool.InputSchema.builder()
+                                .type(JsonValue.from("object"))
+                                .putAdditionalProperty("properties", JsonValue.from(Map.of(
+                                        "owner",     Map.of("type", "string",  "description", "GitHub repository owner"),
+                                        "repo",      Map.of("type", "string",  "description", "GitHub repository name"),
+                                        "pr_number", Map.of("type", "integer", "description", "Pull request number")
+                                )))
+                                .addRequired("owner")
+                                .addRequired("repo")
+                                .addRequired("pr_number")
+                                .build())
+                        .build(),
+
+                Tool.builder()
+                        .name("platform_get_tia_impact")
+                        .description("Gets test impact analysis from the platform for a list of changed files. " +
+                                "Returns risk level, recommended tests to run, and estimated reduction percentage.")
+                        .inputSchema(Tool.InputSchema.builder()
+                                .type(JsonValue.from("object"))
+                                .putAdditionalProperty("properties", JsonValue.from(Map.of(
+                                        "changed_files", Map.of(
+                                                "type", "array",
+                                                "items", Map.of("type", "string"),
+                                                "description", "List of changed file paths from the PR")
+                                )))
+                                .addRequired("changed_files")
+                                .build())
+                        .build(),
+
+                Tool.builder()
+                        .name("github_post_pr_comment")
+                        .description("Posts a markdown comment on a GitHub pull request.")
+                        .inputSchema(Tool.InputSchema.builder()
+                                .type(JsonValue.from("object"))
+                                .putAdditionalProperty("properties", JsonValue.from(Map.of(
+                                        "owner",     Map.of("type", "string",  "description", "GitHub repository owner"),
+                                        "repo",      Map.of("type", "string",  "description", "GitHub repository name"),
+                                        "pr_number", Map.of("type", "integer", "description", "Pull request number"),
+                                        "body",      Map.of("type", "string",  "description", "Markdown comment body")
+                                )))
+                                .addRequired("owner")
+                                .addRequired("repo")
+                                .addRequired("pr_number")
+                                .addRequired("body")
+                                .build())
+                        .build()
+        );
+    }
+
+    @Override
+    public String dispatchToolCall(String toolName, String inputJson, ContextBundle bundle) {
+        try {
+            return switch (toolName) {
+                case "github_get_pr_files"      -> handleGetPrFiles(inputJson, bundle);
+                case "platform_get_tia_impact"  -> handleGetTiaImpact(inputJson, bundle);
+                case "github_post_pr_comment"   -> handlePostPrComment(inputJson, bundle);
+                default -> "Unknown tool: " + toolName;
+            };
+        } catch (Exception e) {
+            log.error("dispatchToolCall failed for tool '{}': {}", toolName, e.getMessage(), e);
+            return "Error: " + e.getMessage();
+        }
+    }
+
+    // -------------------------------------------------------------------------
+
+    private String handleGetPrFiles(String inputJson, ContextBundle bundle) {
+        try {
+            JsonNode input    = mapper.readTree(inputJson);
+            String owner      = input.path("owner").asText();
+            String repo       = input.path("repo").asText();
+            int prNumber      = input.path("pr_number").asInt();
+            String token      = resolveGitHubToken(bundle);
+
+            log.debug("AnalysisNode: fetching PR files for {}/{}#{}", owner, repo, prNumber);
+            return gitHubApiClient.getPrFiles(owner, repo, prNumber, token);
+        } catch (Exception e) {
+            log.error("handleGetPrFiles failed: {}", e.getMessage(), e);
+            return "Error: " + e.getMessage();
+        }
+    }
+
+    private String handleGetTiaImpact(String inputJson, ContextBundle bundle) {
+        try {
+            JsonNode input = mapper.readTree(inputJson);
+            JsonNode filesNode = input.path("changed_files");
+
+            List<String> changedFiles = new ArrayList<>();
+            if (filesNode.isArray()) {
+                filesNode.forEach(n -> changedFiles.add(n.asText()));
+            }
+
+            log.debug("AnalysisNode: TIA impact query for project {} with {} files",
+                    bundle.projectId(), changedFiles.size());
+            return platformQueryTools.getTiaImpact(bundle.projectId(), changedFiles);
+        } catch (Exception e) {
+            log.error("handleGetTiaImpact failed: {}", e.getMessage(), e);
+            return "Error: " + e.getMessage();
+        }
+    }
+
+    private String handlePostPrComment(String inputJson, ContextBundle bundle) {
+        try {
+            JsonNode input = mapper.readTree(inputJson);
+            String owner   = input.path("owner").asText();
+            String repo    = input.path("repo").asText();
+            int prNumber   = input.path("pr_number").asInt();
+            String body    = input.path("body").asText();
+            String token   = resolveGitHubToken(bundle);
+
+            log.info("AnalysisNode: posting PR comment to {}/{}#{}", owner, repo, prNumber);
+            gitHubApiClient.postIssueComment(owner, repo, prNumber, body, token);
+            return "Comment posted successfully.";
+        } catch (Exception e) {
+            log.error("handlePostPrComment failed: {}", e.getMessage(), e);
+            return "Error: " + e.getMessage();
+        }
+    }
+
+    private String resolveGitHubToken(ContextBundle bundle) {
+        if (bundle.credentials() == null) {
+            return "";
+        }
+        String token = bundle.credentials().token(IntegrationType.GITHUB);
+        return token != null ? token : "";
+    }
+}

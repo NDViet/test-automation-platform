@@ -50,6 +50,7 @@ public class Project {
     public String getRepoUrl() { return repoUrl; }
     public Instant getCreatedAt() { return createdAt; }
 
+    public void setName(String name) { this.name = name; }
     public void setRepoUrl(String repoUrl) { this.repoUrl = repoUrl; }
 
     @Override

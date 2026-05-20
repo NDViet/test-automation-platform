@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useParams, useNavigate, Link } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import {
@@ -12,7 +12,7 @@ import Badge from '@/components/Badge'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import ErrorMessage from '@/components/ErrorMessage'
 import TestImpactPanel from '@/components/TestImpactPanel'
-import { CheckCircle, XCircle, AlertTriangle, Clock, ChevronRight } from 'lucide-react'
+import { CheckCircle, XCircle, AlertTriangle, Clock, ChevronRight, Settings, FileText, GitPullRequest } from 'lucide-react'
 
 export default function ProjectDetail() {
   const { projectId } = useParams<{ projectId: string }>()
@@ -50,7 +50,30 @@ export default function ProjectDetail() {
             <span>{project?.teamName}</span>
             <ChevronRight size={14} />
           </div>
-          <h1 className="text-2xl font-bold text-slate-900">{project?.name ?? projectId}</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="text-2xl font-bold text-slate-900">{project?.name ?? projectId}</h1>
+            <Link
+              to={`/projects/${projectId}/requirements`}
+              className="text-slate-400 hover:text-blue-600 transition-colors"
+              title="Requirements"
+            >
+              <FileText size={17} />
+            </Link>
+            <Link
+              to={`/projects/${projectId}/pr-analyses`}
+              className="text-slate-400 hover:text-blue-600 transition-colors"
+              title="PR Analyses"
+            >
+              <GitPullRequest size={17} />
+            </Link>
+            <Link
+              to={`/projects/${projectId}/settings`}
+              className="text-slate-400 hover:text-slate-700 transition-colors"
+              title="Project Settings"
+            >
+              <Settings size={18} />
+            </Link>
+          </div>
           <p className="text-sm text-slate-500 mt-1">{project?.slug}</p>
         </div>
         <div className="flex items-center gap-2">

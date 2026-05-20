@@ -10,6 +10,7 @@ public class PortalProperties {
     private String analytics  = "http://localhost:8082";
     private String integration = "http://localhost:8083";
     private String ai         = "http://localhost:8084";
+    private String agent      = "http://localhost:8086";
 
     public String getIngestion() { return ingestion; }
     public void setIngestion(String v) { this.ingestion = v; }
@@ -19,4 +20,6 @@ public class PortalProperties {
     public void setIntegration(String v) { this.integration = v; }
     public String getAi() { return ai; }
     public void setAi(String v) { this.ai = v; }
+    public String getAgent() { return agent; }
+    public void setAgent(String v) { this.agent = v; }
 }

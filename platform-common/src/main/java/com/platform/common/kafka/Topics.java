@@ -22,4 +22,17 @@ public final class Topics {
 
     /** Alert events dispatched to Slack/email/webhooks. */
     public static final String ALERT_EVENTS = "test.alert.events";
+
+    // -------------------------------------------------------------------------
+    // Agent workflow topics
+    // -------------------------------------------------------------------------
+
+    /** Lifecycle events for agent workflows: created, node_started, node_completed, awaiting_review, completed, failed. */
+    public static final String AGENT_WORKFLOW_EVENTS = "agent.workflow.events";
+
+    /** Review requests published by ReviewGateway; consumed by Slack/portal/GitHub notifiers. */
+    public static final String AGENT_APPROVAL_REQUESTS = "agent.approval.requests";
+
+    /** Human decisions (APPROVED/REJECTED/EDIT) flowing back into the Hub from any review channel. */
+    public static final String AGENT_APPROVAL_DECISIONS = "agent.approval.decisions";
 }
