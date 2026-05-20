@@ -22,6 +22,9 @@ public interface FlakinessScoreRepository extends JpaRepository<FlakinessScore, 
     List<FlakinessScore> findTopFlakyByProject(
             @Param("projectId") UUID projectId, Pageable pageable);
 
+    @Query("SELECT f FROM FlakinessScore f WHERE f.projectId = :projectId ORDER BY f.score DESC")
+    List<FlakinessScore> findByProjectId(@Param("projectId") UUID projectId);
+
     @Query("SELECT f FROM FlakinessScore f ORDER BY f.score DESC")
     List<FlakinessScore> findTopFlakyAcrossOrg(Pageable pageable);
 

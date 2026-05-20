@@ -24,11 +24,14 @@ import java.util.Map;
 @RequestMapping("/api/v1/ai/settings")
 public class AiSettingsController {
 
-    private static final String KEY_ENABLED  = "ai.enabled";
-    private static final String KEY_REALTIME = "ai.realtime.enabled";
-    private static final String KEY_PROVIDER = "ai.provider";
-    private static final String KEY_MODEL    = "ai.model";
-    private static final String KEY_API_KEY  = "ai.api-key";
+    private static final String KEY_ENABLED         = "ai.enabled";
+    private static final String KEY_REALTIME        = "ai.realtime.enabled";
+    private static final String KEY_PROVIDER        = "ai.provider";
+    private static final String KEY_MODEL           = "ai.model";
+    /** Legacy single-key name — kept for backward-compat reads only. */
+    private static final String KEY_API_KEY_LEGACY  = "ai.api-key";
+    private static final String KEY_ANTHROPIC_KEY   = "ai.anthropic.api-key";
+    private static final String KEY_OPENAI_KEY      = "ai.openai.api-key";
 
     private final PlatformSettingRepository repo;
 
@@ -43,13 +46,14 @@ public class AiSettingsController {
         result.put("realtimeEnabled", Boolean.parseBoolean(get(KEY_REALTIME, "false")));
         result.put("provider", get(KEY_PROVIDER, "anthropic"));
         result.put("model",    get(KEY_MODEL,    "claude-sonnet-4-6"));
-        // Mask the API key — return only whether it is set
-        String raw = get(KEY_API_KEY, "");
-        result.put("apiKeySet", raw != null && !raw.isBlank());
+        // Expose per-provider key status (never return the actual key)
+        result.put("anthropicKeySet", resolveKey(KEY_ANTHROPIC_KEY, KEY_API_KEY_LEGACY) != null);
+        result.put("openaiKeySet",    resolveKey(KEY_OPENAI_KEY,    KEY_API_KEY_LEGACY) != null);
         return result;
     }
 
-    public record AiSettingsUpdate(Boolean enabled, Boolean realtimeEnabled, String provider, String model, String apiKey) {}
+    public record AiSettingsUpdate(Boolean enabled, Boolean realtimeEnabled, String provider, String model,
+                                   String anthropicApiKey, String openaiApiKey) {}
 
     @PutMapping
     public Map<String, Object> updateSettings(@RequestBody AiSettingsUpdate body) {
@@ -57,7 +61,10 @@ public class AiSettingsController {
         if (body.realtimeEnabled() != null) save(KEY_REALTIME, body.realtimeEnabled().toString());
         if (body.provider() != null && !body.provider().isBlank()) save(KEY_PROVIDER, body.provider());
         if (body.model()    != null && !body.model().isBlank())    save(KEY_MODEL,    body.model());
-        if (body.apiKey()   != null && !body.apiKey().isBlank())   save(KEY_API_KEY,  body.apiKey());
+        if (body.anthropicApiKey() != null && !body.anthropicApiKey().isBlank())
+            save(KEY_ANTHROPIC_KEY, body.anthropicApiKey());
+        if (body.openaiApiKey()    != null && !body.openaiApiKey().isBlank())
+            save(KEY_OPENAI_KEY, body.openaiApiKey());
         return getSettings();
     }
 
@@ -66,9 +73,12 @@ public class AiSettingsController {
 
     @PostMapping("/test")
     public ResponseEntity<TestConnectionResult> testConnection(@RequestBody TestConnectionRequest req) {
-        String key      = req.apiKey() != null && !req.apiKey().isBlank() ? req.apiKey() : get(KEY_API_KEY, "");
         String provider = req.provider() != null ? req.provider() : get(KEY_PROVIDER, "anthropic");
         String model    = req.model()    != null ? req.model()    : get(KEY_MODEL, "claude-sonnet-4-6");
+        String storedKey = "openai".equalsIgnoreCase(provider)
+                ? resolveKey(KEY_OPENAI_KEY, KEY_API_KEY_LEGACY)
+                : resolveKey(KEY_ANTHROPIC_KEY, KEY_API_KEY_LEGACY);
+        String key = req.apiKey() != null && !req.apiKey().isBlank() ? req.apiKey() : storedKey;
 
         if (key == null || key.isBlank()) {
             return ResponseEntity.ok(new TestConnectionResult(false, "API key is not configured"));
@@ -90,6 +100,16 @@ public class AiSettingsController {
         return repo.findById(key).map(PlatformSetting::getValue)
                 .filter(v -> v != null && !v.isBlank())
                 .orElse(defaultValue);
+    }
+
+    /** Returns the first non-blank value found for primaryKey, falling back to legacyKey. */
+    private String resolveKey(String primaryKey, String legacyKey) {
+        String v = repo.findById(primaryKey).map(PlatformSetting::getValue)
+                .filter(s -> s != null && !s.isBlank()).orElse(null);
+        if (v != null) return v;
+        v = repo.findById(legacyKey).map(PlatformSetting::getValue)
+                .filter(s -> s != null && !s.isBlank()).orElse(null);
+        return v;
     }
 
     private void save(String key, String value) {

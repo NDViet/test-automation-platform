@@ -19,6 +19,8 @@ public interface FailureAnalysisRepository extends JpaRepository<FailureAnalysis
     Optional<FailureAnalysis> findTopByTestIdAndProjectIdOrderByAnalysedAtDesc(
             String testId, UUID projectId);
 
+    List<FailureAnalysis> findByProjectIdAndTestIdOrderByAnalysedAtDesc(UUID projectId, String testId);
+
     @Query("SELECT f FROM FailureAnalysis f WHERE f.projectId = :projectId " +
            "AND f.analysedAt >= :since ORDER BY f.analysedAt DESC")
     List<FailureAnalysis> findByProjectIdSince(

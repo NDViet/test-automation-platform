@@ -3,21 +3,27 @@ package com.platform.analytics.api;
 import com.platform.analytics.api.dto.FlakinessDto;
 import com.platform.analytics.api.dto.OrgSummaryDto;
 import com.platform.analytics.flakiness.FlakinessReportService;
+import com.platform.analytics.flakiness.FlakinessScoringService;
 import com.platform.analytics.trends.PassRatePoint;
 import com.platform.analytics.trends.QualityGateEvaluator;
 import com.platform.analytics.trends.QualityGateResult;
 import com.platform.analytics.trends.TrendAnalysisService;
 import com.platform.common.dto.UnifiedTestResult;
+import com.platform.common.enums.TestStatus;
 import com.platform.core.domain.FlakinessScore;
 import com.platform.core.domain.Project;
 import com.platform.core.domain.Team;
+import com.platform.core.domain.TestCaseResult;
 import com.platform.core.domain.TestExecution;
 import com.platform.core.repository.FlakinessScoreRepository;
 import com.platform.core.repository.ProjectRepository;
 import com.platform.core.repository.TeamRepository;
+import com.platform.core.repository.TestCaseResultRepository;
 import com.platform.core.repository.TestExecutionRepository;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.annotation.Transactional;
@@ -33,6 +39,8 @@ import java.util.stream.Collectors;
 @Tag(name = "Analytics", description = "Flakiness scores, trends, quality gates, and org summary")
 public class AnalyticsController {
 
+    private static final Logger log = LoggerFactory.getLogger(AnalyticsController.class);
+
     private final FlakinessReportService flakinessService;
     private final TrendAnalysisService trendService;
     private final QualityGateEvaluator gateEvaluator;
@@ -40,6 +48,8 @@ public class AnalyticsController {
     private final ProjectRepository projectRepo;
     private final TestExecutionRepository executionRepo;
     private final FlakinessScoreRepository scoreRepo;
+    private final FlakinessScoringService scoringService;
+    private final TestCaseResultRepository testCaseResultRepo;
 
     public AnalyticsController(FlakinessReportService flakinessService,
                                 TrendAnalysisService trendService,
@@ -47,14 +57,18 @@ public class AnalyticsController {
                                 TeamRepository teamRepo,
                                 ProjectRepository projectRepo,
                                 TestExecutionRepository executionRepo,
-                                FlakinessScoreRepository scoreRepo) {
-        this.flakinessService = flakinessService;
-        this.trendService      = trendService;
-        this.gateEvaluator     = gateEvaluator;
-        this.teamRepo          = teamRepo;
-        this.projectRepo       = projectRepo;
-        this.executionRepo     = executionRepo;
-        this.scoreRepo         = scoreRepo;
+                                FlakinessScoreRepository scoreRepo,
+                                FlakinessScoringService scoringService,
+                                TestCaseResultRepository testCaseResultRepo) {
+        this.flakinessService    = flakinessService;
+        this.trendService        = trendService;
+        this.gateEvaluator       = gateEvaluator;
+        this.teamRepo            = teamRepo;
+        this.projectRepo         = projectRepo;
+        this.executionRepo       = executionRepo;
+        this.scoreRepo           = scoreRepo;
+        this.scoringService      = scoringService;
+        this.testCaseResultRepo  = testCaseResultRepo;
     }
 
     // ── Flakiness ─────────────────────────────────────────────────────────────
@@ -74,6 +88,36 @@ public class AnalyticsController {
         }
         return flakinessService.getTopFlakyForProject(projectId, limit)
                 .stream().map(FlakinessDto::from).toList();
+    }
+
+    @PostMapping("/{projectId}/flakiness/recompute")
+    @Operation(summary = "Recompute flakiness scores for all known tests in a project")
+    public Map<String, Object> recomputeFlakiness(@PathVariable UUID projectId) {
+        List<FlakinessScore> existing = scoreRepo.findByProjectId(projectId);
+        Set<String> testIds = existing.stream()
+                .map(FlakinessScore::getTestId)
+                .collect(Collectors.toSet());
+
+        // Also include tests seen in the last 30 days but not yet scored
+        java.time.Instant since30d = java.time.Instant.now().minus(30, java.time.temporal.ChronoUnit.DAYS);
+        List<TestCaseResult> recent = testCaseResultRepo.findByStatusSince(
+                TestStatus.FAILED, since30d);
+        recent.stream()
+                .filter(r -> r.getExecution() != null
+                        && r.getExecution().getProject() != null
+                        && projectId.equals(r.getExecution().getProject().getId()))
+                .forEach(r -> testIds.add(r.getTestId()));
+
+        int recomputed = 0;
+        for (String testId : testIds) {
+            try {
+                scoringService.computeAndPersist(testId, projectId);
+                recomputed++;
+            } catch (Exception e) {
+                log.warn("Failed to recompute flakiness for {}: {}", testId, e.getMessage());
+            }
+        }
+        return Map.of("recomputed", recomputed, "projectId", projectId.toString());
     }
 
     // ── Trends ────────────────────────────────────────────────────────────────

@@ -1,0 +1,17 @@
+package com.platform.core.repository;
+
+import com.platform.core.domain.TestSuite;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+import java.util.List;
+import java.util.Optional;
+import java.util.UUID;
+
+@Repository
+public interface TestSuiteRepository extends JpaRepository<TestSuite, UUID> {
+
+    List<TestSuite> findByProjectIdOrderByNameAsc(UUID projectId);
+
+    Optional<TestSuite> findByProjectIdAndId(UUID projectId, UUID id);
+}
