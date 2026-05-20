@@ -97,7 +97,7 @@
         <dependency>
             <groupId>io.opentelemetry</groupId>
             <artifactId>opentelemetry-api</artifactId>
-            <version>1.49.0</version>
+            <version>1.62.0</version>
         </dependency>
 
         <!-- Logstash log shipping — structured JSON over TCP to Logstash/OpenSearch -->
