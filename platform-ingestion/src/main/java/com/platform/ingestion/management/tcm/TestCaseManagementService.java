@@ -69,7 +69,16 @@ public class TestCaseManagementService {
         if (req.expectedResult() != null)     tc.setExpectedResult(req.expectedResult());
         if (req.priority() != null)           tc.setPriority(req.priority());
         if (req.suiteId() != null)            tc.setSuiteId(UUID.fromString(req.suiteId()));
-        if (req.sourceRequirementId() != null) tc.setSourceRequirementId(UUID.fromString(req.sourceRequirementId()));
+        if (req.sourceRequirementId() != null) {
+            UUID reqId = UUID.fromString(req.sourceRequirementId());
+            tc.setSourceRequirementId(reqId);
+            tc.linkRequirement(reqId);
+        }
+        if (req.linkedRequirementIds() != null) {
+            for (String rid : req.linkedRequirementIds()) {
+                try { tc.linkRequirement(UUID.fromString(rid)); } catch (IllegalArgumentException ignored) {}
+            }
+        }
         tc = testCaseRepo.save(tc);
 
         List<TestCaseStep> steps = saveSteps(tc.getId(), req.steps());
@@ -130,6 +139,36 @@ public class TestCaseManagementService {
         PlatformTestCase tc = loadAndVerify(projectId, tcId);
         tc.reject();
         tc = testCaseRepo.save(tc);
+        return ManagedTestCaseDto.from(tc, loadSteps(tcId));
+    }
+
+    public ManagedTestCaseDto linkRequirement(UUID projectId, UUID tcId, UUID requirementId) {
+        PlatformTestCase tc = loadAndVerify(projectId, tcId);
+        tc.linkRequirement(requirementId);
+        tc = testCaseRepo.save(tc);
+        return ManagedTestCaseDto.from(tc, loadSteps(tcId));
+    }
+
+    public ManagedTestCaseDto unlinkRequirement(UUID projectId, UUID tcId, UUID requirementId) {
+        PlatformTestCase tc = loadAndVerify(projectId, tcId);
+        tc.unlinkRequirement(requirementId);
+        tc = testCaseRepo.save(tc);
+        return ManagedTestCaseDto.from(tc, loadSteps(tcId));
+    }
+
+    public ManagedTestCaseDto applyAnalysisSuggestion(UUID projectId, UUID tcId,
+                                                        ApplySuggestionRequest req) {
+        PlatformTestCase tc = loadAndVerify(projectId, tcId);
+        if (req.title() != null)       tc.setTitle(req.title());
+        if (req.description() != null) tc.setDescription(req.description());
+        if (req.expectedResult() != null) tc.setExpectedResult(req.expectedResult());
+        tc.applyAnalysisSuggestion(UUID.fromString(req.analysisId()));
+        tc = testCaseRepo.save(tc);
+
+        if (req.steps() != null && !req.steps().isEmpty()) {
+            stepRepo.deleteAllByTestCaseId(tcId);
+            saveSteps(tcId, req.steps());
+        }
         return ManagedTestCaseDto.from(tc, loadSteps(tcId));
     }
 

@@ -758,6 +758,138 @@ function AutomationTargetModal({
 
 // ── Test Case Detail Panel ────────────────────────────────────────────────────
 
+// ── Linked Requirements Section ───────────────────────────────────────────────
+
+function LinkedRequirementsSection({
+  tc,
+  projectId,
+}: {
+  tc: ManagedTestCase
+  projectId: string
+}) {
+  const queryClient = useQueryClient()
+  const [adding, setAdding] = useState(false)
+  const [search, setSearch] = useState('')
+
+  const { data: allRequirements = [] } = useQuery({
+    queryKey: ['requirements', projectId],
+    queryFn: () => api.requirements(projectId),
+    enabled: adding,
+  })
+
+  const linkedIds = new Set(tc.linkedRequirementIds ?? [])
+
+  const filtered = allRequirements.filter(r =>
+    !linkedIds.has(r.id) && (
+      r.title.toLowerCase().includes(search.toLowerCase()) ||
+      (r.externalId ?? '').toLowerCase().includes(search.toLowerCase())
+    )
+  )
+
+  const linkMutation = useMutation({
+    mutationFn: (reqId: string) => api.linkRequirement(projectId, tc.id, reqId),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['testCases', projectId] })
+      setAdding(false)
+      setSearch('')
+    },
+  })
+  const unlinkMutation = useMutation({
+    mutationFn: (reqId: string) => api.unlinkRequirement(projectId, tc.id, reqId),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: ['testCases', projectId] }),
+  })
+
+  const { data: reqDetails } = useQuery({
+    queryKey: ['requirements', projectId],
+    queryFn: () => api.requirements(projectId),
+    enabled: linkedIds.size > 0,
+  })
+  const reqMap = new Map((reqDetails ?? []).map(r => [r.id, r]))
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-1.5">
+        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Linked Requirements</p>
+        <button
+          onClick={() => setAdding(v => !v)}
+          className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-0.5"
+        >
+          <Plus size={11} /> Link
+        </button>
+      </div>
+
+      {adding && (
+        <div className="mb-2 border border-slate-200 rounded-lg overflow-hidden">
+          <div className="flex items-center gap-1 px-2 py-1.5 border-b border-slate-100">
+            <Search size={12} className="text-slate-400" />
+            <input
+              autoFocus
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search requirements…"
+              className="flex-1 text-xs outline-none"
+            />
+          </div>
+          <div className="max-h-36 overflow-y-auto">
+            {filtered.length === 0 ? (
+              <p className="text-xs text-slate-400 px-3 py-2">No unlinked requirements found</p>
+            ) : filtered.slice(0, 12).map(r => (
+              <button
+                key={r.id}
+                onClick={() => linkMutation.mutate(r.id)}
+                disabled={linkMutation.isPending}
+                className="w-full text-left px-3 py-1.5 text-xs hover:bg-blue-50 flex items-center gap-2 disabled:opacity-50"
+              >
+                {r.externalId && (
+                  <span className="text-slate-400 font-mono shrink-0">{r.externalId}</span>
+                )}
+                <span className="text-slate-700 truncate">{r.title}</span>
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {linkedIds.size === 0 ? (
+        <p className="text-xs text-slate-400 italic">No requirements linked</p>
+      ) : (
+        <div className="space-y-1">
+          {Array.from(linkedIds).map(reqId => {
+            const req = reqMap.get(reqId)
+            return (
+              <div key={reqId} className="flex items-center gap-1.5 group">
+                <span className={cn(
+                  'flex-1 text-xs truncate rounded px-1.5 py-0.5',
+                  reqId === tc.sourceRequirementId
+                    ? 'bg-blue-50 text-blue-700'
+                    : 'bg-slate-50 text-slate-600'
+                )}>
+                  {req?.externalId && <span className="font-mono mr-1 opacity-60">{req.externalId}</span>}
+                  {req?.title ?? reqId.slice(0, 8) + '…'}
+                  {reqId === tc.sourceRequirementId && (
+                    <span className="ml-1 opacity-60 text-[10px]">(source)</span>
+                  )}
+                </span>
+                {reqId !== tc.sourceRequirementId && (
+                  <button
+                    onClick={() => unlinkMutation.mutate(reqId)}
+                    disabled={unlinkMutation.isPending}
+                    className="opacity-0 group-hover:opacity-100 text-slate-300 hover:text-red-400 transition-opacity"
+                  >
+                    <X size={11} />
+                  </button>
+                )}
+              </div>
+            )
+          })}
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ── Test Case Detail Panel ────────────────────────────────────────────────────
+
 function TestCaseDetailPanel({
   tc,
   projectId,
@@ -885,6 +1017,22 @@ function TestCaseDetailPanel({
           </div>
         )}
 
+        {/* Linked Requirements */}
+        <LinkedRequirementsSection tc={tc} projectId={projectId} />
+
+        {/* Impact Analysis attribution */}
+        {tc.lastUpdatedByAnalysisId && (
+          <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+            <Sparkles size={13} className="text-amber-500 shrink-0 mt-0.5" />
+            <div>
+              <p className="text-xs font-medium text-amber-800">Updated by Impact Analysis</p>
+              <p className="text-[11px] text-amber-600 mt-0.5 font-mono break-all">
+                {tc.lastUpdatedByAnalysisId.slice(0, 8)}…
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Timestamps */}
         <div className="text-xs text-slate-400 space-y-0.5 pt-2 border-t border-slate-100">
           {tc.createdBy && (
@@ -892,6 +1040,15 @@ function TestCaseDetailPanel({
               Created by {tc.createdBy === 'AGENT' ? (
                 <span className="inline-flex items-center gap-0.5"><Bot size={11} /> Agent</span>
               ) : tc.createdBy}
+            </p>
+          )}
+          {tc.updatedBy && tc.updatedBy !== tc.createdBy && (
+            <p>
+              Last updated by {tc.updatedBy === 'AGENT' ? (
+                <span className="inline-flex items-center gap-0.5"><Bot size={11} /> Agent</span>
+              ) : tc.updatedBy === 'IMPACT_ANALYSIS' ? (
+                <span className="inline-flex items-center gap-0.5"><Sparkles size={11} /> Impact Analysis</span>
+              ) : tc.updatedBy}
             </p>
           )}
           <p>Created {relativeTime(tc.createdAt)}</p>

@@ -83,6 +83,22 @@ public class PlatformTestCase {
     @Column(name = "automation_github_config_id")
     private UUID automationGithubConfigId;
 
+    @Column(name = "automation_workflow_id")
+    private UUID automationWorkflowId;
+
+    /** All requirements this test case covers (includes sourceRequirementId + manually added). */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "linked_requirement_ids", columnDefinition = "jsonb")
+    private List<String> linkedRequirementIds = new java.util.ArrayList<>();
+
+    /** ImpactAnalysis that last modified the body of this test case. */
+    @Column(name = "last_updated_by_analysis_id")
+    private UUID lastUpdatedByAnalysisId;
+
+    /** HUMAN | AGENT | IMPACT_ANALYSIS */
+    @Column(name = "updated_by", nullable = false, length = 30)
+    private String updatedBy = "HUMAN";
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 
@@ -131,7 +147,11 @@ public class PlatformTestCase {
     public UUID getSourceRequirementId()      { return sourceRequirementId; }
     public String getAutomationStatus()       { return automationStatus; }
     public String getAutomationPrUrl()        { return automationPrUrl; }
-    public UUID getAutomationGithubConfigId() { return automationGithubConfigId; }
+    public UUID getAutomationGithubConfigId()      { return automationGithubConfigId; }
+    public UUID getAutomationWorkflowId()           { return automationWorkflowId; }
+    public List<String> getLinkedRequirementIds()   { return linkedRequirementIds; }
+    public UUID getLastUpdatedByAnalysisId()        { return lastUpdatedByAnalysisId; }
+    public String getUpdatedBy()                    { return updatedBy; }
 
     // TCM setters
     public void setSuiteId(UUID suiteId) {
@@ -170,12 +190,44 @@ public class PlatformTestCase {
         this.automationGithubConfigId = automationGithubConfigId;
         this.updatedAt                = Instant.now();
     }
+    public void setAutomationWorkflowId(UUID workflowId) {
+        this.automationWorkflowId = workflowId;
+        this.updatedAt            = Instant.now();
+    }
+
+    public void linkRequirement(UUID requirementId) {
+        if (requirementId == null) return;
+        String reqStr = requirementId.toString();
+        if (this.linkedRequirementIds == null) this.linkedRequirementIds = new java.util.ArrayList<>();
+        if (!this.linkedRequirementIds.contains(reqStr)) {
+            this.linkedRequirementIds = new java.util.ArrayList<>(this.linkedRequirementIds);
+            this.linkedRequirementIds.add(reqStr);
+            this.updatedAt = Instant.now();
+        }
+    }
+
+    public void unlinkRequirement(UUID requirementId) {
+        if (requirementId == null || this.linkedRequirementIds == null) return;
+        String reqStr = requirementId.toString();
+        this.linkedRequirementIds = this.linkedRequirementIds.stream()
+                .filter(id -> !id.equals(reqStr))
+                .collect(java.util.stream.Collectors.toCollection(java.util.ArrayList::new));
+        this.updatedAt = Instant.now();
+    }
+
+    /** Called when an impact analysis suggestion is applied to this test case. */
+    public void applyAnalysisSuggestion(UUID analysisId) {
+        this.lastUpdatedByAnalysisId = analysisId;
+        this.updatedBy               = "IMPACT_ANALYSIS";
+        this.status                  = "UNDER_REVIEW";
+        this.updatedAt               = Instant.now();
+    }
 
     // TCM lifecycle methods
-    public void submitForReview() { this.status = "UNDER_REVIEW"; this.updatedAt = Instant.now(); }
-    public void approve()         { this.status = "APPROVED";     this.updatedAt = Instant.now(); }
-    public void reject()          { this.status = "DRAFT";        this.updatedAt = Instant.now(); }
-    public void deprecate()       { this.status = "DEPRECATED";   this.updatedAt = Instant.now(); }
+    public void submitForReview() { this.status = "UNDER_REVIEW"; this.updatedBy = "HUMAN"; this.updatedAt = Instant.now(); }
+    public void approve()         { this.status = "APPROVED";     this.updatedBy = "HUMAN"; this.updatedAt = Instant.now(); }
+    public void reject()          { this.status = "DRAFT";        this.updatedBy = "HUMAN"; this.updatedAt = Instant.now(); }
+    public void deprecate()       { this.status = "DEPRECATED";   this.updatedBy = "HUMAN"; this.updatedAt = Instant.now(); }
 
     // Automation lifecycle methods
     public void markAutomationGenerating() {

@@ -9,9 +9,11 @@ import com.platform.agent.node.AgentOrchestrator;
 import com.platform.agent.node.tools.GitHubApiClient;
 import com.platform.common.agent.*;
 import com.platform.common.integration.IntegrationType;
+import com.platform.core.domain.PlatformRequirement;
 import com.platform.core.domain.PlatformTestCase;
 import com.platform.core.domain.ProjectIntegrationConfig;
 import com.platform.core.domain.TestCaseStep;
+import com.platform.core.repository.PlatformRequirementRepository;
 import com.platform.core.repository.PlatformTestCaseRepository;
 import com.platform.core.repository.ProjectIntegrationConfigRepository;
 import com.platform.core.repository.TestCaseStepRepository;
@@ -39,6 +41,7 @@ public class AutomationCodeGenerationNode implements AgentNode {
     private final PlatformTestCaseRepository testCaseRepo;
     private final TestCaseStepRepository stepRepo;
     private final ProjectIntegrationConfigRepository configRepo;
+    private final PlatformRequirementRepository requirementRepo;
     private final GitHubApiClient gitHubApiClient;
     private final ObjectMapper mapper;
 
@@ -46,14 +49,16 @@ public class AutomationCodeGenerationNode implements AgentNode {
                                          PlatformTestCaseRepository testCaseRepo,
                                          TestCaseStepRepository stepRepo,
                                          ProjectIntegrationConfigRepository configRepo,
+                                         PlatformRequirementRepository requirementRepo,
                                          GitHubApiClient gitHubApiClient,
                                          ObjectMapper mapper) {
-        this.orchestrator  = orchestrator;
-        this.testCaseRepo  = testCaseRepo;
-        this.stepRepo      = stepRepo;
-        this.configRepo    = configRepo;
+        this.orchestrator    = orchestrator;
+        this.testCaseRepo    = testCaseRepo;
+        this.stepRepo        = stepRepo;
+        this.configRepo      = configRepo;
+        this.requirementRepo = requirementRepo;
         this.gitHubApiClient = gitHubApiClient;
-        this.mapper        = mapper;
+        this.mapper          = mapper;
     }
 
     @Override
@@ -312,6 +317,31 @@ public class AutomationCodeGenerationNode implements AgentNode {
         if (tc.getDescription() != null) sb.append("Description: ").append(tc.getDescription()).append("\n");
         if (tc.getPreconditions() != null) sb.append("Preconditions: ").append(tc.getPreconditions()).append("\n");
         sb.append("Priority: ").append(tc.getPriority()).append("\n");
+
+        // Linked requirements — provide full context so generated test code is correctly scoped
+        List<String> linkedReqIds = tc.getLinkedRequirementIds();
+        if (linkedReqIds != null && !linkedReqIds.isEmpty()) {
+            sb.append("\n## Linked Requirements (source of truth for what to test)\n");
+            for (String reqIdStr : linkedReqIds) {
+                try {
+                    UUID reqId = UUID.fromString(reqIdStr);
+                    requirementRepo.findById(reqId).ifPresent(req -> {
+                        sb.append("### ").append(req.getTitle()).append("\n");
+                        if (req.getDescription() != null && !req.getDescription().isBlank()) {
+                            sb.append(req.getDescription().trim()).append("\n");
+                        }
+                        if (req.getAcceptanceCriteria() != null && !req.getAcceptanceCriteria().isEmpty()) {
+                            sb.append("Acceptance Criteria:\n");
+                            for (Object ac : req.getAcceptanceCriteria()) {
+                                sb.append("  - ").append(ac).append("\n");
+                            }
+                        }
+                        sb.append("\n");
+                    });
+                } catch (IllegalArgumentException ignored) {}
+            }
+        }
+
         sb.append("\n## Steps\n");
         for (TestCaseStep step : steps) {
             sb.append(step.getStepNumber()).append(". Action: ").append(step.getAction()).append("\n");

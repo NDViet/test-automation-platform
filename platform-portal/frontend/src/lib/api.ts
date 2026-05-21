@@ -116,6 +116,12 @@ export const api = {
   },
   generateTestCasesFromAI: (projectId: string, requirementIds?: string[]) =>
     post<{ workflowId: string; message: string }>(`/projects/${projectId}/test-cases/generate`, { requirementIds }),
+  linkRequirement: (projectId: string, tcId: string, requirementId: string) =>
+    post<import('./types').ManagedTestCase>(`/projects/${projectId}/test-cases/${tcId}/link-requirement/${requirementId}`, {}),
+  unlinkRequirement: (projectId: string, tcId: string, requirementId: string) =>
+    del(`/projects/${projectId}/test-cases/${tcId}/link-requirement/${requirementId}`),
+  applyImpactSuggestion: (projectId: string, tcId: string, body: import('./types').ApplySuggestionForm) =>
+    post<import('./types').ManagedTestCase>(`/projects/${projectId}/test-cases/${tcId}/apply-suggestion`, body),
 
   // Test Runs
   testRuns: (projectId: string) => get<import('./types').TestRun[]>(`/projects/${projectId}/test-runs`),
@@ -126,6 +132,13 @@ export const api = {
   runExecutions: (projectId: string, runId: string) => get<import('./types').TestCaseExecution[]>(`/projects/${projectId}/test-runs/${runId}/executions`),
   updateExecution: (projectId: string, runId: string, execId: string, body: { status: string; actualResult?: string; notes?: string; executedBy?: string }) =>
     put<import('./types').TestCaseExecution>(`/projects/${projectId}/test-runs/${runId}/executions/${execId}`, body),
+
+  // Review Queue / Work Items
+  workItems: (projectId: string) => get<import('./types').WorkItem[]>(`/projects/${projectId}/work-items`),
+  approveReviewRequest: (projectId: string, requestId: string, decidedBy: string) =>
+    post<unknown>(`/projects/${projectId}/work-items/review-requests/${requestId}/approve`, { decidedBy }),
+  rejectReviewRequest: (projectId: string, requestId: string, decidedBy: string) =>
+    post<unknown>(`/projects/${projectId}/work-items/review-requests/${requestId}/reject`, { decidedBy }),
 
   // Flaky Tests
   recomputeFlakiness: (projectId: string) =>

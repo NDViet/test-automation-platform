@@ -86,4 +86,25 @@ public class TestCaseManagementController {
             @RequestParam(required = false) String githubConfigId) {
         return service.triggerAutomationGeneration(projectId, tcId, githubConfigId);
     }
+
+    @PostMapping("/{tcId}/link-requirement/{requirementId}")
+    public ManagedTestCaseDto linkRequirement(@PathVariable UUID projectId,
+                                              @PathVariable UUID tcId,
+                                              @PathVariable UUID requirementId) {
+        return service.linkRequirement(projectId, tcId, requirementId);
+    }
+
+    @DeleteMapping("/{tcId}/link-requirement/{requirementId}")
+    public ManagedTestCaseDto unlinkRequirement(@PathVariable UUID projectId,
+                                                @PathVariable UUID tcId,
+                                                @PathVariable UUID requirementId) {
+        return service.unlinkRequirement(projectId, tcId, requirementId);
+    }
+
+    @PostMapping("/{tcId}/apply-suggestion")
+    public ManagedTestCaseDto applyAnalysisSuggestion(@PathVariable UUID projectId,
+                                                       @PathVariable UUID tcId,
+                                                       @Valid @RequestBody ApplySuggestionRequest req) {
+        return service.applyAnalysisSuggestion(projectId, tcId, req);
+    }
 }

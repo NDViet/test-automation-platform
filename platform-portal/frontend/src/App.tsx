@@ -14,6 +14,7 @@ import TestCasesPage from './pages/TestCasesPage'
 import TestRunsPage from './pages/TestRunsPage'
 import TestRunExecutionPage from './pages/TestRunExecutionPage'
 import FlakyTestsPage from './pages/FlakyTestsPage'
+import ReviewQueuePage from './pages/ReviewQueuePage'
 
 export default function App() {
   return (
@@ -31,6 +32,7 @@ export default function App() {
           <Route path="projects/:projectId/test-runs" element={<TestRunsPage />} />
           <Route path="projects/:projectId/test-runs/:runId" element={<TestRunExecutionPage />} />
           <Route path="projects/:projectId/flaky-tests" element={<FlakyTestsPage />} />
+          <Route path="projects/:projectId/review-queue" element={<ReviewQueuePage />} />
           <Route path="runs/:runId" element={<RunDetail />} />
           <Route path="alerts" element={<AlertsPage />} />
           <Route path="settings/api-keys" element={<ApiKeysPage />} />

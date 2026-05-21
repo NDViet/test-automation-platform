@@ -213,6 +213,43 @@ public class PortalTestCaseController {
                 .retrieve().body(Object.class);
     }
 
+    @PostMapping("/test-cases/{tcId}/link-requirement/{requirementId}")
+    @Operation(summary = "Link a requirement to a test case")
+    public Object linkRequirement(@PathVariable String projectId,
+                                  @PathVariable String tcId,
+                                  @PathVariable String requirementId) {
+        return ingestionClient.post()
+                .uri("/api/v1/projects/" + projectId + "/test-cases/" + tcId + "/link-requirement/" + requirementId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON)
+                .body("{}")
+                .retrieve().body(Object.class);
+    }
+
+    @DeleteMapping("/test-cases/{tcId}/link-requirement/{requirementId}")
+    @Operation(summary = "Unlink a requirement from a test case")
+    public Object unlinkRequirement(@PathVariable String projectId,
+                                    @PathVariable String tcId,
+                                    @PathVariable String requirementId) {
+        return ingestionClient.delete()
+                .uri("/api/v1/projects/" + projectId + "/test-cases/" + tcId + "/link-requirement/" + requirementId)
+                .accept(MediaType.APPLICATION_JSON)
+                .retrieve().body(Object.class);
+    }
+
+    @PostMapping("/test-cases/{tcId}/apply-suggestion")
+    @Operation(summary = "Apply an impact analysis suggestion to a test case")
+    public Object applyAnalysisSuggestion(@PathVariable String projectId,
+                                          @PathVariable String tcId,
+                                          @RequestBody Object body) {
+        return ingestionClient.post()
+                .uri("/api/v1/projects/" + projectId + "/test-cases/" + tcId + "/apply-suggestion")
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON)
+                .body(body)
+                .retrieve().body(Object.class);
+    }
+
     // ── Test Runs ──────────────────────────────────────────────────────────────
 
     @GetMapping("/test-runs")

@@ -40,6 +40,10 @@ public interface PlatformTestCaseRepository extends JpaRepository<PlatformTestCa
 
     List<PlatformTestCase> findByProjectIdAndStatus(UUID projectId, String status);
 
+    List<PlatformTestCase> findByProjectIdAndAutomationStatus(UUID projectId, String automationStatus);
+
+    List<PlatformTestCase> findByProjectIdAndStatusAndCreatedBy(UUID projectId, String status, String createdBy);
+
     List<PlatformTestCase> findByProjectIdAndSuiteId(UUID projectId, UUID suiteId);
 
     List<PlatformTestCase> findByProjectIdAndStatusAndSuiteId(UUID projectId, String status, UUID suiteId);

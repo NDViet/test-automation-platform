@@ -434,8 +434,45 @@ function CreateModal({
 
 // ── Suggestion Card ───────────────────────────────────────────────────────────
 
-function SuggestionCard({ suggestion }: { suggestion: ImpactAnalysisSuggestion }) {
+function SuggestionCard({
+  suggestion,
+  analysisId,
+  projectId,
+}: {
+  suggestion: ImpactAnalysisSuggestion
+  analysisId: string
+  projectId: string
+}) {
+  const queryClient = useQueryClient()
   const [expanded, setExpanded] = useState(false)
+  const [applying, setApplying] = useState(false)
+  const [tcSearch, setTcSearch] = useState('')
+  const [applied, setApplied] = useState(false)
+
+  const { data: testCases = [], isLoading: tcLoading } = useQuery({
+    queryKey: ['testCases', projectId],
+    queryFn: () => api.testCases(projectId),
+    enabled: applying && !suggestion.testCaseId,
+  })
+
+  const applyMutation = useMutation({
+    mutationFn: (tcId: string) => api.applyImpactSuggestion(projectId, tcId, {
+      analysisId,
+      title: suggestion.title,
+      description: suggestion.details ?? undefined,
+    }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['testCases', projectId] })
+      setApplying(false)
+      setApplied(true)
+    },
+  })
+
+  const filteredTcs = testCases.filter(tc =>
+    tc.title.toLowerCase().includes(tcSearch.toLowerCase()) ||
+    (tc.externalId ?? '').toLowerCase().includes(tcSearch.toLowerCase())
+  )
+
   return (
     <div className="border border-slate-200 rounded-xl p-4 space-y-2">
       <div className="flex items-start justify-between gap-3">
@@ -476,6 +513,73 @@ function SuggestionCard({ suggestion }: { suggestion: ImpactAnalysisSuggestion }
           )}
         </>
       )}
+
+      {/* Apply action for UPDATE_MANUAL_TEST */}
+      {suggestion.type === 'UPDATE_MANUAL_TEST' && (
+        <div className="pt-1">
+          {applied ? (
+            <span className="inline-flex items-center gap-1 text-xs text-green-600 font-medium">
+              <CheckCircle size={12} /> Applied — test case is now under review
+            </span>
+          ) : suggestion.testCaseId ? (
+            <button
+              onClick={() => applyMutation.mutate(suggestion.testCaseId!)}
+              disabled={applyMutation.isPending}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-50 disabled:opacity-50"
+            >
+              {applyMutation.isPending ? <Loader2 size={11} className="animate-spin" /> : <ArrowRight size={11} />}
+              Apply to linked test case
+            </button>
+          ) : applying ? (
+            <div className="border border-slate-200 rounded-lg overflow-hidden">
+              <div className="flex items-center gap-1 px-2 py-1.5 border-b border-slate-100 bg-slate-50">
+                <span className="text-xs text-slate-600 font-medium flex-1">Select test case to update</span>
+                <button onClick={() => setApplying(false)} className="text-slate-400 hover:text-slate-600">
+                  <X size={12} />
+                </button>
+              </div>
+              <div className="px-2 py-1.5 border-b border-slate-100">
+                <input
+                  autoFocus
+                  value={tcSearch}
+                  onChange={e => setTcSearch(e.target.value)}
+                  placeholder="Search test cases…"
+                  className="w-full text-xs outline-none"
+                />
+              </div>
+              <div className="max-h-36 overflow-y-auto">
+                {tcLoading ? (
+                  <div className="flex justify-center py-3"><Loader2 size={14} className="animate-spin text-slate-400" /></div>
+                ) : filteredTcs.length === 0 ? (
+                  <p className="text-xs text-slate-400 px-3 py-2">No test cases found</p>
+                ) : filteredTcs.slice(0, 10).map(tc => (
+                  <button
+                    key={tc.id}
+                    onClick={() => applyMutation.mutate(tc.id)}
+                    disabled={applyMutation.isPending}
+                    className="w-full text-left px-3 py-1.5 text-xs hover:bg-blue-50 flex items-center gap-2 disabled:opacity-50"
+                  >
+                    <span className={cn('shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium',
+                      tc.status === 'APPROVED' ? 'bg-green-100 text-green-700' :
+                      tc.status === 'DRAFT' ? 'bg-slate-100 text-slate-600' :
+                      'bg-yellow-100 text-yellow-700'
+                    )}>{tc.status}</span>
+                    <span className="text-slate-700 truncate">{tc.title}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <button
+              onClick={() => setApplying(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-50"
+            >
+              <ArrowRight size={11} />
+              Apply to test case
+            </button>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -484,9 +588,11 @@ function SuggestionCard({ suggestion }: { suggestion: ImpactAnalysisSuggestion }
 
 function DetailPanel({
   analysis,
+  projectId,
   onClose,
 }: {
   analysis: ImpactAnalysis
+  projectId: string
   onClose: () => void
 }) {
   const { color: sc, icon: si } = statusMeta(analysis.status)
@@ -572,7 +678,7 @@ function DetailPanel({
                 </p>
                 <div className="space-y-3">
                   {suggestions.map((s, i) => (
-                    <SuggestionCard key={i} suggestion={s} />
+                    <SuggestionCard key={i} suggestion={s} analysisId={analysis.id} projectId={projectId} />
                   ))}
                 </div>
               </div>
@@ -749,6 +855,7 @@ export default function ImpactAnalysesPage() {
         {selected && (
           <DetailPanel
             analysis={selected}
+            projectId={projectId!}
             onClose={() => setSelectedId(null)}
           />
         )}
