@@ -1,7 +1,7 @@
 import { NavLink, useMatch } from 'react-router-dom'
 import {
   LayoutDashboard, FolderOpen, Bell, Key, Activity, Bot,
-  FlaskConical, PlayCircle, BarChart3, FileText, GitBranch, Zap,
+  FlaskConical, PlayCircle, BarChart3, FileText, GitBranch, Zap, Inbox,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -19,7 +19,8 @@ function ProjectNav({ projectId }: { projectId: string }) {
     { to: `/projects/${projectId}/test-cases`,   label: 'Test Cases',   icon: FlaskConical, end: false },
     { to: `/projects/${projectId}/test-runs`,    label: 'Test Runs',    icon: PlayCircle,   end: false },
     { to: `/projects/${projectId}/impact-analyses`, label: 'Impact Analyses', icon: GitBranch, end: false },
-    { to: `/projects/${projectId}/flaky-tests`,  label: 'Flaky Tests',  icon: Zap,          end: false },
+    { to: `/projects/${projectId}/flaky-tests`,    label: 'Flaky Tests',    icon: Zap,    end: false },
+    { to: `/projects/${projectId}/review-queue`,  label: 'Review Queue',   icon: Inbox,  end: false },
   ]
 
   return (

@@ -317,12 +317,16 @@ export interface ManagedTestCase {
   status: string
   coverageStatus: string
   createdBy: string
+  updatedBy: string
   agentSessionId: string | null
   sourceRequirementId: string | null
   acRefs: string[]
+  linkedRequirementIds: string[]
   automationStatus: string
   automationPrUrl: string | null
+  automationWorkflowId: string | null
   hasAutomation: boolean
+  lastUpdatedByAnalysisId: string | null
   lastResult: string | null
   lastExecutedAt: string | null
   steps: TestCaseStep[]
@@ -370,7 +374,16 @@ export interface CreateTestCaseForm {
   priority?: string
   suiteId?: string
   sourceRequirementId?: string
+  linkedRequirementIds?: string[]
   acRefs?: string[]
+  steps?: { action: string; expectedResult?: string; notes?: string }[]
+}
+
+export interface ApplySuggestionForm {
+  analysisId: string
+  title?: string
+  description?: string
+  expectedResult?: string
   steps?: { action: string; expectedResult?: string; notes?: string }[]
 }
 
@@ -436,4 +449,24 @@ export interface CreateImpactAnalysisForm {
   name: string
   linkedPrs: LinkedPr[]
   linkedRequirementIds: string[]
+}
+
+// ── Review Queue / Work Items ─────────────────────────────────────────────────
+
+export type WorkItemType =
+  | 'TEST_CASE_REVIEW'
+  | 'AUTOMATION_PR'
+  | 'AGENT_REVIEW'
+  | 'WORKFLOW'
+  | 'IMPACT_ANALYSIS'
+
+export interface WorkItem {
+  id: string
+  itemType: WorkItemType
+  status: string
+  title: string
+  description: string
+  actionUrl: string | null
+  createdAt: string
+  metadata: Record<string, unknown>
 }

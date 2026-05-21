@@ -8,10 +8,12 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.platform.agent.node.tools.GitHubApiClient;
 import com.platform.core.domain.ImpactAnalysis;
+import com.platform.core.domain.PlatformTestCase;
 import com.platform.core.domain.ProjectIntegrationConfig;
 import com.platform.core.repository.ImpactAnalysisRepository;
-import com.platform.core.repository.ProjectIntegrationConfigRepository;
 import com.platform.core.repository.PlatformSettingRepository;
+import com.platform.core.repository.PlatformTestCaseRepository;
+import com.platform.core.repository.ProjectIntegrationConfigRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -37,7 +39,10 @@ public class ImpactAnalysisService {
     private static final String DB_KEY_LEGACY    = "ai.api-key";
 
     private static final String SYSTEM_PROMPT =
-            "You are an Impact Analysis AI. Given PR diffs and requirements, you identify what test coverage needs updating.\n\n" +
+            "You are an Impact Analysis AI. Given PR diffs, requirements, and existing test cases, " +
+            "you identify what test coverage needs creating or updating.\n\n" +
+            "For UPDATE_MANUAL_TEST suggestions, always set testCaseId to the ID of the specific existing " +
+            "test case that needs updating (if one exists). Leave testCaseId null only for new test cases.\n\n" +
             "Respond ONLY with valid JSON matching this schema:\n" +
             "{\n" +
             "  \"summary\": \"2-3 sentence overview\",\n" +
@@ -47,7 +52,7 @@ public class ImpactAnalysisService {
             "      \"title\": \"short title\",\n" +
             "      \"reason\": \"why this change is needed\",\n" +
             "      \"details\": \"specific changes or test steps to implement\",\n" +
-            "      \"testCaseId\": null,\n" +
+            "      \"testCaseId\": \"uuid-of-existing-test-case-or-null\",\n" +
             "      \"priority\": \"HIGH\" | \"MEDIUM\" | \"LOW\"\n" +
             "    }\n" +
             "  ]\n" +
@@ -55,6 +60,7 @@ public class ImpactAnalysisService {
 
     private final ImpactAnalysisRepository impactRepo;
     private final ProjectIntegrationConfigRepository configRepo;
+    private final PlatformTestCaseRepository testCaseRepo;
     private final GitHubApiClient gitHubApiClient;
     private final PlatformSettingRepository settingRepo;
     private final ObjectMapper mapper;
@@ -69,12 +75,14 @@ public class ImpactAnalysisService {
 
     public ImpactAnalysisService(ImpactAnalysisRepository impactRepo,
                                   ProjectIntegrationConfigRepository configRepo,
+                                  PlatformTestCaseRepository testCaseRepo,
                                   GitHubApiClient gitHubApiClient,
                                   PlatformSettingRepository settingRepo,
                                   ObjectMapper mapper,
                                   @Value("${portal.services.ingestion:http://localhost:8083}") String ingestionUrl) {
         this.impactRepo       = impactRepo;
         this.configRepo       = configRepo;
+        this.testCaseRepo     = testCaseRepo;
         this.gitHubApiClient  = gitHubApiClient;
         this.settingRepo      = settingRepo;
         this.mapper           = mapper;
@@ -135,8 +143,11 @@ public class ImpactAnalysisService {
 
             List<Map<String, Object>> requirements = fetchRequirements(projectId, linkedReqIds);
 
-            // ── 3. Build Claude prompt ────────────────────────────────────────────
-            String userMessage = buildUserMessage(prDiffs, requirements);
+            // ── 3. Load existing test cases that cover these requirements ─────────
+            List<PlatformTestCase> existingTestCases = loadRelatedTestCases(projectId, linkedReqIds);
+
+            // ── 4. Build Claude prompt ────────────────────────────────────────────
+            String userMessage = buildUserMessage(prDiffs, requirements, existingTestCases);
 
             // ── 4. Call Claude API ────────────────────────────────────────────────
             AnthropicClient claude = getClient();
@@ -229,7 +240,29 @@ public class ImpactAnalysisService {
         }
     }
 
-    private String buildUserMessage(List<PrDiffContext> prDiffs, List<Map<String, Object>> requirements) {
+    private List<PlatformTestCase> loadRelatedTestCases(UUID projectId, List<String> linkedReqIds) {
+        if (linkedReqIds.isEmpty()) {
+            return testCaseRepo.findByProjectIdOrderByCreatedAtDesc(projectId);
+        }
+        Set<String> reqIdSet = new HashSet<>(linkedReqIds);
+        return testCaseRepo.findByProjectIdOrderByCreatedAtDesc(projectId).stream()
+                .filter(tc -> {
+                    // Include test cases linked to these requirements
+                    if (tc.getSourceRequirementId() != null
+                            && reqIdSet.contains(tc.getSourceRequirementId().toString())) {
+                        return true;
+                    }
+                    List<String> linkedIds = tc.getLinkedRequirementIds();
+                    if (linkedIds != null) {
+                        return linkedIds.stream().anyMatch(reqIdSet::contains);
+                    }
+                    return false;
+                })
+                .toList();
+    }
+
+    private String buildUserMessage(List<PrDiffContext> prDiffs, List<Map<String, Object>> requirements,
+                                     List<PlatformTestCase> existingTestCases) {
         StringBuilder sb = new StringBuilder();
 
         sb.append("## PR Changes\n");
@@ -272,7 +305,28 @@ public class ImpactAnalysisService {
             }
         }
 
-        sb.append("\nAnalyze the impact and generate test coverage suggestions.");
+        // Existing test cases — critical context for UPDATE_MANUAL_TEST suggestions
+        if (!existingTestCases.isEmpty()) {
+            sb.append("\n## Existing Test Cases (consider these when suggesting updates)\n");
+            for (PlatformTestCase tc : existingTestCases) {
+                sb.append("- ID: ").append(tc.getId()).append("\n");
+                sb.append("  Title: ").append(tc.getTitle()).append("\n");
+                sb.append("  Status: ").append(tc.getStatus())
+                  .append(" | Automation: ").append(tc.getAutomationStatus()).append("\n");
+                if (tc.getAutomationPrUrl() != null) {
+                    sb.append("  Automation PR: ").append(tc.getAutomationPrUrl()).append("\n");
+                }
+                if (tc.getDescription() != null && !tc.getDescription().isBlank()) {
+                    sb.append("  Description: ").append(tc.getDescription().substring(
+                            0, Math.min(200, tc.getDescription().length()))).append("…\n");
+                }
+                sb.append("\n");
+            }
+        }
+
+        sb.append("\nAnalyze the PR impact on these requirements and existing test cases. " +
+                  "Generate specific, actionable suggestions. " +
+                  "For UPDATE_MANUAL_TEST suggestions, reference the exact testCaseId from above.");
         return sb.toString();
     }
 

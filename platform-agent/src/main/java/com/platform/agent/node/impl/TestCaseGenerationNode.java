@@ -150,7 +150,9 @@ public class TestCaseGenerationNode implements AgentNode {
                 tc.setPriority(normalizePriority(gen.priority()));
                 if (gen.sourceRequirementId() != null) {
                     try {
-                        tc.setSourceRequirementId(UUID.fromString(gen.sourceRequirementId()));
+                        UUID reqId = UUID.fromString(gen.sourceRequirementId());
+                        tc.setSourceRequirementId(reqId);
+                        tc.linkRequirement(reqId);   // seed linked_requirement_ids
                     } catch (IllegalArgumentException e) {
                         log.debug("TestCaseGenerationNode: invalid sourceRequirementId '{}', ignoring",
                                 gen.sourceRequirementId());
@@ -230,6 +232,15 @@ public class TestCaseGenerationNode implements AgentNode {
     }
 
     private String buildRequirementsMessage(List<PlatformRequirement> requirements) {
+        // Load existing test cases for these requirements to avoid duplication
+        Set<UUID> reqIds = requirements.stream().map(PlatformRequirement::getId)
+                .collect(java.util.stream.Collectors.toSet());
+        List<PlatformTestCase> existing = requirements.isEmpty() ? List.of()
+                : testCaseRepo.findByProjectId(requirements.get(0).getProjectId()).stream()
+                        .filter(tc -> tc.getSourceRequirementId() != null
+                                && reqIds.contains(tc.getSourceRequirementId()))
+                        .toList();
+
         StringBuilder sb = new StringBuilder();
         sb.append("Generate comprehensive manual test cases for the following requirements:\n\n");
         for (PlatformRequirement req : requirements) {
@@ -244,6 +255,16 @@ public class TestCaseGenerationNode implements AgentNode {
                 sb.append("Acceptance Criteria:\n");
                 for (Object ac : req.getAcceptanceCriteria()) {
                     sb.append("  - ").append(ac).append("\n");
+                }
+            }
+            // Show existing coverage so Claude doesn't duplicate
+            List<PlatformTestCase> covered = existing.stream()
+                    .filter(tc -> req.getId().equals(tc.getSourceRequirementId()))
+                    .toList();
+            if (!covered.isEmpty()) {
+                sb.append("Already covered by test cases (do NOT duplicate these):\n");
+                for (PlatformTestCase tc : covered) {
+                    sb.append("  - [").append(tc.getStatus()).append("] ").append(tc.getTitle()).append("\n");
                 }
             }
             sb.append("\n");

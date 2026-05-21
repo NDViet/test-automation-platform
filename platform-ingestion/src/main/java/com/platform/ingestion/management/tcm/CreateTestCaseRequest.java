@@ -12,6 +12,7 @@ public record CreateTestCaseRequest(
         String priority,
         String suiteId,
         String sourceRequirementId,
+        List<String> linkedRequirementIds,
         List<String> acRefs,
         List<StepRequest> steps
 ) {
