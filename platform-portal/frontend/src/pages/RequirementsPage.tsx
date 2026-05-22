@@ -144,10 +144,48 @@ function RequirementDetail({ req, onClose }: { req: Requirement; onClose: () => 
   )
 }
 
+// ── Tree search helpers ───────────────────────────────────────────────────────
+
+function nodeMatchesQuery(node: TreeNode, q: string): boolean {
+  if (!q) return true
+  return (
+    node.title.toLowerCase().includes(q) ||
+    (node.externalId ?? '').toLowerCase().includes(q)
+  )
+}
+
+/** Returns the set of node IDs that should be visible given a search query.
+ *  A node is visible if it matches OR any of its descendants match. */
+function computeVisibleIds(nodes: TreeNode[], q: string): Set<string> | null {
+  if (!q) return null
+  const visible = new Set<string>()
+  function check(node: TreeNode): boolean {
+    const self = nodeMatchesQuery(node, q)
+    const childHit = node.children.some(c => check(c))
+    if (self || childHit) { visible.add(node.id); return true }
+    return false
+  }
+  nodes.forEach(check)
+  return visible
+}
+
+function highlightMatch(text: string, q: string): React.ReactNode {
+  if (!q) return text
+  const idx = text.toLowerCase().indexOf(q)
+  if (idx === -1) return text
+  return (
+    <>
+      {text.slice(0, idx)}
+      <mark className="bg-yellow-200 text-yellow-900 rounded-sm px-0.5">{text.slice(idx, idx + q.length)}</mark>
+      {text.slice(idx + q.length)}
+    </>
+  )
+}
+
 // ── Tree node (recursive) ─────────────────────────────────────────────────────
 
 function TreeNodeRow({
-  node, depth, selected, onSelect, expanded, onToggle,
+  node, depth, selected, onSelect, expanded, onToggle, visibleIds, searchQuery,
 }: {
   node: TreeNode
   depth: number
@@ -155,10 +193,18 @@ function TreeNodeRow({
   onSelect: (r: Requirement) => void
   expanded: Set<string>
   onToggle: (id: string) => void
+  visibleIds: Set<string> | null
+  searchQuery: string
 }) {
-  const isExpanded  = expanded.has(node.id)
+  // When a search is active and this node is not in the visible set, skip it
+  if (visibleIds && !visibleIds.has(node.id)) return null
+
+  // During search, force-expand if any visible child exists
+  const hasVisibleChild = node.children.some(c => !visibleIds || visibleIds.has(c.id))
+  const isExpanded  = visibleIds ? hasVisibleChild : expanded.has(node.id)
   const hasChildren = node.children.length > 0
   const isSelected  = selected?.id === node.id
+  const isSelfMatch = !!searchQuery && nodeMatchesQuery(node, searchQuery)
 
   return (
     <>
@@ -166,6 +212,7 @@ function TreeNodeRow({
         className={cn(
           'flex items-center gap-1 pr-4 py-2 cursor-pointer hover:bg-slate-50 transition-colors group',
           isSelected && 'bg-blue-50 hover:bg-blue-50',
+          isSelfMatch && !isSelected && 'bg-yellow-50 hover:bg-yellow-50',
         )}
         style={{ paddingLeft: `${depth * 20 + 12}px` }}
         onClick={() => onSelect(node)}
@@ -176,7 +223,7 @@ function TreeNodeRow({
             'shrink-0 w-5 h-5 flex items-center justify-center rounded text-slate-400',
             hasChildren ? 'hover:text-slate-700 hover:bg-slate-200' : 'invisible',
           )}
-          onClick={e => { e.stopPropagation(); onToggle(node.id) }}
+          onClick={e => { e.stopPropagation(); if (!visibleIds) onToggle(node.id) }}
         >
           {isExpanded
             ? <ChevronDown size={13} />
@@ -192,13 +239,15 @@ function TreeNodeRow({
         <div className="flex items-center gap-2 min-w-0 flex-1">
           <Badge label={node.issueType} colorClass={issueTypeColor(node.issueType)} />
           {node.externalId && (
-            <span className="text-xs font-mono text-slate-400 shrink-0">{node.externalId}</span>
+            <span className="text-xs font-mono text-slate-400 shrink-0">
+              {highlightMatch(node.externalId, searchQuery)}
+            </span>
           )}
           <span className={cn(
             'text-sm truncate',
             isSelected ? 'font-semibold text-blue-900' : 'text-slate-800',
           )}>
-            {node.title}
+            {highlightMatch(node.title, searchQuery)}
           </span>
           {node.changeSummary && (
             <span className="text-xs text-amber-500 shrink-0" title={node.changeSummary}>⚡</span>
@@ -230,6 +279,8 @@ function TreeNodeRow({
               onSelect={onSelect}
               expanded={expanded}
               onToggle={onToggle}
+              visibleIds={visibleIds}
+              searchQuery={searchQuery}
             />
           ))}
         </div>
@@ -246,13 +297,14 @@ export default function RequirementsPage() {
   const { projectId } = useParams<{ projectId: string }>()
   const navigate = useNavigate()
 
-  const [viewMode,  setViewMode]  = useState<ViewMode>('list')
-  const [search,    setSearch]    = useState('')
-  const [status,    setStatus]    = useState('')
-  const [issueType, setIssueType] = useState('')
-  const [selected,  setSelected]  = useState<Requirement | null>(null)
+  const [viewMode,    setViewMode]    = useState<ViewMode>('tree')
+  const [search,      setSearch]      = useState('')
+  const [treeSearch,  setTreeSearch]  = useState('')
+  const [status,      setStatus]      = useState('')
+  const [issueType,   setIssueType]   = useState('')
+  const [selected,    setSelected]    = useState<Requirement | null>(null)
   // Tree: set of expanded node IDs (epics auto-expanded)
-  const [expanded,  setExpanded]  = useState<Set<string>>(new Set())
+  const [expanded,    setExpanded]    = useState<Set<string>>(new Set())
 
   const { data: stats } = useQuery({
     queryKey: ['req-stats', projectId],
@@ -303,8 +355,11 @@ export default function RequirementsPage() {
   if (isLoading) return <LoadingSpinner message="Loading requirements…" />
   if (error)     return <ErrorMessage  message="Failed to load requirements." />
 
-  const items    = reqs ?? []
-  const treeData = viewMode === 'tree' ? buildTree(items) : []
+  const items      = reqs ?? []
+  const treeData   = viewMode === 'tree' ? buildTree(items) : []
+  const treeQ      = treeSearch.trim().toLowerCase()
+  const visibleIds = viewMode === 'tree' ? computeVisibleIds(treeData, treeQ) : null
+  const matchCount = visibleIds ? visibleIds.size : null
 
   return (
     <div className="flex flex-col h-full space-y-4">
@@ -413,11 +468,41 @@ export default function RequirementsPage() {
           )}
         </div>
       ) : (
-        <div className="flex items-center gap-3 text-xs text-slate-500">
-          <span>{items.length} requirements · {treeData.length} root{treeData.length !== 1 ? 's' : ''}</span>
-          <span className="text-slate-300">|</span>
-          <button onClick={() => expandAll(treeData)} className="hover:text-blue-600">Expand all</button>
-          <button onClick={collapseAll}               className="hover:text-blue-600">Collapse all</button>
+        <div className="flex items-center gap-3">
+          {/* Tree search */}
+          <div className="relative flex-1 max-w-sm">
+            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+            <input
+              type="text"
+              value={treeSearch}
+              onChange={e => setTreeSearch(e.target.value)}
+              placeholder="Search by ID or title…"
+              className="w-full pl-8 pr-8 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            {treeSearch && (
+              <button onClick={() => setTreeSearch('')} className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600">
+                <X size={14} />
+              </button>
+            )}
+          </div>
+          {/* Match count */}
+          {treeQ && (
+            <span className="text-xs text-slate-500 shrink-0">
+              {matchCount === 0 ? 'No matches' : `${matchCount} match${matchCount === 1 ? '' : 'es'}`}
+            </span>
+          )}
+          {!treeQ && (
+            <span className="text-xs text-slate-400 shrink-0">
+              {items.length} requirements · {treeData.length} root{treeData.length !== 1 ? 's' : ''}
+            </span>
+          )}
+          {!treeQ && (
+            <>
+              <span className="text-slate-300 text-xs">|</span>
+              <button onClick={() => expandAll(treeData)} className="text-xs text-slate-500 hover:text-blue-600">Expand all</button>
+              <button onClick={collapseAll}               className="text-xs text-slate-500 hover:text-blue-600">Collapse all</button>
+            </>
+          )}
         </div>
       )}
 
@@ -475,6 +560,10 @@ export default function RequirementsPage() {
                 <p className="px-5 py-8 text-sm text-slate-500 text-center">
                   No hierarchy found. Requirements may be missing parent links — trigger a Jira sync to refresh.
                 </p>
+              ) : matchCount === 0 ? (
+                <p className="px-5 py-8 text-sm text-slate-500 text-center">
+                  No requirements match <strong>{treeSearch}</strong>.
+                </p>
               ) : treeData.map(root => (
                 <TreeNodeRow
                   key={root.id}
@@ -484,6 +573,8 @@ export default function RequirementsPage() {
                   onSelect={r => setSelected(selected?.id === r.id ? null : r)}
                   expanded={expanded}
                   onToggle={toggleNode}
+                  visibleIds={visibleIds}
+                  searchQuery={treeQ}
                 />
               ))}
             </div>
