@@ -11,9 +11,9 @@
 flowchart TD
     subgraph CLIENTS["External Clients"]
         direction LR
-        CI["CI/CD Pipelines\n(GH Actions · GitLab · Jenkins)"]
-        SDK_J["Java SDK\n(JUnit5 / TestNG / Cucumber / K6)"]
-        SDK_JS["JS SDK\n(@platform/playwright-reporter)"]
+        CI["CI/CD Pipelines<br/>(GH Actions · GitLab · Jenkins)"]
+        SDK_J["Java SDK<br/>(JUnit5 / TestNG / Cucumber / K6)"]
+        SDK_JS["JS SDK<br/>(@platform/playwright-reporter)"]
         BROWSER["Browser (React SPA)"]
     end
 
@@ -21,17 +21,17 @@ flowchart TD
         direction LR
         JIRA["JIRA / Linear"]
         GHAPI["GitHub API"]
-        CLAUDE["Claude API\nclaude-sonnet-4-6"]
+        CLAUDE["Claude API<br/>claude-sonnet-4-6"]
     end
 
     subgraph PLATFORM["Platform — Application Layer"]
         direction LR
-        ING["platform-ingestion :8081\nParsers · Coverage · TCM · API-key auth"]
-        PORTAL["platform-portal :8085\nBFF + React 19 SPA"]
-        AGENT["platform-agent :8086\nAI Workflow Hub"]
-        ANALYTICS["platform-analytics :8082\nFlakiness · TIA · Quality gates · Alerts"]
-        AI["platform-ai :8084\nFailure classification · Nightly batch"]
-        INT["platform-integration :8083\nIssue lifecycle (JIRA/Linear/GitHub)"]
+        ING["platform-ingestion :8081<br/>Parsers · Coverage · TCM · API-key auth"]
+        PORTAL["platform-portal :8085<br/>BFF + React 19 SPA"]
+        AGENT["platform-agent :8086<br/>AI Workflow Hub"]
+        ANALYTICS["platform-analytics :8082<br/>Flakiness · TIA · Quality gates · Alerts"]
+        AI["platform-ai :8084<br/>Failure classification · Nightly batch"]
+        INT["platform-integration :8083<br/>Issue lifecycle (JIRA/Linear/GitHub)"]
     end
 
     subgraph KAFKA["Apache Kafka 4.2.0 (KRaft) — Message Bus"]
@@ -41,15 +41,15 @@ flowchart TD
         K3["test.flakiness.events"]
         K4["test.alert.events"]
         K5["test.integration.commands"]
-        K6["agent.workflow.events\nagent.approval.requests\nagent.approval.decisions"]
+        K6["agent.workflow.events<br/>agent.approval.requests<br/>agent.approval.decisions"]
     end
 
     subgraph DATA["Data Layer"]
         direction LR
-        PG[("PostgreSQL 17 :5432\nFlyway V1–V45+")]
-        OS[("OpenSearch 3.5.0 :9200\nk-NN similarity search")]
-        RD[("Redis 8.6.1 :6379\nCache · Rate-limit · Dedup")]
-        MN[("MinIO :9000\nArtifacts · Diffs\nKnowledge · Checkpoints")]
+        PG[("PostgreSQL 17 :5432<br/>Flyway V1–V45+")]
+        OS[("OpenSearch 3.5.0 :9200<br/>k-NN similarity search")]
+        RD[("Redis 8.6.1 :6379<br/>Cache · Rate-limit · Dedup")]
+        MN[("MinIO :9000<br/>Artifacts · Diffs<br/>Knowledge · Checkpoints")]
     end
 
     CI & SDK_J & SDK_JS -->|POST /api/v1/results/ingest| ING
@@ -83,87 +83,87 @@ flowchart TD
 flowchart TD
     subgraph TRIGGERS["Inbound Triggers"]
         direction LR
-        GHW["GitHub Webhook\nPR open · sync · close"]
-        JIRAW["JIRA Webhook\nissue update"]
+        GHW["GitHub Webhook<br/>PR open · sync · close"]
+        JIRAW["JIRA Webhook<br/>issue update"]
         LINW["Linear Webhook"]
-        SLACKI["Slack Interactions\nBlock Kit approve/reject"]
-        PORTALT["Portal\nmanual trigger"]
-        SCHED["Scheduler\nnightly digest · polling fallback"]
+        SLACKI["Slack Interactions<br/>Block Kit approve/reject"]
+        PORTALT["Portal<br/>manual trigger"]
+        SCHED["Scheduler<br/>nightly digest · polling fallback"]
     end
 
     subgraph HUB["HUB — platform-agent :8086  (Source of Truth + Coordinator)"]
         direction TB
 
         subgraph SYNC["Source Sync Layer"]
-            RSS["RequirementSyncService\nJIRA / Linear → platform_requirements\n(JIRA/LinearWebhookController + polling)"]
-            CRI["CodeRepoIndex\nGitHub PR diffs → MinIO platform-diffs\n(GitHubWebhookController + polling)"]
+            RSS["RequirementSyncService<br/>JIRA / Linear → platform_requirements<br/>(JIRA/LinearWebhookController + polling)"]
+            CRI["CodeRepoIndex<br/>GitHub PR diffs → MinIO platform-diffs<br/>(GitHubWebhookController + polling)"]
         end
 
         subgraph GRAPH["Knowledge Graph"]
-            GS["GraphService\nRequirement graph traversal\n(parent · linked · covered-by edges)"]
-            RCP["RequirementChangeProcessor\nAC-level diff → NEEDS_UPDATE / OBSOLETE"]
-            TPG["TestPlanGeneratorService\nRelease scope → test plan + coverage gaps"]
+            GS["GraphService<br/>Requirement graph traversal<br/>(parent · linked · covered-by edges)"]
+            RCP["RequirementChangeProcessor<br/>AC-level diff → NEEDS_UPDATE / OBSOLETE"]
+            TPG["TestPlanGeneratorService<br/>Release scope → test plan + coverage gaps"]
         end
 
         subgraph CORE["Hub Core"]
-            CTX["ContextAssembler\nBuilds 5-tier ContextBundle\n(Req · TestCase · AutoTest · Execution · Monitor)"]
-            ROUTER["CapabilityTaskRouter\nMatches task.requiredCapabilities\nto registered nodes (+ LLM tier filter)"]
-            REG["NodeRegistry\nInMemory ConcurrentHashMap\n70 s heartbeat eviction"]
-            WFS["AgentWorkflowService\nWorkflow FSM · step loop\nreview-pause · Kafka events"]
-            TBG["TokenBudgetGuard\nMonthly per-project budget cap\nhard-stop before Claude call"]
+            CTX["ContextAssembler<br/>Builds 5-tier ContextBundle<br/>(Req · TestCase · AutoTest · Execution · Monitor)"]
+            ROUTER["CapabilityTaskRouter<br/>Matches task.requiredCapabilities<br/>to registered nodes (+ LLM tier filter)"]
+            REG["NodeRegistry<br/>InMemory ConcurrentHashMap<br/>70 s heartbeat eviction"]
+            WFS["AgentWorkflowService<br/>Workflow FSM · step loop<br/>review-pause · Kafka events"]
+            TBG["TokenBudgetGuard<br/>Monthly per-project budget cap<br/>hard-stop before Claude call"]
         end
 
         subgraph REVIEW["Review Gateway"]
-            RGW["KafkaReviewGateway\npersists AgentReviewRequest\nemits agent.approval.requests"]
-            SLACK_N["SlackNotificationService\nBlock Kit interactive messages"]
-            PORTAL_Q["Portal Work-Items\n/api/portal/projects/{id}/work-items"]
+            RGW["KafkaReviewGateway<br/>persists AgentReviewRequest<br/>emits agent.approval.requests"]
+            SLACK_N["SlackNotificationService<br/>Block Kit interactive messages"]
+            PORTAL_Q["Portal Work-Items<br/>/api/portal/projects/{id}/work-items"]
         end
     end
 
     subgraph PROTOCOL["Hub ↔ Node Session Protocol"]
         direction LR
-        P1["Node → Hub\nPOST /hub/nodes/register\n(capabilities + endpoint + heartbeat)"]
-        P2["Hub → Node\nPOST /node/sessions\n(ContextBundle + credentials)"]
-        P3["Node → Hub (live)\nPOST /hub/sessions/{id}/step\nPOST /hub/sessions/{id}/artifact\nPOST /hub/sessions/{id}/complete|fail"]
+        P1["Node → Hub<br/>POST /hub/nodes/register<br/>(capabilities + endpoint + heartbeat)"]
+        P2["Hub → Node<br/>POST /node/sessions<br/>(ContextBundle + credentials)"]
+        P3["Node → Hub (live)<br/>POST /hub/sessions/{id}/step<br/>POST /hub/sessions/{id}/artifact<br/>POST /hub/sessions/{id}/complete|fail"]
     end
 
     subgraph NODES["NODE POOL — stateless, horizontally scalable"]
         direction LR
 
         subgraph NODES_ANALYSIS["Analysis & Insight"]
-            ANA["AnalysisNode\nANALYSE_PR_IMPACT\nPR diff + TIA → coverage gap\nPosts PR comment\nsonnet-4-6"]
-            INS["InsightNode\nGENERATE_INSIGHT_DIGEST\nTrends + flakiness → Slack digest\nsonnet-4-6"]
+            ANA["AnalysisNode<br/>ANALYSE_PR_IMPACT<br/>PR diff + TIA → coverage gap<br/>Posts PR comment<br/>sonnet-4-6"]
+            INS["InsightNode<br/>GENERATE_INSIGHT_DIGEST<br/>Trends + flakiness → Slack digest<br/>sonnet-4-6"]
         end
 
         subgraph NODES_REQUIREMENTS["Requirements"]
-            EAC["ExtractAcceptanceCriteriaNode\nEXTRACT_ACCEPTANCE_CRITERIA\nRaw req → structured ACs\nsonnet-4-6"]
+            EAC["ExtractAcceptanceCriteriaNode<br/>EXTRACT_ACCEPTANCE_CRITERIA<br/>Raw req → structured ACs<br/>sonnet-4-6"]
         end
 
         subgraph NODES_TESTGEN["Test Generation"]
-            TCG["TestCaseGenerationNode\nGENERATE_TEST_CASES\nACs + dedup context → ManagedTestCase rows\nsonnet-4-6"]
-            TGN["TestGenNode\nGENERATE_TESTS_QUICK\nLightweight path\nsonnet-4-6"]
+            TCG["TestCaseGenerationNode<br/>GENERATE_TEST_CASES<br/>ACs + dedup context → ManagedTestCase rows<br/>sonnet-4-6"]
+            TGN["TestGenNode<br/>GENERATE_TESTS_QUICK<br/>Lightweight path<br/>sonnet-4-6"]
         end
 
         subgraph NODES_AUTOMATION["Automation"]
-            ACG["AutomationCodeGenerationNode\nGENERATE_AUTOMATION\nTestCase + linked reqs → Playwright/JUnit5 PR\nopus-4-7"]
-            HEAL["HealingNode\nHEAL_FAILING_TEST\nFailure + test code → patch PR\nopus-4-7"]
+            ACG["AutomationCodeGenerationNode<br/>GENERATE_AUTOMATION<br/>TestCase + linked reqs → Playwright/JUnit5 PR<br/>opus-4-7"]
+            HEAL["HealingNode<br/>HEAL_FAILING_TEST<br/>Failure + test code → patch PR<br/>opus-4-7"]
         end
     end
 
     subgraph ORCH["Agent Orchestrator (embedded in each node)"]
         direction LR
-        CLO["ClaudeAgentOrchestrator\nMAX_TOOL_ITERATIONS = 25\nFull tool-use loop · __AWAITING_REVIEW__ sentinel\nModel selected by LlmTier"]
-        SMRZ["StepSummarizer\nhaiku-4-5 compresses tool results\n8 K token diff → ~42 token summary"]
-        CKPT["RedisCheckpointService\nTTL by ResumeStrategy\nprompt-cache ≤5 min · compressed ≤24 h · handoff >24 h"]
+        CLO["ClaudeAgentOrchestrator<br/>MAX_TOOL_ITERATIONS = 25<br/>Full tool-use loop · __AWAITING_REVIEW__ sentinel<br/>Model selected by LlmTier"]
+        SMRZ["StepSummarizer<br/>haiku-4-5 compresses tool results<br/>8 K token diff → ~42 token summary"]
+        CKPT["RedisCheckpointService<br/>TTL by ResumeStrategy<br/>prompt-cache ≤5 min · compressed ≤24 h · handoff >24 h"]
     end
 
     subgraph ARTIFACTS["Artifact Targets"]
         direction LR
-        GH_PR["GitHub Pull Request\n(automation code · fixes)"]
-        JIRA_T["JIRA / Linear Ticket\n(created · updated · closed)"]
-        PG_ARTS["PostgreSQL\n(test cases · analyses · test plans)"]
-        MN_ARTS["MinIO\n(diffs · checkpoints · knowledge)"]
-        SLACK_T["Slack Channel\n(digest · approval request)"]
+        GH_PR["GitHub Pull Request<br/>(automation code · fixes)"]
+        JIRA_T["JIRA / Linear Ticket<br/>(created · updated · closed)"]
+        PG_ARTS["PostgreSQL<br/>(test cases · analyses · test plans)"]
+        MN_ARTS["MinIO<br/>(diffs · checkpoints · knowledge)"]
+        SLACK_T["Slack Channel<br/>(digest · approval request)"]
     end
 
     TRIGGERS --> HUB
@@ -215,35 +215,35 @@ flowchart TD
 ```mermaid
 flowchart TD
     subgraph TRIGGERS["Inbound Triggers"]
-        WC["WorkflowController\nREST /api/agent/workflows"]
-        GHW["GitHubWebhookController\nPR opened / sync / closed"]
-        GHS["GitHubSyncController\nManual sync"]
-        GPS["GitHubPollingService\nScheduled fallback poll"]
-        NRC["NodeRegistrationController\nNode self-registration"]
+        WC["WorkflowController<br/>REST /api/agent/workflows"]
+        GHW["GitHubWebhookController<br/>PR opened / sync / closed"]
+        GHS["GitHubSyncController<br/>Manual sync"]
+        GPS["GitHubPollingService<br/>Scheduled fallback poll"]
+        NRC["NodeRegistrationController<br/>Node self-registration"]
     end
 
     subgraph HUB["Agent Hub Core"]
-        ROUTER["CapabilityTaskRouter\nRoutes by capability type"]
-        REGISTRY["NodeRegistry\n(InMemoryNodeRegistry)\nLocalNodeRegistrar seeds locals"]
-        CTX["ContextAssembler\n(DefaultContextAssembler)\nFetches Req · TestCase · PR diff"]
+        ROUTER["CapabilityTaskRouter<br/>Routes by capability type"]
+        REGISTRY["NodeRegistry<br/>(InMemoryNodeRegistry)<br/>LocalNodeRegistrar seeds locals"]
+        CTX["ContextAssembler<br/>(DefaultContextAssembler)<br/>Fetches Req · TestCase · PR diff"]
     end
 
     subgraph NODES["Agent Nodes (implement AgentNode)"]
-        TCG["TestCaseGenerationNode\nReq → test cases\nLinks req IDs, dedup context"]
-        ACG["AutomationCodeGenerationNode\nTestCase + linked reqs → PR code\nOpens GitHub PR"]
-        TGN["TestGenNode\nLightweight gen path"]
-        ANA["AnalysisNode\nFailure root-cause triage"]
-        HEAL["HealingNode\nFlaky fix · PR generation"]
-        INS["InsightNode\nCross-project quality narrative"]
-        EAC["ExtractAcceptanceCriteriaNode\nParses AC from requirement"]
+        TCG["TestCaseGenerationNode<br/>Req → test cases<br/>Links req IDs, dedup context"]
+        ACG["AutomationCodeGenerationNode<br/>TestCase + linked reqs → PR code<br/>Opens GitHub PR"]
+        TGN["TestGenNode<br/>Lightweight gen path"]
+        ANA["AnalysisNode<br/>Failure root-cause triage"]
+        HEAL["HealingNode<br/>Flaky fix · PR generation"]
+        INS["InsightNode<br/>Cross-project quality narrative"]
+        EAC["ExtractAcceptanceCriteriaNode<br/>Parses AC from requirement"]
     end
 
     subgraph REVIEW["Review Gateway"]
-        RGW["KafkaReviewGateway\nemits agent.approval.requests\nconsumes agent.approval.decisions"]
+        RGW["KafkaReviewGateway<br/>emits agent.approval.requests<br/>consumes agent.approval.decisions"]
     end
 
     subgraph IA["Impact Analysis (in platform-ingestion)"]
-        IAS["ImpactAnalysisService\nPR diffs + Reqs + existing TCs\n→ Claude API\n→ UPDATE / CREATE suggestions"]
+        IAS["ImpactAnalysisService<br/>PR diffs + Reqs + existing TCs<br/>→ Claude API<br/>→ UPDATE / CREATE suggestions"]
     end
 
     WC & GHW & GHS & GPS & NRC --> ROUTER
@@ -353,11 +353,11 @@ stateDiagram-v2
     UNDER_REVIEW --> APPROVED : approve
     UNDER_REVIEW --> REJECTED : reject
 
-    APPROVED --> UNDER_REVIEW : impact analysis applies suggestion\n(updatedBy = IMPACT_ANALYSIS)
+    APPROVED --> UNDER_REVIEW : impact analysis applies suggestion
 
     APPROVED --> AutomationInProgress : trigger automation generation
     state AutomationInProgress {
-        [*] --> IN_PROGRESS : automationWorkflowId set\nautomationPrUrl set
+        [*] --> IN_PROGRESS : automationWorkflowId + automationPrUrl set
         IN_PROGRESS --> DONE : PR merged
         IN_PROGRESS --> FAILED : workflow error
     }
@@ -438,13 +438,13 @@ flowchart LR
         direction TB
         OO["OrgOverview"]
         PD["ProjectDetail"]
-        REQ["RequirementsPage\n(tree view default + search)"]
+        REQ["RequirementsPage<br/>(tree view default + search)"]
         IA["ImpactAnalysesPage"]
         PRA["PRAnalysesPage"]
-        TC["TestCasesPage\n(CRUD + requirement linking)"]
+        TC["TestCasesPage<br/>(CRUD + requirement linking)"]
         TR["TestRunsPage"]
         TRE["TestRunExecutionPage"]
-        RQ["ReviewQueuePage\n(approve/reject AI work)"]
+        RQ["ReviewQueuePage<br/>(approve/reject AI work)"]
         FT["FlakyTestsPage"]
         AL["AlertsPage"]
         AK["ApiKeysPage"]
@@ -455,11 +455,11 @@ flowchart LR
     subgraph BFF["BFF Endpoints  /api/portal/…"]
         direction TB
         E1["/overview · /teams · /projects"]
-        E2["/projects/{id} · /flakiness · /quality-gate\n/pass-rate-trend · /executions · /impact/summary"]
+        E2["/projects/{id} · /flakiness · /quality-gate<br/>/pass-rate-trend · /executions · /impact/summary"]
         E3["/requirements · /requirements/stats · /requirements/{id}"]
-        E4["/impact-analyses · /impact-analyses/{id}\n/impact-analyses/prs"]
+        E4["/impact-analyses · /impact-analyses/{id}<br/>/impact-analyses/prs"]
         E5["/pr-analyses"]
-        E6["/test-cases · /test-cases/{id}\n/{tcId}/link-requirement · /apply-suggestion\n/{tcId}/submit-review · /approve · /reject\n/{tcId}/generate-automation · /test-suites"]
+        E6["/test-cases · /test-cases/{id}<br/>/{tcId}/link-requirement · /apply-suggestion<br/>/{tcId}/submit-review · /approve · /reject<br/>/{tcId}/generate-automation · /test-suites"]
         E7["/test-runs · /test-runs/{id}"]
         E8["/test-runs/{id}/executions"]
         E9["/work-items · /review-requests/{id}/approve|reject"]
@@ -493,27 +493,27 @@ flowchart LR
 ```mermaid
 flowchart LR
     subgraph SERVICES["All Platform Services :8081–8086"]
-        ACT["/actuator/health\n/actuator/metrics\n/actuator/prometheus"]
+        ACT["/actuator/health<br/>/actuator/metrics<br/>/actuator/prometheus"]
     end
 
     subgraph METRICS["Metrics Pipeline"]
-        PROM["Prometheus v3.10.0\n:9090\nscrapes all services"]
-        GRAFANA["Grafana 12.4.0\n:3000\nDashboards"]
-        INFLUX["InfluxDB 1.8\n:8086\nk6 / perf metrics"]
-        AM["AlertManager\nPrometheus rules → alerts"]
+        PROM["Prometheus v3.10.0<br/>:9090<br/>scrapes all services"]
+        GRAFANA["Grafana 12.4.0<br/>:3000<br/>Dashboards"]
+        INFLUX["InfluxDB 1.8<br/>:8086<br/>k6 / perf metrics"]
+        AM["AlertManager<br/>Prometheus rules → alerts"]
     end
 
     subgraph LOGS["Log Pipeline"]
         STDOUT["stdout (JSON structured)"]
-        PT["Promtail\ncollects container logs"]
-        LOKI["Loki 3.5.0\n:3100\nlog aggregation"]
-        LS["Logstash\n:5044\nOpenSearch indexing"]
-        OS["OpenSearch 3.5.0\n:9200"]
+        PT["Promtail<br/>collects container logs"]
+        LOKI["Loki 3.5.0<br/>:3100<br/>log aggregation"]
+        LS["Logstash<br/>:5044<br/>OpenSearch indexing"]
+        OS["OpenSearch 3.5.0<br/>:9200"]
     end
 
     subgraph TRACES["Trace Pipeline"]
-        OTEL["OpenTelemetry SDK\nAll services instrumented"]
-        JAEGER["Jaeger\n:16686\nOTLP gRPC :4317"]
+        OTEL["OpenTelemetry SDK<br/>All services instrumented"]
+        JAEGER["Jaeger<br/>:16686<br/>OTLP gRPC :4317"]
     end
 
     SERVICES --> ACT
@@ -533,11 +533,11 @@ flowchart LR
     OTEL --> JAEGER
 
     subgraph DASHBOARDS["Grafana Dashboards"]
-        D1["Platform Overview\npass-rate · run volume · flakiness"]
-        D2["Flakiness\nCRITICAL_FLAKY heatmap · score dist"]
-        D3["AI Analysis\nclassification rate · token usage"]
-        D4["Performance Signals\np50/p90/p95/p99 · error rate · VUs"]
-        D5["Agent Workflows\npending · running · approval queue"]
+        D1["Platform Overview<br/>pass-rate · run volume · flakiness"]
+        D2["Flakiness<br/>CRITICAL_FLAKY heatmap · score dist"]
+        D3["AI Analysis<br/>classification rate · token usage"]
+        D4["Performance Signals<br/>p50/p90/p95/p99 · error rate · VUs"]
+        D5["Agent Workflows<br/>pending · running · approval queue"]
     end
 
     GRAFANA --> DASHBOARDS
@@ -584,11 +584,11 @@ flowchart TD
             AGT_K["agent"]
         end
         subgraph STATEFUL["StatefulSets"]
-            PG_K["PostgreSQL\n(or managed RDS)"]
-            KF_K["Kafka KRaft\n3 controllers + 3 brokers"]
-            RD_K["Redis\n(or ElastiCache)"]
-            OS_K["OpenSearch\n(or managed)"]
-            MN_K["MinIO\n(or S3)"]
+            PG_K["PostgreSQL<br/>(or managed RDS)"]
+            KF_K["Kafka KRaft<br/>3 controllers + 3 brokers"]
+            RD_K["Redis<br/>(or ElastiCache)"]
+            OS_K["OpenSearch<br/>(or managed)"]
+            MN_K["MinIO<br/>(or S3)"]
         end
         subgraph OBS_K["Observability"]
             KPS["kube-prometheus-stack"]
@@ -611,32 +611,32 @@ flowchart TD
 ```mermaid
 flowchart LR
     subgraph SETTINGS["AiSettings  (portal → /api/portal/ai/settings)"]
-        P["provider:\n'anthropic' | 'openai'"]
-        M["model: string\ne.g. gpt-4o · llama3.3 · mistral"]
+        P["provider:<br/>'anthropic' | 'openai'"]
+        M["model: string<br/>e.g. gpt-4o · llama3.3 · mistral"]
         K["apiKey (encrypted in platform_settings)"]
-        BU["baseUrl ⚠ not yet in UI\nDB key: ai.openai.base-url\ne.g. http://localhost:11434/v1"]
+        BU["baseUrl ⚠ not yet in UI<br/>DB key: ai.openai.base-url<br/>e.g. http://localhost:11434/v1"]
     end
 
     subgraph ROUTER["AiClientRouter  (@Primary bean — no restart needed)"]
-        R["reads ai.provider from DB at call time\nroutes to active client"]
+        R["reads ai.provider from DB at call time<br/>routes to active client"]
     end
 
     subgraph ANTHROPIC_PATH["Anthropic path"]
-        CC["ClaudeApiClient\nAnthropic Java SDK\nclaude-sonnet-4-6 (default)"]
+        CC["ClaudeApiClient<br/>Anthropic Java SDK<br/>claude-sonnet-4-6 (default)"]
     end
 
     subgraph OPENAI_PATH["OpenAI-compatible path"]
-        OC["OpenAiClient\nSpring RestClient\nPOST {baseUrl}/v1/chat/completions\nBearer {apiKey}"]
+        OC["OpenAiClient<br/>Spring RestClient<br/>POST {baseUrl}/v1/chat/completions<br/>Bearer {apiKey}"]
         subgraph LOCAL["Self-Hosted (OpenAI-compatible API)"]
-            OL["Ollama\nlocalhost:11434/v1\nLlama 3.3 · Mistral · Gemma · DeepSeek · Phi"]
-            VL["vLLM\nProduction inference\nOpenAI-compatible /v1"]
-            LM["LM Studio\nDesktop app\nOpenAI-compatible endpoint"]
-            LA["LocalAI\nDrop-in replacement\nCPU / GPU inference"]
+            OL["Ollama<br/>localhost:11434/v1<br/>Llama 3.3 · Mistral · Gemma · DeepSeek · Phi"]
+            VL["vLLM<br/>Production inference<br/>OpenAI-compatible /v1"]
+            LM["LM Studio<br/>Desktop app<br/>OpenAI-compatible endpoint"]
+            LA["LocalAI<br/>Drop-in replacement<br/>CPU / GPU inference"]
         end
         subgraph CLOUD_COMPAT["Cloud OpenAI-compatible"]
-            OAI["api.openai.com\ngpt-4o · gpt-4o-mini"]
-            GRQ["api.groq.com/openai/v1\nllama3-70b · mixtral (hosted fast)"]
-            TGT["api.together.xyz/v1\nOpen models, pay-per-token"]
+            OAI["api.openai.com<br/>gpt-4o · gpt-4o-mini"]
+            GRQ["api.groq.com/openai/v1<br/>llama3-70b · mixtral (hosted fast)"]
+            TGT["api.together.xyz/v1<br/>Open models, pay-per-token"]
         end
     end
 
@@ -658,19 +658,19 @@ flowchart LR
 ```mermaid
 flowchart TD
     subgraph ORCH["ClaudeAgentOrchestrator"]
-        TIER["LlmTier from ContextBundle\n(set per AgentNode)"]
-        RES["resolveModel(tier)\nCOMPLEX  → claude-opus-4-6\ndefault  → claude-sonnet-4-6"]
-        SDK["Anthropic Java SDK\nAnthropicOkHttpClient"]
+        TIER["LlmTier from ContextBundle<br/>(set per AgentNode)"]
+        RES["resolveModel(tier)<br/>COMPLEX  → claude-opus-4-6<br/>default  → claude-sonnet-4-6"]
+        SDK["Anthropic Java SDK<br/>AnthropicOkHttpClient"]
     end
 
     subgraph FUTURE["Planned Extension — OpenAI-compatible path"]
-        OAS["OpenAI-compatible AgentOrchestrator\nreuses same AgentNode interface\nbaseUrl = local LLM endpoint\nno tool-calling format change needed\n(OpenAI tool_use schema ≡ Anthropic tool_use schema)"]
+        OAS["OpenAI-compatible AgentOrchestrator<br/>reuses same AgentNode interface<br/>baseUrl = local LLM endpoint<br/>no tool-calling format change needed<br/>(OpenAI tool_use schema ≡ Anthropic tool_use schema)"]
     end
 
     TIER --> RES
     RES --> SDK
     SDK -->|"today"| ANTHROPIC["Anthropic Claude API"]
-    OAS -->|"future"| LOCAL_AGENT["Ollama / vLLM\nwith tool-calling support\n(llama3.3-70b, Mistral Large, Qwen2.5-72b)"]
+    OAS -->|"future"| LOCAL_AGENT["Ollama / vLLM<br/>with tool-calling support<br/>(llama3.3-70b, Mistral Large, Qwen2.5-72b)"]
 ```
 
 **Current state** — `ClaudeAgentOrchestrator` exclusively uses the Anthropic SDK.
@@ -700,7 +700,7 @@ Extending it requires implementing a second orchestrator that speaks the OpenAI 
 ```mermaid
 flowchart LR
     subgraph DOCKER["docker-compose.yml addition"]
-        OLL["ollama\nimage: ollama/ollama\nports: 11434:11434\nvolumes: ollama_data:/root/.ollama\ngpus: all  (optional)"]
+        OLL["ollama<br/>image: ollama/ollama<br/>ports: 11434:11434<br/>volumes: ollama_data:/root/.ollama<br/>gpus: all  (optional)"]
     end
 
     subgraph PLATFORM_SETTINGS["platform_settings rows (Flyway or portal UI)"]
@@ -711,7 +711,7 @@ flowchart LR
     end
 
     subgraph PULL["Pull models once"]
-        PL["docker exec platform-ollama\nollama pull llama3.3\nollama pull mistral-large\nollama pull phi4-mini"]
+        PL["docker exec platform-ollama<br/>ollama pull llama3.3<br/>ollama pull mistral-large<br/>ollama pull phi4-mini"]
     end
 
     DOCKER --> PLATFORM_SETTINGS --> PULL
