@@ -39,6 +39,17 @@ export default function ProjectDetail() {
   const latestRun = recentExecutions?.[0]
   const criticalFlaky = flakiness?.filter(f => f.classification === 'CRITICAL_FLAKY').length ?? 0
 
+  // Weighted average across all days in the trend window: total passed / total tests.
+  // PassRatePoint uses 0-1 scale; multiply by 100 to match formatPassRate/passRateColor (0-100 scale).
+  // Falls back to the latest run if trend data hasn't loaded yet.
+  const trendPassRate = (() => {
+    if (!trendData || trendData.length === 0) return latestRun?.passRate
+    const totalTests  = trendData.reduce((s, p) => s + p.totalTests, 0)
+    if (totalTests === 0) return latestRun?.passRate
+    const totalPassed = trendData.reduce((s, p) => s + p.passed, 0)
+    return totalPassed / totalTests * 100
+  })()
+
   return (
     <div className="space-y-8">
       {/* Header */}
@@ -119,9 +130,9 @@ export default function ProjectDetail() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           title="Pass Rate"
-          value={formatPassRate(latestRun?.passRate)}
-          subtitle="latest run"
-          colorClass={passRateColor(latestRun?.passRate ?? 0)}
+          value={formatPassRate(trendPassRate)}
+          subtitle="30 day avg"
+          colorClass={passRateColor(trendPassRate ?? 0)}
         />
         <StatCard
           title="Last Run Duration"
