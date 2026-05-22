@@ -75,7 +75,142 @@ flowchart TD
 
 ---
 
-## 2. Agent Hub — Internal Architecture
+## 2. Agent Grid — High-Level Architecture
+
+> Inspired by Selenium Grid: **Hub** = source-of-truth controller + task router; **Nodes** = stateless Claude-powered workers that register their capabilities and accept sessions.
+
+```mermaid
+flowchart TD
+    subgraph TRIGGERS["Inbound Triggers"]
+        direction LR
+        GHW["GitHub Webhook\nPR open · sync · close"]
+        JIRAW["JIRA Webhook\nissue update"]
+        LINW["Linear Webhook"]
+        SLACKI["Slack Interactions\nBlock Kit approve/reject"]
+        PORTALT["Portal\nmanual trigger"]
+        SCHED["Scheduler\nnightly digest · polling fallback"]
+    end
+
+    subgraph HUB["HUB — platform-agent :8086  (Source of Truth + Coordinator)"]
+        direction TB
+
+        subgraph SYNC["Source Sync Layer"]
+            RSS["RequirementSyncService\nJIRA / Linear → platform_requirements\n(JIRA/LinearWebhookController + polling)"]
+            CRI["CodeRepoIndex\nGitHub PR diffs → MinIO platform-diffs\n(GitHubWebhookController + polling)"]
+        end
+
+        subgraph GRAPH["Knowledge Graph"]
+            GS["GraphService\nRequirement graph traversal\n(parent · linked · covered-by edges)"]
+            RCP["RequirementChangeProcessor\nAC-level diff → NEEDS_UPDATE / OBSOLETE"]
+            TPG["TestPlanGeneratorService\nRelease scope → test plan + coverage gaps"]
+        end
+
+        subgraph CORE["Hub Core"]
+            CTX["ContextAssembler\nBuilds 5-tier ContextBundle\n(Req · TestCase · AutoTest · Execution · Monitor)"]
+            ROUTER["CapabilityTaskRouter\nMatches task.requiredCapabilities\nto registered nodes (+ LLM tier filter)"]
+            REG["NodeRegistry\nInMemory ConcurrentHashMap\n70 s heartbeat eviction"]
+            WFS["AgentWorkflowService\nWorkflow FSM · step loop\nreview-pause · Kafka events"]
+            TBG["TokenBudgetGuard\nMonthly per-project budget cap\nhard-stop before Claude call"]
+        end
+
+        subgraph REVIEW["Review Gateway"]
+            RGW["KafkaReviewGateway\npersists AgentReviewRequest\nemits agent.approval.requests"]
+            SLACK_N["SlackNotificationService\nBlock Kit interactive messages"]
+            PORTAL_Q["Portal Work-Items\n/api/portal/projects/{id}/work-items"]
+        end
+    end
+
+    subgraph PROTOCOL["Hub ↔ Node Session Protocol"]
+        direction LR
+        P1["Node → Hub\nPOST /hub/nodes/register\n(capabilities + endpoint + heartbeat)"]
+        P2["Hub → Node\nPOST /node/sessions\n(ContextBundle + credentials)"]
+        P3["Node → Hub (live)\nPOST /hub/sessions/{id}/step\nPOST /hub/sessions/{id}/artifact\nPOST /hub/sessions/{id}/complete|fail"]
+    end
+
+    subgraph NODES["NODE POOL — stateless, horizontally scalable"]
+        direction LR
+
+        subgraph NODES_ANALYSIS["Analysis & Insight"]
+            ANA["AnalysisNode\nANALYSE_PR_IMPACT\nPR diff + TIA → coverage gap\nPosts PR comment\nsonnet-4-6"]
+            INS["InsightNode\nGENERATE_INSIGHT_DIGEST\nTrends + flakiness → Slack digest\nsonnet-4-6"]
+        end
+
+        subgraph NODES_REQUIREMENTS["Requirements"]
+            EAC["ExtractAcceptanceCriteriaNode\nEXTRACT_ACCEPTANCE_CRITERIA\nRaw req → structured ACs\nsonnet-4-6"]
+        end
+
+        subgraph NODES_TESTGEN["Test Generation"]
+            TCG["TestCaseGenerationNode\nGENERATE_TEST_CASES\nACs + dedup context → ManagedTestCase rows\nsonnet-4-6"]
+            TGN["TestGenNode\nGENERATE_TESTS_QUICK\nLightweight path\nsonnet-4-6"]
+        end
+
+        subgraph NODES_AUTOMATION["Automation"]
+            ACG["AutomationCodeGenerationNode\nGENERATE_AUTOMATION\nTestCase + linked reqs → Playwright/JUnit5 PR\nopus-4-7"]
+            HEAL["HealingNode\nHEAL_FAILING_TEST\nFailure + test code → patch PR\nopus-4-7"]
+        end
+    end
+
+    subgraph ORCH["Agent Orchestrator (embedded in each node)"]
+        direction LR
+        CLO["ClaudeAgentOrchestrator\nMAX_TOOL_ITERATIONS = 25\nFull tool-use loop · __AWAITING_REVIEW__ sentinel\nModel selected by LlmTier"]
+        SMRZ["StepSummarizer\nhaiku-4-5 compresses tool results\n8 K token diff → ~42 token summary"]
+        CKPT["RedisCheckpointService\nTTL by ResumeStrategy\nprompt-cache ≤5 min · compressed ≤24 h · handoff >24 h"]
+    end
+
+    subgraph ARTIFACTS["Artifact Targets"]
+        direction LR
+        GH_PR["GitHub Pull Request\n(automation code · fixes)"]
+        JIRA_T["JIRA / Linear Ticket\n(created · updated · closed)"]
+        PG_ARTS["PostgreSQL\n(test cases · analyses · test plans)"]
+        MN_ARTS["MinIO\n(diffs · checkpoints · knowledge)"]
+        SLACK_T["Slack Channel\n(digest · approval request)"]
+    end
+
+    TRIGGERS --> HUB
+    SYNC --> GRAPH
+    GRAPH --> CTX
+    CTX --> ROUTER
+    ROUTER --> REG
+    WFS --> ROUTER
+
+    HUB --> PROTOCOL
+    PROTOCOL --> NODES
+    NODES --> ORCH
+    ORCH --> ARTIFACTS
+    ORCH --> RGW
+    RGW --> SLACK_N & PORTAL_Q
+
+    SLACKI --> SLACKI_H(["SlackInteractionController"])
+    SLACKI_H --> RGW
+
+    classDef hub fill:#dbeafe,stroke:#3b82f6,color:#1e3a5f
+    classDef node fill:#dcfce7,stroke:#22c55e,color:#14532d
+    classDef trigger fill:#fef9c3,stroke:#eab308,color:#713f12
+    classDef artifact fill:#f3e8ff,stroke:#a855f7,color:#3b0764
+    classDef orch fill:#ffedd5,stroke:#f97316,color:#7c2d12
+
+    class HUB,CORE,SYNC,GRAPH,REVIEW hub
+    class NODES,NODES_ANALYSIS,NODES_REQUIREMENTS,NODES_TESTGEN,NODES_AUTOMATION node
+    class TRIGGERS trigger
+    class ARTIFACTS artifact
+    class ORCH orch
+```
+
+### Node Capability Matrix
+
+| Node | Task Type | LLM Tier | Tools | Output |
+|---|---|---|---|---|
+| `ExtractAcceptanceCriteriaNode` | `EXTRACT_ACCEPTANCE_CRITERIA` | sonnet-4-6 | `store_acceptance_criteria`, `request_review` | Structured ACs in DB |
+| `TestCaseGenerationNode` | `GENERATE_TEST_CASES` | sonnet-4-6 | `platform_query`, `store_test_case` | `ManagedTestCase` rows |
+| `TestGenNode` | `GENERATE_TESTS_QUICK` | sonnet-4-6 | `platform_query`, `store_test_case` | `ManagedTestCase` rows |
+| `AnalysisNode` | `ANALYSE_PR_IMPACT` | sonnet-4-6 | `github_get_pr_diff`, `platform_get_tia_impact`, `github_post_pr_comment` | PR comment + `ImpactAnalysis` |
+| `AutomationCodeGenerationNode` | `GENERATE_AUTOMATION` | opus-4-7 | `platform_query`, `github_create_pr` | GitHub PR with test code |
+| `HealingNode` | `HEAL_FAILING_TEST` | opus-4-7 | `github_read_file`, `github_commit_file`, `github_create_pr` | Fix PR |
+| `InsightNode` | `GENERATE_INSIGHT_DIGEST` | sonnet-4-6 | `platform_get_trends`, `platform_get_flakiness_leaderboard` | Slack digest |
+
+---
+
+## 3. Agent Hub — Internal Detail
 
 ```mermaid
 flowchart TD
@@ -124,7 +259,7 @@ flowchart TD
 
 ---
 
-## 3. Test Execution Event Flow
+## 4. Test Execution Event Flow
 
 ```mermaid
 sequenceDiagram
@@ -163,7 +298,7 @@ sequenceDiagram
 
 ---
 
-## 4. AI-Assisted Test Case Lifecycle
+## 5. AI-Assisted Test Case Lifecycle
 
 ```mermaid
 sequenceDiagram
@@ -205,7 +340,7 @@ sequenceDiagram
 
 ---
 
-## 5. Test Case State Machine
+## 6. Test Case State Machine
 
 ```mermaid
 stateDiagram-v2
@@ -232,7 +367,7 @@ stateDiagram-v2
 
 ---
 
-## 6. Test Case Linkage Model
+## 7. Test Case Linkage Model
 
 ```mermaid
 erDiagram
@@ -295,7 +430,7 @@ erDiagram
 
 ---
 
-## 7. Portal — Page Map
+## 8. Portal — Page Map
 
 ```mermaid
 flowchart LR
@@ -353,7 +488,7 @@ flowchart LR
 
 ---
 
-## 8. Observability Stack
+## 9. Observability Stack
 
 ```mermaid
 flowchart LR
@@ -410,7 +545,7 @@ flowchart LR
 
 ---
 
-## 9. Deployment Topology
+## 10. Deployment Topology
 
 ```mermaid
 flowchart TD
