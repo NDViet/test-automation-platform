@@ -8,24 +8,17 @@
 ## 1. System Context
 
 ```mermaid
-flowchart TD
+flowchart LR
     subgraph CLIENTS["External Clients"]
-        direction LR
+        direction TB
         CI["CI/CD Pipelines<br/>(GH Actions · GitLab · Jenkins)"]
         SDK_J["Java SDK<br/>(JUnit5 / TestNG / Cucumber / K6)"]
         SDK_JS["JS SDK<br/>(@platform/playwright-reporter)"]
         BROWSER["Browser (React SPA)"]
     end
 
-    subgraph EXTSVCS["External Services"]
-        direction LR
-        JIRA["JIRA / Linear"]
-        GHAPI["GitHub API"]
-        CLAUDE["Claude API<br/>claude-sonnet-4-6"]
-    end
-
     subgraph PLATFORM["Platform — Application Layer"]
-        direction LR
+        direction TB
         ING["platform-ingestion :8081<br/>Parsers · Coverage · TCM · API-key auth"]
         PORTAL["platform-portal :8085<br/>BFF + React 19 SPA"]
         AGENT["platform-agent :8086<br/>AI Workflow Hub"]
@@ -34,22 +27,31 @@ flowchart TD
         INT["platform-integration :8083<br/>Issue lifecycle (JIRA/Linear/GitHub)"]
     end
 
-    subgraph KAFKA["Apache Kafka 4.2.0 (KRaft) — Message Bus"]
-        direction LR
-        K1["test.results.raw"]
-        K2["test.results.analyzed"]
-        K3["test.flakiness.events"]
-        K4["test.alert.events"]
-        K5["test.integration.commands"]
-        K6["agent.workflow.events<br/>agent.approval.requests<br/>agent.approval.decisions"]
+    subgraph INFRA["Message Bus + Data Layer"]
+        direction TB
+        subgraph KAFKA["Apache Kafka 4.2.0 (KRaft)"]
+            direction LR
+            K1["test.results.raw"]
+            K2["test.results.analyzed"]
+            K3["test.flakiness.events"]
+            K4["test.alert.events"]
+            K5["test.integration.commands"]
+            K6["agent.workflow.events<br/>agent.approval.requests<br/>agent.approval.decisions"]
+        end
+        subgraph DATA["Data Layer"]
+            direction LR
+            PG[("PostgreSQL 17 :5432<br/>Flyway V1–V45+")]
+            OS[("OpenSearch 3.5.0 :9200<br/>k-NN similarity search")]
+            RD[("Redis 8.6.1 :6379<br/>Cache · Rate-limit · Dedup")]
+            MN[("MinIO :9000<br/>Artifacts · Diffs<br/>Knowledge · Checkpoints")]
+        end
     end
 
-    subgraph DATA["Data Layer"]
-        direction LR
-        PG[("PostgreSQL 17 :5432<br/>Flyway V1–V45+")]
-        OS[("OpenSearch 3.5.0 :9200<br/>k-NN similarity search")]
-        RD[("Redis 8.6.1 :6379<br/>Cache · Rate-limit · Dedup")]
-        MN[("MinIO :9000<br/>Artifacts · Diffs<br/>Knowledge · Checkpoints")]
+    subgraph EXTSVCS["External Services"]
+        direction TB
+        JIRA["JIRA / Linear"]
+        GHAPI["GitHub API"]
+        CLAUDE["Claude API<br/>claude-sonnet-4-6"]
     end
 
     CI & SDK_J & SDK_JS -->|POST /api/v1/results/ingest| ING
@@ -80,9 +82,9 @@ flowchart TD
 > Inspired by Selenium Grid: **Hub** = source-of-truth controller + task router; **Nodes** = stateless Claude-powered workers that register their capabilities and accept sessions.
 
 ```mermaid
-flowchart TD
+flowchart LR
     subgraph TRIGGERS["Inbound Triggers"]
-        direction LR
+        direction TB
         GHW["GitHub Webhook<br/>PR open · sync · close"]
         JIRAW["JIRA Webhook<br/>issue update"]
         LINW["Linear Webhook"]
@@ -121,14 +123,14 @@ flowchart TD
     end
 
     subgraph PROTOCOL["Hub ↔ Node Session Protocol"]
-        direction LR
+        direction TB
         P1["Node → Hub<br/>POST /hub/nodes/register<br/>(capabilities + endpoint + heartbeat)"]
         P2["Hub → Node<br/>POST /node/sessions<br/>(ContextBundle + credentials)"]
         P3["Node → Hub (live)<br/>POST /hub/sessions/{id}/step<br/>POST /hub/sessions/{id}/artifact<br/>POST /hub/sessions/{id}/complete|fail"]
     end
 
     subgraph NODES["NODE POOL — stateless, horizontally scalable"]
-        direction LR
+        direction TB
 
         subgraph NODES_ANALYSIS["Analysis & Insight"]
             ANA["AnalysisNode<br/>ANALYSE_PR_IMPACT<br/>PR diff + TIA → coverage gap<br/>Posts PR comment<br/>sonnet-4-6"]
@@ -151,14 +153,14 @@ flowchart TD
     end
 
     subgraph ORCH["Agent Orchestrator (embedded in each node)"]
-        direction LR
+        direction TB
         CLO["ClaudeAgentOrchestrator<br/>MAX_TOOL_ITERATIONS = 25<br/>Full tool-use loop · __AWAITING_REVIEW__ sentinel<br/>Model selected by LlmTier"]
         SMRZ["StepSummarizer<br/>haiku-4-5 compresses tool results<br/>8 K token diff → ~42 token summary"]
         CKPT["RedisCheckpointService<br/>TTL by ResumeStrategy<br/>prompt-cache ≤5 min · compressed ≤24 h · handoff >24 h"]
     end
 
     subgraph ARTIFACTS["Artifact Targets"]
-        direction LR
+        direction TB
         GH_PR["GitHub Pull Request<br/>(automation code · fixes)"]
         JIRA_T["JIRA / Linear Ticket<br/>(created · updated · closed)"]
         PG_ARTS["PostgreSQL<br/>(test cases · analyses · test plans)"]
@@ -213,8 +215,9 @@ flowchart TD
 ## 3. Agent Hub — Internal Detail
 
 ```mermaid
-flowchart TD
+flowchart LR
     subgraph TRIGGERS["Inbound Triggers"]
+        direction TB
         WC["WorkflowController<br/>REST /api/agent/workflows"]
         GHW["GitHubWebhookController<br/>PR opened / sync / closed"]
         GHS["GitHubSyncController<br/>Manual sync"]
@@ -223,12 +226,14 @@ flowchart TD
     end
 
     subgraph HUB["Agent Hub Core"]
+        direction TB
         ROUTER["CapabilityTaskRouter<br/>Routes by capability type"]
         REGISTRY["NodeRegistry<br/>(InMemoryNodeRegistry)<br/>LocalNodeRegistrar seeds locals"]
         CTX["ContextAssembler<br/>(DefaultContextAssembler)<br/>Fetches Req · TestCase · PR diff"]
     end
 
     subgraph NODES["Agent Nodes (implement AgentNode)"]
+        direction TB
         TCG["TestCaseGenerationNode<br/>Req → test cases<br/>Links req IDs, dedup context"]
         ACG["AutomationCodeGenerationNode<br/>TestCase + linked reqs → PR code<br/>Opens GitHub PR"]
         TGN["TestGenNode<br/>Lightweight gen path"]
@@ -239,10 +244,12 @@ flowchart TD
     end
 
     subgraph REVIEW["Review Gateway"]
+        direction TB
         RGW["KafkaReviewGateway<br/>emits agent.approval.requests<br/>consumes agent.approval.decisions"]
     end
 
     subgraph IA["Impact Analysis (in platform-ingestion)"]
+        direction TB
         IAS["ImpactAnalysisService<br/>PR diffs + Reqs + existing TCs<br/>→ Claude API<br/>→ UPDATE / CREATE suggestions"]
     end
 
@@ -548,10 +555,11 @@ flowchart LR
 ## 10. Deployment Topology
 
 ```mermaid
-flowchart TD
-    subgraph LOCAL["Local Dev (Docker Compose)"]
-        direction LR
+flowchart LR
+    subgraph LOCAL["Local Dev — Docker Compose"]
+        direction TB
         subgraph APP_LOCAL["Application Containers"]
+            direction LR
             ING_L["ingestion :8081"]
             ANA_L["analytics :8082"]
             INT_L["integration :8083"]
@@ -560,6 +568,7 @@ flowchart TD
             AGT_L["agent :8086/8087"]
         end
         subgraph INFRA_LOCAL["Infrastructure Containers"]
+            direction LR
             PG_L["postgres :5432"]
             KF_L["kafka :9092"]
             RD_L["redis :6379"]
@@ -573,9 +582,10 @@ flowchart TD
         end
     end
 
-    subgraph K8S["Production (Kubernetes + Helm)"]
-        direction LR
+    subgraph K8S["Production — Kubernetes + Helm"]
+        direction TB
         subgraph WORKLOADS["Deployments + HPA"]
+            direction LR
             ING_K["ingestion"]
             ANA_K["analytics"]
             INT_K["integration"]
@@ -584,6 +594,7 @@ flowchart TD
             AGT_K["agent"]
         end
         subgraph STATEFUL["StatefulSets"]
+            direction LR
             PG_K["PostgreSQL<br/>(or managed RDS)"]
             KF_K["Kafka KRaft<br/>3 controllers + 3 brokers"]
             RD_K["Redis<br/>(or ElastiCache)"]
@@ -591,6 +602,7 @@ flowchart TD
             MN_K["MinIO<br/>(or S3)"]
         end
         subgraph OBS_K["Observability"]
+            direction LR
             KPS["kube-prometheus-stack"]
             LOKI_K["Loki"]
             JAEGER_K["Jaeger operator"]
@@ -656,19 +668,20 @@ flowchart LR
 ### 11.2 Agent Orchestrator (`platform-agent`)
 
 ```mermaid
-flowchart TD
-    subgraph ORCH["ClaudeAgentOrchestrator"]
+flowchart LR
+    subgraph ORCH["ClaudeAgentOrchestrator — Current"]
+        direction TB
         TIER["LlmTier from ContextBundle<br/>(set per AgentNode)"]
         RES["resolveModel(tier)<br/>COMPLEX  → claude-opus-4-6<br/>default  → claude-sonnet-4-6"]
         SDK["Anthropic Java SDK<br/>AnthropicOkHttpClient"]
     end
 
     subgraph FUTURE["Planned Extension — OpenAI-compatible path"]
+        direction TB
         OAS["OpenAI-compatible AgentOrchestrator<br/>reuses same AgentNode interface<br/>baseUrl = local LLM endpoint<br/>no tool-calling format change needed<br/>(OpenAI tool_use schema ≡ Anthropic tool_use schema)"]
     end
 
-    TIER --> RES
-    RES --> SDK
+    TIER --> RES --> SDK
     SDK -->|"today"| ANTHROPIC["Anthropic Claude API"]
     OAS -->|"future"| LOCAL_AGENT["Ollama / vLLM<br/>with tool-calling support<br/>(llama3.3-70b, Mistral Large, Qwen2.5-72b)"]
 ```

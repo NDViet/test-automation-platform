@@ -46,52 +46,49 @@ flowchart LR
 ## End-to-End Platform Flow
 
 ```mermaid
-flowchart TD
-    subgraph EVENTS["What Starts the Loop"]
-        direction LR
-        E1["Requirement Added<br/>or Changed<br/>(JIRA · Linear)"]
-        E2["Pull Request<br/>Opened<br/>(GitHub)"]
-        E3["Test Failure<br/>in CI/CD<br/>(JUnit · Playwright · K6)"]
+flowchart LR
+    subgraph EVENTS["Triggers"]
+        direction TB
+        E1["Requirement<br/>Added / Changed"]
+        E2["Pull Request<br/>Opened"]
+        E3["Test Failure<br/>in CI/CD"]
         E4["Manual Action<br/>via Portal"]
     end
 
-    subgraph HUB["Agent Hub — The Brain of the Grid"]
-        direction LR
-        H1["Always in Sync<br/>Requirements · Code · Test Results"]
-        H2["Builds Full Context<br/>Links tickets → test cases → automation"]
-        H3["Routes Each Task<br/>to the Right Specialist Agent"]
+    subgraph HUB["Agent Hub — Brain of the Grid"]
+        direction TB
+        H1["Always in Sync<br/>Req · Code · Results"]
+        H2["Builds Full Context<br/>Tickets → Tests → Code"]
+        H3["Routes to the<br/>Right Specialist Agent"]
     end
 
-    subgraph AGENTS["Specialist Agent Nodes — Each Does One Thing Well"]
-        direction LR
-        A1["Requirements<br/>Agent<br/>Turns tickets into<br/>structured acceptance criteria"]
-        A2["Test Case<br/>Agent<br/>Generates & updates<br/>test cases from requirements"]
-        A3["Automation<br/>Agent<br/>Writes test code &<br/>opens a GitHub PR"]
-        A4["Coverage<br/>Agent<br/>Analyses PR impact<br/>& flags missing tests"]
-        A5["Healing<br/>Agent<br/>Diagnoses & fixes<br/>flaky or broken tests"]
-        A6["Insight<br/>Agent<br/>Delivers quality trends<br/>& sprint digest"]
+    subgraph AGENTS["Specialist Agent Nodes"]
+        direction TB
+        A1["Requirements Agent<br/>Tickets → ACs"]
+        A2["Test Case Agent<br/>ACs → Test cases"]
+        A3["Automation Agent<br/>Tests → PR"]
+        A4["Coverage Agent<br/>PR → Gap report"]
+        A5["Healing Agent<br/>Failures → Fix PR"]
+        A6["Insight Agent<br/>Trends → Digest"]
     end
 
-    subgraph REVIEW["Human Always in Control"]
-        direction LR
-        R1["Slack<br/>Approve · Reject · Edit<br/>right from a message"]
-        R2["Review Queue<br/>Diff view & inline edit<br/>in the Portal"]
+    subgraph REVIEW["Human in Control"]
+        direction TB
+        R1["Slack<br/>Approve · Reject · Edit"]
+        R2["Portal Review Queue<br/>Diff view · Inline edit"]
     end
 
-    subgraph OUTCOMES["Quality Outcomes — Delivered Automatically"]
-        direction LR
-        O1["Test Cases<br/>ready in Portal"]
+    subgraph OUTCOMES["Quality Outcomes"]
+        direction TB
+        O1["Test Cases<br/>in Portal"]
         O2["Automation PR<br/>ready to merge"]
-        O3["JIRA Ticket<br/>created or closed"]
-        O4["Coverage Report<br/>posted on the PR"]
+        O3["JIRA Ticket<br/>created / closed"]
+        O4["Coverage Report<br/>on the PR"]
         O5["Quality Digest<br/>in Slack"]
     end
 
-    EVENTS --> HUB
-    HUB --> AGENTS
-    AGENTS --> REVIEW
-    REVIEW --> OUTCOMES
-    OUTCOMES -.->|"outcomes update context<br/>next cycle starts smarter"| HUB
+    EVENTS --> HUB --> AGENTS --> REVIEW --> OUTCOMES
+    OUTCOMES -.->|"context feeds back<br/>next cycle starts smarter"| HUB
 
     classDef ev   fill:#dbeafe,stroke:#3b82f6,color:#1e3a5f
     classDef hub  fill:#fef9c3,stroke:#d97706,color:#78350f
@@ -137,30 +134,31 @@ flowchart LR
 > Agents don't generate from a single ticket. The Hub assembles a **linked knowledge graph** from every source of truth, detects gaps, prunes noise to fit the token budget, then routes each task to the right model.
 
 ```mermaid
-flowchart TD
-    subgraph SOT["Multiple Sources of Truth  —  What the Agent Knows"]
-        direction LR
-        R["Requirements<br/>JIRA · Linear<br/>Acceptance Criteria"]
-        PR["Pull Requests<br/>GitHub · Code Diffs<br/>Changed files"]
-        TR["Test Results<br/>Pass / Fail History<br/>Flakiness patterns"]
-        CM["Coverage Map<br/>Test ↔ Code links<br/>Per class mapping"]
-        KB["Knowledge Base<br/>Past root causes<br/>Fix patterns"]
+flowchart LR
+    subgraph SOT["What the Agent Knows"]
+        direction TB
+        R["Requirements<br/>JIRA · Linear · ACs"]
+        PR["Pull Requests<br/>GitHub · Code Diffs"]
+        TR["Test Results<br/>Pass / Fail · Flakiness"]
+        CM["Coverage Map<br/>Test ↔ Code links"]
+        KB["Knowledge Base<br/>Past root causes · Fixes"]
     end
 
     subgraph HUB["Agent Hub — Context Assembly"]
-        LG["Link Graph<br/>Req → Test Case → Code → Coverage"]
+        direction TB
+        LG["Link Graph<br/>Req → Test → Code → Coverage"]
         GD["Gap Detector<br/>Missing ACs · Uncovered code · Orphan tests"]
-        TO["Token Budget Optimiser<br/>Rank by relevance · Prune noise<br/>Fit model context window"]
+        TO["Token Budget Optimiser<br/>Rank by relevance · Prune noise · Fit context window"]
     end
 
     subgraph ROUTE["Cost-Effective LLM Routing"]
-        direction LR
+        direction TB
         L["Lightweight Model<br/>Haiku · Local LLM<br/>Classify · Summarise · Tag"]
         P["Powerful Model<br/>Claude Sonnet<br/>Reason · Generate · Diagnose"]
     end
 
     subgraph OUT["Grounded Agent Output"]
-        direction LR
+        direction TB
         O1["Test cases linked<br/>to exact ACs"]
         O2["Automation PR aware<br/>of coverage gaps"]
         O3["Root cause grounded<br/>in history + diff"]
@@ -168,10 +166,9 @@ flowchart TD
     end
 
     SOT --> HUB
-    LG --> GD
-    GD --> TO
-    TO -->|"low complexity<br/>low cost"| L
-    TO -->|"high complexity<br/>higher cost"| P
+    LG --> GD --> TO
+    TO -->|"low cost"| L
+    TO -->|"higher cost"| P
     L & P --> OUT
 
     classDef sot fill:#dbeafe,stroke:#3b82f6,color:#1e3a5f
