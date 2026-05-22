@@ -600,4 +600,133 @@ flowchart TD
 
 ---
 
-*Last updated: v2.1 — test case linkage tracking (V45 migration), ReviewQueue page, impact analysis apply-suggestion flow, requirements tree-view default with search.*
+## 11. LLM Provider Flexibility & Self-Hosted Models
+
+> Replacing cloud LLM calls with a self-hosted model is the primary lever for reducing per-token costs.
+> The platform has a provider-abstraction layer already in place for failure classification (`platform-ai`);
+> the agent orchestrator (`platform-agent`) currently uses the Anthropic SDK directly and needs an additional path.
+
+### 11.1 Current Provider Abstraction (`platform-ai`)
+
+```mermaid
+flowchart LR
+    subgraph SETTINGS["AiSettings  (portal → /api/portal/ai/settings)"]
+        P["provider:\n'anthropic' | 'openai'"]
+        M["model: string\ne.g. gpt-4o · llama3.3 · mistral"]
+        K["apiKey (encrypted in platform_settings)"]
+        BU["baseUrl ⚠ not yet in UI\nDB key: ai.openai.base-url\ne.g. http://localhost:11434/v1"]
+    end
+
+    subgraph ROUTER["AiClientRouter  (@Primary bean — no restart needed)"]
+        R["reads ai.provider from DB at call time\nroutes to active client"]
+    end
+
+    subgraph ANTHROPIC_PATH["Anthropic path"]
+        CC["ClaudeApiClient\nAnthropic Java SDK\nclaude-sonnet-4-6 (default)"]
+    end
+
+    subgraph OPENAI_PATH["OpenAI-compatible path"]
+        OC["OpenAiClient\nSpring RestClient\nPOST {baseUrl}/v1/chat/completions\nBearer {apiKey}"]
+        subgraph LOCAL["Self-Hosted (OpenAI-compatible API)"]
+            OL["Ollama\nlocalhost:11434/v1\nLlama 3.3 · Mistral · Gemma · DeepSeek · Phi"]
+            VL["vLLM\nProduction inference\nOpenAI-compatible /v1"]
+            LM["LM Studio\nDesktop app\nOpenAI-compatible endpoint"]
+            LA["LocalAI\nDrop-in replacement\nCPU / GPU inference"]
+        end
+        subgraph CLOUD_COMPAT["Cloud OpenAI-compatible"]
+            OAI["api.openai.com\ngpt-4o · gpt-4o-mini"]
+            GRQ["api.groq.com/openai/v1\nllama3-70b · mixtral (hosted fast)"]
+            TGT["api.together.xyz/v1\nOpen models, pay-per-token"]
+        end
+    end
+
+    SETTINGS --> ROUTER
+    ROUTER -->|"provider=anthropic"| CC
+    ROUTER -->|"provider=openai"| OC
+    OC --> LOCAL
+    OC --> CLOUD_COMPAT
+```
+
+**What works today** — change `ai.provider` to `openai` in AI Settings and point `ai.openai.base-url` directly in `platform_settings` (DB) to any OpenAI-compatible server. No service restart needed.
+
+**Remaining gap** — `AiSettings` UI and `AiSettingsUpdate` DTO do not yet expose a `baseUrl` field; it must be set directly in the database until the portal form is extended.
+
+---
+
+### 11.2 Agent Orchestrator (`platform-agent`)
+
+```mermaid
+flowchart TD
+    subgraph ORCH["ClaudeAgentOrchestrator"]
+        TIER["LlmTier from ContextBundle\n(set per AgentNode)"]
+        RES["resolveModel(tier)\nCOMPLEX  → claude-opus-4-6\ndefault  → claude-sonnet-4-6"]
+        SDK["Anthropic Java SDK\nAnthropicOkHttpClient"]
+    end
+
+    subgraph FUTURE["Planned Extension — OpenAI-compatible path"]
+        OAS["OpenAI-compatible AgentOrchestrator\nreuses same AgentNode interface\nbaseUrl = local LLM endpoint\nno tool-calling format change needed\n(OpenAI tool_use schema ≡ Anthropic tool_use schema)"]
+    end
+
+    TIER --> RES
+    RES --> SDK
+    SDK -->|"today"| ANTHROPIC["Anthropic Claude API"]
+    OAS -->|"future"| LOCAL_AGENT["Ollama / vLLM\nwith tool-calling support\n(llama3.3-70b, Mistral Large, Qwen2.5-72b)"]
+```
+
+**Current state** — `ClaudeAgentOrchestrator` exclusively uses the Anthropic SDK.
+Extending it requires implementing a second orchestrator that speaks the OpenAI Chat Completions format, then selecting it via `LlmTier` or a new `ai.agent.provider` setting.
+
+> Not all local models support tool use reliably. Models known to work: **Llama 3.3 70B**, **Mistral Large 2**, **Qwen 2.5 72B**, **DeepSeek-R1 32B+**.
+
+---
+
+### 11.3 Cost Tier Mapping
+
+| Task | Node | Current Model | Local Alternative | Tool Use Required | Notes |
+|---|---|---|---|---|---|
+| AC extraction | `ExtractAcceptanceCriteriaNode` | sonnet-4-6 | Mistral 7B · Llama 3.2 3B | Yes (simple) | Structured output, low complexity |
+| Test case generation | `TestCaseGenerationNode` | sonnet-4-6 | Llama 3.3 70B · Mistral Large | Yes | Quality matters — use ≥ 30B param model |
+| PR impact analysis | `AnalysisNode` | sonnet-4-6 | Llama 3.3 70B · Qwen 2.5 72B | Yes | Needs code reasoning |
+| Insight digest | `InsightNode` | sonnet-4-6 | Mistral 7B · Gemma 3 12B | Yes | Narrative generation, tolerates degradation |
+| Automation code gen | `AutomationCodeGenerationNode` | opus-4-7 | Llama 3.3 70B · Qwen 2.5 72B | Yes | Complex coding; test output quality before switching |
+| Test healing | `HealingNode` | opus-4-7 | Llama 3.3 70B · DeepSeek-R1 32B | Yes | Complex reasoning; test output quality before switching |
+| Step summarisation | `StepSummarizer` | haiku-4-5 | Gemma 3 1B · Phi-4 Mini | No | Pure text compression, any fast model works |
+| Failure classification | `FailureClassificationService` | sonnet-4-6 | Mistral 7B · Llama 3.2 3B | No | Via `AiClientRouter`; works today with `provider=openai` |
+
+---
+
+### 11.4 Recommended Local Setup (Ollama)
+
+```mermaid
+flowchart LR
+    subgraph DOCKER["docker-compose.yml addition"]
+        OLL["ollama\nimage: ollama/ollama\nports: 11434:11434\nvolumes: ollama_data:/root/.ollama\ngpus: all  (optional)"]
+    end
+
+    subgraph PLATFORM_SETTINGS["platform_settings rows (Flyway or portal UI)"]
+        S1["ai.provider = openai"]
+        S2["ai.openai.base-url = http://ollama:11434/v1"]
+        S3["ai.openai.api-key = ollama  (any non-empty string)"]
+        S4["ai.model = llama3.3  (or mistral-large · qwen2.5)"]
+    end
+
+    subgraph PULL["Pull models once"]
+        PL["docker exec platform-ollama\nollama pull llama3.3\nollama pull mistral-large\nollama pull phi4-mini"]
+    end
+
+    DOCKER --> PLATFORM_SETTINGS --> PULL
+```
+
+**Cost comparison (approximate, 1 M tokens):**
+
+| Provider | Input | Output |
+|---|---|---|
+| Claude sonnet-4-6 | $0.30 | $1.50 |
+| Claude opus-4-7 | $1.50 | $7.50 |
+| OpenAI gpt-4o | $2.50 | $10.00 |
+| Ollama (self-hosted GPU) | ~$0.00 | ~$0.00 |
+| Groq (hosted, llama3-70b) | $0.059 | $0.079 |
+
+---
+
+*Last updated: v2.1 — test case linkage tracking (V45 migration), ReviewQueue page, impact analysis apply-suggestion flow, requirements tree-view default with search, LLM provider flexibility.*
