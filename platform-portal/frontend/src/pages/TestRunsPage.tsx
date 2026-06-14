@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
+import { useProject } from '@/components/layout/ProjectLayout'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { cn, relativeTime } from '@/lib/utils'
@@ -74,11 +75,28 @@ function NewTestRunModal({
   const [environment, setEnvironment] = useState('DEV')
   const [triggeredBy, setTriggeredBy] = useState('')
   const [selectedTcIds, setSelectedTcIds] = useState<Set<string>>(new Set())
+  const [environmentId, setEnvironmentId] = useState('')          // '' = use label below
+  const [matrixType, setMatrixType] = useState<'FULL' | 'PAIRWISE'>('FULL')
   const [error, setError] = useState<string | null>(null)
 
   const { data: testCases = [], isLoading: tcLoading } = useQuery({
     queryKey: ['testCases', projectId, 'APPROVED'],
     queryFn: () => api.testCases(projectId, { status: 'APPROVED' }),
+  })
+
+  const { data: environments = [] } = useQuery({
+    queryKey: ['environments', projectId],
+    queryFn: () => api.environments(projectId),
+  })
+
+  const [newEnvName, setNewEnvName] = useState('')
+  const createEnvMutation = useMutation({
+    mutationFn: () => api.createEnvironment(projectId, { name: newEnvName.trim() }),
+    onSuccess: (env) => {
+      setNewEnvName('')
+      setEnvironmentId(env.id); setEnvironment(env.name)
+      queryClient.invalidateQueries({ queryKey: ['environments', projectId] })
+    },
   })
 
   const mutation = useMutation({
@@ -114,6 +132,8 @@ function NewTestRunModal({
       name: name.trim(),
       releaseVersion: releaseVersion.trim() || undefined,
       environment,
+      environmentId: environmentId || undefined,
+      matrixType,
       triggeredBy: triggeredBy.trim() || undefined,
       testCaseIds: Array.from(selectedTcIds),
     })
@@ -155,20 +175,65 @@ function NewTestRunModal({
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-700 mb-1">Environment</label>
-              <select
-                value={environment}
-                onChange={e => setEnvironment(e.target.value)}
-                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="DEV">DEV</option>
-                <option value="STAGING">STAGING</option>
-                <option value="PROD">PROD</option>
-              </select>
+              {environments.length > 0 ? (
+                <select
+                  value={environmentId || `label:${environment}`}
+                  onChange={e => {
+                    const v = e.target.value
+                    if (v.startsWith('label:')) { setEnvironmentId(''); setEnvironment(v.slice(6)) }
+                    else {
+                      setEnvironmentId(v)
+                      const env = environments.find(x => x.id === v)
+                      if (env) setEnvironment(env.name)
+                    }
+                  }}
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <optgroup label="Named environments">
+                    {environments.map(env => <option key={env.id} value={env.id}>{env.name}</option>)}
+                  </optgroup>
+                  <optgroup label="Quick label">
+                    <option value="label:DEV">DEV</option>
+                    <option value="label:STAGING">STAGING</option>
+                    <option value="label:PROD">PROD</option>
+                  </optgroup>
+                </select>
+              ) : (
+                <select
+                  value={environment}
+                  onChange={e => setEnvironment(e.target.value)}
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="DEV">DEV</option>
+                  <option value="STAGING">STAGING</option>
+                  <option value="PROD">PROD</option>
+                </select>
+              )}
             </div>
           </div>
 
-          <div>
-            <label className="block text-xs font-medium text-slate-700 mb-1">Triggered By</label>
+          {/* Inline environment creator */}
+          <div className="flex items-center gap-2">
+            <input
+              type="text"
+              value={newEnvName}
+              onChange={e => setNewEnvName(e.target.value)}
+              className="flex-1 border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="New named environment (e.g. PROD-EU)"
+            />
+            <button
+              type="button"
+              onClick={() => newEnvName.trim() && createEnvMutation.mutate()}
+              disabled={!newEnvName.trim() || createEnvMutation.isPending}
+              className="px-3 py-1.5 text-xs font-medium border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-50"
+            >
+              {createEnvMutation.isPending ? 'Adding…' : '+ Add env'}
+            </button>
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1">Triggered By</label>
             <input
               type="text"
               value={triggeredBy}
@@ -176,6 +241,18 @@ function NewTestRunModal({
               className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               placeholder="e.g. john.doe@example.com"
             />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1">Matrix (parametrized cases)</label>
+              <select
+                value={matrixType}
+                onChange={e => setMatrixType(e.target.value as 'FULL' | 'PAIRWISE')}
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              >
+                <option value="FULL">Full (every combination)</option>
+                <option value="PAIRWISE">Pairwise (fewer runs)</option>
+              </select>
+            </div>
           </div>
 
           <div>
@@ -250,7 +327,7 @@ function NewTestRunModal({
 type StatusTab = 'ALL' | 'IN_PROGRESS' | 'COMPLETED'
 
 export default function TestRunsPage() {
-  const { projectId } = useParams<{ projectId: string }>()
+  const { projectId, base } = useProject()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
@@ -337,7 +414,7 @@ export default function TestRunsPage() {
           {filtered.map(run => (
             <div
               key={run.id}
-              onClick={() => navigate(`/projects/${projectId}/test-runs/${run.id}`)}
+              onClick={() => navigate(`${base}/test-runs/${run.id}`)}
               className="px-5 py-4 hover:bg-slate-50 cursor-pointer transition-colors"
             >
               <div className="flex items-start justify-between gap-4">

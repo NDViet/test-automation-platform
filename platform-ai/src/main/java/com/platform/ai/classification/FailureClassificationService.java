@@ -90,13 +90,14 @@ public class FailureClassificationService {
                 history,
                 diagnostics);
 
+        String provider = aiClient.providerName(projectId);
         log.info("[AI] Classifying failure testId={} projectId={} provider={} hasDom={}",
-                failure.getTestId(), projectId, aiClient.providerName(),
+                failure.getTestId(), projectId, provider,
                 diagnostics.containsKey("platform.diagnostic.dom"));
 
         AiAnalysisResponse response;
         try {
-            response = aiClient.analyse(PromptBuilder.SYSTEM_PROMPT, userPrompt);
+            response = aiClient.analyse(PromptBuilder.SYSTEM_PROMPT, userPrompt, projectId);
         } catch (Exception e) {
             // Persist an ERROR record so the failure is visible and retried next time.
             String errorMsg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
@@ -108,7 +109,7 @@ public class FailureClassificationService {
                     .category("UNKNOWN")
                     .confidence(0.0)
                     .rootCause("AI analysis failed — will be retried")
-                    .modelVersion(aiClient.providerName())
+                    .modelVersion(provider)
                     .analysisStatus("ERROR")
                     .errorMessage(errorMsg)
                     .build();
@@ -129,7 +130,7 @@ public class FailureClassificationService {
                 .suggestedFix(result.suggestedFix())
                 .flakyCandidate(result.flakyCandidate())
                 .affectedComponent(result.affectedComponent())
-                .modelVersion(aiClient.providerName())
+                .modelVersion(provider)
                 .inputTokens(response.inputTokens())
                 .outputTokens(response.outputTokens())
                 .analysisStatus("SUCCESS")
@@ -140,8 +141,7 @@ public class FailureClassificationService {
                 saved.getId(), saved.getCategory(), saved.getConfidence(),
                 response.inputTokens(), response.outputTokens());
 
-        // Metrics
-        String provider = aiClient.providerName();
+        // Metrics (provider resolved above for this project)
         Counter.builder("ai.tokens.input")
                 .description("Cumulative AI input tokens consumed")
                 .tag("provider", provider)

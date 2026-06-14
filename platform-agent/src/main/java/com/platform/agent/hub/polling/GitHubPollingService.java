@@ -14,6 +14,8 @@ import com.platform.core.domain.ProjectIntegrationConfig;
 import com.platform.core.repository.AgentWorkflowRepository;
 import com.platform.core.repository.GitHubPrTrackingRepository;
 import com.platform.core.repository.ProjectIntegrationConfigRepository;
+import com.platform.core.service.CredentialResolver;
+import com.platform.core.service.ResolvedCredential;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.scheduling.annotation.Scheduled;
@@ -60,6 +62,7 @@ public class GitHubPollingService {
     private final GitHubApiClient                    gitHubApiClient;
     private final AgentWorkflowService               workflowService;
     private final ContextAssembler                   contextAssembler;
+    private final CredentialResolver                 credentialResolver;
     private final ObjectMapper                       mapper;
 
     public GitHubPollingService(ProjectIntegrationConfigRepository configRepo,
@@ -68,14 +71,16 @@ public class GitHubPollingService {
                                 GitHubApiClient gitHubApiClient,
                                 AgentWorkflowService workflowService,
                                 ContextAssembler contextAssembler,
+                                CredentialResolver credentialResolver,
                                 ObjectMapper mapper) {
-        this.configRepo       = configRepo;
-        this.workflowRepo     = workflowRepo;
-        this.trackingRepo     = trackingRepo;
-        this.gitHubApiClient  = gitHubApiClient;
-        this.workflowService  = workflowService;
-        this.contextAssembler = contextAssembler;
-        this.mapper           = mapper;
+        this.configRepo         = configRepo;
+        this.workflowRepo       = workflowRepo;
+        this.trackingRepo       = trackingRepo;
+        this.gitHubApiClient    = gitHubApiClient;
+        this.workflowService    = workflowService;
+        this.contextAssembler   = contextAssembler;
+        this.credentialResolver = credentialResolver;
+        this.mapper             = mapper;
     }
 
     /** Runs every 60 s; each config decides independently if its interval has elapsed. */
@@ -120,8 +125,13 @@ public class GitHubPollingService {
 
     @Transactional
     protected int pollProject(ProjectIntegrationConfig config) {
-        String repoFullName = config.param("repoFullName");
-        String token        = config.param("token");
+        // Inherit from the Org→Project→Team credential cascade when the project's own
+        // config omits the token or repo (project config overrides; org provides defaults).
+        ResolvedCredential inherited =
+                credentialResolver.resolve(config.getProjectId(), IntegrationType.GITHUB.name()).orElse(null);
+
+        String repoFullName = firstNonBlank(config.param("repoFullName"), inheritedRepo(inherited));
+        String token        = firstNonBlank(config.param("token"), inheritedToken(inherited));
         if (repoFullName == null || !repoFullName.contains("/")) {
             log.warn("GitHub polling: invalid repoFullName '{}' for project {}", repoFullName, config.getProjectId());
             return 0;
@@ -256,5 +266,27 @@ public class GitHubPollingService {
     private Instant parseInstant(String iso) {
         if (iso == null || iso.isBlank()) return Instant.EPOCH;
         try { return Instant.parse(iso); } catch (Exception e) { return Instant.EPOCH; }
+    }
+
+    /** Secret PAT/token from the inherited credential, or null. */
+    private String inheritedToken(ResolvedCredential cred) {
+        if (cred == null) return null;
+        String pat = cred.secret("pat");
+        return (pat != null && !pat.isBlank()) ? pat : cred.secret("token");
+    }
+
+    /** "owner/repo" derived from the inherited credential's params, or null. */
+    private String inheritedRepo(ResolvedCredential cred) {
+        if (cred == null) return null;
+        String full = firstNonBlank(cred.param("repoFullName"), cred.param("repo_full_name"));
+        if (full != null && full.contains("/")) return full;
+        String owner = firstNonBlank(cred.param("owner"), cred.param("organization"));
+        String repo  = cred.param("repo");
+        return (owner != null && repo != null) ? owner + "/" + repo : null;
+    }
+
+    private static String firstNonBlank(String a, String b) {
+        if (a != null && !a.isBlank()) return a;
+        return (b != null && !b.isBlank()) ? b : null;
     }
 }

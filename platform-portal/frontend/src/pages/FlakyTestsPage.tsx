@@ -1,5 +1,6 @@
 import { useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
+import { useProject } from '@/components/layout/ProjectLayout'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { cn, relativeTime } from '@/lib/utils'
@@ -73,6 +74,7 @@ function FixTargetModal({
   onClose: () => void
 }) {
   const navigate = useNavigate()
+  const { base } = useProject()
   const { data: integrations, isLoading } = useQuery({
     queryKey: ['integrations', projectId],
     queryFn:  () => api.integrations(projectId),
@@ -117,7 +119,7 @@ function FixTargetModal({
                 </div>
               </div>
               <button
-                onClick={() => navigate(`/projects/${projectId}/settings`)}
+                onClick={() => navigate(`${base}/settings`)}
                 className="w-full py-2 text-sm font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors flex items-center justify-center gap-2"
               >
                 <Link2 size={14} /> Go to Project Settings
@@ -365,7 +367,7 @@ const TABS: { label: string; value: Classification | '' }[] = [
 ]
 
 export default function FlakyTestsPage() {
-  const { projectId } = useParams<{ projectId: string }>()
+  const { projectId } = useProject()
   const qc = useQueryClient()
 
   const [tab, setTab]               = useState<Classification | ''>('')

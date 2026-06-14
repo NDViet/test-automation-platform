@@ -21,10 +21,10 @@ public class ProjectQueryController {
     }
 
     @GetMapping
-    @Operation(summary = "List all projects, optionally filtered by team slug")
-    public List<ProjectDto> list(@RequestParam(required = false) String teamSlug) {
-        return teamSlug != null
-                ? projectQueryService.findByTeamSlug(teamSlug)
+    @Operation(summary = "List all projects, optionally filtered by organization slug")
+    public List<ProjectDto> list(@RequestParam(required = false) String orgSlug) {
+        return orgSlug != null
+                ? projectQueryService.findByOrgSlug(orgSlug)
                 : projectQueryService.findAll();
     }
 

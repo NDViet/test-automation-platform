@@ -57,8 +57,9 @@ class DefaultContextAssemblerTest {
         assembler.setGitHubApiClient(gitHubApiClient);
 
         // Always return a project
-        com.platform.core.domain.Team team = new com.platform.core.domain.Team("Test Team", "test-team");
-        Project project = new Project(team, "Test Project", "test-project");
+        com.platform.core.domain.Organization org =
+                new com.platform.core.domain.Organization("Test Org", "test-org");
+        Project project = new Project(org, "Test Project", "test-project");
         setField(project, "id", projectId);
         when(projectRepo.findById(projectId)).thenReturn(Optional.of(project));
 

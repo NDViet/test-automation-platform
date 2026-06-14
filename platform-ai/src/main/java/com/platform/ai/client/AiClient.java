@@ -27,4 +27,17 @@ public interface AiClient {
      * Stored in {@code failure_analyses.model_version}.
      */
     String providerName();
+
+    /**
+     * Project-scoped analysis: selects the provider via the Org→Team→Project
+     * settings cascade for {@code projectId}. Defaults to the global behaviour.
+     */
+    default AiAnalysisResponse analyse(String systemPrompt, String userPrompt, java.util.UUID projectId) {
+        return analyse(systemPrompt, userPrompt);
+    }
+
+    /** Project-scoped provider identifier; defaults to the global provider name. */
+    default String providerName(java.util.UUID projectId) {
+        return providerName();
+    }
 }

@@ -13,9 +13,9 @@ import java.util.Map;
 /**
  * Portal BFF — aggregates org-level overview data.
  *
- * <p>GET /api/portal/overview   — org summary + recent alerts
- * <p>GET /api/portal/teams      — list all teams
- * <p>GET /api/portal/projects   — list all projects (optionally by teamSlug)
+ * <p>GET /api/portal/overview       — org summary + recent alerts
+ * <p>GET /api/portal/organizations  — list all organizations
+ * <p>GET /api/portal/projects       — list all projects (optionally by orgSlug)
  */
 @RestController
 @RequestMapping("/api/portal")
@@ -51,21 +51,21 @@ public class PortalOverviewController {
                       "recentAlerts", alerts != null ? alerts : java.util.List.of());
     }
 
-    @GetMapping("/teams")
-    @Operation(summary = "List all teams")
-    public Object teams() {
+    @GetMapping("/organizations")
+    @Operation(summary = "List all organizations")
+    public Object organizations() {
         return ingestionClient.get()
-                .uri("/api/v1/teams")
+                .uri("/api/v1/organizations")
                 .accept(MediaType.APPLICATION_JSON)
                 .retrieve()
                 .body(Object.class);
     }
 
     @GetMapping("/projects")
-    @Operation(summary = "List projects, optionally filtered by teamSlug")
-    public Object projects(@RequestParam(required = false) String teamSlug) {
-        String uri = teamSlug != null
-                ? "/api/v1/projects?teamSlug=" + teamSlug
+    @Operation(summary = "List projects, optionally filtered by orgSlug")
+    public Object projects(@RequestParam(required = false) String orgSlug) {
+        String uri = orgSlug != null
+                ? "/api/v1/projects?orgSlug=" + orgSlug
                 : "/api/v1/projects";
         return ingestionClient.get()
                 .uri(uri)

@@ -23,12 +23,12 @@ public class PortalProjectManagementController {
         this.agentClient     = agentClient;
     }
 
-    // ── Teams ─────────────────────────────────────────────────────────────────
+    // ── Organizations (top tenant — ADO-first) ──────────────────────────────────
 
-    @PostMapping("/teams")
-    public ResponseEntity<Object> createTeam(@RequestBody Object body) {
+    @PostMapping("/organizations")
+    public ResponseEntity<Object> createOrganization(@RequestBody Object body) {
         Object result = ingestionClient.post()
-                .uri("/api/v1/teams")
+                .uri("/api/v1/organizations")
                 .contentType(MediaType.APPLICATION_JSON)
                 .accept(MediaType.APPLICATION_JSON)
                 .body(body)
@@ -37,10 +37,10 @@ public class PortalProjectManagementController {
         return ResponseEntity.status(201).body(result);
     }
 
-    @PutMapping("/teams/{id}")
-    public Object updateTeam(@PathVariable String id, @RequestBody Object body) {
+    @PutMapping("/organizations/{id}")
+    public Object updateOrganization(@PathVariable String id, @RequestBody Object body) {
         return ingestionClient.put()
-                .uri("/api/v1/teams/" + id)
+                .uri("/api/v1/organizations/" + id)
                 .contentType(MediaType.APPLICATION_JSON)
                 .accept(MediaType.APPLICATION_JSON)
                 .body(body)
@@ -48,10 +48,53 @@ public class PortalProjectManagementController {
                 .body(Object.class);
     }
 
-    @DeleteMapping("/teams/{id}")
-    public ResponseEntity<Void> deleteTeam(@PathVariable String id) {
+    @DeleteMapping("/organizations/{id}")
+    public ResponseEntity<Void> deleteOrganization(@PathVariable String id) {
         ingestionClient.delete()
-                .uri("/api/v1/teams/" + id)
+                .uri("/api/v1/organizations/" + id)
+                .retrieve()
+                .toBodilessEntity();
+        return ResponseEntity.noContent().build();
+    }
+
+    // ── Teams (sub-entities of a project — ADO-first) ───────────────────────────
+
+    @GetMapping("/projects/{projectId}/teams")
+    public Object listTeams(@PathVariable String projectId) {
+        return ingestionClient.get()
+                .uri("/api/v1/projects/" + projectId + "/teams")
+                .accept(MediaType.APPLICATION_JSON)
+                .retrieve()
+                .body(Object.class);
+    }
+
+    @PostMapping("/projects/{projectId}/teams")
+    public ResponseEntity<Object> createTeam(@PathVariable String projectId, @RequestBody Object body) {
+        Object result = ingestionClient.post()
+                .uri("/api/v1/projects/" + projectId + "/teams")
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON)
+                .body(body)
+                .retrieve()
+                .body(Object.class);
+        return ResponseEntity.status(201).body(result);
+    }
+
+    @PutMapping("/projects/{projectId}/teams/{id}")
+    public Object updateTeam(@PathVariable String projectId, @PathVariable String id, @RequestBody Object body) {
+        return ingestionClient.put()
+                .uri("/api/v1/projects/" + projectId + "/teams/" + id)
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON)
+                .body(body)
+                .retrieve()
+                .body(Object.class);
+    }
+
+    @DeleteMapping("/projects/{projectId}/teams/{id}")
+    public ResponseEntity<Void> deleteTeam(@PathVariable String projectId, @PathVariable String id) {
+        ingestionClient.delete()
+                .uri("/api/v1/projects/" + projectId + "/teams/" + id)
                 .retrieve()
                 .toBodilessEntity();
         return ResponseEntity.noContent().build();
@@ -94,6 +137,15 @@ public class PortalProjectManagementController {
     public Object listIntegrations(@PathVariable String id) {
         return ingestionClient.get()
                 .uri("/api/v1/projects/" + id + "/integrations")
+                .accept(MediaType.APPLICATION_JSON)
+                .retrieve()
+                .body(Object.class);
+    }
+
+    @GetMapping("/projects/{id}/integrations/inherited")
+    public Object listInheritedIntegrations(@PathVariable String id) {
+        return ingestionClient.get()
+                .uri("/api/v1/projects/" + id + "/integrations/inherited")
                 .accept(MediaType.APPLICATION_JSON)
                 .retrieve()
                 .body(Object.class);

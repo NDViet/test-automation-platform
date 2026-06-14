@@ -1,7 +1,7 @@
 package com.platform.ingestion.query;
 
+import com.platform.core.repository.OrganizationRepository;
 import com.platform.core.repository.ProjectRepository;
-import com.platform.core.repository.TeamRepository;
 import com.platform.ingestion.query.dto.ProjectDto;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -15,20 +15,20 @@ import java.util.UUID;
 public class ProjectQueryService {
 
     private final ProjectRepository projectRepo;
-    private final TeamRepository teamRepo;
+    private final OrganizationRepository orgRepo;
 
-    public ProjectQueryService(ProjectRepository projectRepo, TeamRepository teamRepo) {
+    public ProjectQueryService(ProjectRepository projectRepo, OrganizationRepository orgRepo) {
         this.projectRepo = projectRepo;
-        this.teamRepo    = teamRepo;
+        this.orgRepo     = orgRepo;
     }
 
     public List<ProjectDto> findAll() {
         return projectRepo.findAll().stream().map(ProjectDto::from).toList();
     }
 
-    public List<ProjectDto> findByTeamSlug(String teamSlug) {
-        return teamRepo.findBySlug(teamSlug)
-                .map(team -> projectRepo.findByTeamId(team.getId()).stream()
+    public List<ProjectDto> findByOrgSlug(String orgSlug) {
+        return orgRepo.findBySlug(orgSlug)
+                .map(org -> projectRepo.findByOrganizationId(org.getId()).stream()
                         .map(ProjectDto::from).toList())
                 .orElse(List.of());
     }
@@ -37,10 +37,14 @@ public class ProjectQueryService {
         return projectRepo.findById(id).map(ProjectDto::from);
     }
 
-    public Optional<ProjectDto> findBySlug(String slug) {
-        return projectRepo.findAll().stream()
-                .filter(p -> p.getSlug().equals(slug))
-                .findFirst()
+    /** Resolve by org slug + project slug (the ADO-first slug pair). */
+    public Optional<ProjectDto> findByOrgAndSlug(String orgSlug, String slug) {
+        return orgRepo.findBySlug(orgSlug)
+                .flatMap(org -> projectRepo.findByOrganizationIdAndSlug(org.getId(), slug))
                 .map(ProjectDto::from);
+    }
+
+    public Optional<ProjectDto> findBySlug(String slug) {
+        return projectRepo.findBySlug(slug).map(ProjectDto::from);
     }
 }

@@ -6,6 +6,8 @@ import type { Team } from '@/lib/types'
 
 interface Props {
   open: boolean
+  /** Project the team belongs to (ADO-first: Org → Project → Team). */
+  projectId: string
   onClose: () => void
   onCreated: (team: Team) => void
 }
@@ -13,17 +15,17 @@ interface Props {
 function toSlug(name: string): string {
   return name
     .toLowerCase()
-    .replace(/\s+/g, '-')
-    .replace(/[^a-z0-9-]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')  // any run of non-alphanumerics -> a single hyphen
+    .replace(/^-+|-+$/g, '')      // trim leading/trailing hyphens
 }
 
-export default function CreateTeamModal({ open, onClose, onCreated }: Props) {
+export default function CreateTeamModal({ open, projectId, onClose, onCreated }: Props) {
   const [name, setName] = useState('')
   const [slug, setSlug] = useState('')
   const [slugEdited, setSlugEdited] = useState(false)
 
   const mutation = useMutation({
-    mutationFn: () => api.createTeam({ name, slug }),
+    mutationFn: () => api.createTeam(projectId, { name, slug }),
     onSuccess: (team) => {
       onCreated(team)
       onClose()

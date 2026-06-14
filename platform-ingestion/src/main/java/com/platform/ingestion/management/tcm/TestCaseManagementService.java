@@ -10,7 +10,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -93,7 +95,13 @@ public class TestCaseManagementService {
         if (req.expectedResult() != null)     tc.setExpectedResult(req.expectedResult());
         if (req.priority() != null)           tc.setPriority(req.priority());
         if (req.suiteId() != null)            tc.setSuiteId(UUID.fromString(req.suiteId()));
-        if (req.sourceRequirementId() != null) tc.setSourceRequirementId(UUID.fromString(req.sourceRequirementId()));
+        if (req.linkedRequirementIds() != null) {
+            // Full-replacement mode: the link set AND its primary (source) are authoritative.
+            replaceLinks(tc, req.linkedRequirementIds());
+            reconcileSource(tc, req.sourceRequirementId());
+        } else if (req.sourceRequirementId() != null) {
+            tc.setSourceRequirementId(UUID.fromString(req.sourceRequirementId()));
+        }
         if (req.acRefs() != null)             tc.setAcRefs(req.acRefs());
         tc = testCaseRepo.save(tc);
 
@@ -183,6 +191,33 @@ public class TestCaseManagementService {
     }
 
     // --- helpers ---
+
+    /** Replaces the whole linked-requirement set (empty list clears all; invalid ids skipped). */
+    private void replaceLinks(PlatformTestCase tc, List<String> requirementIds) {
+        new ArrayList<>(tc.getLinkedRequirementIds() != null ? tc.getLinkedRequirementIds() : List.<String>of())
+                .forEach(id -> {
+                    try { tc.unlinkRequirement(UUID.fromString(id)); } catch (IllegalArgumentException ignored) {}
+                });
+        for (String rid : requirementIds) {
+            try { tc.linkRequirement(UUID.fromString(rid)); } catch (IllegalArgumentException ignored) {}
+        }
+    }
+
+    /**
+     * Keeps {@code sourceRequirementId} (the primary) consistent with the linked set:
+     * set it to the requested primary when that is part of the set, otherwise clear it
+     * (e.g. when all links were removed, or the primary was unset). Avoids a stale source
+     * reappearing on the next edit.
+     */
+    private void reconcileSource(PlatformTestCase tc, String requestedSourceId) {
+        Set<String> linked = new HashSet<>(
+                tc.getLinkedRequirementIds() != null ? tc.getLinkedRequirementIds() : List.of());
+        if (requestedSourceId != null && linked.contains(requestedSourceId)) {
+            tc.setSourceRequirementId(UUID.fromString(requestedSourceId));
+        } else {
+            tc.setSourceRequirementId(null);
+        }
+    }
 
     private PlatformTestCase loadAndVerify(UUID projectId, UUID tcId) {
         PlatformTestCase tc = testCaseRepo.findById(tcId)

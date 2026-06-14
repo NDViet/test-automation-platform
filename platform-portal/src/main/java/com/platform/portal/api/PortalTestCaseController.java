@@ -328,4 +328,112 @@ public class PortalTestCaseController {
                 .body(body)
                 .retrieve().body(Object.class);
     }
+
+    // ── Test Case Tags ───────────────────────────────────────────────────────────
+
+    @GetMapping("/tags")
+    @Operation(summary = "Distinct test-case tags in a project (typeahead suggestions)")
+    public Object tagSuggestions(@PathVariable String projectId) {
+        return ingestionClient.get()
+                .uri("/api/v1/projects/" + projectId + "/tags")
+                .accept(MediaType.APPLICATION_JSON)
+                .retrieve().body(Object.class);
+    }
+
+    @GetMapping("/test-cases/{tcId}/tags")
+    @Operation(summary = "List tags on a test case")
+    public Object listTags(@PathVariable String projectId, @PathVariable String tcId) {
+        return ingestionClient.get()
+                .uri("/api/v1/projects/" + projectId + "/test-cases/" + tcId + "/tags")
+                .accept(MediaType.APPLICATION_JSON)
+                .retrieve().body(Object.class);
+    }
+
+    @PostMapping("/test-cases/{tcId}/tags")
+    @Operation(summary = "Add a tag to a test case")
+    public Object addTag(@PathVariable String projectId, @PathVariable String tcId,
+                         @RequestBody Object body) {
+        return ingestionClient.post()
+                .uri("/api/v1/projects/" + projectId + "/test-cases/" + tcId + "/tags")
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON)
+                .body(body)
+                .retrieve().body(Object.class);
+    }
+
+    @DeleteMapping("/test-cases/{tcId}/tags/{name}")
+    @Operation(summary = "Remove a tag from a test case")
+    public ResponseEntity<Void> removeTag(@PathVariable String projectId, @PathVariable String tcId,
+                                          @PathVariable String name) {
+        ingestionClient.delete()
+                .uri("/api/v1/projects/" + projectId + "/test-cases/" + tcId + "/tags/" + name)
+                .retrieve().toBodilessEntity();
+        return ResponseEntity.noContent().build();
+    }
+
+    // ── Requirements Coverage ────────────────────────────────────────────────────
+
+    @GetMapping("/coverage")
+    @Operation(summary = "Requirements coverage matrix for a project")
+    public Object coverage(@PathVariable String projectId) {
+        return ingestionClient.get()
+                .uri("/api/v1/projects/" + projectId + "/coverage")
+                .accept(MediaType.APPLICATION_JSON)
+                .retrieve().body(Object.class);
+    }
+
+    // ── Environments ─────────────────────────────────────────────────────────────
+
+    @GetMapping("/environments")
+    @Operation(summary = "List environments for a project")
+    public Object listEnvironments(@PathVariable String projectId) {
+        return ingestionClient.get()
+                .uri("/api/v1/projects/" + projectId + "/environments")
+                .accept(MediaType.APPLICATION_JSON)
+                .retrieve().body(Object.class);
+    }
+
+    @PostMapping("/environments")
+    @Operation(summary = "Create an environment")
+    public Object createEnvironment(@PathVariable String projectId, @RequestBody Object body) {
+        return ingestionClient.post()
+                .uri("/api/v1/projects/" + projectId + "/environments")
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON)
+                .body(body)
+                .retrieve().body(Object.class);
+    }
+
+    @DeleteMapping("/environments/{envId}")
+    @Operation(summary = "Delete an environment")
+    public ResponseEntity<Void> deleteEnvironment(@PathVariable String projectId,
+                                                  @PathVariable String envId) {
+        ingestionClient.delete()
+                .uri("/api/v1/projects/" + projectId + "/environments/" + envId)
+                .retrieve().toBodilessEntity();
+        return ResponseEntity.noContent().build();
+    }
+
+    // ── Test Case Properties (parametrization axes) ──────────────────────────────
+
+    @GetMapping("/test-cases/{tcId}/properties")
+    @Operation(summary = "List parametrization properties of a test case")
+    public Object listProperties(@PathVariable String projectId, @PathVariable String tcId) {
+        return ingestionClient.get()
+                .uri("/api/v1/projects/" + projectId + "/test-cases/" + tcId + "/properties")
+                .accept(MediaType.APPLICATION_JSON)
+                .retrieve().body(Object.class);
+    }
+
+    @PutMapping("/test-cases/{tcId}/properties")
+    @Operation(summary = "Replace parametrization properties of a test case")
+    public Object replaceProperties(@PathVariable String projectId, @PathVariable String tcId,
+                                    @RequestBody Object body) {
+        return ingestionClient.put()
+                .uri("/api/v1/projects/" + projectId + "/test-cases/" + tcId + "/properties")
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON)
+                .body(body)
+                .retrieve().body(Object.class);
+    }
 }

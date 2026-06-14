@@ -9,5 +9,7 @@ public record CreateTestRunRequest(
         String releaseVersion,
         String environment,
         String triggeredBy,
-        List<String> testCaseIds
+        List<String> testCaseIds,
+        String environmentId,   // optional — named Environment (V50); overrides `environment` label
+        String matrixType       // optional — FULL (default) or PAIRWISE for parametrized cases
 ) {}

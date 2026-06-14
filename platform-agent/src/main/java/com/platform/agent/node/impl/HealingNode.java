@@ -38,13 +38,16 @@ public class HealingNode implements AgentNode {
 
     private final AgentOrchestrator orchestrator;
     private final GitHubApiClient gitHubApiClient;
+    private final com.platform.agent.node.tools.IntegrationTokenResolver tokenResolver;
     private final ObjectMapper mapper;
 
     public HealingNode(AgentOrchestrator orchestrator,
                        GitHubApiClient gitHubApiClient,
+                       com.platform.agent.node.tools.IntegrationTokenResolver tokenResolver,
                        ObjectMapper mapper) {
         this.orchestrator    = orchestrator;
         this.gitHubApiClient = gitHubApiClient;
+        this.tokenResolver   = tokenResolver;
         this.mapper          = mapper;
     }
 
@@ -215,8 +218,13 @@ public class HealingNode implements AgentNode {
     }
 
     private String resolveToken(ContextBundle bundle) {
-        if (bundle.credentials() == null) return "";
-        String t = bundle.credentials().token(IntegrationType.GITHUB);
-        return t != null ? t : "";
+        if (bundle.credentials() != null) {
+            String t = bundle.credentials().token(IntegrationType.GITHUB);
+            if (t != null && !t.isBlank()) return t;
+        }
+        if (bundle.projectId() != null) {
+            return tokenResolver.resolveToken(bundle.projectId(), IntegrationType.GITHUB).orElse("");
+        }
+        return "";
     }
 }

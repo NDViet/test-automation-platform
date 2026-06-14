@@ -3,14 +3,14 @@ package com.platform.ingestion.query;
 import com.platform.ingestion.query.dto.TeamDto;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/v1/teams")
-@Tag(name = "Teams", description = "Team management queries")
+@RequestMapping("/api/v1/projects/{projectId}/teams")
+@Tag(name = "Teams", description = "Teams within a project (ADO-first: Org → Project → Team)")
 public class TeamQueryController {
 
     private final TeamQueryService teamQueryService;
@@ -20,16 +20,8 @@ public class TeamQueryController {
     }
 
     @GetMapping
-    @Operation(summary = "List all teams")
-    public List<TeamDto> listAll() {
-        return teamQueryService.findAll();
-    }
-
-    @GetMapping("/{slug}")
-    @Operation(summary = "Get team by slug")
-    public ResponseEntity<TeamDto> getBySlug(@PathVariable String slug) {
-        return teamQueryService.findBySlug(slug)
-                .map(ResponseEntity::ok)
-                .orElse(ResponseEntity.notFound().build());
+    @Operation(summary = "List teams within a project")
+    public List<TeamDto> listByProject(@PathVariable UUID projectId) {
+        return teamQueryService.findByProject(projectId);
     }
 }

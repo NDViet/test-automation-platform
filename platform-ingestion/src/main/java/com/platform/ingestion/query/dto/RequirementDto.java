@@ -19,10 +19,20 @@ public record RequirementDto(
         UUID parentId,
         List<Object> acceptanceCriteria,
         String changeSummary,
+        Instant createdDate,
         Instant syncedAt,
-        Instant updatedAt
+        Instant updatedAt,
+        String sourceUrl
 ) {
     public static RequirementDto from(PlatformRequirement r) {
+        return from(r, null);
+    }
+
+    /**
+     * @param sourceUrlBase optional "open original" base (e.g. ADO work-item edit URL,
+     *                      ending in '/'); appended with the external id when both are present.
+     */
+    public static RequirementDto from(PlatformRequirement r, String sourceUrlBase) {
         return new RequirementDto(
                 r.getId(),
                 r.getProjectId(),
@@ -36,8 +46,16 @@ public record RequirementDto(
                 r.getParentId(),
                 r.getAcceptanceCriteria(),
                 r.getChangeSummary(),
+                r.getCreatedDate(),
                 r.getSyncedAt(),
-                r.getUpdatedAt()
+                r.getUpdatedAt(),
+                sourceUrl(sourceUrlBase, r.getExternalId())
         );
+    }
+
+    /** Build the source URL only for numeric external ids (ADO work items) with a known base. */
+    private static String sourceUrl(String base, String externalId) {
+        if (base == null || externalId == null || !externalId.matches("\\d+")) return null;
+        return base + externalId;
     }
 }

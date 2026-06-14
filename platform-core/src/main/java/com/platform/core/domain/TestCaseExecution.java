@@ -36,6 +36,10 @@ public class TestCaseExecution {
     @Column(name = "executed_by", length = 200)
     private String executedBy;
 
+    /** Serialized property combination (e.g. "browser=Chrome;os=Linux"); null if non-parametrized. */
+    @Column(name = "property_combo", length = 500)
+    private String propertyCombo;
+
     @Column(name = "executed_at")
     private Instant executedAt;
 
@@ -50,6 +54,11 @@ public class TestCaseExecution {
     public TestCaseExecution(UUID testRunId, UUID testCaseId) {
         this.testRunId  = testRunId;
         this.testCaseId = testCaseId;
+    }
+
+    public TestCaseExecution(UUID testRunId, UUID testCaseId, String propertyCombo) {
+        this(testRunId, testCaseId);
+        this.propertyCombo = propertyCombo;
     }
 
     public void record(String status, String actualResult, String notes, String executedBy) {
@@ -68,6 +77,7 @@ public class TestCaseExecution {
     public String getActualResult() { return actualResult; }
     public String getNotes()       { return notes; }
     public String getExecutedBy()  { return executedBy; }
+    public String getPropertyCombo() { return propertyCombo; }
     public Instant getExecutedAt() { return executedAt; }
     public Instant getCreatedAt()  { return createdAt; }
     public Instant getUpdatedAt()  { return updatedAt; }

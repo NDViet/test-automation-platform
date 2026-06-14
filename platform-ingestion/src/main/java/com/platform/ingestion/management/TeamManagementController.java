@@ -12,8 +12,8 @@ import org.springframework.web.bind.annotation.*;
 import java.util.UUID;
 
 @RestController
-@RequestMapping("/api/v1/teams")
-@Tag(name = "Team Management")
+@RequestMapping("/api/v1/projects/{projectId}/teams")
+@Tag(name = "Team Management", description = "Teams within a project (ADO-first: Org → Project → Team)")
 public class TeamManagementController {
 
     private final TeamManagementService service;
@@ -23,18 +23,20 @@ public class TeamManagementController {
     }
 
     @PostMapping
-    public ResponseEntity<TeamDto> createTeam(@Valid @RequestBody CreateTeamRequest req) {
-        return ResponseEntity.status(HttpStatus.CREATED).body(service.createTeam(req));
+    public ResponseEntity<TeamDto> createTeam(@PathVariable UUID projectId,
+                                              @Valid @RequestBody CreateTeamRequest req) {
+        return ResponseEntity.status(HttpStatus.CREATED).body(service.createTeam(projectId, req));
     }
 
     @PutMapping("/{id}")
-    public TeamDto updateTeam(@PathVariable UUID id, @RequestBody UpdateTeamRequest req) {
-        return service.updateTeam(id, req);
+    public TeamDto updateTeam(@PathVariable UUID projectId, @PathVariable UUID id,
+                              @RequestBody UpdateTeamRequest req) {
+        return service.updateTeam(projectId, id, req);
     }
 
     @DeleteMapping("/{id}")
-    public ResponseEntity<Void> deleteTeam(@PathVariable UUID id) {
-        service.deleteTeam(id);
+    public ResponseEntity<Void> deleteTeam(@PathVariable UUID projectId, @PathVariable UUID id) {
+        service.deleteTeam(projectId, id);
         return ResponseEntity.noContent().build();
     }
 }

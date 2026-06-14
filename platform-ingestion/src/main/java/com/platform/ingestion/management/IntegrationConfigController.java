@@ -1,5 +1,6 @@
 package com.platform.ingestion.management;
 
+import com.platform.ingestion.management.dto.InheritedCredentialDto;
 import com.platform.ingestion.management.dto.IntegrationConfigDto;
 import com.platform.ingestion.management.dto.SaveIntegrationConfigRequest;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -24,6 +25,12 @@ public class IntegrationConfigController {
     @GetMapping
     public List<IntegrationConfigDto> list(@PathVariable UUID projectId) {
         return service.list(projectId);
+    }
+
+    /** Credentials this project inherits from its organization (read-only, no secrets). */
+    @GetMapping("/inherited")
+    public List<InheritedCredentialDto> listInherited(@PathVariable UUID projectId) {
+        return service.listInherited(projectId);
     }
 
     @PostMapping

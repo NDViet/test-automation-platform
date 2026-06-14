@@ -43,6 +43,7 @@ public class AutomationCodeGenerationNode implements AgentNode {
     private final ProjectIntegrationConfigRepository configRepo;
     private final PlatformRequirementRepository requirementRepo;
     private final GitHubApiClient gitHubApiClient;
+    private final com.platform.agent.node.tools.IntegrationTokenResolver tokenResolver;
     private final ObjectMapper mapper;
 
     public AutomationCodeGenerationNode(AgentOrchestrator orchestrator,
@@ -51,6 +52,7 @@ public class AutomationCodeGenerationNode implements AgentNode {
                                          ProjectIntegrationConfigRepository configRepo,
                                          PlatformRequirementRepository requirementRepo,
                                          GitHubApiClient gitHubApiClient,
+                                         com.platform.agent.node.tools.IntegrationTokenResolver tokenResolver,
                                          ObjectMapper mapper) {
         this.orchestrator    = orchestrator;
         this.testCaseRepo    = testCaseRepo;
@@ -58,6 +60,7 @@ public class AutomationCodeGenerationNode implements AgentNode {
         this.configRepo      = configRepo;
         this.requirementRepo = requirementRepo;
         this.gitHubApiClient = gitHubApiClient;
+        this.tokenResolver   = tokenResolver;
         this.mapper          = mapper;
     }
 
@@ -414,7 +417,12 @@ public class AutomationCodeGenerationNode implements AgentNode {
             String token = bundle.credentials().token(IntegrationType.GITHUB);
             if (token != null && !token.isBlank()) return token;
         }
-        // 2. Fall back to config-level token
+        // 2. Org→Team→Project encrypted credential cascade
+        if (bundle.projectId() != null) {
+            Optional<String> cascade = tokenResolver.resolveToken(bundle.projectId(), IntegrationType.GITHUB);
+            if (cascade.isPresent()) return cascade.get();
+        }
+        // 3. Fall back to legacy plaintext config-level token
         if (config != null) {
             String token = config.param("token");
             if (token != null && !token.isBlank()) return token;

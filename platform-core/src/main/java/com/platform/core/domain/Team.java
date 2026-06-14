@@ -8,8 +8,14 @@ import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
 
+/**
+ * A team <em>within</em> a project — aligns with an Azure DevOps team (owns area
+ * paths / a backlog inside a project). ADO-first hierarchy:
+ * <b>Organization → Project → Team</b>.
+ */
 @Entity
-@Table(name = "teams")
+@Table(name = "teams",
+       uniqueConstraints = @UniqueConstraint(name = "uq_team_project_slug", columnNames = {"project_id", "slug"}))
 @EntityListeners(AuditingEntityListener.class)
 public class Team {
 
@@ -17,10 +23,13 @@ public class Team {
     @GeneratedValue(strategy = GenerationType.UUID)
     private UUID id;
 
-    @Column(name = "name", nullable = false, unique = true, length = 100)
+    @Column(name = "project_id", nullable = false)
+    private UUID projectId;
+
+    @Column(name = "name", nullable = false, length = 100)
     private String name;
 
-    @Column(name = "slug", nullable = false, unique = true, length = 50)
+    @Column(name = "slug", nullable = false, length = 50)
     private String slug;
 
     @CreatedDate
@@ -29,25 +38,24 @@ public class Team {
 
     protected Team() {}
 
-    public Team(String name, String slug) {
+    public Team(UUID projectId, String name, String slug) {
+        this.projectId = projectId;
         this.name = name;
         this.slug = slug;
     }
 
-    public UUID getId() { return id; }
-    public String getName() { return name; }
-    public String getSlug() { return slug; }
+    public UUID getId()        { return id; }
+    public UUID getProjectId() { return projectId; }
+    public String getName()    { return name; }
+    public String getSlug()    { return slug; }
     public Instant getCreatedAt() { return createdAt; }
 
     public void setName(String name) { this.name = name; }
 
-    @Override
-    public boolean equals(Object o) {
+    @Override public boolean equals(Object o) {
         if (this == o) return true;
         if (!(o instanceof Team t)) return false;
         return Objects.equals(id, t.id);
     }
-
-    @Override
-    public int hashCode() { return Objects.hashCode(id); }
+    @Override public int hashCode() { return Objects.hashCode(id); }
 }

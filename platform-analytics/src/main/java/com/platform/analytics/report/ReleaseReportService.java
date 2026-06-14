@@ -153,10 +153,10 @@ public class ReleaseReportService {
         }
         // Evaluate against the latest execution in the window
         TestExecution latest = executions.get(0); // ordered DESC by executedAt
-        String teamSlug = latest.getProject().getTeam() != null
-                ? latest.getProject().getTeam().getSlug() : "unknown";
+        String orgSlug = latest.getProject().getOrganization() != null
+                ? latest.getProject().getOrganization().getSlug() : "unknown";
         UnifiedTestResult stub = new UnifiedTestResult(
-                latest.getRunId(), teamSlug, latest.getProject().getSlug(),
+                latest.getRunId(), orgSlug, latest.getProject().getSlug(),
                 latest.getBranch(), latest.getEnvironment(), latest.getCommitSha(),
                 latest.getTriggerType(), latest.getCiProvider(), latest.getCiRunUrl(),
                 latest.getExecutedAt(),

@@ -6,10 +6,10 @@ import com.platform.analytics.trends.QualityGateEvaluator;
 import com.platform.analytics.trends.QualityGateResult;
 import com.platform.common.dto.UnifiedTestResult;
 import com.platform.common.kafka.Topics;
+import com.platform.core.domain.Organization;
 import com.platform.core.domain.Project;
-import com.platform.core.domain.Team;
+import com.platform.core.repository.OrganizationRepository;
 import com.platform.core.repository.ProjectRepository;
-import com.platform.core.repository.TeamRepository;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -30,18 +30,18 @@ public class ResultAnalysisConsumer {
 
     private static final Logger log = LoggerFactory.getLogger(ResultAnalysisConsumer.class);
 
-    private final TeamRepository teamRepo;
+    private final OrganizationRepository orgRepo;
     private final ProjectRepository projectRepo;
     private final FlakinessScoringService scoringService;
     private final QualityGateEvaluator gateEvaluator;
     private final AlertRuleEngine alertRuleEngine;
 
-    public ResultAnalysisConsumer(TeamRepository teamRepo,
+    public ResultAnalysisConsumer(OrganizationRepository orgRepo,
                                   ProjectRepository projectRepo,
                                   FlakinessScoringService scoringService,
                                   QualityGateEvaluator gateEvaluator,
                                   AlertRuleEngine alertRuleEngine) {
-        this.teamRepo        = teamRepo;
+        this.orgRepo         = orgRepo;
         this.projectRepo     = projectRepo;
         this.scoringService  = scoringService;
         this.gateEvaluator   = gateEvaluator;
@@ -85,10 +85,10 @@ public class ResultAnalysisConsumer {
         alertRuleEngine.evaluate(result, projectId);
     }
 
-    private UUID resolveProjectId(String teamSlug, String projectSlug) {
-        Optional<Team> team = teamRepo.findBySlug(teamSlug);
-        if (team.isEmpty()) return null;
-        return projectRepo.findByTeamIdAndSlug(team.get().getId(), projectSlug)
+    private UUID resolveProjectId(String orgSlug, String projectSlug) {
+        Optional<Organization> org = orgRepo.findBySlug(orgSlug);
+        if (org.isEmpty()) return null;
+        return projectRepo.findByOrganizationIdAndSlug(org.get().getId(), projectSlug)
                 .map(Project::getId)
                 .orElse(null);
     }

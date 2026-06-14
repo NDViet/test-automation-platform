@@ -1,0 +1,102 @@
+{
+  "apiVersion": "quality.platform/v1",
+  "kind": "MappingProfile",
+  "defaultLane": "REQUIREMENT",
+  "defaultIssueType": "STORY",
+
+  "nonTracked": [
+    "task", "test case", "test plan", "test suite", "shared steps", "shared parameter",
+    "code review request", "code review response", "feedback request", "feedback response",
+    "impediment"
+  ],
+
+  "laneRules": [
+    { "keywords": ["bug", "defect"],          "lane": "DEFECT" },
+    { "keywords": ["epic"],                    "lane": "REQUIREMENT", "issueType": "EPIC" },
+    { "keywords": ["capability"],              "lane": "REQUIREMENT", "issueType": "CAPABILITY" },
+    { "keywords": ["enabler"],                 "lane": "REQUIREMENT", "issueType": "ENABLER" },
+    { "keywords": ["feature"],                 "lane": "REQUIREMENT", "issueType": "FEATURE" },
+    { "keywords": ["requirement", "prq"],      "lane": "REQUIREMENT", "issueType": "REQUIREMENT" },
+    { "keywords": ["story", "backlog"],        "lane": "REQUIREMENT", "issueType": "STORY" }
+  ],
+
+  "standardFields": [
+    { "referenceName": "System.Title",                          "target": "title" },
+    { "referenceName": "System.Description",                    "target": "description" },
+    { "referenceName": "System.Parent",                         "target": "parentExternalId", "appliesTo": "REQUIREMENT" },
+    { "referenceName": "Microsoft.VSTS.Common.BusinessValue",   "target": "businessValue",     "appliesTo": "REQUIREMENT" }
+  ],
+
+  "fieldHeuristics": [
+    { "keywords": ["version"],                       "target": "affectedVersion",   "appliesTo": "DEFECT" },
+    { "keywords": ["jira"],                          "target": "externalRefs.jira" },
+    { "keywords": ["prod"],                          "target": "onProduction",      "appliesTo": "DEFECT" },
+    { "keywords": ["escap"],                         "target": "escapedType",       "appliesTo": "DEFECT" },
+    { "keywords": ["type of work", "typeofwork"],    "target": "workCategory" }
+  ],
+
+  "statusCategoryMap": {
+    "Proposed": "OPEN",
+    "InProgress": "IN_PROGRESS",
+    "Completed": "DONE",
+    "Removed": "REJECTED"
+  },
+  "defaultStateCategory": "InProgress",
+  "stateCategoryByName": {
+    "New": "Proposed",
+    "Proposed": "Proposed",
+    "To Do": "Proposed",
+    "Approved": "Proposed",
+    "Open": "Proposed",
+    "Backlog": "Proposed",
+    "Ready": "Proposed",
+    "Design": "Proposed",
+    "Inbox (Doing/Done)": "Proposed",
+    "Refinement (Doing/Done)": "Proposed",
+    "Specification (Doing/Done)": "Proposed",
+    "Preparation (Doing/Done)": "Proposed",
+    "Discovery (Doing/Done)": "Proposed",
+    "Decision Making (Doing/Done)": "Proposed",
+    "Portfolio (Doing/Done)": "Proposed",
+    "Active": "InProgress",
+    "Committed": "InProgress",
+    "In Progress": "InProgress",
+    "Doing": "InProgress",
+    "Development (Doing/Done)": "InProgress",
+    "Implementation (Doing/Done)": "InProgress",
+    "Progress (Doing/Done)": "InProgress",
+    "Review (Doing/Done)": "InProgress",
+    "Testing IUT (Doing/Done)": "InProgress",
+    "Release Approval (Doing/Done)": "InProgress",
+    "Resolved": "Completed",
+    "Done": "Completed",
+    "Closed": "Completed",
+    "Completed": "Completed",
+    "Removed": "Removed",
+    "Rejected": "Removed"
+  },
+  "blockedStateName": "Blocked",
+  "blockedStateOverride": "BLOCKED",
+
+  "severity": {
+    "field": "Microsoft.VSTS.Common.Severity",
+    "transform": "stripPrefix(/^\\d+\\s*-\\s*/) | upper",
+    "default": "MEDIUM",
+    "appliesTo": "DEFECT"
+  },
+  "priority": {
+    "field": "Microsoft.VSTS.Common.Priority",
+    "map": { "1": "P1", "2": "P2", "3": "P3", "4": "P4" },
+    "default": "P3",
+    "appliesTo": "ANY"
+  },
+
+  "defectRules": [
+    { "whenFieldKeyword": "prod", "whenExpr": "field('{ref}') == true", "set": { "onProduction": true } }
+  ],
+  "defectFormulas": {
+    "severityScore": "{ CRITICAL:4, HIGH:3, MEDIUM:2, LOW:1 }[severity] ?? 2",
+    "isEscapedToProd": "onProduction == true || escapedType == 'ESCAPED'",
+    "ageDays": "daysBetween(field('System.CreatedDate'), now())"
+  }
+}

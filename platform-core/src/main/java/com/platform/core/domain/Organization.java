@@ -1,0 +1,54 @@
+package com.platform.core.domain;
+
+import jakarta.persistence.*;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
+
+import java.time.Instant;
+import java.util.Objects;
+import java.util.UUID;
+
+/**
+ * Top-level tenant — aligns with an Azure DevOps <em>organization</em> (e.g. {@code contoso}).
+ * ADO-first hierarchy: <b>Organization → Project → Team</b>.
+ */
+@Entity
+@Table(name = "organizations")
+@EntityListeners(AuditingEntityListener.class)
+public class Organization {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.UUID)
+    private UUID id;
+
+    @Column(name = "name", nullable = false, unique = true, length = 100)
+    private String name;
+
+    @Column(name = "slug", nullable = false, unique = true, length = 50)
+    private String slug;
+
+    @CreatedDate
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private Instant createdAt;
+
+    protected Organization() {}
+
+    public Organization(String name, String slug) {
+        this.name = name;
+        this.slug = slug;
+    }
+
+    public UUID getId()        { return id; }
+    public String getName()    { return name; }
+    public String getSlug()    { return slug; }
+    public Instant getCreatedAt() { return createdAt; }
+
+    public void setName(String name) { this.name = name; }
+
+    @Override public boolean equals(Object o) {
+        if (this == o) return true;
+        if (!(o instanceof Organization t)) return false;
+        return Objects.equals(id, t.id);
+    }
+    @Override public int hashCode() { return Objects.hashCode(id); }
+}
