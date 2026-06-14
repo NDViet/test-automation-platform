@@ -52,6 +52,28 @@ public class PortalAiController {
                 .retrieve().body(Object.class);
     }
 
+    @GetMapping("/settings/scoped/effective")
+    @Operation(summary = "Effective (merged Org→Team→Project) AI settings for a project")
+    public Object effectiveScopedSettings(@RequestParam String projectId) {
+        return aiClient.get()
+                .uri("/api/v1/ai/settings/scoped/effective?projectId=" + projectId)
+                .accept(MediaType.APPLICATION_JSON)
+                .retrieve().body(Object.class);
+    }
+
+    @PutMapping("/settings/scoped/{scope}/{scopeId}")
+    @Operation(summary = "Set a per-team/per-project AI setting override")
+    public Object setScopedSetting(@PathVariable String scope,
+                                   @PathVariable String scopeId,
+                                   @RequestBody Map<String, Object> body) {
+        aiClient.put()
+                .uri("/api/v1/ai/settings/scoped/" + scope + "/" + scopeId)
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(body)
+                .retrieve().toBodilessEntity();
+        return Map.of("status", "ok");
+    }
+
     @PostMapping("/projects/{projectId}/results/{resultId}/analyse")
     @Operation(summary = "On-demand AI analysis for a test result")
     public Object analyseResult(

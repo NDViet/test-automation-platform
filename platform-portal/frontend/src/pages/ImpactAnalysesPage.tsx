@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { useProject } from '@/components/layout/ProjectLayout'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { cn, relativeTime } from '@/lib/utils'
@@ -693,7 +694,8 @@ function DetailPanel({
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function ImpactAnalysesPage() {
-  const { projectId, analysisId } = useParams<{ projectId: string; analysisId?: string }>()
+  const { projectId, base } = useProject()
+  const { analysisId } = useParams<{ analysisId?: string }>()
   const navigate      = useNavigate()
   const queryClient   = useQueryClient()
   const [showCreate, setShowCreate] = useState(false)
@@ -735,7 +737,7 @@ export default function ImpactAnalysesPage() {
         <div className="flex items-center gap-2 text-sm text-slate-500 mb-1">
           <button onClick={() => navigate('/')} className="hover:text-blue-600">Overview</button>
           <ChevronRight size={14} />
-          <button onClick={() => navigate(`/projects/${projectId}`)} className="hover:text-blue-600">
+          <button onClick={() => navigate(base)} className="hover:text-blue-600">
             {projectId}
           </button>
           <ChevronRight size={14} />

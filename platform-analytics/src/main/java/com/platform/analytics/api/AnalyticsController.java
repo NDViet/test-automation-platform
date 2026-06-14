@@ -12,12 +12,12 @@ import com.platform.common.dto.UnifiedTestResult;
 import com.platform.common.enums.TestStatus;
 import com.platform.core.domain.FlakinessScore;
 import com.platform.core.domain.Project;
-import com.platform.core.domain.Team;
+import com.platform.core.domain.Organization;
 import com.platform.core.domain.TestCaseResult;
 import com.platform.core.domain.TestExecution;
 import com.platform.core.repository.FlakinessScoreRepository;
 import com.platform.core.repository.ProjectRepository;
-import com.platform.core.repository.TeamRepository;
+import com.platform.core.repository.OrganizationRepository;
 import com.platform.core.repository.TestCaseResultRepository;
 import com.platform.core.repository.TestExecutionRepository;
 import io.swagger.v3.oas.annotations.Operation;
@@ -44,7 +44,7 @@ public class AnalyticsController {
     private final FlakinessReportService flakinessService;
     private final TrendAnalysisService trendService;
     private final QualityGateEvaluator gateEvaluator;
-    private final TeamRepository teamRepo;
+    private final OrganizationRepository orgRepo;
     private final ProjectRepository projectRepo;
     private final TestExecutionRepository executionRepo;
     private final FlakinessScoreRepository scoreRepo;
@@ -54,7 +54,7 @@ public class AnalyticsController {
     public AnalyticsController(FlakinessReportService flakinessService,
                                 TrendAnalysisService trendService,
                                 QualityGateEvaluator gateEvaluator,
-                                TeamRepository teamRepo,
+                                OrganizationRepository orgRepo,
                                 ProjectRepository projectRepo,
                                 TestExecutionRepository executionRepo,
                                 FlakinessScoreRepository scoreRepo,
@@ -63,7 +63,7 @@ public class AnalyticsController {
         this.flakinessService    = flakinessService;
         this.trendService        = trendService;
         this.gateEvaluator       = gateEvaluator;
-        this.teamRepo            = teamRepo;
+        this.orgRepo             = orgRepo;
         this.projectRepo         = projectRepo;
         this.executionRepo       = executionRepo;
         this.scoreRepo           = scoreRepo;
@@ -171,14 +171,14 @@ public class AnalyticsController {
     @Operation(summary = "Organisation-wide quality summary across all projects")
     @Transactional(readOnly = true)
     public OrgSummaryDto orgSummary(
-            @RequestParam(required = false) String teamSlug,
+            @RequestParam(required = false) String orgSlug,
             @RequestParam(defaultValue = "7") int days) {
 
         List<Project> projects;
-        if (teamSlug != null) {
-            Optional<Team> team = teamRepo.findBySlug(teamSlug);
-            if (team.isEmpty()) return emptyOrgSummary();
-            projects = projectRepo.findByTeamId(team.get().getId());
+        if (orgSlug != null) {
+            Optional<Organization> org = orgRepo.findBySlug(orgSlug);
+            if (org.isEmpty()) return emptyOrgSummary();
+            projects = projectRepo.findByOrganizationId(org.get().getId());
         } else {
             projects = projectRepo.findAll();
         }
@@ -214,8 +214,8 @@ public class AnalyticsController {
                     .filter(s -> s.getClassification() == FlakinessScore.Classification.FLAKY
                             || s.getClassification() == FlakinessScore.Classification.CRITICAL_FLAKY)
                     .count();
-            String teamSlugVal = p.getTeam() != null ? p.getTeam().getSlug() : "unknown";
-            return new OrgSummaryDto.ProjectSummary(p.getSlug(), teamSlugVal, pRate, pExecs.size(), flakyCount);
+            String orgSlugVal = p.getOrganization() != null ? p.getOrganization().getSlug() : "unknown";
+            return new OrgSummaryDto.ProjectSummary(p.getSlug(), orgSlugVal, pRate, pExecs.size(), flakyCount);
         }).toList();
 
         return new OrgSummaryDto(projects.size(), executions.size(), overallRate, criticalFlaky, summaries);
@@ -224,11 +224,11 @@ public class AnalyticsController {
     // ── Helpers ───────────────────────────────────────────────────────────────
 
     private UnifiedTestResult buildStubResult(TestExecution exec) {
-        String teamSlugVal = exec.getProject().getTeam() != null
-                ? exec.getProject().getTeam().getSlug() : "unknown";
+        String orgSlugVal = exec.getProject().getOrganization() != null
+                ? exec.getProject().getOrganization().getSlug() : "unknown";
         return new UnifiedTestResult(
                 exec.getRunId(),
-                teamSlugVal,
+                orgSlugVal,
                 exec.getProject().getSlug(),
                 exec.getBranch(), exec.getEnvironment(), exec.getCommitSha(),
                 exec.getTriggerType(), exec.getCiProvider(), exec.getCiRunUrl(),

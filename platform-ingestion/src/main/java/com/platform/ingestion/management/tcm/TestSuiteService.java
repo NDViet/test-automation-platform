@@ -28,7 +28,9 @@ public class TestSuiteService {
     }
 
     public TestSuiteDto create(UUID projectId, CreateTestSuiteRequest req) {
-        TestSuite suite = new TestSuite(projectId, req.name(), req.description());
+        TestSuite suite = new TestSuite(projectId, req.name(), req.description(),
+                parseParent(req.parentId()), req.planType());
+        if (req.active() != null) suite.setActive(req.active());
         return TestSuiteDto.from(suiteRepo.save(suite));
     }
 
@@ -38,7 +40,19 @@ public class TestSuiteService {
                         "Test suite not found: " + suiteId));
         suite.setName(req.name());
         suite.setDescription(req.description());
+        suite.setParentId(parseParent(req.parentId()));
+        suite.setPlanType(req.planType());
+        if (req.active() != null) suite.setActive(req.active());
         return TestSuiteDto.from(suiteRepo.save(suite));
+    }
+
+    private UUID parseParent(String parentId) {
+        if (parentId == null || parentId.isBlank()) return null;
+        try {
+            return UUID.fromString(parentId);
+        } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid parentId: " + parentId);
+        }
     }
 
     public void delete(UUID projectId, UUID suiteId) {

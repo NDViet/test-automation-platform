@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
+import { useProject } from '@/components/layout/ProjectLayout'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { cn, relativeTime } from '@/lib/utils'
@@ -209,7 +210,8 @@ function ExecutionRow({
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function TestRunExecutionPage() {
-  const { projectId, runId } = useParams<{ projectId: string; runId: string }>()
+  const { projectId, base } = useProject()
+  const { runId } = useParams<{ runId: string }>()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
@@ -257,7 +259,7 @@ export default function TestRunExecutionPage() {
       {/* Header */}
       <div>
         <button
-          onClick={() => navigate(`/projects/${projectId}/test-runs`)}
+          onClick={() => navigate(`${base}/test-runs`)}
           className="flex items-center gap-1 text-sm text-slate-500 hover:text-blue-600 transition-colors mb-2"
         >
           <ChevronLeft size={14} /> Test Runs

@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react'
-import { useParams, useNavigate, Link } from 'react-router-dom'
+import { useNavigate, Link } from 'react-router-dom'
+import { useProject } from '@/components/layout/ProjectLayout'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { relativeTime } from '@/lib/utils'
@@ -8,16 +9,18 @@ import ErrorMessage from '@/components/ErrorMessage'
 import Badge from '@/components/Badge'
 import {
   Save, Trash2, Plus, X, ChevronLeft, AlertTriangle,
-  CheckCircle, Pencil, RefreshCw,
+  CheckCircle, Pencil, RefreshCw, Building2, Lock,
 } from 'lucide-react'
-import type { SaveIntegrationConfigForm, IntegrationConfig, RepoType } from '@/lib/types'
+import CreateTeamModal from '@/components/CreateTeamModal'
+import MappingRulesEditor from '@/components/MappingRulesEditor'
+import type { SaveIntegrationConfigForm, IntegrationConfig, RepoType, InheritedCredential } from '@/lib/types'
 
-type Tab = 'general' | 'integrations'
+type Tab = 'general' | 'teams' | 'integrations' | 'mapping' | 'ai'
 
-const INTEGRATION_TYPES  = ['JIRA_CLOUD', 'JIRA_SERVER', 'LINEAR', 'GITHUB']
+const INTEGRATION_TYPES  = ['JIRA_CLOUD', 'JIRA_SERVER', 'AZURE_DEVOPS_BOARDS', 'GITHUB_ISSUES', 'LINEAR', 'GITHUB']
 const SYNC_DIRECTIONS    = ['INBOUND', 'OUTBOUND', 'BIDIRECTIONAL']
 // Integration types that support on-demand pull sync
-const POLL_SUPPORTED     = new Set(['GITHUB', 'JIRA_CLOUD', 'JIRA_SERVER'])
+const POLL_SUPPORTED     = new Set(['GITHUB', 'GITHUB_ISSUES', 'AZURE_DEVOPS_BOARDS', 'JIRA_CLOUD', 'JIRA_SERVER'])
 
 interface ParamField {
   key: string
@@ -49,9 +52,22 @@ const INTEGRATION_PARAMS: Record<string, ParamField[]> = {
   ],
   GITHUB: [
     { key: 'repoFullName',    required: true,  desc: 'Repository in owner/repo format, e.g. acme/backend' },
-    { key: 'token',           required: false, desc: 'Personal access token — required for private repos' },
+    { key: 'token',           required: false, desc: 'Personal access token — required for private repos (or inherit Org credential)' },
     { key: 'integrationMode', required: false, desc: 'WEBHOOK (event-driven) or POLLING (scheduled, default)' },
     { key: 'branch',          required: false, desc: 'Branch to watch for PRs (default: main)' },
+  ],
+  AZURE_DEVOPS_BOARDS: [
+    { key: 'organization', required: true,  desc: 'Azure DevOps organization, e.g. acme (from dev.azure.com/acme)' },
+    { key: 'project',      required: true,  desc: 'Azure DevOps project that holds the work items' },
+    { key: 'area_path',    required: false, desc: 'Area path filter, e.g. Checkout\\Payments' },
+    { key: 'pat',          required: false, desc: 'PAT — leave blank to inherit the Org/Team credential' },
+    { key: 'doneState',    required: false, desc: 'Work-item state treated as closed (default: Closed)' },
+    { key: 'reopenState',  required: false, desc: 'Work-item state used to reopen (default: Active)' },
+  ],
+  GITHUB_ISSUES: [
+    { key: 'owner',      required: true,  desc: 'Repository owner (org or user), e.g. acme' },
+    { key: 'repo',       required: true,  desc: 'Repository name, e.g. checkout' },
+    { key: 'pat',        required: false, desc: 'PAT — leave blank to inherit the Org/Team credential' },
   ],
 }
 
@@ -99,10 +115,11 @@ function kvToMap(pairs: KvPair[]): Record<string, string> {
 interface IntegrationFormProps {
   initial?: IntegrationConfig
   projectId: string
+  inherited?: InheritedCredential[]
   onDone: () => void
 }
 
-function IntegrationForm({ initial, projectId, onDone }: IntegrationFormProps) {
+function IntegrationForm({ initial, projectId, inherited, onDone }: IntegrationFormProps) {
   const qc = useQueryClient()
   const isEdit = !!initial
 
@@ -149,11 +166,34 @@ function IntegrationForm({ initial, projectId, onDone }: IntegrationFormProps) {
     setFormParams(prev => prev.map((p, i) => i === idx ? { ...p, value: '', masked: false } : p))
   }
 
+  const inheritedMatch = (inherited ?? []).find(c => c.integrationType === formType)
+
   return (
     <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-4">
       <h3 className="text-sm font-semibold text-slate-900">
         {isEdit ? `Edit ${initial.integrationType}` : 'Add Integration'}
       </h3>
+
+      {/* Inheritance notice — what this integration gets from the organization */}
+      {inheritedMatch && (
+        <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 text-sm text-blue-900 space-y-1">
+          <p className="flex items-center gap-1.5 font-medium">
+            <Building2 size={14} /> Inherits from organization credential
+            {inheritedMatch.displayName ? ` “${inheritedMatch.displayName}”` : ''}
+          </p>
+          <p className="text-xs text-blue-700">
+            {inheritedMatch.hasSecret
+              ? 'A PAT/token is already provided by the organization — leave secret fields blank to use it.'
+              : 'The organization credential has no secret set; you may need to provide one here.'}
+            {inheritedMatch.baseUrl ? ` Base URL: ${inheritedMatch.baseUrl}.` : ''}
+          </p>
+          {Object.keys(inheritedMatch.connectionParams ?? {}).length > 0 && (
+            <p className="text-xs text-blue-700 font-mono">
+              Inherited: {Object.entries(inheritedMatch.connectionParams).map(([k, v]) => `${k}=${v}`).join(' · ')} — leave blank to inherit.
+            </p>
+          )}
+        </div>
+      )}
 
       {/* Type — read-only when editing to preserve upsert key */}
       <div>
@@ -347,7 +387,7 @@ interface SyncResult {
 // ── Main page ──────────────────────────────────────────────────────────────────
 
 export default function ProjectSettingsPage() {
-  const { projectId } = useParams<{ projectId: string }>()
+  const { projectId, base } = useProject()
   const navigate = useNavigate()
   const qc = useQueryClient()
   const [tab, setTab] = useState<Tab>('general')
@@ -404,6 +444,12 @@ export default function ProjectSettingsPage() {
     enabled:  !!projectId && tab === 'integrations',
   })
 
+  const { data: inherited } = useQuery({
+    queryKey: ['inherited-integrations', projectId],
+    queryFn:  () => api.inheritedIntegrations(projectId!),
+    enabled:  !!projectId && tab === 'integrations',
+  })
+
   // null = no form open; string id = editing that config; 'new' = adding new
   const [activeForm,   setActiveForm]   = useState<string | null>(null)
   const [syncResults,  setSyncResults]  = useState<Record<string, SyncResult> | null>(null)
@@ -439,7 +485,7 @@ export default function ProjectSettingsPage() {
       {/* Breadcrumb */}
       <div>
         <Link
-          to={`/projects/${projectId}`}
+          to={base}
           className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-blue-600 mb-2"
         >
           <ChevronLeft size={14} />
@@ -451,7 +497,7 @@ export default function ProjectSettingsPage() {
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-slate-200">
-        {(['general', 'integrations'] as Tab[]).map(t => (
+        {(['general', 'teams', 'integrations', 'mapping', 'ai'] as Tab[]).map(t => (
           <button
             key={t}
             onClick={() => setTab(t)}
@@ -538,9 +584,50 @@ export default function ProjectSettingsPage() {
         </div>
       )}
 
+      {/* ── Teams ── */}
+      {tab === 'teams' && <ProjectTeams projectId={projectId!} />}
+
       {/* ── Integrations ── */}
       {tab === 'integrations' && (
         <div className="space-y-4">
+          {/* Inherited from organization — read-only summary */}
+          {(inherited ?? []).length > 0 && (
+            <div className="bg-white rounded-xl border border-blue-200 shadow-sm">
+              <div className="px-5 py-3 border-b border-blue-100 flex items-center gap-2">
+                <Building2 size={15} className="text-blue-500" />
+                <h3 className="text-sm font-semibold text-slate-900">Inherited from Organization</h3>
+                <span className="text-xs text-slate-400">used automatically unless overridden below</span>
+              </div>
+              <div className="divide-y divide-slate-50">
+                {(inherited ?? []).map(c => (
+                  <div key={c.integrationType} className="px-5 py-3 flex items-center justify-between gap-4">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <Badge label={c.integrationType} colorClass="text-blue-700 bg-blue-100" />
+                        {c.displayName && <span className="text-sm text-slate-700">{c.displayName}</span>}
+                        <span className="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">
+                          <Lock size={11} /> {c.hasSecret ? 'secret set' : 'no secret'}
+                        </span>
+                      </div>
+                      <p className="text-xs text-slate-400 mt-0.5 truncate">
+                        {c.baseUrl && <span className="font-mono">{c.baseUrl}</span>}
+                        {Object.keys(c.connectionParams ?? {}).length > 0 && (
+                          <span className="font-mono">
+                            {c.baseUrl ? ' · ' : ''}
+                            {Object.entries(c.connectionParams).map(([k, v]) => `${k}=${v}`).join(' · ')}
+                          </span>
+                        )}
+                      </p>
+                    </div>
+                    <Link to="/settings/integrations" className="text-xs text-blue-600 hover:text-blue-700 whitespace-nowrap shrink-0">
+                      Manage at org →
+                    </Link>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Sync now toolbar */}
           {(() => {
             const hasPollSupport = (integrations ?? []).some(c => POLL_SUPPORTED.has(c.integrationType))
@@ -665,6 +752,7 @@ export default function ProjectSettingsPage() {
                     <IntegrationForm
                       initial={cfg}
                       projectId={projectId!}
+                      inherited={inherited}
                       onDone={() => setActiveForm(null)}
                     />
                   )}
@@ -675,6 +763,7 @@ export default function ProjectSettingsPage() {
               {activeForm === 'new' ? (
                 <IntegrationForm
                   projectId={projectId!}
+                  inherited={inherited}
                   onDone={() => setActiveForm(null)}
                 />
               ) : (
@@ -689,6 +778,196 @@ export default function ProjectSettingsPage() {
           )}
         </div>
       )}
+
+      {/* ── Mapping ── */}
+      {tab === 'mapping' && (
+        <div className="space-y-3">
+          <p className="text-xs text-slate-500">
+            Mapping Suggester rules for this project. Overrides the organization default; resets fall back to it.
+          </p>
+          <MappingRulesEditor scope="PROJECT" id={projectId!} />
+        </div>
+      )}
+
+      {/* ── AI ── */}
+      {tab === 'ai' && project && <ProjectAiSettings projectId={project.id} />}
+    </div>
+  )
+}
+
+/**
+ * Per-project AI overrides on top of the Org default. Shows the effective
+ * (merged Org→Team→Project) value for each key and lets a project pin its own.
+ */
+function ProjectAiSettings({ projectId }: { projectId: string }) {
+  const qc = useQueryClient()
+  const [draft, setDraft] = useState<Record<string, string>>({})
+  const [saved, setSaved] = useState(false)
+
+  const { data: effective, isLoading } = useQuery({
+    queryKey: ['scoped-ai', projectId],
+    queryFn: () => api.scopedAiEffective(projectId),
+  })
+
+  const val = (key: string) => (key in draft ? draft[key] : (effective?.[key] ?? ''))
+  const setVal = (key: string, v: string) => { setDraft(d => ({ ...d, [key]: v })); setSaved(false) }
+
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      // PUT only the keys the user changed; backend stores one key/value at a time.
+      for (const [key, value] of Object.entries(draft)) {
+        await api.setScopedAi('PROJECT', projectId, key, value)
+      }
+    },
+    onSuccess: () => {
+      setDraft({}); setSaved(true)
+      void qc.invalidateQueries({ queryKey: ['scoped-ai', projectId] })
+    },
+  })
+
+  if (isLoading) return <LoadingSpinner message="Loading AI settings…" />
+
+  const provider = val('ai.provider') || 'anthropic'
+
+  return (
+    <div className="space-y-6 max-w-2xl">
+      <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 text-sm text-blue-800">
+        These override the organization defaults for this project only. Blank = inherit.
+      </div>
+
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm divide-y divide-slate-100">
+        <div className="px-5 py-4 flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium text-slate-900">Enable AI analysis</p>
+            <p className="text-xs text-slate-500">Effective: {effective?.['ai.enabled'] ?? '—'}</p>
+          </div>
+          <select className={aiInputCls} value={val('ai.enabled')}
+            onChange={e => setVal('ai.enabled', e.target.value)}>
+            <option value="">Inherit</option>
+            <option value="true">Enabled</option>
+            <option value="false">Disabled</option>
+          </select>
+        </div>
+
+        <div className="px-5 py-4 flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium text-slate-900">Real-time analysis</p>
+            <p className="text-xs text-slate-500">Effective: {effective?.['ai.realtime.enabled'] ?? '—'}</p>
+          </div>
+          <select className={aiInputCls} value={val('ai.realtime.enabled')}
+            onChange={e => setVal('ai.realtime.enabled', e.target.value)}>
+            <option value="">Inherit</option>
+            <option value="true">Enabled</option>
+            <option value="false">Disabled</option>
+          </select>
+        </div>
+
+        <div className="px-5 py-4 flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium text-slate-900">Provider</p>
+            <p className="text-xs text-slate-500">Effective: {effective?.['ai.provider'] ?? '—'}</p>
+          </div>
+          <select className={aiInputCls} value={val('ai.provider')}
+            onChange={e => setVal('ai.provider', e.target.value)}>
+            <option value="">Inherit</option>
+            <option value="anthropic">anthropic</option>
+            <option value="openai">openai</option>
+          </select>
+        </div>
+
+        <div className="px-5 py-4 flex items-center justify-between">
+          <div>
+            <p className="text-sm font-medium text-slate-900">Model</p>
+            <p className="text-xs text-slate-500">Effective: {effective?.['ai.model'] ?? '—'}</p>
+          </div>
+          <input className={aiInputCls} value={val('ai.model')}
+            placeholder={provider === 'openai' ? 'gpt-4o' : 'claude-sonnet-4-6'}
+            onChange={e => setVal('ai.model', e.target.value)} />
+        </div>
+      </div>
+
+      <div className="flex items-center gap-3">
+        <button onClick={() => void saveMutation.mutate()}
+          disabled={Object.keys(draft).length === 0 || saveMutation.isPending}
+          className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50">
+          {saveMutation.isPending ? 'Saving…' : 'Save overrides'}
+        </button>
+        {saved && <span className="text-sm text-green-600">Saved.</span>}
+        {saveMutation.isError && <span className="text-sm text-red-600">Failed to save.</span>}
+      </div>
+    </div>
+  )
+}
+
+const aiInputCls = 'text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-[10rem]'
+
+/**
+ * Sub-teams within this project (ADO-first: Org → Project → Team). Teams scope
+ * RBAC assignments, API keys and credential overrides below the project.
+ */
+function ProjectTeams({ projectId }: { projectId: string }) {
+  const qc = useQueryClient()
+  const [showCreate, setShowCreate] = useState(false)
+
+  const { data: teams, isLoading } = useQuery({
+    queryKey: ['teams', projectId],
+    queryFn: () => api.teams(projectId),
+  })
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: string) => api.deleteTeam(projectId, id),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['teams', projectId] }),
+  })
+
+  function handleDelete(id: string, name: string) {
+    if (confirm(`Delete team "${name}"? This cannot be undone.`)) void deleteMutation.mutate(id)
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-slate-500">
+          Teams partition this project for access control and credential overrides.
+        </p>
+        <button
+          onClick={() => setShowCreate(true)}
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 transition-colors"
+        >
+          <Plus size={13} /> New Team
+        </button>
+      </div>
+
+      {isLoading ? (
+        <LoadingSpinner message="Loading teams…" />
+      ) : (
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm divide-y divide-slate-50">
+          {(teams ?? []).length === 0 && (
+            <p className="px-5 py-8 text-sm text-slate-500 text-center">No teams in this project yet.</p>
+          )}
+          {(teams ?? []).map(t => (
+            <div key={t.id} className="px-5 py-3.5 flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-slate-900">{t.name}</p>
+                <p className="text-xs text-slate-400 font-mono">{t.slug}</p>
+              </div>
+              <button
+                title="Delete team"
+                onClick={() => handleDelete(t.id, t.name)}
+                className="text-slate-400 hover:text-red-600 transition-colors"
+              >
+                <Trash2 size={14} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <CreateTeamModal
+        open={showCreate}
+        projectId={projectId}
+        onClose={() => setShowCreate(false)}
+        onCreated={() => void qc.invalidateQueries({ queryKey: ['teams', projectId] })}
+      />
     </div>
   )
 }

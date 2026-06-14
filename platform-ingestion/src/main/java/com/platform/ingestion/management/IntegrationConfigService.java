@@ -1,7 +1,12 @@
 package com.platform.ingestion.management;
 
+import com.platform.core.domain.IntegrationCredential;
+import com.platform.core.domain.Project;
 import com.platform.core.domain.ProjectIntegrationConfig;
+import com.platform.core.repository.IntegrationCredentialRepository;
 import com.platform.core.repository.ProjectIntegrationConfigRepository;
+import com.platform.core.repository.ProjectRepository;
+import com.platform.ingestion.management.dto.InheritedCredentialDto;
 import com.platform.ingestion.management.dto.IntegrationConfigDto;
 import com.platform.ingestion.management.dto.SaveIntegrationConfigRequest;
 import org.springframework.http.HttpStatus;
@@ -18,15 +23,39 @@ import java.util.UUID;
 public class IntegrationConfigService {
 
     private final ProjectIntegrationConfigRepository configRepo;
+    private final IntegrationCredentialRepository    credentialRepo;
+    private final ProjectRepository                  projectRepo;
 
-    public IntegrationConfigService(ProjectIntegrationConfigRepository configRepo) {
-        this.configRepo = configRepo;
+    public IntegrationConfigService(ProjectIntegrationConfigRepository configRepo,
+                                    IntegrationCredentialRepository credentialRepo,
+                                    ProjectRepository projectRepo) {
+        this.configRepo     = configRepo;
+        this.credentialRepo = credentialRepo;
+        this.projectRepo    = projectRepo;
     }
 
     @Transactional(readOnly = true)
     public List<IntegrationConfigDto> list(UUID projectId) {
         return configRepo.findByProjectId(projectId).stream()
                 .map(IntegrationConfigDto::from)
+                .toList();
+    }
+
+    /**
+     * Credentials this project inherits from its organization (ADO-first cascade
+     * Org → Project → Team). Read-only: a project automatically uses these unless
+     * it defines its own credential/params of the same type. Never returns secrets.
+     */
+    @Transactional(readOnly = true)
+    public List<InheritedCredentialDto> listInherited(UUID projectId) {
+        UUID orgId = projectRepo.findById(projectId)
+                .map(Project::getOrganization)
+                .map(o -> o.getId())
+                .orElse(null);
+        if (orgId == null) return List.of();
+        return credentialRepo.findByScopeAndScopeId(IntegrationCredential.Scope.ORG.name(), orgId).stream()
+                .filter(IntegrationCredential::isEnabled)
+                .map(InheritedCredentialDto::from)
                 .toList();
     }
 

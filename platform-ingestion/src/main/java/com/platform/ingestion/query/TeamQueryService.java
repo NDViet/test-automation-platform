@@ -6,6 +6,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.UUID;
 
 @Service
 @Transactional(readOnly = true)
@@ -17,11 +18,8 @@ public class TeamQueryService {
         this.teamRepo = teamRepo;
     }
 
-    public List<TeamDto> findAll() {
-        return teamRepo.findAll().stream().map(TeamDto::from).toList();
-    }
-
-    public java.util.Optional<TeamDto> findBySlug(String slug) {
-        return teamRepo.findBySlug(slug).map(TeamDto::from);
+    /** Teams within a project (ADO-first: Org → Project → Team). */
+    public List<TeamDto> findByProject(UUID projectId) {
+        return teamRepo.findByProjectIdOrderByNameAsc(projectId).stream().map(TeamDto::from).toList();
     }
 }

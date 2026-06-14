@@ -1,15 +1,18 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
+import { useProject } from '@/components/layout/ProjectLayout'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { cn, relativeTime } from '@/lib/utils'
-import type { ManagedTestCase, TestSuite, CreateTestCaseForm, Requirement, IntegrationConfig } from '@/lib/types'
+import type { ManagedTestCase, TestSuite, CreateTestCaseForm, Requirement, IntegrationConfig, CaseProperty } from '@/lib/types'
 import Badge from '@/components/Badge'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import ErrorMessage from '@/components/ErrorMessage'
+import Markdown from '@/components/Markdown'
+import MarkdownEditor from '@/components/MarkdownEditor'
 import {
   Plus, Sparkles, Bot, ExternalLink, ChevronRight, ChevronDown, X,
-  FolderOpen, Layers, Loader2, Search, GitBranch, AlertTriangle, Link2,
+  FolderOpen, Layers, Loader2, Search, GitBranch, AlertTriangle, Link2, Pencil, Star,
 } from 'lucide-react'
 
 // ── Color helpers ──────────────────────────────────────────────────────────────
@@ -58,6 +61,7 @@ function coverageColor(status: string): string {
 interface StepRow {
   action: string
   expectedResult: string
+  notes: string
 }
 
 function StepEditor({ steps, onChange }: {
@@ -69,7 +73,7 @@ function StepEditor({ steps, onChange }: {
     onChange(next)
   }
   function addStep() {
-    onChange([...steps, { action: '', expectedResult: '' }])
+    onChange([...steps, { action: '', expectedResult: '', notes: '' }])
   }
   function removeStep(i: number) {
     onChange(steps.filter((_, idx) => idx !== i))
@@ -78,28 +82,36 @@ function StepEditor({ steps, onChange }: {
   return (
     <div className="space-y-2">
       {steps.map((step, i) => (
-        <div key={i} className="flex gap-2 items-start">
+        <div key={i} className="flex gap-2 items-start rounded-lg border border-slate-100 bg-slate-50/50 p-2">
           <span className="text-xs text-slate-400 font-mono mt-2 w-5 shrink-0 text-right">{i + 1}.</span>
           <div className="flex-1 space-y-1">
             <input
               type="text"
-              placeholder="Action"
+              placeholder="Action — what the tester does"
               value={step.action}
               onChange={e => updateStep(i, 'action', e.target.value)}
               className="w-full border border-slate-200 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
             <input
               type="text"
-              placeholder="Expected result (optional)"
+              placeholder="Expected result"
               value={step.expectedResult}
               onChange={e => updateStep(i, 'expectedResult', e.target.value)}
-              className="w-full border border-slate-200 rounded px-2 py-1 text-xs text-slate-500 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-full border border-slate-200 rounded px-2 py-1 text-xs text-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+            <input
+              type="text"
+              placeholder="Notes (optional)"
+              value={step.notes}
+              onChange={e => updateStep(i, 'notes', e.target.value)}
+              className="w-full border border-slate-200 rounded px-2 py-1 text-xs text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
           </div>
           <button
             type="button"
             onClick={() => removeStep(i)}
             className="mt-1.5 text-slate-400 hover:text-red-500 transition-colors"
+            title="Remove step"
           >
             <X size={14} />
           </button>
@@ -118,25 +130,219 @@ function StepEditor({ steps, onChange }: {
 
 // ── New Test Case Modal ────────────────────────────────────────────────────────
 
-function NewTestCaseModal({
+function FormSection({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
+  return (
+    <div>
+      <div className="mb-2">
+        <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{title}</h3>
+        {hint && <p className="text-[11px] text-slate-400 mt-0.5">{hint}</p>}
+      </div>
+      <div className="space-y-3">{children}</div>
+    </div>
+  )
+}
+
+// ── Requirement multi-select (optional, many; one can be ★ primary/source) ─────
+
+function RequirementMultiSelect({
+  requirements, value, onChange, primaryId, onPrimaryChange,
+}: {
+  requirements: Requirement[]
+  value: string[]
+  onChange: (ids: string[]) => void
+  /** The id marked as the primary/source requirement (origin), or '' for none. */
+  primaryId: string
+  onPrimaryChange: (id: string) => void
+}) {
+  const [search, setSearch] = useState('')
+  const byId = new Map(requirements.map(r => [r.id, r]))
+  const selected = new Set(value)
+  const filtered = requirements.filter(r =>
+    !selected.has(r.id) && (
+      r.title.toLowerCase().includes(search.toLowerCase()) ||
+      (r.externalId ?? '').toLowerCase().includes(search.toLowerCase())
+    ),
+  )
+  function add(id: string) { if (!selected.has(id)) onChange([...value, id]) }
+  function remove(id: string) {
+    onChange(value.filter(v => v !== id))
+    if (primaryId === id) onPrimaryChange('')   // removing the primary clears it
+  }
+  // Primary first, then the rest.
+  const ordered = [...value].sort((a, b) => (a === primaryId ? -1 : b === primaryId ? 1 : 0))
+  return (
+    <div>
+      <div className="flex flex-wrap gap-1 mb-1.5">
+        {value.length === 0 && <span className="text-xs text-slate-400 italic">None linked (optional)</span>}
+        {ordered.map(id => {
+          const r = byId.get(id)
+          const isPrimary = id === primaryId
+          return (
+            <span key={id} className={cn('inline-flex items-center gap-1 text-xs rounded px-1.5 py-0.5',
+              isPrimary ? 'bg-blue-100 text-blue-800' : 'bg-blue-50 text-blue-700')}>
+              <button type="button"
+                onClick={() => onPrimaryChange(isPrimary ? '' : id)}
+                title={isPrimary ? 'Primary (source) requirement — click to unset' : 'Mark as primary (source) requirement'}
+                className={isPrimary ? 'text-amber-500' : 'text-slate-300 hover:text-amber-500'}>
+                <Star size={11} fill={isPrimary ? 'currentColor' : 'none'} />
+              </button>
+              {r?.externalId && <span className="font-mono opacity-60">{r.externalId}</span>}
+              <span className="truncate max-w-[170px]">{r?.title ?? id.slice(0, 8) + '…'}</span>
+              <button type="button" onClick={() => remove(id)} className="hover:text-red-500"><X size={10} /></button>
+            </span>
+          )
+        })}
+      </div>
+      <div className="border border-slate-200 rounded-lg">
+        <div className="flex items-center gap-1 px-2 py-1.5 border-b border-slate-100">
+          <Search size={12} className="text-slate-400" />
+          <input value={search} onChange={e => setSearch(e.target.value)}
+            placeholder="Search requirements to link…" className="flex-1 text-xs outline-none" />
+        </div>
+        <div className="max-h-40 overflow-y-auto">
+          {filtered.length === 0 ? (
+            <p className="text-xs text-slate-400 px-3 py-2">No matching requirements</p>
+          ) : filtered.slice(0, 30).map(r => (
+            <button type="button" key={r.id} onClick={() => add(r.id)}
+              className="w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 hover:bg-blue-50">
+              <Plus size={11} className="text-slate-300 shrink-0" />
+              {r.externalId && <span className="text-slate-400 font-mono shrink-0">{r.externalId}</span>}
+              <span className="text-slate-700 truncate">{r.title}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+      <p className="text-[11px] text-slate-400 mt-1">Click the ★ to mark one as the primary/source requirement (optional).</p>
+    </div>
+  )
+}
+
+// ── Acceptance-criteria picker (chosen from the linked requirements' ACs) ──────
+
+function acToString(ac: unknown): string {
+  if (typeof ac === 'string') return ac
+  if (ac && typeof ac === 'object') {
+    const o = ac as Record<string, unknown>
+    const v = o.text ?? o.criteria ?? o.label ?? o.description ?? o.value
+    if (typeof v === 'string') return v
+  }
+  return String(ac)
+}
+
+function AcceptanceCriteriaPicker({
+  requirements, linkedReqIds, value, onChange,
+}: {
+  requirements: Requirement[]
+  linkedReqIds: string[]
+  value: string[]
+  onChange: (refs: string[]) => void
+}) {
+  const linkedSet = new Set(linkedReqIds)
+  const groups = requirements
+    .filter(r => linkedSet.has(r.id))
+    .map(r => ({ req: r, acs: (r.acceptanceCriteria ?? []).map(acToString).filter(s => s.trim()) }))
+    .filter(g => g.acs.length > 0)
+  const hasAcs = groups.length > 0
+  const selected = new Set(value)
+  function toggle(s: string) {
+    const next = new Set(value)
+    if (next.has(s)) next.delete(s); else next.add(s)
+    onChange([...next])
+  }
+
+  // Always allow free text too (and to preserve legacy/AI-set refs not in any list).
+  const known = new Set(groups.flatMap(g => g.acs))
+  const custom = value.filter(v => !known.has(v))
+
+  if (!hasAcs) {
+    return (
+      <div>
+        <input type="text" value={value.join(', ')}
+          onChange={e => onChange(e.target.value.split(',').map(s => s.trim()).filter(Boolean))}
+          className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          placeholder="comma-separated, e.g. AC-1, AC-2" />
+        <p className="text-[11px] text-slate-400 mt-1">
+          {linkedReqIds.length === 0
+            ? 'Link a requirement above to pick its acceptance criteria; otherwise enter refs manually.'
+            : 'The linked requirement(s) have no structured acceptance criteria — enter refs manually.'}
+        </p>
+      </div>
+    )
+  }
+  return (
+    <div className="space-y-2">
+      {groups.map(g => (
+        <div key={g.req.id} className="border border-slate-200 rounded-lg overflow-hidden">
+          <p className="px-2.5 py-1.5 bg-slate-50 text-[11px] font-medium text-slate-500 border-b border-slate-100">
+            {g.req.externalId && <span className="font-mono mr-1">{g.req.externalId}</span>}{g.req.title}
+          </p>
+          <div className="divide-y divide-slate-50">
+            {g.acs.map((ac, i) => (
+              <label key={i} className="flex items-start gap-2 px-2.5 py-1.5 text-xs cursor-pointer hover:bg-blue-50">
+                <input type="checkbox" checked={selected.has(ac)} onChange={() => toggle(ac)} className="mt-0.5 shrink-0" />
+                <span className="text-slate-700">{ac}</span>
+              </label>
+            ))}
+          </div>
+        </div>
+      ))}
+      {custom.length > 0 && (
+        <div className="flex flex-wrap gap-1">
+          {custom.map(c => (
+            <span key={c} className="inline-flex items-center gap-1 text-xs bg-slate-100 text-slate-600 rounded px-1.5 py-0.5">
+              {c}
+              <button type="button" onClick={() => toggle(c)} className="hover:text-red-500"><X size={10} /></button>
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  )
+}
+
+function TestCaseFormModal({
   projectId,
   suites,
+  editing,
   onClose,
 }: {
   projectId: string
   suites: TestSuite[]
+  editing?: ManagedTestCase | null
   onClose: () => void
 }) {
   const queryClient = useQueryClient()
-  const [title, setTitle] = useState('')
-  const [description, setDescription] = useState('')
-  const [priority, setPriority] = useState('MEDIUM')
-  const [suiteId, setSuiteId] = useState('')
-  const [steps, setSteps] = useState<StepRow[]>([{ action: '', expectedResult: '' }])
+  const isEdit = !!editing
+  const [title, setTitle] = useState(editing?.title ?? '')
+  const [description, setDescription] = useState(editing?.description ?? '')
+  const [preconditions, setPreconditions] = useState(editing?.preconditions ?? '')
+  const [expectedResult, setExpectedResult] = useState(editing?.expectedResult ?? '')
+  const [priority, setPriority] = useState(editing?.priority ?? 'MEDIUM')
+  const [suiteId, setSuiteId] = useState(editing?.suiteId ?? '')
+  // Full linked-requirement set (the primary/source, if any, is one of these).
+  const [linkedReqIds, setLinkedReqIds] = useState<string[]>(() => {
+    const set = new Set(editing?.linkedRequirementIds ?? [])
+    if (editing?.sourceRequirementId) set.add(editing.sourceRequirementId)
+    return [...set]
+  })
+  const [primaryReqId, setPrimaryReqId] = useState(editing?.sourceRequirementId ?? '')
+  const [acRefs, setAcRefs] = useState<string[]>(editing?.acRefs ?? [])
+  const [steps, setSteps] = useState<StepRow[]>(
+    editing?.steps?.length
+      ? editing.steps.map(s => ({ action: s.action ?? '', expectedResult: s.expectedResult ?? '', notes: s.notes ?? '' }))
+      : [{ action: '', expectedResult: '', notes: '' }],
+  )
   const [error, setError] = useState<string | null>(null)
 
+  // For the optional "source requirement" link.
+  const { data: requirements = [] } = useQuery({
+    queryKey: ['requirements', projectId],
+    queryFn: () => api.requirements(projectId),
+  })
+
   const mutation = useMutation({
-    mutationFn: (body: CreateTestCaseForm) => api.createTestCase(projectId, body),
+    mutationFn: (body: CreateTestCaseForm) =>
+      isEdit ? api.updateTestCase(projectId, editing!.id, body) : api.createTestCase(projectId, body),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['testCases', projectId] })
       onClose()
@@ -147,94 +353,132 @@ function NewTestCaseModal({
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!title.trim()) { setError('Title is required'); return }
+    // The whole link set is sent (so edits can replace/clear it); the ★ primary, if
+    // any, becomes sourceRequirementId and is guaranteed to be in the set.
+    const linkedRequirementIds = Array.from(new Set([
+      ...(primaryReqId ? [primaryReqId] : []),
+      ...linkedReqIds,
+    ]))
     mutation.mutate({
       title: title.trim(),
       description: description.trim() || undefined,
+      preconditions: preconditions.trim() || undefined,
+      expectedResult: expectedResult.trim() || undefined,
       priority,
       suiteId: suiteId || undefined,
+      sourceRequirementId: primaryReqId || undefined,
+      linkedRequirementIds,
+      acRefs: acRefs.length ? acRefs : undefined,
       steps: steps.filter(s => s.action.trim()).map(s => ({
         action: s.action.trim(),
         expectedResult: s.expectedResult.trim() || undefined,
+        notes: s.notes.trim() || undefined,
       })),
     })
   }
 
+  const inputCls = 'w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500'
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[90vh] flex flex-col">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl mx-4 max-h-[92vh] flex flex-col">
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200">
-          <h2 className="font-semibold text-slate-900">New Test Case</h2>
+          <h2 className="font-semibold text-slate-900">{isEdit ? `Edit ${editing!.externalId ?? 'Test Case'}` : 'New Test Case'}</h2>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
         </div>
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-5 py-4 space-y-6">
           {error && <ErrorMessage message={error} />}
-          <div>
-            <label className="block text-xs font-medium text-slate-700 mb-1">Title *</label>
-            <input
-              type="text"
-              value={title}
-              onChange={e => setTitle(e.target.value)}
-              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Test case title"
-              autoFocus
-            />
-          </div>
-          <div className="grid grid-cols-2 gap-3">
+
+          {/* Details */}
+          <FormSection title="Details">
             <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1">Priority</label>
-              <select
-                value={priority}
-                onChange={e => setPriority(e.target.value)}
-                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                {['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'].map(p => (
-                  <option key={p} value={p}>{p}</option>
-                ))}
-              </select>
+              <label className="block text-xs font-medium text-slate-700 mb-1">Title *</label>
+              <input type="text" value={title} onChange={e => setTitle(e.target.value)}
+                className={inputCls} placeholder="e.g. Checkout applies the correct order total" autoFocus />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">Priority</label>
+                <select value={priority} onChange={e => setPriority(e.target.value)} className={inputCls}>
+                  {['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'].map(p => <option key={p} value={p}>{p}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">Suite / Plan</label>
+                <select value={suiteId} onChange={e => setSuiteId(e.target.value)} className={inputCls}>
+                  <option value="">— None —</option>
+                  {suites.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                </select>
+              </div>
+            </div>
+            {!isEdit && (
+              <p className="text-[11px] text-slate-400">New cases start as <strong>DRAFT</strong> — submit for review to confirm.</p>
+            )}
+          </FormSection>
+
+          {/* Specification */}
+          <FormSection title="Specification" hint="Markdown supported — use the Preview tab to check formatting.">
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1">Preconditions</label>
+              <MarkdownEditor value={preconditions} onChange={setPreconditions} rows={2}
+                placeholder="State the system must be in before running" />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1">Suite</label>
-              <select
-                value={suiteId}
-                onChange={e => setSuiteId(e.target.value)}
-                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              >
-                <option value="">— None —</option>
-                {suites.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-              </select>
+              <label className="block text-xs font-medium text-slate-700 mb-1">Description</label>
+              <MarkdownEditor value={description} onChange={setDescription} rows={3}
+                placeholder="What this test verifies and why" />
             </div>
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-slate-700 mb-1">Description</label>
-            <textarea
-              value={description}
-              onChange={e => setDescription(e.target.value)}
-              rows={3}
-              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
-              placeholder="Optional description"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-medium text-slate-700 mb-2">Steps</label>
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1">Expected result (overall)</label>
+              <MarkdownEditor value={expectedResult} onChange={setExpectedResult} rows={2}
+                placeholder="The overall pass condition" />
+            </div>
+          </FormSection>
+
+          {/* Steps */}
+          <FormSection title="Steps" hint="Each step: action → expected result, with optional notes.">
             <StepEditor steps={steps} onChange={setSteps} />
-          </div>
+          </FormSection>
+
+          {/* Traceability */}
+          <FormSection title="Traceability">
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1">
+                Linked requirements <span className="text-slate-400 font-normal">(optional · a test case may cover any number, or none)</span>
+              </label>
+              <RequirementMultiSelect
+                requirements={requirements}
+                value={linkedReqIds}
+                onChange={setLinkedReqIds}
+                primaryId={primaryReqId}
+                onPrimaryChange={setPrimaryReqId}
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1">
+                Acceptance criteria <span className="text-slate-400 font-normal">(which ACs of the linked requirements this case validates)</span>
+              </label>
+              <AcceptanceCriteriaPicker
+                requirements={requirements}
+                linkedReqIds={linkedReqIds}
+                value={acRefs}
+                onChange={setAcRefs}
+              />
+            </div>
+          </FormSection>
         </form>
+
         <div className="px-5 py-4 border-t border-slate-200 flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
-          >
+          <button type="button" onClick={onClose}
+            className="px-4 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors">
             Cancel
           </button>
-          <button
-            type="button"
-            onClick={handleSubmit as unknown as React.MouseEventHandler}
+          <button type="button" onClick={handleSubmit as unknown as React.MouseEventHandler}
             disabled={mutation.isPending}
-            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center gap-2"
-          >
+            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center gap-2">
             {mutation.isPending && <Loader2 size={14} className="animate-spin" />}
-            Create
+            {isEdit ? 'Save changes' : 'Create'}
           </button>
         </div>
       </div>
@@ -614,6 +858,7 @@ function AutomationTargetModal({
   onClose: () => void
 }) {
   const navigate = useNavigate()
+  const { base } = useProject()
   const { data: integrations, isLoading } = useQuery({
     queryKey: ['integrations', projectId],
     queryFn:  () => api.integrations(projectId),
@@ -666,7 +911,7 @@ function AutomationTargetModal({
                 </div>
               </div>
               <button
-                onClick={() => navigate(`/projects/${projectId}/settings`)}
+                onClick={() => navigate(`${base}/settings`)}
                 className="w-full py-2 text-sm font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors flex items-center justify-center gap-2"
               >
                 <Link2 size={14} /> Go to Project Settings
@@ -870,6 +1115,13 @@ function LinkedRequirementsSection({
                     <span className="ml-1 opacity-60 text-[10px]">(source)</span>
                   )}
                 </span>
+                {req?.sourceUrl && (
+                  <a href={req.sourceUrl} target="_blank" rel="noreferrer"
+                     title="Open the requirement in Azure DevOps"
+                     className="text-slate-300 hover:text-blue-600 shrink-0">
+                    <ExternalLink size={11} />
+                  </a>
+                )}
                 {reqId !== tc.sourceRequirementId && (
                   <button
                     onClick={() => unlinkMutation.mutate(reqId)}
@@ -894,10 +1146,12 @@ function TestCaseDetailPanel({
   tc,
   projectId,
   onClose,
+  onEdit,
 }: {
   tc: ManagedTestCase
   projectId: string
   onClose: () => void
+  onEdit: (tc: ManagedTestCase) => void
 }) {
   const queryClient = useQueryClient()
   const [showAutomationModal, setShowAutomationModal] = useState(false)
@@ -926,7 +1180,13 @@ function TestCaseDetailPanel({
     <div className="w-96 shrink-0 border-l border-slate-200 bg-white flex flex-col h-full">
       <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
         <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Detail</span>
-        <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={16} /></button>
+        <div className="flex items-center gap-1">
+          <button onClick={() => onEdit(tc)} title="Edit test case"
+            className="flex items-center gap-1 text-xs font-medium text-slate-600 hover:text-blue-600 px-2 py-1 rounded hover:bg-slate-100">
+            <Pencil size={13} /> Edit
+          </button>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={16} /></button>
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5">
@@ -942,11 +1202,14 @@ function TestCaseDetailPanel({
           </div>
         </div>
 
+        {/* Tags */}
+        <CaseTagsCard projectId={projectId} caseId={tc.id} />
+
         {/* Description */}
         {tc.description && (
           <div>
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Description</p>
-            <p className="text-sm text-slate-700 whitespace-pre-wrap">{tc.description}</p>
+            <Markdown>{tc.description}</Markdown>
           </div>
         )}
 
@@ -954,7 +1217,15 @@ function TestCaseDetailPanel({
         {tc.preconditions && (
           <div>
             <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Preconditions</p>
-            <p className="text-sm text-slate-700 whitespace-pre-wrap">{tc.preconditions}</p>
+            <Markdown>{tc.preconditions}</Markdown>
+          </div>
+        )}
+
+        {/* Expected result */}
+        {tc.expectedResult && (
+          <div>
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Expected result</p>
+            <Markdown>{tc.expectedResult}</Markdown>
           </div>
         )}
 
@@ -1016,6 +1287,9 @@ function TestCaseDetailPanel({
             </div>
           </div>
         )}
+
+        {/* Parametrization properties (matrix axes) */}
+        <CasePropertiesSection projectId={projectId} caseId={tc.id} />
 
         {/* Linked Requirements */}
         <LinkedRequirementsSection tc={tc} projectId={projectId} />
@@ -1114,20 +1388,171 @@ function TestCaseDetailPanel({
   )
 }
 
+// ── Parametrization properties (matrix axes) ────────────────────────────────────
+
+function CaseTagsCard({ projectId, caseId }: { projectId: string; caseId: string }) {
+  const qc = useQueryClient()
+  const [input, setInput] = useState('')
+
+  const { data: tags = [] } = useQuery({
+    queryKey: ['caseTags', projectId, caseId],
+    queryFn: () => api.caseTags(projectId, caseId),
+  })
+  const { data: suggestions = [] } = useQuery({
+    queryKey: ['tagSuggestions', projectId],
+    queryFn: () => api.tagSuggestions(projectId),
+  })
+
+  const addMutation = useMutation({
+    mutationFn: (name: string) => api.addCaseTag(projectId, caseId, name),
+    onSuccess: (updated) => {
+      qc.setQueryData(['caseTags', projectId, caseId], updated)
+      setInput('')
+      void qc.invalidateQueries({ queryKey: ['tagSuggestions', projectId] })
+    },
+  })
+  const removeMutation = useMutation({
+    mutationFn: (name: string) => api.removeCaseTag(projectId, caseId, name),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['caseTags', projectId, caseId] }),
+  })
+
+  const submit = () => { const v = input.trim(); if (v) addMutation.mutate(v) }
+
+  return (
+    <div>
+      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Tags</p>
+      <div className="flex flex-wrap gap-1.5 mb-2">
+        {tags.length === 0 && <span className="text-xs text-slate-400">No tags yet.</span>}
+        {tags.map(t => (
+          <span key={t} className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
+            {t}
+            <button onClick={() => removeMutation.mutate(t)} className="text-slate-400 hover:text-red-500" title="Remove tag">
+              <X size={11} />
+            </button>
+          </span>
+        ))}
+      </div>
+      <div className="flex items-center gap-1.5">
+        <input
+          list={`tagsugg-${caseId}`}
+          value={input}
+          onChange={e => setInput(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); submit() } }}
+          placeholder="Add tag…"
+          className="flex-1 border border-slate-200 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+        />
+        <datalist id={`tagsugg-${caseId}`}>
+          {suggestions.filter(s => !tags.includes(s)).map(s => <option key={s} value={s} />)}
+        </datalist>
+        <button onClick={submit} disabled={!input.trim() || addMutation.isPending}
+          className="text-xs px-2 py-1 border border-slate-200 rounded hover:bg-slate-50 disabled:opacity-50">
+          Add
+        </button>
+      </div>
+    </div>
+  )
+}
+
+function CasePropertiesSection({ projectId, caseId }: { projectId: string; caseId: string }) {
+  const qc = useQueryClient()
+  const { data } = useQuery({
+    queryKey: ['caseProperties', projectId, caseId],
+    queryFn: () => api.caseProperties(projectId, caseId),
+  })
+  const [rows, setRows] = useState<CaseProperty[]>([])
+  const [dirty, setDirty] = useState(false)
+
+  useEffect(() => {
+    if (data) { setRows(data.length ? data : [{ name: '', value: '' }]); setDirty(false) }
+  }, [data])
+
+  const saveMutation = useMutation({
+    mutationFn: () => api.replaceCaseProperties(projectId, caseId,
+      rows.filter(r => r.name.trim() && r.value.trim())),
+    onSuccess: () => { setDirty(false); void qc.invalidateQueries({ queryKey: ['caseProperties', projectId, caseId] }) },
+  })
+
+  const update = (i: number, field: keyof CaseProperty, v: string) => {
+    setRows(rs => rs.map((r, idx) => idx === i ? { ...r, [field]: v } : r)); setDirty(true)
+  }
+  const addRow = () => { setRows(rs => [...rs, { name: '', value: '' }]); setDirty(true) }
+  const removeRow = (i: number) => { setRows(rs => rs.filter((_, idx) => idx !== i)); setDirty(true) }
+
+  // Full-matrix size = product of distinct value counts per property name.
+  const byName = new Map<string, Set<string>>()
+  rows.forEach(r => {
+    if (r.name.trim() && r.value.trim()) {
+      const s = byName.get(r.name.trim()) ?? new Set<string>()
+      s.add(r.value.trim()); byName.set(r.name.trim(), s)
+    }
+  })
+  let combos = byName.size === 0 ? 0 : 1
+  byName.forEach(s => { combos *= s.size })
+
+  return (
+    <div>
+      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Parameters (matrix axes)</p>
+      <div className="space-y-1.5">
+        {rows.map((r, i) => (
+          <div key={i} className="flex items-center gap-1.5">
+            <input
+              value={r.name}
+              onChange={e => update(i, 'name', e.target.value)}
+              placeholder="name (e.g. browser)"
+              className="flex-1 min-w-0 border border-slate-200 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+            <input
+              value={r.value}
+              onChange={e => update(i, 'value', e.target.value)}
+              placeholder="value (e.g. Chrome)"
+              className="flex-1 min-w-0 border border-slate-200 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+            />
+            <button onClick={() => removeRow(i)} className="p-1 text-slate-300 hover:text-red-500" title="Remove">
+              <X size={12} />
+            </button>
+          </div>
+        ))}
+      </div>
+      <div className="flex items-center justify-between mt-2">
+        <button onClick={addRow} className="text-xs text-slate-500 hover:text-blue-600 flex items-center gap-1">
+          <Plus size={12} /> add value
+        </button>
+        <span className="text-[11px] text-slate-400">
+          {combos > 0 ? `Full matrix → ${combos} execution${combos === 1 ? '' : 's'}/run` : 'No parameters'}
+        </span>
+      </div>
+      {dirty && (
+        <button
+          onClick={() => saveMutation.mutate()}
+          disabled={saveMutation.isPending}
+          className="mt-2 w-full py-1.5 text-xs font-medium text-white bg-blue-600 rounded hover:bg-blue-700 disabled:opacity-50"
+        >
+          {saveMutation.isPending ? 'Saving…' : 'Save parameters'}
+        </button>
+      )}
+    </div>
+  )
+}
+
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function TestCasesPage() {
-  const { projectId } = useParams<{ projectId: string }>()
+  const { projectId } = useProject()
   const queryClient = useQueryClient()
 
   const [selectedSuiteId, setSelectedSuiteId] = useState<string | null>(null)
   const [statusFilter, setStatusFilter] = useState('')
   const [search, setSearch] = useState('')
-  const [selectedTc, setSelectedTc] = useState<ManagedTestCase | null>(null)
+  // Keep only the id selected; the panel reads the live row from the query so it
+  // always reflects the latest data after an edit / link / status change.
+  const [selectedTcId, setSelectedTcId] = useState<string | null>(null)
   const [showNewModal, setShowNewModal] = useState(false)
+  const [editingTc, setEditingTc] = useState<ManagedTestCase | null>(null)
+  const [editSuite, setEditSuite] = useState<TestSuite | null>(null)
   const [showAIModal, setShowAIModal] = useState(false)
   const [showNewSuiteForm, setShowNewSuiteForm] = useState(false)
   const [newSuiteName, setNewSuiteName] = useState('')
+  const [newSuitePlanType, setNewSuitePlanType] = useState('')
 
   const { data: suites = [], isLoading: suitesLoading } = useQuery({
     queryKey: ['testSuites', projectId],
@@ -1145,14 +1570,33 @@ export default function TestCasesPage() {
     enabled: !!projectId,
   })
 
+  // Live selected test case derived from the query — reloads on any invalidation.
+  const selectedTc = selectedTcId ? testCases.find(tc => tc.id === selectedTcId) ?? null : null
+
   const createSuiteMutation = useMutation({
-    mutationFn: (name: string) => api.createTestSuite(projectId!, { name }),
+    mutationFn: (input: { name: string; parentId?: string | null; planType?: string }) =>
+      api.createTestSuite(projectId!, {
+        name: input.name,
+        parentId: input.parentId ?? undefined,
+        planType: input.planType || undefined,
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['testSuites', projectId] })
       setShowNewSuiteForm(false)
       setNewSuiteName('')
+      setNewSuitePlanType('')
     },
   })
+
+  const addSuite = () => {
+    if (newSuiteName.trim()) {
+      createSuiteMutation.mutate({
+        name: newSuiteName.trim(),
+        parentId: selectedSuiteId,   // nest under the selected suite (root if "All")
+        planType: newSuitePlanType,
+      })
+    }
+  }
 
   const deleteSuiteMutation = useMutation({
     mutationFn: (suiteId: string) => api.deleteTestSuite(projectId!, suiteId),
@@ -1166,6 +1610,50 @@ export default function TestCasesPage() {
   if (tcError) return <ErrorMessage message="Failed to load test cases." />
 
   const suiteName = suites.find(s => s.id === selectedSuiteId)?.name ?? 'All'
+
+  // Render the suite tree (parent/child) with indentation.
+  const renderSuiteNodes = (parentId: string | null, depth: number): React.ReactNode =>
+    suites
+      .filter(s => (s.parentId ?? null) === parentId)
+      .map(suite => (
+        <div key={suite.id}>
+          <div className="group flex items-center gap-1 mx-1">
+            <button
+              onClick={() => setSelectedSuiteId(suite.id)}
+              style={{ paddingLeft: 12 + depth * 14 }}
+              className={cn(
+                'flex-1 flex items-center gap-2 pr-3 py-2 text-sm rounded-lg transition-colors text-left',
+                selectedSuiteId === suite.id
+                  ? 'bg-blue-50 text-blue-700 font-medium'
+                  : 'text-slate-600 hover:bg-slate-50',
+              )}
+            >
+              <FolderOpen size={14} className="shrink-0" />
+              <span className="truncate">{suite.name}</span>
+              {suite.planType && (
+                <span className="ml-auto text-[10px] px-1 py-0.5 rounded bg-slate-100 text-slate-500 shrink-0">
+                  {suite.planType}
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => setEditSuite(suite)}
+              className="opacity-0 group-hover:opacity-100 p-1 text-slate-300 hover:text-blue-500 transition-all"
+              title="Edit suite"
+            >
+              <Pencil size={11} />
+            </button>
+            <button
+              onClick={() => deleteSuiteMutation.mutate(suite.id)}
+              className="opacity-0 group-hover:opacity-100 p-1 text-slate-300 hover:text-red-500 transition-all"
+              title="Delete suite"
+            >
+              <X size={12} />
+            </button>
+          </div>
+          {renderSuiteNodes(suite.id, depth + 1)}
+        </div>
+      ))
 
   return (
     <div className="flex flex-col h-full space-y-0">
@@ -1224,57 +1712,45 @@ export default function TestCasesPage() {
                 <div className="px-3 py-2 text-xs text-slate-400">Loading…</div>
               )}
 
-              {suites.map(suite => (
-                <div key={suite.id} className="group flex items-center gap-1 mx-1">
-                  <button
-                    onClick={() => setSelectedSuiteId(suite.id)}
-                    className={cn(
-                      'flex-1 flex items-center gap-2 px-3 py-2 text-sm rounded-lg transition-colors text-left',
-                      selectedSuiteId === suite.id
-                        ? 'bg-blue-50 text-blue-700 font-medium'
-                        : 'text-slate-600 hover:bg-slate-50'
-                    )}
-                  >
-                    <FolderOpen size={14} />
-                    <span className="truncate">{suite.name}</span>
-                  </button>
-                  <button
-                    onClick={() => deleteSuiteMutation.mutate(suite.id)}
-                    className="opacity-0 group-hover:opacity-100 p-1 text-slate-300 hover:text-red-500 transition-all"
-                    title="Delete suite"
-                  >
-                    <X size={12} />
-                  </button>
-                </div>
-              ))}
+              {renderSuiteNodes(null, 0)}
             </div>
 
             {/* New suite */}
             <div className="p-3 border-t border-slate-100">
               {showNewSuiteForm ? (
                 <div className="space-y-1.5">
+                  <p className="text-[10px] text-slate-400">
+                    Adds under: <span className="font-medium text-slate-600">{selectedSuiteId ? suiteName : 'root'}</span>
+                  </p>
                   <input
                     type="text"
                     autoFocus
                     value={newSuiteName}
                     onChange={e => setNewSuiteName(e.target.value)}
                     onKeyDown={e => {
-                      if (e.key === 'Enter') createSuiteMutation.mutate(newSuiteName.trim())
+                      if (e.key === 'Enter') addSuite()
                       if (e.key === 'Escape') { setShowNewSuiteForm(false); setNewSuiteName('') }
                     }}
-                    placeholder="Suite name"
+                    placeholder="Suite / plan name"
+                    className="w-full border border-slate-200 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+                  />
+                  <input
+                    type="text"
+                    value={newSuitePlanType}
+                    onChange={e => setNewSuitePlanType(e.target.value)}
+                    placeholder="Plan type (optional) — SMOKE, REGRESSION…"
                     className="w-full border border-slate-200 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
                   />
                   <div className="flex gap-1">
                     <button
-                      onClick={() => createSuiteMutation.mutate(newSuiteName.trim())}
+                      onClick={addSuite}
                       disabled={!newSuiteName.trim() || createSuiteMutation.isPending}
                       className="flex-1 py-1 text-xs font-medium text-white bg-blue-600 rounded hover:bg-blue-700 disabled:opacity-50"
                     >
                       Add
                     </button>
                     <button
-                      onClick={() => { setShowNewSuiteForm(false); setNewSuiteName('') }}
+                      onClick={() => { setShowNewSuiteForm(false); setNewSuiteName(''); setNewSuitePlanType('') }}
                       className="flex-1 py-1 text-xs font-medium text-slate-600 bg-slate-100 rounded hover:bg-slate-200"
                     >
                       Cancel
@@ -1334,10 +1810,10 @@ export default function TestCasesPage() {
                 {testCases.map(tc => (
                   <div
                     key={tc.id}
-                    onClick={() => setSelectedTc(tc.id === selectedTc?.id ? null : tc)}
+                    onClick={() => setSelectedTcId(tc.id === selectedTcId ? null : tc.id)}
                     className={cn(
                       'flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors hover:bg-slate-50',
-                      selectedTc?.id === tc.id ? 'bg-blue-50' : ''
+                      selectedTcId === tc.id ? 'bg-blue-50' : ''
                     )}
                   >
                     <div className="shrink-0">
@@ -1376,18 +1852,21 @@ export default function TestCasesPage() {
             <TestCaseDetailPanel
               tc={selectedTc}
               projectId={projectId!}
-              onClose={() => setSelectedTc(null)}
+              onClose={() => setSelectedTcId(null)}
+              onEdit={tc => setEditingTc(tc)}
             />
           )}
         </div>
       </div>
 
       {/* Modals */}
-      {showNewModal && (
-        <NewTestCaseModal
+      {(showNewModal || editingTc) && (
+        <TestCaseFormModal
+          key={editingTc?.id ?? 'new'}
           projectId={projectId!}
           suites={suites}
-          onClose={() => setShowNewModal(false)}
+          editing={editingTc}
+          onClose={() => { setShowNewModal(false); setEditingTc(null) }}
         />
       )}
       {showAIModal && (
@@ -1396,6 +1875,104 @@ export default function TestCasesPage() {
           onClose={() => setShowAIModal(false)}
         />
       )}
+      {editSuite && (
+        <SuiteFormModal
+          projectId={projectId!}
+          suite={editSuite}
+          suites={suites}
+          onClose={() => setEditSuite(null)}
+        />
+      )}
+    </div>
+  )
+}
+
+function SuiteFormModal({
+  projectId,
+  suite,
+  suites,
+  onClose,
+}: {
+  projectId: string
+  suite: TestSuite
+  suites: TestSuite[]
+  onClose: () => void
+}) {
+  const qc = useQueryClient()
+  const [name, setName] = useState(suite.name)
+  const [planType, setPlanType] = useState(suite.planType ?? '')
+  const [parentId, setParentId] = useState(suite.parentId ?? '')
+  const [description, setDescription] = useState(suite.description ?? '')
+  const [active, setActive] = useState(suite.active)
+  const [error, setError] = useState<string | null>(null)
+
+  const PLAN_TYPES = ['', 'SMOKE', 'REGRESSION', 'SANITY', 'FUNCTIONAL', 'INTEGRATION', 'ACCEPTANCE']
+
+  const save = useMutation({
+    mutationFn: () => api.updateTestSuite(projectId, suite.id, {
+      name: name.trim(),
+      description: description.trim() || undefined,
+      parentId: parentId || null,
+      planType: planType || undefined,
+      active,
+    }),
+    onSuccess: () => { void qc.invalidateQueries({ queryKey: ['testSuites', projectId] }); onClose() },
+    onError: (e: Error) => setError(e.message),
+  })
+
+  const inputCls = 'w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500'
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200">
+          <h2 className="font-semibold text-slate-900">Edit Suite / Plan</h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
+        </div>
+        <div className="px-5 py-4 space-y-3">
+          {error && <ErrorMessage message={error} />}
+          <div>
+            <label className="block text-xs font-medium text-slate-700 mb-1">Name *</label>
+            <input value={name} onChange={e => setName(e.target.value)} className={inputCls} autoFocus />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1">Plan type</label>
+              <select value={planType} onChange={e => setPlanType(e.target.value)} className={inputCls}>
+                {PLAN_TYPES.map(t => <option key={t} value={t}>{t || '— None —'}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1">Parent</label>
+              <select value={parentId} onChange={e => setParentId(e.target.value)} className={inputCls}>
+                <option value="">— Root —</option>
+                {suites.filter(s => s.id !== suite.id).map(s => (
+                  <option key={s.id} value={s.id}>{s.name}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div>
+            <label className="block text-xs font-medium text-slate-700 mb-1">Description</label>
+            <MarkdownEditor value={description} onChange={setDescription} rows={3}
+              placeholder="What this plan covers" />
+          </div>
+          <label className="flex items-center gap-2 text-sm text-slate-600">
+            <input type="checkbox" checked={active} onChange={e => setActive(e.target.checked)} />
+            Active
+          </label>
+        </div>
+        <div className="px-5 py-4 border-t border-slate-200 flex justify-end gap-2">
+          <button onClick={onClose}
+            className="px-4 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50">
+            Cancel
+          </button>
+          <button onClick={() => name.trim() && save.mutate()} disabled={!name.trim() || save.isPending}
+            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2">
+            {save.isPending && <Loader2 size={14} className="animate-spin" />} Save
+          </button>
+        </div>
+      </div>
     </div>
   )
 }

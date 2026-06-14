@@ -4,22 +4,16 @@ import { api } from '@/lib/api'
 import { relativeTime } from '@/lib/utils'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import ErrorMessage from '@/components/ErrorMessage'
+import { ProjectSelect, TeamSelect } from '@/components/ScopeSelectors'
 import { Plus, Trash2, Copy, Check } from 'lucide-react'
-import type { Team } from '@/lib/types'
 
 export default function ApiKeysPage() {
   const qc = useQueryClient()
-  const [selectedTeamId, setSelectedTeamId] = useState<string>('')
+  const [projectId, setProjectId] = useState<string>('')
+  const [teamId, setTeamId] = useState<string>('')
   const [newKeyName, setNewKeyName] = useState('')
   const [createdKey, setCreatedKey] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
-
-  const { data: teams } = useQuery({
-    queryKey: ['teams'],
-    queryFn: api.teams,
-  })
-
-  const teamId = selectedTeamId || teams?.[0]?.id || ''
 
   const { data: keys, isLoading, error } = useQuery({
     queryKey: ['api-keys', teamId],
@@ -54,21 +48,13 @@ export default function ApiKeysPage() {
         <p className="text-sm text-slate-500 mt-1">Manage authentication keys for CI/CD pipelines</p>
       </div>
 
-      {/* Team selector */}
-      {teams && teams.length > 0 && (
-        <div className="flex items-center gap-3">
-          <label className="text-sm font-medium text-slate-700">Team:</label>
-          <select
-            value={teamId}
-            onChange={e => setSelectedTeamId(e.target.value)}
-            className="text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
-            {teams.map((t: Team) => (
-              <option key={t.id} value={t.id}>{t.name}</option>
-            ))}
-          </select>
-        </div>
-      )}
+      {/* Scope selector — API keys are scoped to a team within a project */}
+      <div className="flex items-center gap-3">
+        <label className="text-sm font-medium text-slate-700">Project:</label>
+        <ProjectSelect value={projectId} onChange={setProjectId} />
+        <label className="text-sm font-medium text-slate-700">Team:</label>
+        <TeamSelect projectId={projectId} value={teamId} onChange={setTeamId} />
+      </div>
 
       {/* New key created banner */}
       {createdKey && (

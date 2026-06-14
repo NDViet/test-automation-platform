@@ -28,14 +28,23 @@ export interface OrgSummary {
 
 export interface ProjectSummary {
   projectId: string
-  teamId: string
+  orgSlug: string
   passRate: number
   totalRuns: number
   flakyTests: number
 }
 
+export interface Organization {
+  id: string
+  name: string
+  slug: string
+  createdAt: string
+}
+
+/** Team — a sub-entity of a project (ADO-first: Org → Project → Team). */
 export interface Team {
   id: string
+  projectId: string
   name: string
   slug: string
   createdAt: string
@@ -45,9 +54,9 @@ export interface Project {
   id: string
   name: string
   slug: string
-  teamId: string
-  teamName: string
-  teamSlug: string
+  orgId: string
+  orgName: string
+  orgSlug: string
   createdAt: string
 }
 
@@ -216,6 +225,15 @@ export interface IntegrationConfig {
   consecutiveErrors: number
 }
 
+export interface CreateOrganizationForm {
+  name: string
+  slug: string
+}
+
+export interface UpdateOrganizationForm {
+  name?: string
+}
+
 export interface CreateTeamForm {
   name: string
   slug: string
@@ -226,7 +244,7 @@ export interface UpdateTeamForm {
 }
 
 export interface CreateProjectForm {
-  teamId: string
+  orgId: string
   name: string
   slug: string
   repoUrl?: string
@@ -250,14 +268,119 @@ export interface Requirement {
   parentId: string | null
   acceptanceCriteria: unknown[]
   changeSummary: string | null
+  /** Upstream creation date (ADO System.CreatedDate). */
+  createdDate: string | null
   syncedAt: string | null
   updatedAt: string
+  /** Link to open the original item in its source system (e.g. Azure DevOps), or null. */
+  sourceUrl: string | null
+}
+
+export interface RequirementRef {
+  id: string
+  externalId: string | null
+  title: string
+  issueType: string
+  status: string
+  depth: number
+  sourceUrl: string | null
+}
+
+export interface RequirementRelations {
+  parent: RequirementRef | null
+  children: RequirementRef[]
 }
 
 export interface RequirementStats {
   total: number
   byStatus: Record<string, number>
   byIssueType: Record<string, number>
+}
+
+// ── ADO org structure ──────────────────────────────────────────────────────────
+export interface AdoTeam {
+  id: string
+  name: string
+  description: string | null
+  defaultAreaPath: string | null
+  areaPaths: string[]
+  memberCount: number
+  syncedAt: string
+}
+export interface AdoArea {
+  id: string; path: string; name: string; parentPath: string | null
+  hasChildren: boolean; syncedAt: string
+}
+export interface AdoIteration {
+  id: string; path: string; name: string; parentPath: string | null
+  startDate: string | null; finishDate: string | null; hasChildren: boolean; syncedAt: string
+}
+export interface AdoUser {
+  id: string; uniqueName: string; displayName: string | null; email: string | null
+  teamMember: boolean; seenOnWorkItems: boolean; qualityRole: string | null; syncedAt: string
+}
+export interface AdoStructureSummary {
+  teams: number; areas: number; iterations: number; users: number; qualityUsers: number
+}
+
+// ── Quality dashboards ─────────────────────────────────────────────────────────
+export interface LabelValue { label: string; value: number }
+export interface IterationStat { label: string; total: number; open: number; done: number }
+export interface QualityOverview {
+  totalDefects: number; openDefects: number; doneDefects: number; blockedDefects: number
+  createdLast30: number; resolvedLast30: number; qualityEngineers: number; historyEvents: number
+  byStatus: LabelValue[]; byPriority: LabelValue[]; bySeverity: LabelValue[]
+  byArea: LabelValue[]; byIteration: IterationStat[]
+}
+export interface EngineerStat {
+  name: string; role: string; email: string | null
+  defectsCreated: number; createdByStatus: LabelValue[]
+  defectsResolved: number; openDefects: number
+  otherTotal: number; otherByStatus: LabelValue[]
+  resolvedActual: number; participated: number; reopened: number
+}
+// ── Productivity / cycle time ──────────────────────────────────────────────────
+export interface AreaProductivity {
+  area: string; wip: number; overThreshold: number; avgHours: number | null; maxHours: number | null
+}
+export interface ProductivityOverview {
+  thresholdHours: number; totalWip: number; totalOver: number; areasAffected: number
+  areas: AreaProductivity[]
+}
+export interface OverThresholdItem {
+  id: string; externalId: string | null; title: string; issueType: string; status: string
+  assignedTo: string | null; areaPath: string | null; cycleHours: number | null
+  startedAt: string | null; sourceUrl: string | null
+}
+export interface LeadAreaStat {
+  area: string; completed: number; avgHours: number | null; maxHours: number | null
+}
+export interface LeadOverview {
+  totalCompleted: number; avgHours: number | null; maxHours: number | null; areas: LeadAreaStat[]
+}
+export interface LeadItem {
+  id: string; externalId: string | null; title: string; issueType: string
+  assignedTo: string | null; areaPath: string | null; leadHours: number | null
+  createdDate: string | null; completedAt: string | null; sourceUrl: string | null
+}
+
+export interface ActivityEvent {
+  externalId: string; title: string | null; issueType: string | null; eventType: string
+  fromValue: string | null; toValue: string | null; toCategory: string | null
+  revisedAt: string | null; sourceUrl: string | null
+}
+export interface QualityWorkItem {
+  id: string; externalId: string | null; title: string; issueType: string
+  status: string; priority: string | null; areaPath: string | null; iterationPath: string | null
+  sourceUrl: string | null
+}
+
+export interface PagedRequirements {
+  content: Requirement[]
+  page: number
+  size: number
+  totalElements: number
+  totalPages: number
 }
 
 export interface PrAnalysis {
@@ -271,6 +394,26 @@ export interface PrAnalysis {
   startedAt: string | null
   completedAt: string | null
   createdAt: string
+}
+
+/** A mapping ruleset at a scope (ORG/PROJECT), for the Mapping Suggester editor. */
+export interface MappingRulesetView {
+  scope: string
+  customized: boolean        // this scope has its own saved override
+  source: 'PROJECT' | 'ORG' | 'DEFAULT'  // where the shown rules currently come from
+  json: string
+  updatedBy: string | null
+  updatedAt: string | null
+}
+
+/** A credential a project inherits from its organization (read-only, no secret). */
+export interface InheritedCredential {
+  integrationType: string
+  scope: string
+  displayName: string
+  baseUrl: string | null
+  connectionParams: Record<string, string>
+  hasSecret: boolean
 }
 
 export interface SaveIntegrationConfigForm {
@@ -292,8 +435,25 @@ export interface TestSuite {
   projectId: string
   name: string
   description: string | null
+  parentId: string | null
+  planType: string | null
+  active: boolean
   createdAt: string
   updatedAt: string
+}
+
+export interface Environment {
+  id: string
+  projectId: string
+  name: string
+  description: string | null
+  properties: Record<string, string>
+  createdAt: string
+}
+
+export interface CaseProperty {
+  name: string
+  value: string
 }
 
 export interface TestCaseStep {
@@ -393,6 +553,94 @@ export interface CreateTestRunForm {
   environment?: string
   triggeredBy?: string
   testCaseIds: string[]
+  environmentId?: string            // named Environment (V50)
+  matrixType?: 'FULL' | 'PAIRWISE'  // parametrized expansion mode
+}
+
+export interface CreateTestSuiteForm {
+  name: string
+  description?: string
+  parentId?: string | null
+  planType?: string
+  active?: boolean
+}
+
+export interface CoverageRow {
+  requirementId: string
+  externalId: string | null
+  title: string
+  issueType: string | null
+  requirementStatus: string | null
+  automatedCases: number
+  manualCases: number
+  lastStatus: string | null
+}
+
+export interface CoverageReport {
+  totalRequirements: number
+  coveredByAutomation: number
+  coveredManualOnly: number
+  uncovered: number
+  automationCoveragePct: number
+  requirements: CoverageRow[]
+}
+
+// ── Schema drift (upstream ↔ platform) ────────────────────────────────────────
+export interface DriftFieldChange { referenceName: string; name: string; type: string; mapped: boolean }
+export interface DriftTypeChange { referenceName: string; name: string; fromType: string; toType: string }
+export interface SchemaDriftReport {
+  workItemType: string
+  hasBaseline: boolean
+  justCaptured: boolean
+  hasDrift: boolean
+  baselineCapturedAt: string | null
+  removed: DriftFieldChange[]
+  added: DriftFieldChange[]
+  typeChanged: DriftTypeChange[]
+  removedStateCategories: string[]
+  addedStateCategories: string[]
+}
+
+// ── ADO schema discovery + mapping suggestion ─────────────────────────────────
+export interface AdoProject { id: string; name: string }
+export interface AdoTypeSummary {
+  name: string
+  custom: boolean
+  suggestedLane: string            // REQUIREMENT | DEFECT | IGNORE
+  suggestedIssueType: string | null
+}
+export interface AdoFieldInfo {
+  referenceName: string
+  name: string
+  type: string
+  custom: boolean
+  required: boolean
+}
+export interface AdoStateInfo { name: string; category: string; color: string }
+export interface AdoTypeSchema {
+  workItemType: string
+  fields: AdoFieldInfo[]
+  states: AdoStateInfo[]
+  suggestedProfile: unknown        // MappingProfile JSON (apiVersion/kind/metadata/spec)
+}
+
+// ── RBAC ──────────────────────────────────────────────────────────────────────
+export type PlatformRole = 'ORG_ADMIN' | 'TEAM_ADMIN' | 'TEAM_MEMBER' | 'VIEWER'
+
+export interface TeamMemberAssignment {
+  id: string
+  userId: string
+  teamId: string | null   // null = org-wide
+  role: PlatformRole
+  grantedBy: string | null
+  grantedAt: string
+}
+
+export interface GrantRoleForm {
+  userId: string
+  scope: 'ORG' | 'TEAM'
+  teamId?: string | null
+  role: PlatformRole
 }
 
 // ── Impact Analyses ───────────────────────────────────────────────────────────
@@ -469,4 +717,33 @@ export interface WorkItem {
   actionUrl: string | null
   createdAt: string
   metadata: Record<string, unknown>
+}
+
+// ── Integration Credentials (Admin PAT cascade) ──────────────────────────────
+export type CredentialScope = 'ORG' | 'TEAM' | 'PROJECT'
+
+export interface Credential {
+  id: string
+  scope: CredentialScope
+  scopeId: string | null
+  integrationType: string
+  displayName: string
+  baseUrl: string | null
+  connectionParams: Record<string, string>
+  hasSecret: boolean
+  enabled: boolean
+  createdBy: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface SaveCredentialForm {
+  scope: CredentialScope
+  scopeId?: string | null
+  integrationType: string
+  displayName: string
+  baseUrl?: string
+  connectionParams?: Record<string, string>
+  secret?: Record<string, string>
+  enabled?: boolean
 }

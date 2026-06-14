@@ -6,6 +6,8 @@ import com.platform.core.domain.TestRun;
 import com.platform.core.repository.PlatformTestCaseRepository;
 import com.platform.core.repository.TestCaseExecutionRepository;
 import com.platform.core.repository.TestRunRepository;
+import com.platform.core.service.MatrixType;
+import com.platform.core.service.TcmRunService;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -25,13 +27,16 @@ public class TestRunService {
     private final TestRunRepository runRepo;
     private final TestCaseExecutionRepository execRepo;
     private final PlatformTestCaseRepository testCaseRepo;
+    private final TcmRunService tcmRunService;
 
     public TestRunService(TestRunRepository runRepo,
                           TestCaseExecutionRepository execRepo,
-                          PlatformTestCaseRepository testCaseRepo) {
-        this.runRepo      = runRepo;
-        this.execRepo     = execRepo;
-        this.testCaseRepo = testCaseRepo;
+                          PlatformTestCaseRepository testCaseRepo,
+                          TcmRunService tcmRunService) {
+        this.runRepo        = runRepo;
+        this.execRepo       = execRepo;
+        this.testCaseRepo   = testCaseRepo;
+        this.tcmRunService  = tcmRunService;
     }
 
     @Transactional(readOnly = true)
@@ -48,31 +53,38 @@ public class TestRunService {
     }
 
     public TestRunDto create(UUID projectId, CreateTestRunRequest req) {
-        TestRun run = new TestRun(
-                projectId,
-                req.name(),
-                req.releaseVersion(),
-                req.environment(),
-                req.triggeredBy()
-        );
-        run.setStartedAt(Instant.now());
-        run = runRepo.save(run);
-
+        // Non-empty runs go through TcmRunService: enforces the confirmed gate
+        // (APPROVED-only) and expands each case's property matrix (Full/Pairwise)
+        // into per-combination executions under the chosen Environment.
         if (req.testCaseIds() != null && !req.testCaseIds().isEmpty()) {
-            List<UUID> ids = req.testCaseIds().stream()
-                    .map(UUID::fromString)
-                    .toList();
-            List<PlatformTestCase> tcs = testCaseRepo.findAllById(ids);
-            List<TestCaseExecution> executions = new ArrayList<>();
-            for (PlatformTestCase tc : tcs) {
-                if (tc.getProjectId().equals(projectId)) {
-                    executions.add(new TestCaseExecution(run.getId(), tc.getId()));
-                }
+            List<UUID> ids = req.testCaseIds().stream().map(UUID::fromString).toList();
+            UUID environmentId = (req.environmentId() != null && !req.environmentId().isBlank())
+                    ? UUID.fromString(req.environmentId()) : null;
+            MatrixType matrixType = parseMatrix(req.matrixType());
+            try {
+                TestRun run = tcmRunService.createRun(projectId, req.name(), req.releaseVersion(),
+                        environmentId, ids, matrixType, req.triggeredBy());
+                return toDto(run);
+            } catch (IllegalArgumentException e) {
+                throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
             }
-            execRepo.saveAll(executions);
         }
 
+        // Empty run (cases added later).
+        TestRun run = new TestRun(projectId, req.name(), req.releaseVersion(),
+                req.environment(), req.triggeredBy());
+        run.setStartedAt(Instant.now());
+        run = runRepo.save(run);
         return toDto(run);
+    }
+
+    private MatrixType parseMatrix(String value) {
+        if (value == null || value.isBlank()) return MatrixType.FULL;
+        try {
+            return MatrixType.valueOf(value.toUpperCase());
+        } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid matrixType: " + value);
+        }
     }
 
     public TestRunDto complete(UUID projectId, UUID runId) {

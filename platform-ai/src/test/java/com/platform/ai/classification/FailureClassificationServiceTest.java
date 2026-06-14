@@ -43,6 +43,7 @@ class FailureClassificationServiceTest {
     @BeforeEach
     void setUp() {
         lenient().when(aiClient.providerName()).thenReturn("claude-opus-4-6");
+        lenient().when(aiClient.providerName(any())).thenReturn("claude-opus-4-6");
         service = new FailureClassificationService(
                 aiClient, promptBuilder, resultRepo, analysisRepo, meterRegistry);
     }
@@ -54,7 +55,7 @@ class FailureClassificationServiceTest {
                 "at com.example.LoginTest.login(LoginTest.java:42)");
 
         when(resultRepo.findLatestByTestIdAndProjectId(any(), any(), any())).thenReturn(List.of());
-        when(aiClient.analyse(anyString(), anyString())).thenReturn(
+        when(aiClient.analyse(anyString(), anyString(), any())).thenReturn(
                 new AiAnalysisResponse(
                         new ClaudeAnalysisResult(
                                 "APPLICATION_BUG", 0.9,
@@ -84,7 +85,7 @@ class FailureClassificationServiceTest {
         TestCaseResult failure = buildFailure("test#metrics", "fail", null);
 
         when(resultRepo.findLatestByTestIdAndProjectId(any(), any(), any())).thenReturn(List.of());
-        when(aiClient.analyse(anyString(), anyString())).thenReturn(
+        when(aiClient.analyse(anyString(), anyString(), any())).thenReturn(
                 new AiAnalysisResponse(
                         new ClaudeAnalysisResult("TEST_DEFECT", 0.8, "rc", "da", "sf", false, "Comp"),
                         200, 80));
@@ -116,7 +117,7 @@ class FailureClassificationServiceTest {
         FailureAnalysis result = service.classify(failure, projectId);
 
         assertThat(result.getCategory()).isEqualTo("TEST_DEFECT");
-        verify(aiClient, never()).analyse(anyString(), anyString());
+        verify(aiClient, never()).analyse(anyString(), anyString(), any());
         verify(analysisRepo, never()).save(any());
     }
 
@@ -126,7 +127,7 @@ class FailureClassificationServiceTest {
 
         when(resultRepo.findLatestByTestIdAndProjectId(any(), any(), any()))
                 .thenReturn(List.of(failure, failure));
-        when(aiClient.analyse(anyString(), anyString())).thenReturn(
+        when(aiClient.analyse(anyString(), anyString(), any())).thenReturn(
                 new AiAnalysisResponse(
                         new ClaudeAnalysisResult("FLAKY_TIMING", 0.75,
                                 "Async timing issue", "Detail", "Add explicit wait", true, "TestUtil"),
@@ -136,7 +137,7 @@ class FailureClassificationServiceTest {
         ArgumentCaptor<String> userPromptCaptor = ArgumentCaptor.forClass(String.class);
         service.classify(failure, projectId);
 
-        verify(aiClient).analyse(anyString(), userPromptCaptor.capture());
+        verify(aiClient).analyse(anyString(), userPromptCaptor.capture(), any());
         assertThat(userPromptCaptor.getValue()).contains("Recent");
     }
 
@@ -145,7 +146,7 @@ class FailureClassificationServiceTest {
         TestCaseResult failure = buildFailure("test#timing", "Connection timeout", null);
 
         when(resultRepo.findLatestByTestIdAndProjectId(any(), any(), any())).thenReturn(List.of());
-        when(aiClient.analyse(anyString(), anyString())).thenReturn(
+        when(aiClient.analyse(anyString(), anyString(), any())).thenReturn(
                 new AiAnalysisResponse(
                         new ClaudeAnalysisResult("FLAKY_TIMING", 0.85,
                                 "Network timeout intermittent", "Flaky network call", "Add retry logic",

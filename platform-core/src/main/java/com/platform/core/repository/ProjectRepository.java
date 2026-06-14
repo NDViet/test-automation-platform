@@ -8,9 +8,9 @@ import java.util.Optional;
 import java.util.UUID;
 
 public interface ProjectRepository extends JpaRepository<Project, UUID> {
-    Optional<Project> findByTeamIdAndSlug(UUID teamId, String slug);
+    Optional<Project> findByOrganizationIdAndSlug(UUID organizationId, String slug);
     Optional<Project> findBySlug(String slug);
-    List<Project> findByTeamId(UUID teamId);
-    boolean existsByTeamIdAndSlug(UUID teamId, String slug);
-    boolean existsByTeamId(UUID teamId);
+    List<Project> findByOrganizationId(UUID organizationId);
+    boolean existsByOrganizationIdAndSlug(UUID organizationId, String slug);
+    boolean existsByOrganizationId(UUID organizationId);
 }

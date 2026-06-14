@@ -5,10 +5,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.util.List;
 
@@ -41,6 +43,14 @@ public class GlobalExceptionHandler {
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ProblemDetail handleIllegalArgument(IllegalArgumentException ex) {
         return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_REQUEST, ex.getMessage());
+    }
+
+    /** Preserve the intended status (404/409/400/…) of explicitly thrown ResponseStatusExceptions. */
+    @ExceptionHandler(ResponseStatusException.class)
+    public ResponseEntity<ProblemDetail> handleResponseStatus(ResponseStatusException ex) {
+        ProblemDetail detail = ProblemDetail.forStatusAndDetail(
+                ex.getStatusCode(), ex.getReason() != null ? ex.getReason() : "");
+        return ResponseEntity.status(ex.getStatusCode()).body(detail);
     }
 
     @ExceptionHandler(Exception.class)

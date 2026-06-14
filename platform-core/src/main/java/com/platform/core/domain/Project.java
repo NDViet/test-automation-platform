@@ -10,7 +10,7 @@ import java.util.UUID;
 
 @Entity
 @Table(name = "projects",
-       uniqueConstraints = @UniqueConstraint(columnNames = {"team_id", "slug"}))
+       uniqueConstraints = @UniqueConstraint(columnNames = {"org_id", "slug"}))
 @EntityListeners(AuditingEntityListener.class)
 public class Project {
 
@@ -19,8 +19,8 @@ public class Project {
     private UUID id;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "team_id", nullable = false)
-    private Team team;
+    @JoinColumn(name = "org_id", nullable = false)
+    private Organization organization;
 
     @Column(name = "name", nullable = false, length = 100)
     private String name;
@@ -37,14 +37,14 @@ public class Project {
 
     protected Project() {}
 
-    public Project(Team team, String name, String slug) {
-        this.team = team;
+    public Project(Organization organization, String name, String slug) {
+        this.organization = organization;
         this.name = name;
         this.slug = slug;
     }
 
     public UUID getId() { return id; }
-    public Team getTeam() { return team; }
+    public Organization getOrganization() { return organization; }
     public String getName() { return name; }
     public String getSlug() { return slug; }
     public String getRepoUrl() { return repoUrl; }

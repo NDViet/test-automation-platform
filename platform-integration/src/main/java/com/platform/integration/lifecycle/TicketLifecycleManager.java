@@ -7,6 +7,7 @@ import com.platform.core.domain.FlakinessScore;
 import com.platform.core.domain.IntegrationConfig;
 import com.platform.core.domain.IssueTrackerLink;
 import com.platform.core.domain.TestCaseResult;
+import com.platform.core.service.ResolvedCredential;
 import com.platform.core.repository.FlakinessScoreRepository;
 import com.platform.core.repository.TestCaseResultRepository;
 import com.platform.integration.port.IssueReference;
@@ -60,12 +61,48 @@ public class TicketLifecycleManager {
     }
 
     /**
-     * Processes all test results in a run. Handles failing tests plus tests
-     * with existing tickets (for close/reopen).
+     * Resolved, source-agnostic lifecycle settings (thresholds + target project key).
+     */
+    public record LifecycleSettings(int minFails, int minPasses, double flakyThreshold, String projectKey) {}
+
+    /**
+     * Processes a run using the legacy per-team {@link IntegrationConfig}.
+     * Retained for backward compatibility; delegates to the settings-based core.
      */
     @Transactional
     public void processRun(UnifiedTestResult result, UUID projectId,
                            IntegrationConfig config, IssueTrackerPort tracker) {
+        LifecycleSettings settings = new LifecycleSettings(
+                parseInt(config.config("minConsecutiveFailures"), DEFAULT_MIN_CONSECUTIVE_FAILURES),
+                parseInt(config.config("minConsecutivePasses"),   DEFAULT_MIN_CONSECUTIVE_PASSES),
+                parseDouble(config.config("flakinessThreshold"),  DEFAULT_FLAKINESS_THRESHOLD),
+                config.getProjectKey());
+        processRun(result, projectId, settings, tracker);
+    }
+
+    /**
+     * Processes a run using a {@link ResolvedCredential} from the Org→Team→Project
+     * cascade. Thresholds are read from merged connection params (with defaults);
+     * the target project key falls back across {@code project_key}/{@code project}.
+     */
+    @Transactional
+    public void processRun(UnifiedTestResult result, UUID projectId,
+                           ResolvedCredential cred, IssueTrackerPort tracker) {
+        LifecycleSettings settings = new LifecycleSettings(
+                parseInt(cred.param("minConsecutiveFailures"), DEFAULT_MIN_CONSECUTIVE_FAILURES),
+                parseInt(cred.param("minConsecutivePasses"),   DEFAULT_MIN_CONSECUTIVE_PASSES),
+                parseDouble(cred.param("flakinessThreshold"),  DEFAULT_FLAKINESS_THRESHOLD),
+                firstNonBlank(cred.param("project_key"), cred.param("project")));
+        processRun(result, projectId, settings, tracker);
+    }
+
+    /**
+     * Core processing. Handles failing tests plus tests with existing tickets
+     * (for close/reopen).
+     */
+    @Transactional
+    public void processRun(UnifiedTestResult result, UUID projectId,
+                           LifecycleSettings settings, IssueTrackerPort tracker) {
         // Collect test IDs to process: currently failing + already linked
         Set<String> failingIds = result.testCases().stream()
                 .filter(tc -> tc.status() == TestStatus.FAILED || tc.status() == TestStatus.BROKEN)
@@ -87,14 +124,9 @@ public class TicketLifecycleManager {
         log.info("[Integration] Processing {} test(s) for run={} tracker={}",
                 toProcess.size(), result.runId(), tracker.trackerType());
 
-        int configMinFails   = parseInt(config.config("minConsecutiveFailures"), DEFAULT_MIN_CONSECUTIVE_FAILURES);
-        int configMinPasses  = parseInt(config.config("minConsecutivePasses"),   DEFAULT_MIN_CONSECUTIVE_PASSES);
-        double flakyThreshold = parseDouble(config.config("flakinessThreshold"), DEFAULT_FLAKINESS_THRESHOLD);
-
         for (String testId : toProcess) {
             try {
-                processTest(testId, projectId, result, config, tracker,
-                        configMinFails, configMinPasses, flakyThreshold);
+                processTest(testId, projectId, result, settings, tracker);
             } catch (Exception e) {
                 log.warn("[Integration] Failed to process testId={}: {}", testId, e.getMessage());
             }
@@ -102,8 +134,7 @@ public class TicketLifecycleManager {
     }
 
     private void processTest(String testId, UUID projectId, UnifiedTestResult result,
-                              IntegrationConfig config, IssueTrackerPort tracker,
-                              int minFails, int minPasses, double flakyThreshold) {
+                              LifecycleSettings settings, IssueTrackerPort tracker) {
 
         Instant since = Instant.now().minus(HISTORY_DAYS, ChronoUnit.DAYS);
         List<TestCaseResult> history =
@@ -117,16 +148,16 @@ public class TicketLifecycleManager {
 
         IssueDecisionEngine.DecisionInput input = new IssueDecisionEngine.DecisionInput(
                 testId, history, flakinessScore, existingLink,
-                minFails, flakyThreshold, minPasses);
+                settings.minFails(), settings.flakyThreshold(), settings.minPasses());
 
         IssueDecision decision = decisionEngine.decide(input);
         log.debug("[Integration] testId={} action={} reason={}", testId, decision.action(), decision.reason());
 
-        executeDecision(decision, testId, projectId, result, config, tracker, existingLink);
+        executeDecision(decision, testId, projectId, result, settings, tracker, existingLink);
     }
 
     private void executeDecision(IssueDecision decision, String testId, UUID projectId,
-                                  UnifiedTestResult result, IntegrationConfig config,
+                                  UnifiedTestResult result, LifecycleSettings settings,
                                   IssueTrackerPort tracker, Optional<IssueTrackerLink> existingLink) {
         switch (decision.action()) {
             case CREATE -> {
@@ -137,7 +168,7 @@ public class TicketLifecycleManager {
 
                 IssueRequest req = new IssueRequest(
                         title, desc, jiraType, priority,
-                        config.getProjectKey(),
+                        settings.projectKey(),
                         List.of(sanitizeLabel(testId), "platform-auto"),
                         testId, result.teamId());
 
@@ -212,5 +243,10 @@ public class TicketLifecycleManager {
     private double parseDouble(String val, double fallback) {
         if (val == null) return fallback;
         try { return Double.parseDouble(val); } catch (NumberFormatException e) { return fallback; }
+    }
+
+    private static String firstNonBlank(String... values) {
+        for (String v : values) if (v != null && !v.isBlank()) return v;
+        return null;
     }
 }

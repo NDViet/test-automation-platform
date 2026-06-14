@@ -4,14 +4,14 @@ import com.platform.common.dto.PerformanceMetricsDto;
 import com.platform.common.dto.TestCaseResultDto;
 import com.platform.common.dto.UnifiedTestResult;
 import com.platform.common.enums.TestType;
+import com.platform.core.domain.Organization;
 import com.platform.core.domain.PerformanceMetric;
 import com.platform.core.domain.Project;
-import com.platform.core.domain.Team;
 import com.platform.core.domain.TestCaseResult;
 import com.platform.core.domain.TestExecution;
+import com.platform.core.repository.OrganizationRepository;
 import com.platform.core.repository.PerformanceMetricRepository;
 import com.platform.core.repository.ProjectRepository;
-import com.platform.core.repository.TeamRepository;
 import com.platform.core.repository.TestCaseResultRepository;
 import com.platform.core.repository.TestExecutionRepository;
 import org.slf4j.Logger;
@@ -27,19 +27,19 @@ public class ExecutionPersistenceService {
 
     private final TestExecutionRepository executionRepository;
     private final TestCaseResultRepository testCaseResultRepository;
-    private final TeamRepository teamRepository;
+    private final OrganizationRepository organizationRepository;
     private final ProjectRepository projectRepository;
     private final PerformanceMetricRepository performanceMetricRepository;
 
     public ExecutionPersistenceService(
             TestExecutionRepository executionRepository,
             TestCaseResultRepository testCaseResultRepository,
-            TeamRepository teamRepository,
+            OrganizationRepository organizationRepository,
             ProjectRepository projectRepository,
             PerformanceMetricRepository performanceMetricRepository) {
         this.executionRepository = executionRepository;
         this.testCaseResultRepository = testCaseResultRepository;
-        this.teamRepository = teamRepository;
+        this.organizationRepository = organizationRepository;
         this.projectRepository = projectRepository;
         this.performanceMetricRepository = performanceMetricRepository;
     }
@@ -51,8 +51,9 @@ public class ExecutionPersistenceService {
             return executionRepository.findByRunId(result.runId()).orElseThrow();
         }
 
-        var team    = findOrCreateTeam(result.teamId());
-        var project = findOrCreateProject(team, result.projectId());
+        // ADO-first: the incoming top-level slug is the Organization; project nests under it.
+        var org     = findOrCreateOrganization(result.teamId());
+        var project = findOrCreateProject(org, result.projectId());
 
         var execution = buildExecution(result, project);
         execution = executionRepository.save(execution);
@@ -74,24 +75,24 @@ public class ExecutionPersistenceService {
      * The catch handles the rare race where two concurrent results register the
      * same new team — the loser re-fetches the winner's row.
      */
-    private Team findOrCreateTeam(String slug) {
-        return teamRepository.findBySlug(slug).orElseGet(() -> {
-            log.info("[Platform] Auto-registering new team slug={}", slug);
+    private Organization findOrCreateOrganization(String slug) {
+        return organizationRepository.findBySlug(slug).orElseGet(() -> {
+            log.info("[Platform] Auto-registering new organization slug={}", slug);
             try {
-                return teamRepository.save(new Team(toDisplayName(slug), slug));
+                return organizationRepository.save(new Organization(toDisplayName(slug), slug));
             } catch (DataIntegrityViolationException e) {
-                return teamRepository.findBySlug(slug).orElseThrow();
+                return organizationRepository.findBySlug(slug).orElseThrow();
             }
         });
     }
 
-    private Project findOrCreateProject(Team team, String slug) {
-        return projectRepository.findByTeamIdAndSlug(team.getId(), slug).orElseGet(() -> {
-            log.info("[Platform] Auto-registering new project slug={} teamSlug={}", slug, team.getSlug());
+    private Project findOrCreateProject(Organization org, String slug) {
+        return projectRepository.findByOrganizationIdAndSlug(org.getId(), slug).orElseGet(() -> {
+            log.info("[Platform] Auto-registering new project slug={} orgSlug={}", slug, org.getSlug());
             try {
-                return projectRepository.save(new Project(team, toDisplayName(slug), slug));
+                return projectRepository.save(new Project(org, toDisplayName(slug), slug));
             } catch (DataIntegrityViolationException e) {
-                return projectRepository.findByTeamIdAndSlug(team.getId(), slug).orElseThrow();
+                return projectRepository.findByOrganizationIdAndSlug(org.getId(), slug).orElseThrow();
             }
         });
     }

@@ -85,8 +85,10 @@ services:
     container_name: platform-minio
     command: server /data --console-address ":9001"
     ports:
-      - "9000:9000"   # S3 API — used by platform services
-      - "9001:9001"   # MinIO Console UI — http://localhost:9001
+      # Host 9000 is often taken by Zscaler (ZSATunnel); services reach MinIO via
+      # the docker network (minio:9000), so only the host-published port changes.
+      - "9100:9000"   # S3 API on host :9100 (container still 9000)
+      - "9101:9001"   # MinIO Console UI — http://localhost:9101
     environment:
       MINIO_ROOT_USER: platform
       MINIO_ROOT_PASSWORD: platform123
@@ -272,6 +274,10 @@ services:
       DB_USERNAME: platform
       DB_PASSWORD: platform
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      # base64 of 32 random bytes; decrypts integration credentials. REQUIRED once credentials exist.
+      PLATFORM_CRED_KEY: ${PLATFORM_CRED_KEY:-}
+      # one-time, idempotent migration of legacy plaintext configs into encrypted credentials
+      PLATFORM_CRED_BACKFILL_ENABLED: ${PLATFORM_CRED_BACKFILL_ENABLED:-false}
       SPRING_PROFILES_ACTIVE: docker
     depends_on:
       db-migrate:
@@ -326,6 +332,8 @@ services:
       DB_USERNAME: platform
       DB_PASSWORD: platform
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      # Encrypts/decrypts integration credentials (Credential API + test-connection)
+      PLATFORM_CRED_KEY: ${PLATFORM_CRED_KEY:-}
       SPRING_PROFILES_ACTIVE: docker
       # Disable API key auth in local dev — set to true + create a key for production
       API_KEY_AUTH_ENABLED: "false"
@@ -351,6 +359,7 @@ services:
       INTEGRATION_URL: http://platform-integration:8083
       AI_URL: http://platform-ai:8084
       AGENT_URL: http://platform-agent:8086
+      PLATFORM_CRED_KEY: ${PLATFORM_CRED_KEY:-}
       SPRING_PROFILES_ACTIVE: docker
     depends_on:
       - platform-ingestion
@@ -374,6 +383,7 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: "6379"
       ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      PLATFORM_CRED_KEY: ${PLATFORM_CRED_KEY:-}
       PLATFORM_STORAGE_TYPE: minio
       PLATFORM_STORAGE_ENDPOINT: http://minio:9000
       PLATFORM_STORAGE_ACCESS_KEY: platform

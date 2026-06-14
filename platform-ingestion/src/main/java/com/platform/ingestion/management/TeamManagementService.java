@@ -25,28 +25,34 @@ public class TeamManagementService {
         this.projectRepo = projectRepo;
     }
 
-    public TeamDto createTeam(CreateTeamRequest req) {
-        if (teamRepo.existsBySlug(req.slug())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "Slug already in use: " + req.slug());
+    public TeamDto createTeam(UUID projectId, CreateTeamRequest req) {
+        if (!projectRepo.existsById(projectId)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Project not found: " + projectId);
         }
-        return TeamDto.from(teamRepo.save(new Team(req.name(), req.slug())));
+        if (teamRepo.existsByProjectIdAndSlug(projectId, req.slug())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Slug already in use within this project: " + req.slug());
+        }
+        return TeamDto.from(teamRepo.save(new Team(projectId, req.name(), req.slug())));
     }
 
-    public TeamDto updateTeam(UUID id, UpdateTeamRequest req) {
+    public TeamDto updateTeam(UUID projectId, UUID id, UpdateTeamRequest req) {
         var team = teamRepo.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Team not found: " + id));
+        if (!team.getProjectId().equals(projectId)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Team not found in project: " + id);
+        }
         if (req.name() != null && !req.name().isBlank()) {
             team.setName(req.name());
         }
         return TeamDto.from(teamRepo.save(team));
     }
 
-    public void deleteTeam(UUID id) {
+    public void deleteTeam(UUID projectId, UUID id) {
         var team = teamRepo.findById(id)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Team not found: " + id));
-        if (projectRepo.existsByTeamId(team.getId())) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT,
-                    "Team still has projects. Delete or reassign them first.");
+        if (!team.getProjectId().equals(projectId)) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Team not found in project: " + id);
         }
         teamRepo.delete(team);
     }

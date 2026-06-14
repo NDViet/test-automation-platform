@@ -1,12 +1,12 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useMutation } from '@tanstack/react-query'
 import { X } from 'lucide-react'
 import { api } from '@/lib/api'
-import type { Team, Project } from '@/lib/types'
+import type { Organization, Project } from '@/lib/types'
 
 interface Props {
   open: boolean
-  teams: Team[]
+  organizations: Organization[]
   onClose: () => void
   onCreated: (project: Project) => void
 }
@@ -14,21 +14,26 @@ interface Props {
 function toSlug(name: string): string {
   return name
     .toLowerCase()
-    .replace(/\s+/g, '-')
-    .replace(/[^a-z0-9-]/g, '')
+    .replace(/[^a-z0-9]+/g, '-')  // any run of non-alphanumerics -> a single hyphen
+    .replace(/^-+|-+$/g, '')      // trim leading/trailing hyphens
 }
 
-export default function CreateProjectModal({ open, teams, onClose, onCreated }: Props) {
-  const [teamId, setTeamId] = useState(teams[0]?.id ?? '')
+export default function CreateProjectModal({ open, organizations, onClose, onCreated }: Props) {
+  const [orgId, setOrgId] = useState(organizations[0]?.id ?? '')
   const [name, setName] = useState('')
   const [slug, setSlug] = useState('')
   const [repoUrl, setRepoUrl] = useState('')
   const [slugEdited, setSlugEdited] = useState(false)
 
+  // Default the org once the list loads (modal stays mounted while closed).
+  useEffect(() => {
+    if (!orgId && organizations.length > 0) setOrgId(organizations[0].id)
+  }, [organizations, orgId])
+
   const mutation = useMutation({
     mutationFn: () =>
       api.createProject({
-        teamId,
+        orgId,
         name,
         slug,
         ...(repoUrl.trim() ? { repoUrl: repoUrl.trim() } : {}),
@@ -70,14 +75,14 @@ export default function CreateProjectModal({ open, teams, onClose, onCreated }: 
 
         <div className="space-y-4">
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Team</label>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Organization</label>
             <select
-              value={teamId}
-              onChange={e => setTeamId(e.target.value)}
+              value={orgId}
+              onChange={e => setOrgId(e.target.value)}
               className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
             >
-              {teams.map(t => (
-                <option key={t.id} value={t.id}>{t.name}</option>
+              {organizations.map(o => (
+                <option key={o.id} value={o.id}>{o.name}</option>
               ))}
             </select>
           </div>
@@ -134,7 +139,7 @@ export default function CreateProjectModal({ open, teams, onClose, onCreated }: 
           </button>
           <button
             onClick={() => void mutation.mutate()}
-            disabled={mutation.isPending || !name.trim() || !slug.trim() || !teamId}
+            disabled={mutation.isPending || !name.trim() || !slug.trim() || !orgId}
             className="px-4 py-2 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
           >
             {mutation.isPending ? 'Creating…' : 'Create Project'}

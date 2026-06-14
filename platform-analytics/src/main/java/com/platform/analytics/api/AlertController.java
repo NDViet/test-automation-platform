@@ -99,10 +99,10 @@ public class AlertController {
     // ── Helper ────────────────────────────────────────────────────────────────
 
     private UnifiedTestResult buildStub(TestExecution exec) {
-        String teamSlug = exec.getProject().getTeam() != null
-                ? exec.getProject().getTeam().getSlug() : "unknown";
+        String orgSlug = exec.getProject().getOrganization() != null
+                ? exec.getProject().getOrganization().getSlug() : "unknown";
         return new UnifiedTestResult(
-                exec.getRunId(), teamSlug, exec.getProject().getSlug(),
+                exec.getRunId(), orgSlug, exec.getProject().getSlug(),
                 exec.getBranch(), exec.getEnvironment(), exec.getCommitSha(),
                 exec.getTriggerType(), exec.getCiProvider(), exec.getCiRunUrl(),
                 exec.getExecutedAt(),

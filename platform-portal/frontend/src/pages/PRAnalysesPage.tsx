@@ -1,4 +1,5 @@
-import { useParams, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
+import { useProject } from '@/components/layout/ProjectLayout'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { relativeTime, cn } from '@/lib/utils'
@@ -35,7 +36,7 @@ function durationLabel(a: PrAnalysis): string {
 }
 
 export default function PRAnalysesPage() {
-  const { projectId } = useParams<{ projectId: string }>()
+  const { projectId, base } = useProject()
   const navigate = useNavigate()
 
   const { data, isLoading, error } = useQuery({
@@ -60,7 +61,7 @@ export default function PRAnalysesPage() {
         <div className="flex items-center gap-2 text-sm text-slate-500 mb-1">
           <button onClick={() => navigate('/')} className="hover:text-blue-600">Overview</button>
           <ChevronRight size={14} />
-          <button onClick={() => navigate(`/projects/${projectId}`)} className="hover:text-blue-600">
+          <button onClick={() => navigate(base)} className="hover:text-blue-600">
             {projectId}
           </button>
           <ChevronRight size={14} />

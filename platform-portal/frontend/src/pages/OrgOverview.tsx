@@ -8,17 +8,17 @@ import LoadingSpinner from '@/components/LoadingSpinner'
 import ErrorMessage from '@/components/ErrorMessage'
 import Badge from '@/components/Badge'
 import CreateProjectModal from '@/components/CreateProjectModal'
-import CreateTeamModal from '@/components/CreateTeamModal'
-import { Activity, AlertTriangle, FolderOpen, TrendingUp, Plus, Pencil, Trash2, Users } from 'lucide-react'
-import type { Project, Team } from '@/lib/types'
+import CreateOrganizationModal from '@/components/CreateOrganizationModal'
+import { Activity, AlertTriangle, FolderOpen, TrendingUp, Plus, Pencil, Trash2, Building2 } from 'lucide-react'
+import type { Project, Organization } from '@/lib/types'
 
 export default function OrgOverview() {
   const navigate = useNavigate()
   const qc = useQueryClient()
-  const [showCreateProject, setShowCreateProject]   = useState(false)
-  const [showCreateTeam,    setShowCreateTeam]       = useState(false)
-  const [editingTeam,       setEditingTeam]          = useState<Team | null>(null)
-  const [editName,          setEditName]             = useState('')
+  const [showCreateProject, setShowCreateProject] = useState(false)
+  const [showCreateOrg,     setShowCreateOrg]     = useState(false)
+  const [editingOrg,        setEditingOrg]        = useState<Organization | null>(null)
+  const [editName,          setEditName]          = useState('')
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['overview'],
@@ -26,9 +26,9 @@ export default function OrgOverview() {
     refetchInterval: 60_000,
   })
 
-  const { data: teams, isLoading: teamsLoading } = useQuery({
-    queryKey: ['teams'],
-    queryFn: api.teams,
+  const { data: organizations, isLoading: orgsLoading } = useQuery({
+    queryKey: ['organizations'],
+    queryFn: api.organizations,
   })
 
   const { data: projects, isLoading: projectsLoading } = useQuery({
@@ -36,40 +36,42 @@ export default function OrgOverview() {
     queryFn: () => api.projects(),
   })
 
-  const updateTeamMutation = useMutation({
-    mutationFn: () => api.updateTeam(editingTeam!.id, { name: editName }),
+  const updateOrgMutation = useMutation({
+    mutationFn: () => api.updateOrganization(editingOrg!.id, { name: editName }),
     onSuccess: () => {
-      void qc.invalidateQueries({ queryKey: ['teams'] })
-      setEditingTeam(null)
+      void qc.invalidateQueries({ queryKey: ['organizations'] })
+      setEditingOrg(null)
     },
   })
 
-  const deleteTeamMutation = useMutation({
-    mutationFn: (id: string) => api.deleteTeam(id),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ['teams'] }),
+  const deleteOrgMutation = useMutation({
+    mutationFn: (id: string) => api.deleteOrganization(id),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['organizations'] }),
   })
 
-  function startEditTeam(team: Team) {
-    setEditingTeam(team)
-    setEditName(team.name)
+  function startEditOrg(org: Organization) {
+    setEditingOrg(org)
+    setEditName(org.name)
   }
 
-  function handleDeleteTeam(team: Team) {
-    const projectCount = (projects ?? []).filter(p => p.teamId === team.id).length
-    const warning = projectCount > 0
-      ? `Team "${team.name}" has ${projectCount} project(s). Delete them first.`
-      : `Delete team "${team.name}"? This cannot be undone.`
-    if (projectCount > 0) { alert(warning); return }
-    if (confirm(warning)) void deleteTeamMutation.mutate(team.id)
+  function handleDeleteOrg(org: Organization) {
+    const projectCount = (projects ?? []).filter(p => p.orgId === org.id).length
+    if (projectCount > 0) {
+      alert(`Organization "${org.name}" has ${projectCount} project(s). Delete them first.`)
+      return
+    }
+    if (confirm(`Delete organization "${org.name}"? This cannot be undone.`)) {
+      void deleteOrgMutation.mutate(org.id)
+    }
   }
 
   function handleProjectCreated(project: Project) {
     void qc.invalidateQueries({ queryKey: ['projects'] })
-    navigate(`/projects/${project.id}`)
+    navigate(`/${project.orgSlug}/${project.slug}`)
   }
 
-  function handleTeamCreated() {
-    void qc.invalidateQueries({ queryKey: ['teams'] })
+  function handleOrgCreated() {
+    void qc.invalidateQueries({ queryKey: ['organizations'] })
   }
 
   if (isLoading) return <LoadingSpinner message="Loading overview…" />
@@ -83,7 +85,7 @@ export default function OrgOverview() {
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-slate-900">Organization Overview</h1>
-        <p className="text-sm text-slate-500 mt-1">Quality health across all teams and projects</p>
+        <p className="text-sm text-slate-500 mt-1">Quality health across all organizations and projects</p>
       </div>
 
       {/* Stat cards */}
@@ -115,31 +117,31 @@ export default function OrgOverview() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* Teams table */}
+        {/* Organizations table */}
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
           <div className="px-5 py-4 border-b border-slate-100 flex items-center justify-between">
             <h2 className="font-semibold text-slate-900 flex items-center gap-2">
-              <Users size={16} className="text-slate-400" /> Teams
+              <Building2 size={16} className="text-slate-400" /> Organizations
             </h2>
             <button
-              onClick={() => setShowCreateTeam(true)}
+              onClick={() => setShowCreateOrg(true)}
               className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 transition-colors"
             >
-              <Plus size={13} /> New Team
+              <Plus size={13} /> New Organization
             </button>
           </div>
-          {teamsLoading ? (
-            <LoadingSpinner message="Loading teams…" />
+          {orgsLoading ? (
+            <LoadingSpinner message="Loading organizations…" />
           ) : (
             <div className="divide-y divide-slate-50">
-              {(teams ?? []).length === 0 && (
-                <p className="px-5 py-8 text-sm text-slate-500 text-center">No teams yet.</p>
+              {(organizations ?? []).length === 0 && (
+                <p className="px-5 py-8 text-sm text-slate-500 text-center">No organizations yet.</p>
               )}
-              {(teams ?? []).map(team => {
-                const projectCount = (projects ?? []).filter(p => p.teamId === team.id).length
-                const isEditing = editingTeam?.id === team.id
+              {(organizations ?? []).map(org => {
+                const projectCount = (projects ?? []).filter(p => p.orgId === org.id).length
+                const isEditing = editingOrg?.id === org.id
                 return (
-                  <div key={team.id} className="px-5 py-3.5">
+                  <div key={org.id} className="px-5 py-3.5">
                     {isEditing ? (
                       <div className="flex items-center gap-2">
                         <input
@@ -147,21 +149,21 @@ export default function OrgOverview() {
                           value={editName}
                           onChange={e => setEditName(e.target.value)}
                           onKeyDown={e => {
-                            if (e.key === 'Enter') void updateTeamMutation.mutate()
-                            if (e.key === 'Escape') setEditingTeam(null)
+                            if (e.key === 'Enter') void updateOrgMutation.mutate()
+                            if (e.key === 'Escape') setEditingOrg(null)
                           }}
                           autoFocus
                           className="flex-1 text-sm border border-blue-300 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
                         />
                         <button
-                          onClick={() => void updateTeamMutation.mutate()}
-                          disabled={updateTeamMutation.isPending || !editName.trim()}
+                          onClick={() => void updateOrgMutation.mutate()}
+                          disabled={updateOrgMutation.isPending || !editName.trim()}
                           className="text-xs px-3 py-1.5 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
                         >
-                          {updateTeamMutation.isPending ? 'Saving…' : 'Save'}
+                          {updateOrgMutation.isPending ? 'Saving…' : 'Save'}
                         </button>
                         <button
-                          onClick={() => setEditingTeam(null)}
+                          onClick={() => setEditingOrg(null)}
                           className="text-xs px-3 py-1.5 border border-slate-200 rounded-lg text-slate-600 hover:bg-slate-50 transition-colors"
                         >
                           Cancel
@@ -170,20 +172,20 @@ export default function OrgOverview() {
                     ) : (
                       <div className="flex items-center justify-between">
                         <div>
-                          <p className="text-sm font-medium text-slate-900">{team.name}</p>
-                          <p className="text-xs text-slate-400 font-mono">{team.slug} · {projectCount} project{projectCount !== 1 ? 's' : ''}</p>
+                          <p className="text-sm font-medium text-slate-900">{org.name}</p>
+                          <p className="text-xs text-slate-400 font-mono">{org.slug} · {projectCount} project{projectCount !== 1 ? 's' : ''}</p>
                         </div>
                         <div className="flex items-center gap-2">
                           <button
-                            title="Edit team name"
-                            onClick={() => startEditTeam(team)}
+                            title="Edit organization name"
+                            onClick={() => startEditOrg(org)}
                             className="text-slate-400 hover:text-blue-600 transition-colors"
                           >
                             <Pencil size={14} />
                           </button>
                           <button
-                            title="Delete team"
-                            onClick={() => handleDeleteTeam(team)}
+                            title="Delete organization"
+                            onClick={() => handleDeleteOrg(org)}
                             className="text-slate-400 hover:text-red-600 transition-colors"
                           >
                             <Trash2 size={14} />
@@ -204,7 +206,9 @@ export default function OrgOverview() {
             <h2 className="font-semibold text-slate-900">Projects</h2>
             <button
               onClick={() => setShowCreateProject(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 transition-colors"
+              disabled={(organizations ?? []).length === 0}
+              title={(organizations ?? []).length === 0 ? 'Create an organization first' : undefined}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
             >
               <Plus size={13} /> New Project
             </button>
@@ -221,13 +225,13 @@ export default function OrgOverview() {
                 return (
                   <button
                     key={p.id}
-                    onClick={() => navigate(`/projects/${p.id}`)}
+                    onClick={() => navigate(`/${p.orgSlug}/${p.slug}`)}
                     className="w-full text-left px-5 py-3.5 hover:bg-slate-50 transition-colors"
                   >
                     <div className="flex items-center justify-between">
                       <div>
                         <p className="text-sm font-medium text-slate-900">{p.name}</p>
-                        <p className="text-xs text-slate-400">{p.teamName} · {p.slug}</p>
+                        <p className="text-xs text-slate-400">{p.orgName} · {p.slug}</p>
                       </div>
                       <div className="text-right">
                         <p className={cn('text-sm font-semibold', passRateColor(ps?.passRate ?? 0))}>
@@ -277,14 +281,14 @@ export default function OrgOverview() {
         </div>
       </div>
 
-      <CreateTeamModal
-        open={showCreateTeam}
-        onClose={() => setShowCreateTeam(false)}
-        onCreated={handleTeamCreated}
+      <CreateOrganizationModal
+        open={showCreateOrg}
+        onClose={() => setShowCreateOrg(false)}
+        onCreated={handleOrgCreated}
       />
       <CreateProjectModal
         open={showCreateProject}
-        teams={teams ?? []}
+        organizations={organizations ?? []}
         onClose={() => setShowCreateProject(false)}
         onCreated={handleProjectCreated}
       />

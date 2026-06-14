@@ -146,8 +146,8 @@ class ReleaseReportServiceTest {
     // ── helpers ──────────────────────────────────────────────────────────────
 
     private Project makeProject(String slug) {
-        Team team = new Team("Test Team", slug + "-team");
-        return new Project(team, "Test Project", slug);
+        Organization org = new Organization("Test Org", slug + "-org");
+        return new Project(org, "Test Project", slug);
     }
 
     private TestExecution makeExecution(Project project, int total, int passed,

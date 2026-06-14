@@ -27,6 +27,10 @@ public class TestRun {
     @Column(name = "environment", nullable = false, length = 50)
     private String environment = "STAGING";
 
+    /** Optional FK to a named {@link Environment}; {@code environment} holds its display name. */
+    @Column(name = "environment_id")
+    private UUID environmentId;
+
     @Column(name = "status", nullable = false, length = 20)
     private String status = "IN_PROGRESS"; // IN_PROGRESS, COMPLETED, ABANDONED
 
@@ -73,6 +77,7 @@ public class TestRun {
     public String getName()          { return name; }
     public String getReleaseVersion() { return releaseVersion; }
     public String getEnvironment()   { return environment; }
+    public UUID getEnvironmentId()   { return environmentId; }
     public String getStatus()        { return status; }
     public String getTriggeredBy()   { return triggeredBy; }
     public Instant getStartedAt()    { return startedAt; }
@@ -98,6 +103,11 @@ public class TestRun {
     public void setEnvironment(String environment) {
         this.environment = environment;
         this.updatedAt   = Instant.now();
+    }
+
+    public void setEnvironmentId(UUID environmentId) {
+        this.environmentId = environmentId;
+        this.updatedAt     = Instant.now();
     }
 
     @Override public boolean equals(Object o) {

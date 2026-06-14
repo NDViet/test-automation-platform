@@ -23,10 +23,15 @@ export default function RunDetail() {
     enabled: !!runId,
   })
 
+  const { data: projects } = useQuery({ queryKey: ['projects'], queryFn: () => api.projects() })
+
   if (isLoading) return <LoadingSpinner message="Loading run details…" />
   if (error || !data) return <ErrorMessage message="Failed to load run details." />
 
   const { summary: s, testCases } = data
+  // Resolve the project's slug URL; fall back to the UUID route (which redirects).
+  const proj = projects?.find(p => p.id === s.projectId)
+  const projectHref = proj ? `/${proj.orgSlug}/${proj.slug}` : `/projects/${s.projectId}`
 
   const filtered = (testCases ?? []).filter(tc =>
     statusFilter === 'ALL' || tc.status === statusFilter,
@@ -51,7 +56,7 @@ export default function RunDetail() {
       <div className="flex items-center gap-2 text-sm text-slate-500">
         <button onClick={() => navigate('/')} className="hover:text-blue-600">Overview</button>
         <ChevronRight size={14} />
-        <button onClick={() => navigate(`/projects/${s.projectId}`)} className="hover:text-blue-600">
+        <button onClick={() => navigate(projectHref)} className="hover:text-blue-600">
           {s.projectName}
         </button>
         <ChevronRight size={14} />

@@ -1,8 +1,8 @@
 package com.platform.ingestion.management;
 
 import com.platform.core.domain.Project;
+import com.platform.core.repository.OrganizationRepository;
 import com.platform.core.repository.ProjectRepository;
-import com.platform.core.repository.TeamRepository;
 import com.platform.ingestion.management.dto.CreateProjectRequest;
 import com.platform.ingestion.management.dto.UpdateProjectRequest;
 import com.platform.ingestion.query.dto.ProjectDto;
@@ -18,17 +18,17 @@ import java.util.UUID;
 public class ProjectManagementService {
 
     private final ProjectRepository projectRepo;
-    private final TeamRepository teamRepo;
+    private final OrganizationRepository orgRepo;
 
-    public ProjectManagementService(ProjectRepository projectRepo, TeamRepository teamRepo) {
+    public ProjectManagementService(ProjectRepository projectRepo, OrganizationRepository orgRepo) {
         this.projectRepo = projectRepo;
-        this.teamRepo = teamRepo;
+        this.orgRepo = orgRepo;
     }
 
     public ProjectDto createProject(CreateProjectRequest req) {
-        var team = teamRepo.findById(req.teamId())
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Team not found: " + req.teamId()));
-        var project = new Project(team, req.name(), req.slug());
+        var org = orgRepo.findById(req.orgId())
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Organization not found: " + req.orgId()));
+        var project = new Project(org, req.name(), req.slug());
         if (req.repoUrl() != null) {
             project.setRepoUrl(req.repoUrl());
         }

@@ -36,7 +36,7 @@ jobs:
       - name: Build all service JARs
         run: |
           mvn -B clean package \
-            -pl platform-ingestion,platform-analytics,platform-integration,platform-ai,platform-portal \
+            -pl platform-ingestion,platform-analytics,platform-integration,platform-ai,platform-portal,platform-agent \
             -am \
             -DskipTests
 
@@ -50,6 +50,7 @@ jobs:
             platform-integration/target/platform-integration-*.jar
             platform-ai/target/platform-ai-*.jar
             platform-portal/target/platform-portal-*.jar
+            platform-agent/target/platform-agent-*.jar
           retention-days: 1
 
   push:
@@ -74,6 +75,8 @@ jobs:
             port: 8084
           - name: platform-portal
             port: 8085
+          - name: platform-agent
+            port: 8086
 
     steps:
       - name: Checkout

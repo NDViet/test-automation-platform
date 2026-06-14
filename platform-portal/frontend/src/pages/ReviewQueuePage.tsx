@@ -1,5 +1,6 @@
 import React, { useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
+import { useProject } from '@/components/layout/ProjectLayout'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { cn, relativeTime } from '@/lib/utils'
@@ -201,18 +202,19 @@ function WorkItemCard({
   onDecide: (item: WorkItem, action: 'approve' | 'reject') => void
 }) {
   const navigate = useNavigate()
+  const { base } = useProject()
   const { label, color, icon } = typeMeta(item.itemType)
 
   function primaryAction() {
     switch (item.itemType) {
       case 'TEST_CASE_REVIEW':
-        navigate(`/projects/${projectId}/test-cases`)
+        navigate(`${base}/test-cases`)
         break
       case 'AUTOMATION_PR':
         if (item.actionUrl) window.open(item.actionUrl, '_blank', 'noreferrer')
         break
       case 'IMPACT_ANALYSIS':
-        navigate(`/projects/${projectId}/impact-analyses`)
+        navigate(`${base}/impact-analyses`)
         break
       case 'WORKFLOW':
         // just informational
@@ -249,7 +251,7 @@ function WorkItemCard({
           <>
             <TestCaseActions item={item} projectId={projectId} />
             <button
-              onClick={() => navigate(`/projects/${projectId}/test-cases`)}
+              onClick={() => navigate(`${base}/test-cases`)}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 ml-1"
             >
               <ArrowRight size={11} />
@@ -322,7 +324,7 @@ function WorkItemCard({
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function ReviewQueuePage() {
-  const { projectId } = useParams<{ projectId: string }>()
+  const { projectId, base, project } = useProject()
   const navigate      = useNavigate()
   const [filter, setFilter]   = useState<WorkItemType | 'ALL'>('ALL')
   const [decide, setDecide]   = useState<{ item: WorkItem; action: 'approve' | 'reject' } | null>(null)
@@ -356,7 +358,7 @@ export default function ReviewQueuePage() {
         <div className="flex items-center gap-2 text-sm text-slate-500 mb-1">
           <button onClick={() => navigate('/')} className="hover:text-blue-600">Overview</button>
           <ChevronRight size={14} />
-          <button onClick={() => navigate(`/projects/${projectId}`)} className="hover:text-blue-600">{projectId}</button>
+          <button onClick={() => navigate(base)} className="hover:text-blue-600">{project.name}</button>
           <ChevronRight size={14} />
           <span className="text-slate-700">Review Queue</span>
         </div>

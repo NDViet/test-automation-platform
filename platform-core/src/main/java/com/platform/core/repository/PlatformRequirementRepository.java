@@ -1,6 +1,8 @@
 package com.platform.core.repository;
 
 import com.platform.core.domain.PlatformRequirement;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
@@ -23,15 +25,43 @@ public interface PlatformRequirementRepository extends JpaRepository<PlatformReq
 
     List<PlatformRequirement> findByProjectIdAndIssueTypeOrderByUpdatedAtDesc(UUID projectId, String issueType);
 
+    List<PlatformRequirement> findByProjectIdAndIssueTypeIn(UUID projectId, java.util.Collection<String> issueTypes);
+
     @Query("SELECT r FROM PlatformRequirement r WHERE r.projectId = :pid " +
            "AND (LOWER(r.title) LIKE LOWER(CONCAT('%', :q, '%')) " +
            "OR LOWER(r.externalId) LIKE LOWER(CONCAT('%', :q, '%'))) " +
            "ORDER BY r.updatedAt DESC")
     List<PlatformRequirement> searchByProjectId(@Param("pid") UUID projectId, @Param("q") String query);
 
+    /**
+     * Paged, combinable filter+search (each filter optional via "" sentinel — empty
+     * means "no filter"). Empty strings are used instead of nulls so Postgres types the
+     * bind parameters as varchar (a null bind makes LOWER() resolve to lower(bytea)).
+     */
+    @Query("SELECT r FROM PlatformRequirement r WHERE r.projectId = :pid " +
+           "AND (:status = '' OR r.status = :status) " +
+           "AND (:issueType = '' OR r.issueType = :issueType) " +
+           "AND (:q = '' OR LOWER(r.title) LIKE LOWER(CONCAT('%', :q, '%')) " +
+           "OR LOWER(r.externalId) LIKE LOWER(CONCAT('%', :q, '%')))")
+    Page<PlatformRequirement> searchPage(@Param("pid") UUID projectId,
+                                         @Param("status") String status,
+                                         @Param("issueType") String issueType,
+                                         @Param("q") String query,
+                                         Pageable pageable);
+
     long countByProjectId(UUID projectId);
 
     long countByProjectIdAndStatus(UUID projectId, String status);
+
+    /** Distinct people referenced on a project's work items (assignee / creator / changer). */
+    @Query(nativeQuery = true, value = """
+            SELECT DISTINCT person FROM (
+                SELECT raw_upstream->>'System.AssignedTo' AS person FROM platform_requirements WHERE project_id = :pid
+                UNION SELECT raw_upstream->>'System.CreatedBy'  FROM platform_requirements WHERE project_id = :pid
+                UNION SELECT raw_upstream->>'System.ChangedBy'  FROM platform_requirements WHERE project_id = :pid
+            ) s WHERE person IS NOT NULL AND person <> ''
+            """)
+    List<String> findDistinctPeople(@Param("pid") UUID projectId);
 
     @Modifying
     @Query("UPDATE PlatformRequirement r SET r.parentId = :parentId, r.depth = :depth, r.updatedAt = :now WHERE r.id = :id")

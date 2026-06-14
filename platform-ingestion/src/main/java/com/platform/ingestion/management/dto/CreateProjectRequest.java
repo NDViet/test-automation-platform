@@ -7,8 +7,8 @@ import jakarta.validation.constraints.Pattern;
 import java.util.UUID;
 
 public record CreateProjectRequest(
-        @NotNull UUID teamId,
+        @NotNull UUID orgId,
         @NotBlank String name,
-        @NotBlank @Pattern(regexp = "[a-z0-9-]+") String slug,
+        @NotBlank @Pattern(regexp = "[a-z0-9]+(-[a-z0-9]+)*") String slug,
         String repoUrl
 ) {}

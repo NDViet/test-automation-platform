@@ -1,5 +1,6 @@
 package com.platform.agent.api;
 
+import com.platform.agent.hub.polling.AzureBoardsPollingService;
 import com.platform.agent.hub.polling.GitHubPollingService;
 import com.platform.agent.hub.polling.JiraPollingService;
 import com.platform.core.domain.ProjectIntegrationConfig;
@@ -27,13 +28,16 @@ public class IntegrationSyncController {
     private final ProjectIntegrationConfigRepository configRepo;
     private final GitHubPollingService gitHubPollingService;
     private final JiraPollingService   jiraPollingService;
+    private final AzureBoardsPollingService azureBoardsPollingService;
 
     public IntegrationSyncController(ProjectIntegrationConfigRepository configRepo,
                                      GitHubPollingService gitHubPollingService,
-                                     JiraPollingService jiraPollingService) {
-        this.configRepo           = configRepo;
-        this.gitHubPollingService = gitHubPollingService;
-        this.jiraPollingService   = jiraPollingService;
+                                     JiraPollingService jiraPollingService,
+                                     AzureBoardsPollingService azureBoardsPollingService) {
+        this.configRepo                = configRepo;
+        this.gitHubPollingService      = gitHubPollingService;
+        this.jiraPollingService        = jiraPollingService;
+        this.azureBoardsPollingService = azureBoardsPollingService;
     }
 
     @PostMapping("/{projectId}/integrations/sync")
@@ -75,6 +79,13 @@ public class IntegrationSyncController {
                         "message", synced == 0
                                 ? "No new or updated issues since last sync."
                                 : synced + " requirement(s) synced from Jira.");
+            }
+            case "AZURE_DEVOPS_BOARDS" -> {
+                int synced = azureBoardsPollingService.syncNow(projectId);
+                yield Map.of("success", true, "synced", synced,
+                        "message", synced == 0
+                                ? "No changed work items since last poll."
+                                : synced + " work item(s) synced from Azure DevOps.");
             }
             case "LINEAR" -> Map.of(
                     "success", false,

@@ -14,4 +14,10 @@ public interface TestSuiteRepository extends JpaRepository<TestSuite, UUID> {
     List<TestSuite> findByProjectIdOrderByNameAsc(UUID projectId);
 
     Optional<TestSuite> findByProjectIdAndId(UUID projectId, UUID id);
+
+    /** Root suites (no parent) for a project — entry points of the plan tree. */
+    List<TestSuite> findByProjectIdAndParentIdIsNullOrderByNameAsc(UUID projectId);
+
+    /** Direct children of a suite. */
+    List<TestSuite> findByParentIdOrderByNameAsc(UUID parentId);
 }

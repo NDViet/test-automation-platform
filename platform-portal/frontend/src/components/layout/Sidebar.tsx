@@ -1,26 +1,34 @@
 import { NavLink, useMatch } from 'react-router-dom'
 import {
   LayoutDashboard, FolderOpen, Bell, Key, Activity, Bot,
-  FlaskConical, PlayCircle, BarChart3, FileText, GitBranch, Zap, Inbox,
+  FlaskConical, PlayCircle, BarChart3, FileText, GitBranch, Zap, Inbox, Plug, ShieldCheck, Boxes, Users, ShieldAlert, Gauge,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
 const globalNav = [
-  { to: '/',                   label: 'Overview',    icon: LayoutDashboard },
-  { to: '/alerts',             label: 'Alerts',      icon: Bell },
-  { to: '/settings/api-keys',  label: 'API Keys',    icon: Key },
-  { to: '/settings/ai',        label: 'AI Settings', icon: Bot },
+  { to: '/',                       label: 'Overview',     icon: LayoutDashboard },
+  { to: '/alerts',                 label: 'Alerts',       icon: Bell },
+  { to: '/settings/integrations',  label: 'Integrations', icon: Plug },
+  { to: '/settings/mapping-rules', label: 'Mapping Rules', icon: Boxes },
+  { to: '/settings/roles',         label: 'Roles',        icon: ShieldCheck },
+  { to: '/settings/api-keys',      label: 'API Keys',     icon: Key },
+  { to: '/settings/ai',            label: 'AI Settings',  icon: Bot },
 ]
 
-function ProjectNav({ projectId }: { projectId: string }) {
+function ProjectNav({ base }: { base: string }) {
   const projectNav = [
-    { to: `/projects/${projectId}`,              label: 'Overview',     icon: BarChart3,    end: true },
-    { to: `/projects/${projectId}/requirements`, label: 'Requirements', icon: FileText,     end: false },
-    { to: `/projects/${projectId}/test-cases`,   label: 'Test Cases',   icon: FlaskConical, end: false },
-    { to: `/projects/${projectId}/test-runs`,    label: 'Test Runs',    icon: PlayCircle,   end: false },
-    { to: `/projects/${projectId}/impact-analyses`, label: 'Impact Analyses', icon: GitBranch, end: false },
-    { to: `/projects/${projectId}/flaky-tests`,    label: 'Flaky Tests',    icon: Zap,    end: false },
-    { to: `/projects/${projectId}/review-queue`,  label: 'Review Queue',   icon: Inbox,  end: false },
+    { to: base,                       label: 'Overview',     icon: BarChart3,    end: true },
+    { to: `${base}/requirements`,     label: 'Requirements', icon: FileText,     end: false },
+    { to: `${base}/teams`,            label: 'Teams & Structure', icon: Users,   end: false },
+    { to: `${base}/quality`,          label: 'Quality',      icon: ShieldAlert,  end: false },
+    { to: `${base}/productivity`,     label: 'Productivity', icon: Gauge,        end: false },
+    { to: `${base}/coverage`,         label: 'Coverage',     icon: ShieldCheck,  end: false },
+    { to: `${base}/mapping`,          label: 'Mapping',      icon: Boxes,        end: false },
+    { to: `${base}/test-cases`,       label: 'Test Cases',   icon: FlaskConical, end: false },
+    { to: `${base}/test-runs`,        label: 'Test Runs',    icon: PlayCircle,   end: false },
+    { to: `${base}/impact-analyses`,  label: 'Impact Analyses', icon: GitBranch, end: false },
+    { to: `${base}/flaky-tests`,      label: 'Flaky Tests',    icon: Zap,    end: false },
+    { to: `${base}/review-queue`,     label: 'Review Queue',   icon: Inbox,  end: false },
   ]
 
   return (
@@ -52,9 +60,16 @@ function ProjectNav({ projectId }: { projectId: string }) {
   )
 }
 
+// First URL segments that are NOT projects (they are global/static routes).
+const RESERVED_SEGMENTS = new Set(['settings', 'alerts', 'runs', 'projects'])
+
 export default function Sidebar() {
-  const projectMatch = useMatch('/projects/:projectId/*')
-  const projectId = projectMatch?.params.projectId
+  const projectMatch = useMatch('/:orgSlug/:projectSlug/*')
+  const orgSlug = projectMatch?.params.orgSlug
+  const projectSlug = projectMatch?.params.projectSlug
+  const projectBase = (orgSlug && projectSlug && !RESERVED_SEGMENTS.has(orgSlug))
+    ? `/${orgSlug}/${projectSlug}`
+    : null
 
   return (
     <aside className="w-60 bg-slate-900 flex flex-col shrink-0">
@@ -110,7 +125,7 @@ export default function Sidebar() {
           All Projects
         </NavLink>
 
-        {projectId && <ProjectNav projectId={projectId} />}
+        {projectBase && <ProjectNav base={projectBase} />}
       </nav>
 
       {/* Footer */}
