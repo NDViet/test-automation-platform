@@ -31,7 +31,7 @@ class ApiKeyAuthFilterTest {
 
     @BeforeEach
     void setUp() {
-        filter = new ApiKeyAuthFilter(keyRepo, keyService);
+        filter = new ApiKeyAuthFilter(keyRepo, keyService, null);
         SecurityContextHolder.clearContext();
     }
 

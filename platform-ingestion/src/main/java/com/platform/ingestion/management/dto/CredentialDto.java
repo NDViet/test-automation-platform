@@ -20,6 +20,7 @@ public record CredentialDto(
         Map<String, String> connectionParams,   // non-secret only
         boolean hasSecret,
         boolean enabled,
+        int syncIntervalMinutes,
         String createdBy,
         Instant createdAt,
         Instant updatedAt
@@ -29,6 +30,7 @@ public record CredentialDto(
                 c.getId(), c.getScope(), c.getScopeId(), c.getIntegrationType(),
                 c.getDisplayName(), c.getBaseUrl(), c.getConnectionParams(),
                 c.getSecretCiphertext() != null && !c.getSecretCiphertext().isBlank(),
-                c.isEnabled(), c.getCreatedBy(), c.getCreatedAt(), c.getUpdatedAt());
+                c.isEnabled(), c.getSyncIntervalMinutes(),
+                c.getCreatedBy(), c.getCreatedAt(), c.getUpdatedAt());
     }
 }

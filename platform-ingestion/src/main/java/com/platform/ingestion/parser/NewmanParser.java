@@ -84,7 +84,7 @@ public class NewmanParser implements ResultParser {
                 totalMs > 0 ? totalMs : null,
                 SourceFormat.NEWMAN, allCases,
                 ctx.executionMode(), ctx.parallelism(), ctx.suiteName(),
-                null, null
+                null, null, null, null
         ));
     }
 

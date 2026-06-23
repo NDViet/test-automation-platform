@@ -3,6 +3,7 @@ package com.platform.ingestion.api;
 import com.platform.ingestion.exception.ParseException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
@@ -53,10 +54,18 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(ex.getStatusCode()).body(detail);
     }
 
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    public ProblemDetail handleDataIntegrity(DataIntegrityViolationException ex) {
+        log.warn("Data integrity violation: {}", ex.getMostSpecificCause().getMessage());
+        return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT,
+                ex.getMostSpecificCause().getMessage());
+    }
+
     @ExceptionHandler(Exception.class)
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     public ProblemDetail handleUnexpected(Exception ex) {
         log.error("Unexpected error during ingestion", ex);
-        return ProblemDetail.forStatus(HttpStatus.INTERNAL_SERVER_ERROR);
+        return ProblemDetail.forStatusAndDetail(HttpStatus.INTERNAL_SERVER_ERROR, ex.getMessage());
     }
 }

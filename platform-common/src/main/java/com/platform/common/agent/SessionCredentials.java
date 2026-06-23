@@ -29,4 +29,10 @@ public record SessionCredentials(
     public boolean isExpired() {
         return expiresAt != null && Instant.now().isAfter(expiresAt);
     }
+
+    @Override
+    public String toString() {
+        return "SessionCredentials[count=" + tokens.size() +
+               ", expired=" + isExpired() + "]";
+    }
 }

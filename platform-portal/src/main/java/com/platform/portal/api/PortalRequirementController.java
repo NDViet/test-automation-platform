@@ -8,7 +8,6 @@ import org.springframework.util.MultiValueMap;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientException;
-import org.springframework.web.util.UriComponentsBuilder;
 
 import java.util.Map;
 
@@ -26,6 +25,14 @@ public class PortalRequirementController {
         this.agentClient     = agentClient;
     }
 
+    // Append a raw query value; RestClient's URI template handling encodes it exactly once.
+    // (UriComponentsBuilder + RestClient double-encodes backslash/space area paths.)
+    private static String appendParam(StringBuilder uri, String sep, String key, String value) {
+        if (value == null || value.isBlank()) return sep;
+        uri.append(sep).append(key).append('=').append(value);
+        return "&";
+    }
+
     // ── Requirements ──────────────────────────────────────────────────────────
 
     @GetMapping("/requirements")
@@ -33,16 +40,22 @@ public class PortalRequirementController {
             @PathVariable String projectId,
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String issueType,
-            @RequestParam(required = false) String search) {
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) String area,
+            @RequestParam(required = false) String team,
+            @RequestParam(required = false) String iteration) {
 
-        UriComponentsBuilder uri = UriComponentsBuilder
-                .fromPath("/api/v1/projects/" + projectId + "/requirements");
-        if (status    != null) uri.queryParam("status",    status);
-        if (issueType != null) uri.queryParam("issueType", issueType);
-        if (search    != null) uri.queryParam("search",    search);
+        StringBuilder uri = new StringBuilder("/api/v1/projects/" + projectId + "/requirements");
+        String sep = "?";
+        sep = appendParam(uri, sep, "status", status);
+        sep = appendParam(uri, sep, "issueType", issueType);
+        sep = appendParam(uri, sep, "search", search);
+        sep = appendParam(uri, sep, "area", area);
+        sep = appendParam(uri, sep, "team", team);
+        appendParam(uri, sep, "iteration", iteration);
 
         return ingestionClient.get()
-                .uri(uri.toUriString())
+                .uri(uri.toString())
                 .accept(MediaType.APPLICATION_JSON)
                 .retrieve()
                 .body(Object.class);
@@ -54,18 +67,23 @@ public class PortalRequirementController {
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String issueType,
             @RequestParam(required = false) String search,
+            @RequestParam(required = false) String area,
+            @RequestParam(required = false) String team,
+            @RequestParam(required = false) String iteration,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "50") int size) {
 
-        UriComponentsBuilder uri = UriComponentsBuilder
-                .fromPath("/api/v1/projects/" + projectId + "/requirements/page")
-                .queryParam("page", page).queryParam("size", size);
-        if (status    != null) uri.queryParam("status",    status);
-        if (issueType != null) uri.queryParam("issueType", issueType);
-        if (search    != null) uri.queryParam("search",    search);
+        StringBuilder uri = new StringBuilder("/api/v1/projects/" + projectId + "/requirements/page")
+                .append("?page=").append(page).append("&size=").append(size);
+        appendParam(uri, "&", "status", status);
+        appendParam(uri, "&", "issueType", issueType);
+        appendParam(uri, "&", "search", search);
+        appendParam(uri, "&", "area", area);
+        appendParam(uri, "&", "team", team);
+        appendParam(uri, "&", "iteration", iteration);
 
         return ingestionClient.get()
-                .uri(uri.toUriString())
+                .uri(uri.toString())
                 .accept(MediaType.APPLICATION_JSON)
                 .retrieve()
                 .body(Object.class);

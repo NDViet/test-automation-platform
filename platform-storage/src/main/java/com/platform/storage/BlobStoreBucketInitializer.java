@@ -1,11 +1,8 @@
 package com.platform.storage;
 
 import com.platform.common.storage.BlobStoreBuckets;
-import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
-import org.springframework.stereotype.Component;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.*;
 
@@ -13,13 +10,17 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import software.amazon.awssdk.services.s3.model.S3Exception;
+
 /**
  * Creates required buckets on startup if they don't already exist.
- * Also applies lifecycle rules: CHECKPOINTS expire after 30 days, DIFFS after 7 days.
- * Runs only when an S3Client bean is present (i.e. not for FilesystemBlobStore).
+ * Also applies lifecycle rules and CORS policies.
+ *
+ * Registered as a {@code @Bean} in {@link BlobStoreAutoConfiguration} so it runs
+ * in every service that depends on platform-storage — no component-scan of
+ * {@code com.platform.storage} required.  Only active when an {@code S3Client}
+ * bean is present (i.e. storage type is {@code minio} or {@code s3}).
  */
-@Component
-@ConditionalOnBean(S3Client.class)
 public class BlobStoreBucketInitializer {
 
     private static final Logger log = LoggerFactory.getLogger(BlobStoreBucketInitializer.class);
@@ -28,7 +29,8 @@ public class BlobStoreBucketInitializer {
             BlobStoreBuckets.ARTIFACTS,
             BlobStoreBuckets.KNOWLEDGE,
             BlobStoreBuckets.CHECKPOINTS,
-            BlobStoreBuckets.DIFFS
+            BlobStoreBuckets.DIFFS,
+            BlobStoreBuckets.TRACES
     );
 
     private final S3Client s3;
@@ -37,7 +39,6 @@ public class BlobStoreBucketInitializer {
         this.s3 = s3;
     }
 
-    @PostConstruct
     public void initBuckets() {
         Set<String> existing = existingBuckets();
 
@@ -48,15 +49,46 @@ public class BlobStoreBucketInitializer {
             }
         }
 
-        applyLifecycle(BlobStoreBuckets.CHECKPOINTS, 30);
-        applyLifecycle(BlobStoreBuckets.DIFFS, 7);
+        tryApplyLifecycle(BlobStoreBuckets.CHECKPOINTS, 30);
+        tryApplyLifecycle(BlobStoreBuckets.DIFFS, 7);
+        tryApplyTraceCors();
         log.info("blob store buckets ready");
+    }
+
+    private void tryApplyTraceCors() {
+        try {
+            // Allows trace.playwright.dev to fetch trace ZIPs directly when using presigned URLs
+            var rule = CORSRule.builder()
+                    .allowedOrigins("https://trace.playwright.dev")
+                    .allowedMethods("GET")
+                    .allowedHeaders("*")
+                    .maxAgeSeconds(3600)
+                    .build();
+            s3.putBucketCors(PutBucketCorsRequest.builder()
+                    .bucket(BlobStoreBuckets.TRACES)
+                    .corsConfiguration(CORSConfiguration.builder().corsRules(rule).build())
+                    .build());
+            log.debug("CORS applied to {} for trace.playwright.dev", BlobStoreBuckets.TRACES);
+        } catch (S3Exception e) {
+            log.warn("Could not apply CORS to bucket {} (status={}) — " +
+                     "trace.playwright.dev viewer may not work; configure CORS manually if needed",
+                     BlobStoreBuckets.TRACES, e.statusCode());
+        }
     }
 
     private Set<String> existingBuckets() {
         return s3.listBuckets().buckets().stream()
                 .map(Bucket::name)
                 .collect(Collectors.toSet());
+    }
+
+    private void tryApplyLifecycle(String bucket, int expiryDays) {
+        try {
+            applyLifecycle(bucket, expiryDays);
+        } catch (S3Exception e) {
+            log.warn("Could not apply lifecycle policy to bucket {} (status={}) — " +
+                     "objects will not expire automatically", bucket, e.statusCode());
+        }
     }
 
     private void applyLifecycle(String bucket, int expiryDays) {

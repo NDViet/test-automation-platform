@@ -38,6 +38,8 @@ export interface Organization {
   id: string
   name: string
   slug: string
+  displayName?: string
+  logoUrl?: string
   createdAt: string
 }
 
@@ -92,6 +94,7 @@ export interface ExecutionSummary {
   passRate: number
   executedAt: string
   ingestedAt: string
+  status: string
 }
 
 export interface TestCase {
@@ -232,6 +235,7 @@ export interface CreateOrganizationForm {
 
 export interface UpdateOrganizationForm {
   name?: string
+  displayName?: string
 }
 
 export interface CreateTeamForm {
@@ -252,7 +256,7 @@ export interface CreateProjectForm {
 
 export interface UpdateProjectForm {
   name?: string
-  repoUrl?: string
+  description?: string
 }
 
 export interface Requirement {
@@ -301,6 +305,7 @@ export interface RequirementStats {
 export interface AdoTeam {
   id: string
   name: string
+  slug: string | null
   description: string | null
   defaultAreaPath: string | null
   areaPaths: string[]
@@ -308,7 +313,7 @@ export interface AdoTeam {
   syncedAt: string
 }
 export interface AdoArea {
-  id: string; path: string; name: string; parentPath: string | null
+  id: string; path: string; name: string; slug: string | null; parentPath: string | null
   hasChildren: boolean; syncedAt: string
 }
 export interface AdoIteration {
@@ -438,6 +443,14 @@ export interface TestSuite {
   parentId: string | null
   planType: string | null
   active: boolean
+  areaPath: string | null
+  teamId: string | null
+  teamName: string | null
+  selectionMode: string            // STATIC | SMART
+  filterIteration: string | null
+  filterStatus: string | null
+  filterTags: string | null
+  caseCount: number
   createdAt: string
   updatedAt: string
 }
@@ -508,6 +521,12 @@ export interface TestRun {
   blocked: number
   skipped: number
   pending: number
+  releaseId: string | null
+  releaseName: string | null
+  iterationPath: string | null
+  areaPath: string | null
+  teamId: string | null
+  teamName: string | null
   startedAt: string | null
   completedAt: string | null
   createdAt: string
@@ -524,6 +543,15 @@ export interface TestCaseExecution {
   executedBy: string | null
   executedAt: string | null
   createdAt: string
+}
+
+export interface SelectableTestCase {
+  id: string
+  externalId: string | null
+  title: string
+  priority: string
+  status: string
+  requirementExternalIds: string[]
 }
 
 export interface CreateTestCaseForm {
@@ -555,6 +583,131 @@ export interface CreateTestRunForm {
   testCaseIds: string[]
   environmentId?: string            // named Environment (V50)
   matrixType?: 'FULL' | 'PAIRWISE'  // parametrized expansion mode
+  suiteIds?: string[]               // reusable suites; their resolved cases are unioned in
+  releaseId?: string                // monitoring dimension: platform release
+  iterationPath?: string            // monitoring dimension: ADO sprint
+  areaPath?: string                 // monitoring dimension: ADO area
+  teamId?: string                   // monitoring dimension: ADO team
+}
+
+// ── Releases ───────────────────────────────────────────────────────────────────
+export interface Release {
+  id: string
+  projectId: string
+  name: string
+  releaseType: string
+  externalId: string | null
+  targetDate: string | null
+  state: string
+  // composite mapping (any subset; AND-combined)
+  mapIterationPath: string | null
+  mapAreaPath: string | null
+  mapTeamId: string | null
+  mapTeamName: string | null
+  mapTag: string | null
+  mappingField: string | null
+  mappingValue: string | null
+  mappedRequirementCount: number
+  linkedRunCount: number
+  createdAt: string
+}
+
+export interface CreateReleaseForm {
+  name: string
+  releaseType?: string
+  externalId?: string
+  targetDate?: string
+  state?: string
+  mapIterationPath?: string
+  mapAreaPath?: string
+  mapTeamId?: string
+  mapTag?: string
+  mappingField?: string
+  mappingValue?: string
+}
+
+// ── Test Execution release board ────────────────────────────────────────────────
+export interface ReleaseCard {
+  releaseId: string
+  releaseName: string
+  state: string
+  iterationPath: string | null
+  areaPath: string | null
+  teamId: string | null
+  teamName: string | null
+  runs: number
+  total: number
+  passed: number
+  failed: number
+  blocked: number
+  skipped: number
+  pending: number
+  passRate: number
+  executedPct: number
+  mappedReqs: number
+  coveredReqs: number
+  coveragePct: number
+  lastExecutedAt: string | null
+}
+
+export interface TeamReleaseGroup {
+  teamId: string | null
+  teamName: string
+  releases: ReleaseCard[]
+}
+
+export interface ReleaseBoard {
+  iterations: string[]
+  groups: TeamReleaseGroup[]
+  releaseCount: number
+  runs: number
+  total: number
+  passed: number
+  passRate: number
+  coveragePct: number
+}
+
+// ── Test Execution monitor ──────────────────────────────────────────────────────
+export interface ExecDimensionGroup {
+  key: string | null
+  label: string
+  runs: number
+  total: number
+  passed: number
+  failed: number
+  blocked: number
+  skipped: number
+  pending: number
+  passRate: number
+  executedPct: number
+  lastExecutedAt: string | null
+}
+
+export interface ExecMonitorOverview {
+  dimension: string
+  runs: number
+  total: number
+  passed: number
+  failed: number
+  blocked: number
+  skipped: number
+  pending: number
+  passRate: number
+  executedPct: number
+  groups: ExecDimensionGroup[]
+}
+
+export interface ExecRunSummary {
+  id: string
+  name: string
+  status: string
+  total: number
+  passed: number
+  failed: number
+  blocked: number
+  skipped: number
+  pending: number
+  createdAt: string
 }
 
 export interface CreateTestSuiteForm {
@@ -563,6 +716,12 @@ export interface CreateTestSuiteForm {
   parentId?: string | null
   planType?: string
   active?: boolean
+  areaPath?: string
+  teamId?: string
+  selectionMode?: string           // STATIC | SMART
+  filterIteration?: string
+  filterStatus?: string
+  filterTags?: string
 }
 
 export interface CoverageRow {
@@ -571,9 +730,22 @@ export interface CoverageRow {
   title: string
   issueType: string | null
   requirementStatus: string | null
+  areaPath: string | null
+  teamName: string | null
   automatedCases: number
   manualCases: number
   lastStatus: string | null
+}
+
+export interface CoverageGroup {
+  label: string
+  total: number
+  covered: number
+  coveredByAutomation: number
+  manualOnly: number
+  uncovered: number
+  coveragePct: number
+  automationPct: number
 }
 
 export interface CoverageReport {
@@ -582,6 +754,8 @@ export interface CoverageReport {
   coveredManualOnly: number
   uncovered: number
   automationCoveragePct: number
+  byArea: CoverageGroup[]
+  byTeam: CoverageGroup[]
   requirements: CoverageRow[]
 }
 
@@ -722,6 +896,16 @@ export interface WorkItem {
 // ── Integration Credentials (Admin PAT cascade) ──────────────────────────────
 export type CredentialScope = 'ORG' | 'TEAM' | 'PROJECT'
 
+export interface GithubRepo {
+  fullName: string
+  owner: string | null
+  name: string | null
+  isPrivate: boolean
+  defaultBranch: string | null
+  htmlUrl: string | null
+  managed: boolean
+}
+
 export interface Credential {
   id: string
   scope: CredentialScope
@@ -732,9 +916,41 @@ export interface Credential {
   connectionParams: Record<string, string>
   hasSecret: boolean
   enabled: boolean
+  syncIntervalMinutes: number
   createdBy: string | null
   createdAt: string
   updatedAt: string
+}
+
+// ── GitHub Actions workflows ──────────────────────────────────────────────────
+
+export interface GitHubWorkflow {
+  id: number
+  name: string
+  path: string
+  state: 'active' | 'disabled_manually' | 'disabled_inactivity' | string
+  htmlUrl: string
+  repoFullName: string
+}
+
+export interface GitHubWorkflowRun {
+  id: number
+  displayTitle: string
+  status: 'queued' | 'in_progress' | 'completed' | string
+  conclusion: 'success' | 'failure' | 'cancelled' | 'skipped' | 'timed_out' | 'action_required' | null
+  branch: string
+  event: string
+  htmlUrl: string
+  createdAt: string | null
+  updatedAt: string | null
+  headSha: string
+  repoFullName: string
+  workflowId: number
+}
+
+export interface WorkflowDispatchResult {
+  triggered: boolean
+  message: string
 }
 
 export interface SaveCredentialForm {
@@ -746,4 +962,137 @@ export interface SaveCredentialForm {
   connectionParams?: Record<string, string>
   secret?: Record<string, string>
   enabled?: boolean
+}
+
+// ── Unified Test Execution list ───────────────────────────────────────────────
+
+export interface UnifiedExecutionItem {
+  id: string
+  /** "MANUAL" | "AUTOMATED" */
+  type: 'MANUAL' | 'AUTOMATED'
+  name: string
+  status: string
+  environment: string
+  // Automated-only
+  ciProvider: string | null
+  branch: string | null
+  commitSha: string | null
+  workflow: string | null
+  triggerType: string | null
+  // Counts
+  totalTests: number
+  passed: number
+  failed: number
+  blocked: number   // manual: BLOCKED executions; automated: 0
+  skipped: number
+  pending: number   // manual: PENDING executions; automated: 0
+  broken: number    // automated only (timedOut / interrupted)
+  passRate: number  // 0–1
+  durationMs: number
+  // Scope dimensions
+  teamId: string | null
+  teamName: string | null
+  areaPath: string | null
+  iterationPath: string | null
+  // Manual-only
+  releaseId: string | null
+  releaseName: string | null
+  releaseVersion: string | null
+  triggeredBy: string | null
+  // Automated-only
+  ciRunUrl: string | null
+  /** Navigation key: MANUAL → TestRun UUID, AUTOMATED → CI run ID */
+  runId: string
+  date: string
+}
+
+// ── GitHub repo cache + project assignments ───────────────────────────────────
+
+export interface GitHubCachedRepo {
+  fullName: string
+  owner: string | null
+  name: string | null
+  isPrivate: boolean
+  defaultBranch: string | null
+  htmlUrl: string | null
+  managed: boolean
+}
+
+export interface GitHubCacheResult {
+  repos: GitHubCachedRepo[]
+  syncedAt: string | null
+  totalCount: number
+}
+
+export interface ProjectRepoAssignment {
+  id: string
+  repoFullName: string
+  role: RepoType
+  credentialId: string
+  owner: string | null
+  name: string | null
+  htmlUrl: string | null
+  isPrivate: boolean
+}
+
+// ── Automated Test Analytics ─────────────────────────────────────────────────
+
+export interface AutomatedTestSummary {
+  testId: string
+  displayName: string
+  /** className — suite/describe block name for Playwright results */
+  suiteName: string | null
+  tags: string[]
+  totalRuns: number
+  passed: number
+  failed: number
+  skipped: number
+  broken: number
+  passRate: number
+  failRate: number
+  lastStatus: string
+  lastRunId: string | null
+  lastRunAt: string
+  avgDurationMs: number
+  /** Spec file path relative to project root. Null for results ingested before V13. */
+  specFile: string | null
+  /** Distinct Playwright project names (browsers/devices) seen in the time window. */
+  browsers: string[]
+  /** Distinct Playwright annotation types seen (fixme, slow, fail, skip, custom). */
+  annotationTypes: string[]
+  /** Per-label-key, distinct values seen. e.g. {owner: ["alice"], jira: ["PROJ-123"]} */
+  labelMap: Record<string, string[]>
+  hasScreenshot: boolean
+  hasVideo: boolean
+}
+
+export interface TestTrendPoint {
+  date: string
+  total: number
+  passed: number
+  failed: number
+  skipped: number
+  passRate: number
+  avgDurationMs: number | null
+}
+
+export interface RecentRun {
+  runId: string | null
+  resultId: string | null
+  status: string
+  runAt: string
+  durationMs: number | null
+  failureMessage: string | null
+  environment: string | null
+  branch: string | null
+  hasTrace: boolean
+  browser: string | null
+  specFile: string | null
+  hasScreenshot: boolean
+  hasVideo: boolean
+}
+
+export interface AutomatedTestDetail {
+  trend: TestTrendPoint[]
+  recentRuns: RecentRun[]
 }

@@ -111,7 +111,7 @@ public class AlertController {
                 exec.getDurationMs(), exec.getSourceFormat(),
                 List.of(),
                 exec.getExecutionMode(), exec.getParallelism(), exec.getSuiteName(),
-                null, null
+                null, null, null, null
         );
     }
 }

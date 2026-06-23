@@ -51,7 +51,7 @@ class CredentialServiceTest {
                 "https://dev.azure.com",
                 Map.of("organization", "acme"),
                 Map.of("pat", "SECRET_PAT"),
-                true);
+                true, null);
 
         CredentialDto dto = service.save(req, "admin");
 
@@ -78,7 +78,7 @@ class CredentialServiceTest {
 
         SaveCredentialRequest req = new SaveCredentialRequest(
                 "ORG", orgId, "GITHUB_ISSUES", "GH renamed", "https://api.github.com",
-                Map.of("owner", "acme", "repo", "checkout"), null, true);
+                Map.of("owner", "acme", "repo", "checkout"), null, true, null);
 
         service.save(req, "admin");
 

@@ -75,7 +75,7 @@ public class AllureParser implements ResultParser {
                 totalMs > 0 ? totalMs : null,
                 SourceFormat.ALLURE, allCases,
                 ctx.executionMode(), ctx.parallelism(), ctx.suiteName(),
-                null, null
+                null, null, null, null
         ));
     }
 

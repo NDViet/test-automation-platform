@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useProject } from '@/components/layout/ProjectLayout'
+import { useProject, useProjectFilter } from '@/components/layout/ProjectLayout'
 import { useQuery, keepPreviousData } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { relativeTime, cn } from '@/lib/utils'
@@ -283,6 +283,7 @@ type ViewMode = 'list' | 'tree'
 
 export default function RequirementsPage() {
   const { projectId, base, project } = useProject()
+  const { filter } = useProjectFilter()   // project-wide Area / Team / Iteration scope
   const navigate = useNavigate()
 
   const [viewMode,   setViewMode]   = useState<ViewMode>('tree')
@@ -309,15 +310,16 @@ export default function RequirementsPage() {
   })
 
   // List = server-paginated. Tree = full fetch (hierarchy needs all), only when active.
+  const scope = { area: filter.area || undefined, team: filter.teamId || undefined, iteration: filter.iteration || undefined }
   const listQ = useQuery({
-    queryKey: ['requirements-page', projectId, page, size, status, issueType, search],
-    queryFn:  () => api.requirementsPage(projectId!, { page, size, status: status || undefined, issueType: issueType || undefined, search: search || undefined }),
+    queryKey: ['requirements-page', projectId, page, size, status, issueType, search, filter.area, filter.teamId, filter.iteration],
+    queryFn:  () => api.requirementsPage(projectId!, { page, size, status: status || undefined, issueType: issueType || undefined, search: search || undefined, ...scope }),
     enabled:  !!projectId && viewMode === 'list',
     placeholderData: keepPreviousData,
   })
   const treeQ = useQuery({
-    queryKey: ['requirements-all', projectId],
-    queryFn:  () => api.requirements(projectId!),
+    queryKey: ['requirements-all', projectId, filter.area, filter.teamId, filter.iteration],
+    queryFn:  () => api.requirements(projectId!, scope),
     enabled:  !!projectId && viewMode === 'tree',
   })
 

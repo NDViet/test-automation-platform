@@ -1,0 +1,12 @@
+# Production / container profile overrides
+# Swagger UI is disabled so API endpoints are not publicly discoverable.
+springdoc:
+  swagger-ui:
+    enabled: false
+  api-docs:
+    enabled: false
+
+platform:
+  # Trusted load-balancer / reverse-proxy IPs for X-Forwarded-For audit logging.
+  # Override with the actual LB IP(s) in production.
+  trusted-proxy-ips: 127.0.0.1,::1,0:0:0:0:0:0:0:1

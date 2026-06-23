@@ -105,7 +105,7 @@ public class JMeterJtlParser implements ResultParser {
                 totalMs > 0 ? totalMs : null,
                 SourceFormat.JMETER, allCases,
                 ctx.executionMode(), ctx.parallelism(), ctx.suiteName(),
-                TestType.PERFORMANCE, perfMetrics
+                TestType.PERFORMANCE, perfMetrics, null, null
         ));
     }
 

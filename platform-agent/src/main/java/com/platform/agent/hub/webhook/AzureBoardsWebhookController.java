@@ -23,8 +23,10 @@ import java.util.UUID;
 /**
  * Receives Azure DevOps Boards Service Hook events and triggers agent workflows.
  *
- * <p>Azure Service Hooks do not sign payloads; security is a shared secret in the
- * query parameter: {@code POST /hub/webhooks/azure-boards?secret={token}}.</p>
+ * <p>Security: a shared secret is expected in the {@code X-ADO-Webhook-Secret} request header.
+ * Configure the ADO Service Hook HTTP request with a custom header of that name.
+ * If the property {@code platform.agent.azure-boards.webhook-secret} is blank, verification
+ * is skipped (dev mode only — always set it in production).</p>
  *
  * <p>Configure two subscriptions in Azure DevOps: "Work item created" and
  * "Work item updated".</p>
@@ -58,10 +60,10 @@ public class AzureBoardsWebhookController {
 
     @PostMapping
     public ResponseEntity<Void> handle(
-            @RequestParam(value = "secret", required = false, defaultValue = "") String secret,
+            @RequestHeader(value = "X-ADO-Webhook-Secret", required = false, defaultValue = "") String secret,
             @RequestBody String payload) {
 
-        if (!webhookSecret.isBlank() && !webhookSecret.equals(secret)) {
+        if (!webhookSecret.isBlank() && !constantTimeEquals(webhookSecret, secret)) {
             log.warn("Azure Boards webhook: invalid secret");
             return ResponseEntity.status(401).build();
         }
@@ -106,5 +108,12 @@ public class AzureBoardsWebhookController {
             log.error("Azure Boards webhook: failed to process event", e);
             return ResponseEntity.internalServerError().build();
         }
+    }
+
+    private static boolean constantTimeEquals(String a, String b) {
+        if (a.length() != b.length()) return false;
+        int result = 0;
+        for (int i = 0; i < a.length(); i++) result |= a.charAt(i) ^ b.charAt(i);
+        return result == 0;
     }
 }

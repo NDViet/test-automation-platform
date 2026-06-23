@@ -78,7 +78,7 @@ public class CucumberJsonParser implements ResultParser {
                 allCases.size(), passed, failed, skipped, broken, null,
                 SourceFormat.CUCUMBER_JSON, allCases,
                 ctx.executionMode(), ctx.parallelism(), suiteName,
-                null, null
+                null, null, null, null
         ));
     }
 

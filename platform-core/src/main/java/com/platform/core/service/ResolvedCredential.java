@@ -34,4 +34,11 @@ public record ResolvedCredential(
     public boolean hasSecret() {
         return secret != null && !secret.isEmpty();
     }
+
+    @Override
+    public String toString() {
+        return "ResolvedCredential[type=" + integrationType +
+               ", scope=" + secretScope +
+               ", hasSecret=" + hasSecret() + "]";
+    }
 }

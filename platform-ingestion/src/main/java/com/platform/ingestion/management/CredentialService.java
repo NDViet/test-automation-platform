@@ -77,6 +77,7 @@ public class CredentialService {
                     req.baseUrl(), nullToEmpty(req.connectionParams()), secretCiphertext);
             c.setCreatedBy(actor);
             if (req.enabled() != null) c.setEnabled(req.enabled());
+            if (req.syncIntervalMinutes() != null) c.setSyncIntervalMinutes(req.syncIntervalMinutes());
             saved = repo.save(c);
             log.info("[Credentials] Created {} {} credential by {}", scope, req.integrationType(), actor);
         } else {
@@ -85,6 +86,7 @@ public class CredentialService {
             if (req.connectionParams() != null) existing.setConnectionParams(req.connectionParams());
             existing.setSecretCiphertext(secretCiphertext);
             if (req.enabled() != null) existing.setEnabled(req.enabled());
+            if (req.syncIntervalMinutes() != null) existing.setSyncIntervalMinutes(req.syncIntervalMinutes());
             saved = repo.save(existing);
             log.info("[Credentials] Updated {} {} credential by {}", scope, req.integrationType(), actor);
         }
@@ -95,6 +97,13 @@ public class CredentialService {
     public void delete(UUID id) {
         if (!repo.existsById(id)) throw notFound(id);
         repo.deleteById(id);
+    }
+
+    @Transactional
+    public CredentialDto updateSyncInterval(UUID id, int minutes) {
+        IntegrationCredential c = repo.findById(id).orElseThrow(() -> notFound(id));
+        c.setSyncIntervalMinutes(Math.max(0, minutes));
+        return CredentialDto.from(repo.save(c));
     }
 
     /** Decrypts the secret, merges with non-secret params, and probes the remote system. */

@@ -23,10 +23,13 @@ public class PortalApiKeyController {
     }
 
     @GetMapping
-    @Operation(summary = "List API keys for a team")
-    public Object list(@RequestParam String teamId) {
+    @Operation(summary = "List API keys, optionally filtered by teamId")
+    public Object list(@RequestParam(required = false) String teamId) {
+        String uri = teamId != null && !teamId.isBlank()
+                ? "/api/v1/api-keys?teamId=" + teamId
+                : "/api/v1/api-keys";
         return ingestionClient.get()
-                .uri("/api/v1/api-keys?teamId=" + teamId)
+                .uri(uri)
                 .accept(MediaType.APPLICATION_JSON)
                 .retrieve().body(Object.class);
     }

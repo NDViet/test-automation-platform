@@ -40,6 +40,8 @@ spring:
 
 server:
   port: ${SERVER_PORT:8082}
+  error:
+    include-message: always
 
 management:
   endpoints:
@@ -61,6 +63,15 @@ springdoc:
     path: /swagger-ui.html
 
 platform:
+  storage:
+    type: ${PLATFORM_STORAGE_TYPE:filesystem}
+    endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
+    access-key: ${MINIO_ACCESS_KEY:minioadmin}
+    secret-key: ${MINIO_SECRET_KEY:minioadmin}
+    region: ${MINIO_REGION:us-east-1}
+    path-style: true
+    filesystem-base-path: ${PLATFORM_BLOB_DIR:./blobs}
+    presign-url-ttl-minutes: ${MINIO_PRESIGN_TTL:60}
   analytics:
     gate:
       min-pass-rate: ${GATE_MIN_PASS_RATE:0.80}

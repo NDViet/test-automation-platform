@@ -7,11 +7,12 @@ public record ExecutionSummaryDto(
         String executionMode, int parallelism, String suiteName,
         String sourceFormat, String ciProvider, String ciRunUrl,
         int totalTests, int passed, int failed, int skipped, int broken,
-        Long durationMs, double passRate, Instant executedAt, Instant ingestedAt) {
+        Long durationMs, double passRate, Instant executedAt, Instant ingestedAt,
+        String status) {
 
     public static ExecutionSummaryDto from(com.platform.core.domain.TestExecution e) {
         double passRate = e.getTotalTests() > 0
-                ? (double) e.getPassed() / e.getTotalTests() * 100.0
+                ? (double) e.getPassed() / e.getTotalTests()
                 : 0.0;
         return new ExecutionSummaryDto(
                 e.getId(), e.getRunId(), e.getProject().getId(),
@@ -22,6 +23,7 @@ public record ExecutionSummaryDto(
                 e.getCiProvider(), e.getCiRunUrl(),
                 e.getTotalTests(), e.getPassed(), e.getFailed(),
                 e.getSkipped(), e.getBroken(),
-                e.getDurationMs(), passRate, e.getExecutedAt(), e.getIngestedAt());
+                e.getDurationMs(), passRate, e.getExecutedAt(), e.getIngestedAt(),
+                e.getStatus());
     }
 }

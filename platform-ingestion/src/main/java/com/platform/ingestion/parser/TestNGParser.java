@@ -90,7 +90,7 @@ public class TestNGParser implements ResultParser {
                 totalDurationMs > 0 ? totalDurationMs : null,
                 SourceFormat.TESTNG, allCases,
                 ctx.executionMode(), ctx.parallelism(), suiteName,
-                null, null
+                null, null, null, null
         ));
     }
 

@@ -21,9 +21,11 @@ import java.util.UUID;
 public class CredentialController {
 
     private final CredentialService service;
+    private final GitHubRepoService gitHubRepoService;
 
-    public CredentialController(CredentialService service) {
+    public CredentialController(CredentialService service, GitHubRepoService gitHubRepoService) {
         this.service = service;
+        this.gitHubRepoService = gitHubRepoService;
     }
 
     /** List credentials at a scope. ORG: no scopeId; TEAM/PROJECT: scopeId required. */
@@ -49,5 +51,41 @@ public class CredentialController {
     public Map<String, Object> testConnection(@PathVariable UUID id) {
         CredentialHealthChecker.Result r = service.testConnection(id);
         return Map.of("ok", r.ok(), "message", r.message());
+    }
+
+    // ── GitHub: discover accessible repos + select which to manage ───────────────
+
+    /** All repos the GitHub credential's PAT can access, each flagged if already managed. */
+    @GetMapping("/{id}/github/repos")
+    public List<GitHubRepoService.RepoDto> githubRepos(@PathVariable UUID id) {
+        return gitHubRepoService.listAccessible(id);
+    }
+
+    public record SetReposRequest(List<GitHubRepoService.RepoDto> repos) {}
+
+    /** Replace the set of repos managed under this GitHub credential. */
+    @PutMapping("/{id}/github/repos")
+    public List<GitHubRepoService.RepoDto> setGithubRepos(@PathVariable UUID id,
+                                                          @RequestBody SetReposRequest req) {
+        return gitHubRepoService.setManaged(id, req.repos());
+    }
+
+    /** Fetch all repos from GitHub and refresh the local cache. Returns the new cache state. */
+    @PostMapping("/{id}/github/repos/sync")
+    public GitHubRepoService.CachedResult syncGithubRepos(@PathVariable UUID id) {
+        return gitHubRepoService.syncToCache(id);
+    }
+
+    /** Return cached repos (no GitHub API call). Returns empty list if cache was never synced. */
+    @GetMapping("/{id}/github/repos/cached")
+    public GitHubRepoService.CachedResult cachedGithubRepos(@PathVariable UUID id) {
+        return gitHubRepoService.listCached(id);
+    }
+
+    /** Update the auto-sync interval (minutes; 0 = manual only). */
+    @PatchMapping("/{id}/sync-interval")
+    public CredentialDto updateSyncInterval(@PathVariable UUID id,
+                                             @RequestParam int minutes) {
+        return service.updateSyncInterval(id, minutes);
     }
 }

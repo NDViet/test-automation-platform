@@ -1,259 +1,371 @@
-import { useState } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
-import { useProject } from '@/components/layout/ProjectLayout'
+import { Link } from 'react-router-dom'
+import { useProject, useProjectFilter } from '@/components/layout/ProjectLayout'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
-import {
-  formatDuration, formatPassRate, passRateColor, flakinessColor,
-  relativeTime, cn,
-} from '@/lib/utils'
-import StatCard from '@/components/StatCard'
-import PassRateChart from '@/components/PassRateChart'
-import Badge from '@/components/Badge'
+import { relativeTime, pathLeaf } from '@/lib/utils'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import ErrorMessage from '@/components/ErrorMessage'
-import TestImpactPanel from '@/components/TestImpactPanel'
-import { CheckCircle, XCircle, AlertTriangle, Clock, ChevronRight, Settings, FileText, GitPullRequest } from 'lucide-react'
+import {
+  FileText, ShieldCheck, Bug, Gauge, Rocket, ChevronRight, ArrowRight,
+  MonitorCheck, CheckCircle, XCircle, AlertTriangle, GitBranch,
+} from 'lucide-react'
+import type { ExecutionSummary } from '@/lib/types'
+
+function rateColor(p: number): string {
+  return p >= 80 ? '#16a34a' : p >= 50 ? '#ca8a04' : '#dc2626'
+}
+
+function Kpi({ label, value, sub, accent, to }: {
+  label: string; value: string; sub?: string; accent?: string; to?: string
+}) {
+  const body = (
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 h-full hover:border-blue-300 transition-colors">
+      <p className="text-xs text-slate-500">{label}</p>
+      <p className="text-2xl font-bold mt-0.5" style={accent ? { color: accent } : undefined}>{value}</p>
+      {sub && <p className="text-xs text-slate-400 mt-0.5">{sub}</p>}
+    </div>
+  )
+  return to ? <Link to={to}>{body}</Link> : body
+}
+
+function Bar({ pct, color }: { pct: number; color: string }) {
+  return (
+    <div className="h-2 rounded-full bg-slate-100 overflow-hidden min-w-[80px]">
+      <div className="h-full" style={{ width: `${Math.max(0, Math.min(100, pct))}%`, background: color }} />
+    </div>
+  )
+}
+
+function SectionHeader({ title, to, linkLabel }: { title: string; to: string; linkLabel: string }) {
+  return (
+    <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100">
+      <h2 className="text-sm font-semibold text-slate-700">{title}</h2>
+      <Link to={to} className="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1">
+        {linkLabel} <ArrowRight size={12} />
+      </Link>
+    </div>
+  )
+}
+
+// Mini sparkline of pass rate over the last N trend points
+function PassRateSparkline({ points }: { points: { passRate: number }[] }) {
+  if (points.length < 2) return null
+  const W = 80, H = 28
+  const rates = points.map(p => p.passRate)
+  const min = Math.min(...rates), max = Math.max(...rates)
+  const range = max - min || 1
+  const xs = rates.map((_, i) => (i / (rates.length - 1)) * W)
+  const ys = rates.map(r => H - ((r - min) / range) * (H - 4) - 2)
+  const d = xs.map((x, i) => `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${ys[i].toFixed(1)}`).join(' ')
+  const lastColor = rateColor(rates[rates.length - 1])
+  return (
+    <svg width={W} height={H} className="shrink-0">
+      <path d={d} fill="none" stroke={lastColor} strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" opacity="0.7" />
+    </svg>
+  )
+}
+
+function execPct(e: ExecutionSummary): number {
+  return e.totalTests > 0 ? (e.passed / e.totalTests) * 100 : 0
+}
+
+function ExecutionRow({ exec, base }: { exec: ExecutionSummary; base: string }) {
+  const pr = execPct(exec)
+  const failed = exec.failed + (exec.broken ?? 0)
+  return (
+    <Link
+      to={`${base}/automated-tests`}
+      className="flex items-center gap-3 px-5 py-2.5 hover:bg-slate-50 transition-colors"
+    >
+      <div className="shrink-0">
+        {pr >= 80
+          ? <CheckCircle size={14} className="text-green-500" />
+          : pr >= 50
+            ? <AlertTriangle size={14} className="text-yellow-500" />
+            : <XCircle size={14} className="text-red-500" />
+        }
+      </div>
+      <div className="flex-1 min-w-0">
+        <p className="text-sm text-slate-800 truncate">{exec.suiteName || exec.sourceFormat}</p>
+        <div className="flex items-center gap-2 mt-0.5">
+          <GitBranch size={10} className="text-slate-400 shrink-0" />
+          <span className="text-[11px] text-slate-400 font-mono truncate">{exec.branch || '—'}</span>
+          <span className="text-[11px] text-slate-400">·</span>
+          <span className="text-[11px] text-slate-400">{relativeTime(exec.executedAt)}</span>
+        </div>
+      </div>
+      <div className="shrink-0 text-right">
+        <p className="text-sm font-semibold tabular-nums" style={{ color: rateColor(pr) }}>{pr.toFixed(1)}%</p>
+        <p className="text-[11px] text-slate-400 tabular-nums">{exec.totalTests} tests · {failed} fail</p>
+      </div>
+    </Link>
+  )
+}
 
 export default function ProjectDetail() {
-  const { projectId, base } = useProject()
-  const navigate = useNavigate()
-  const [days, setDays] = useState(7)
+  const { project, projectId, base } = useProject()
+  const { filter, active } = useProjectFilter()
+  const scope = { area: filter.area || undefined, team: filter.teamId || undefined, iteration: filter.iteration || undefined }
 
-  const { data, isLoading, error } = useQuery({
-    queryKey: ['project', projectId, days],
-    queryFn: () => api.projectDetail(projectId!, days),
+  // Scoped quality signals
+  const covQ = useQuery({
+    queryKey: ['coverage', projectId, filter.area, filter.teamId, filter.iteration],
+    queryFn: () => api.coverage(projectId!, scope), enabled: !!projectId,
+  })
+  const boardQ = useQuery({
+    queryKey: ['execBoard', projectId, filter.area, filter.teamId, filter.iteration],
+    queryFn: () => api.testExecutionBoard(projectId!, { area: filter.area || undefined, team: filter.teamId || undefined, iteration: filter.iteration || undefined }),
     enabled: !!projectId,
   })
+  // Project-wide quality signals
+  const qualQ  = useQuery({ queryKey: ['qualityOverview',    projectId], queryFn: () => api.qualityOverview(projectId!),    enabled: !!projectId })
+  const prodQ  = useQuery({ queryKey: ['productivityByArea', projectId], queryFn: () => api.productivityByArea(projectId!), enabled: !!projectId })
+  // Test automation signals
+  const detailQ = useQuery({ queryKey: ['project', projectId], queryFn: () => api.projectDetail(projectId!), enabled: !!projectId })
 
-  const { data: trendData } = useQuery({
-    queryKey: ['passRateTrend', projectId, 30],
-    queryFn: () => api.passRateTrend(projectId!, 30),
-    enabled: !!projectId,
-  })
+  if (covQ.isLoading) return <LoadingSpinner message="Loading project quality…" />
+  if (covQ.error || !covQ.data) return <ErrorMessage message="Failed to load project quality." />
 
-  if (isLoading) return <LoadingSpinner message="Loading project…" />
-  if (error || !data) return <ErrorMessage message="Failed to load project data." />
+  const cov   = covQ.data
+  const board = boardQ.data
+  const qual  = qualQ.data
+  const prod  = prodQ.data
 
-  const { project, flakiness, qualityGate, recentExecutions } = data
+  const detail         = detailQ.data
+  const recentExecs    = detail?.recentExecutions ?? []
+  const trendPoints    = detail?.passRateTrend    ?? []
+  const qualityGate    = detail?.qualityGate
+  const flakyItems     = detail?.flakiness        ?? []
 
-  const latestRun = recentExecutions?.[0]
-  const criticalFlaky = flakiness?.filter(f => f.classification === 'CRITICAL_FLAKY').length ?? 0
+  const flakyCount     = flakyItems.filter(f => f.classification === 'FLAKY' || f.classification === 'CRITICAL_FLAKY').length
+  const avgAutoPass    = recentExecs.length
+    ? recentExecs.reduce((s, e) => s + execPct(e), 0) / recentExecs.length
+    : null
+  const totalAutoTests = recentExecs.reduce((s, e) => s + (e.totalTests ?? 0), 0)
+  const totalFailed    = recentExecs.reduce((s, e) => s + (e.failed ?? 0) + (e.broken ?? 0), 0)
 
-  // Weighted average across all days in the trend window: total passed / total tests.
-  // PassRatePoint uses 0-1 scale; multiply by 100 to match formatPassRate/passRateColor (0-100 scale).
-  // Falls back to the latest run if trend data hasn't loaded yet.
-  const trendPassRate = (() => {
-    if (!trendData || trendData.length === 0) return latestRun?.passRate
-    const totalTests  = trendData.reduce((s, p) => s + p.totalTests, 0)
-    if (totalTests === 0) return latestRun?.passRate
-    const totalPassed = trendData.reduce((s, p) => s + p.passed, 0)
-    return totalPassed / totalTests * 100
-  })()
+  const covered    = cov.coveredByAutomation + cov.coveredManualOnly
+  const coveredPct = cov.totalRequirements ? Math.round(covered * 1000 / cov.totalRequirements) / 10 : 0
+
+  // Flatten release board → release rows, worst coverage first
+  const releases = (board?.groups ?? []).flatMap(g => g.releases.map(r => ({ ...r, teamName: g.teamName })))
+    .sort((a, b) => a.coveragePct - b.coveragePct)
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
           <div className="flex items-center gap-2 text-sm text-slate-500 mb-1">
-            <button onClick={() => navigate('/')} className="hover:text-blue-600">Overview</button>
-            <ChevronRight size={14} />
-            <span>{project?.orgName}</span>
-            <ChevronRight size={14} />
+            <Link to={`/${project.orgSlug}`} className="hover:text-blue-600">Overview</Link>
+            <ChevronRight size={14} /><span>{project?.orgName ?? ''}</span>
           </div>
-          <div className="flex items-center gap-3">
-            <h1 className="text-2xl font-bold text-slate-900">{project?.name ?? projectId}</h1>
-            <Link
-              to={`${base}/requirements`}
-              className="text-slate-400 hover:text-blue-600 transition-colors"
-              title="Requirements"
-            >
-              <FileText size={17} />
-            </Link>
-            <Link
-              to={`${base}/pr-analyses`}
-              className="text-slate-400 hover:text-blue-600 transition-colors"
-              title="PR Analyses"
-            >
-              <GitPullRequest size={17} />
-            </Link>
-            <Link
-              to={`${base}/settings`}
-              className="text-slate-400 hover:text-slate-700 transition-colors"
-              title="Project Settings"
-            >
-              <Settings size={18} />
-            </Link>
-          </div>
-          <p className="text-sm text-slate-500 mt-1">{project?.slug}</p>
-        </div>
-        <div className="flex items-center gap-2">
-          {[7, 14, 30].map(d => (
-            <button key={d}
-              onClick={() => setDays(d)}
-              className={cn('px-3 py-1.5 text-xs font-medium rounded-lg transition-colors',
-                days === d ? 'bg-blue-600 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
-              )}
-            >
-              {d}d
-            </button>
-          ))}
+          <h1 className="text-2xl font-bold text-slate-900">{project?.name ?? projectId}</h1>
+          <p className="text-sm text-slate-500 mt-1">Project quality at a glance{active ? ' · scoped' : ''}</p>
         </div>
       </div>
 
-      {/* Quality gate banner */}
-      {qualityGate && (
-        <div className={cn('rounded-xl border p-4 flex items-start gap-3',
-          qualityGate.passed ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200')}>
-          {qualityGate.passed
-            ? <CheckCircle className="text-green-600 shrink-0 mt-0.5" size={18} />
-            : <XCircle className="text-red-600 shrink-0 mt-0.5" size={18} />}
-          <div>
-            <p className={cn('font-semibold text-sm', qualityGate.passed ? 'text-green-800' : 'text-red-800')}>
-              Quality Gate {qualityGate.passed ? 'PASSED' : 'FAILED'}
-            </p>
-            {!qualityGate.passed && qualityGate.violations.length > 0 && (
-              <ul className="mt-1 space-y-0.5">
-                {qualityGate.violations.map((v, i) => (
-                  <li key={i} className="text-xs text-red-700">• {v}</li>
-                ))}
-              </ul>
-            )}
-            <p className="text-xs text-slate-500 mt-1">
-              Pass rate: {formatPassRate(qualityGate.actualPassRate)} · {qualityGate.newFailures} new failures
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* Stat cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard
-          title="Pass Rate"
-          value={formatPassRate(trendPassRate)}
-          subtitle="30 day avg"
-          colorClass={passRateColor(trendPassRate ?? 0)}
-        />
-        <StatCard
-          title="Last Run Duration"
-          value={formatDuration(latestRun?.durationMs)}
-          icon={Clock}
-          colorClass="text-slate-600"
-        />
-        <StatCard
-          title="Critical Flaky"
-          value={criticalFlaky}
-          icon={AlertTriangle}
-          colorClass={criticalFlaky > 0 ? 'text-red-600' : 'text-green-600'}
-        />
-        <StatCard
-          title={`Total Runs (${days}d)`}
-          value={recentExecutions?.length ?? 0}
-          colorClass="text-blue-600"
-        />
+      {/* KPI row */}
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
+        <Kpi label="Requirements" value={String(cov.totalRequirements)}
+             sub={`${cov.uncovered} uncovered`} to={`${base}/requirements`} />
+        <Kpi label="Test coverage" value={`${coveredPct}%`} accent={rateColor(coveredPct)}
+             sub={`${cov.automationCoveragePct}% automated`} to={`${base}/coverage`} />
+        <Kpi label="Release pass rate" value={board ? `${board.passRate}%` : '—'} accent={board ? rateColor(board.passRate) : undefined}
+             sub={board ? `${board.runs} runs · ${board.releaseCount} releases` : ''} to={`${base}/test-execution`} />
+        <Kpi label="Open defects" value={qual ? String(qual.openDefects) : '—'}
+             accent={qual && qual.openDefects > 0 ? '#dc2626' : '#16a34a'}
+             sub={qual ? `${qual.createdLast30} new · ${qual.resolvedLast30} resolved (30d)` : ''} to={`${base}/quality`} />
+        <Kpi label={`Over SLA (${prod?.thresholdHours ?? 24}h)`} value={prod ? String(prod.totalOver) : '—'}
+             accent={prod && prod.totalOver > 0 ? '#ca8a04' : '#16a34a'}
+             sub={prod ? `${prod.totalWip} in progress` : ''} to={`${base}/productivity`} />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Pass rate trend */}
-        <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-          <h2 className="font-semibold text-slate-900 mb-4">Pass Rate (30 days)</h2>
-          {trendData && trendData.length > 0
-            ? <PassRateChart data={trendData} />
-            : <p className="text-sm text-slate-500 py-8 text-center">No trend data available.</p>
-          }
-        </div>
+      {/* ── Test Automation ── */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <SectionHeader title="Test Automation" to={`${base}/automated-tests`} linkLabel="Automated Tests" />
 
-        {/* Flaky tests */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
-          <div className="px-5 py-4 border-b border-slate-100">
-            <h2 className="font-semibold text-slate-900">Flaky Tests</h2>
+        {/* Automation KPIs */}
+        <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-y md:divide-y-0 divide-slate-100 border-b border-slate-100">
+          {/* Pass rate + sparkline */}
+          <div className="px-5 py-4 flex items-center justify-between gap-3">
+            <div>
+              <p className="text-xs text-slate-500">Avg pass rate</p>
+              <p className="text-2xl font-bold mt-0.5" style={{ color: avgAutoPass != null ? rateColor(avgAutoPass) : undefined }}>
+                {avgAutoPass != null ? `${avgAutoPass.toFixed(1)}%` : '—'}
+              </p>
+              <p className="text-[11px] text-slate-400 mt-0.5">{recentExecs.length} recent runs</p>
+            </div>
+            {trendPoints.length >= 2 && <PassRateSparkline points={trendPoints.slice(-14)} />}
           </div>
-          <div className="divide-y divide-slate-50 max-h-72 overflow-y-auto">
-            {(!flakiness || flakiness.length === 0) && (
-              <p className="px-5 py-8 text-sm text-slate-500 text-center">No flaky tests detected.</p>
-            )}
-            {(flakiness ?? []).filter(f => f.classification !== 'STABLE').slice(0, 10).map(f => (
-              <div key={f.id} className="px-5 py-3">
-                <div className="flex items-center justify-between gap-2">
-                  <p className="text-xs text-slate-700 truncate flex-1 font-mono"
-                     title={f.testId}>
-                    {f.testId.split('.').pop() ?? f.testId}
+
+          {/* Total tests */}
+          <div className="px-5 py-4">
+            <p className="text-xs text-slate-500">Tests executed</p>
+            <p className="text-2xl font-bold text-slate-800 mt-0.5">{totalAutoTests.toLocaleString()}</p>
+            <p className="text-[11px] text-slate-400 mt-0.5">
+              <span className="text-red-500">{totalFailed} failed</span>
+              {' · '}
+              <span className="text-green-500">{(totalAutoTests - totalFailed).toLocaleString()} passed</span>
+            </p>
+          </div>
+
+          {/* Flaky tests */}
+          <Link to={`${base}/flaky-tests`} className="px-5 py-4 hover:bg-slate-50 transition-colors block">
+            <p className="text-xs text-slate-500">Flaky tests</p>
+            <p className="text-2xl font-bold mt-0.5" style={{ color: flakyCount > 0 ? '#ca8a04' : '#16a34a' }}>
+              {flakyCount}
+            </p>
+            <p className="text-[11px] text-slate-400 mt-0.5">
+              {flakyItems.filter(f => f.classification === 'CRITICAL_FLAKY').length} critical
+            </p>
+          </Link>
+
+          {/* Quality gate */}
+          <div className="px-5 py-4">
+            <p className="text-xs text-slate-500">Quality gate</p>
+            {qualityGate ? (
+              <>
+                <div className="flex items-center gap-1.5 mt-0.5">
+                  {qualityGate.passed
+                    ? <CheckCircle size={18} className="text-green-500 shrink-0" />
+                    : <XCircle    size={18} className="text-red-500 shrink-0" />
+                  }
+                  <p className="text-xl font-bold" style={{ color: qualityGate.passed ? '#16a34a' : '#dc2626' }}>
+                    {qualityGate.passed ? 'PASS' : 'FAIL'}
                   </p>
-                  <Badge
-                    label={f.classification.replace('_', ' ')}
-                    colorClass={flakinessColor(f.classification)}
-                  />
                 </div>
-                <p className="text-xs text-slate-400 mt-0.5">
-                  Score: {f.score.toFixed(2)} · {(f.failureRate * 100).toFixed(0)}% failure rate
+                <p className="text-[11px] text-slate-400 mt-0.5">
+                  {qualityGate.actualPassRate.toFixed(1)}% pass rate · {qualityGate.newFailures} new failures
                 </p>
-              </div>
+              </>
+            ) : (
+              <p className="text-xl font-bold text-slate-300 mt-0.5">—</p>
+            )}
+          </div>
+        </div>
+
+        {/* Recent executions */}
+        {recentExecs.length === 0 ? (
+          <div className="flex items-center gap-3 px-5 py-8 text-sm text-slate-500">
+            <MonitorCheck size={18} className="text-slate-300" />
+            No automated executions yet — push results via the ingestion API.
+          </div>
+        ) : (
+          <div className="divide-y divide-slate-50">
+            {recentExecs.slice(0, 6).map(e => (
+              <ExecutionRow key={e.id} exec={e} base={base} />
             ))}
           </div>
+        )}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Release readiness */}
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          <SectionHeader title="Release readiness" to={`${base}/test-execution`} linkLabel="Test Execution" />
+          {releases.length === 0 ? (
+            <p className="px-5 py-10 text-center text-sm text-slate-500">No releases with runs in scope.</p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead><tr className="text-left text-xs text-slate-500 border-b border-slate-100">
+                <th className="px-5 py-2 font-medium">Release</th>
+                <th className="px-3 py-2 font-medium w-28">Pass</th>
+                <th className="px-3 py-2 font-medium w-28">Coverage</th>
+              </tr></thead>
+              <tbody className="divide-y divide-slate-50">
+                {releases.slice(0, 6).map(r => (
+                  <tr key={r.releaseId} className="hover:bg-slate-50">
+                    <td className="px-5 py-2">
+                      <div className="font-medium text-slate-800 truncate">{r.releaseName}</div>
+                      <div className="text-xs text-slate-400 truncate">{r.teamName}{r.iterationPath ? ` · ${pathLeaf(r.iterationPath)}` : ''}</div>
+                    </td>
+                    <td className="px-3 py-2">
+                      <div className="flex items-center gap-1.5"><Bar pct={r.passRate} color={rateColor(r.passRate)} />
+                        <span className="text-xs tabular-nums" style={{ color: rateColor(r.passRate) }}>{r.passRate}%</span></div>
+                    </td>
+                    <td className="px-3 py-2">
+                      <div className="flex items-center gap-1.5"><Bar pct={r.coveragePct} color="#3b82f6" />
+                        <span className="text-xs tabular-nums text-slate-500">{r.coveragePct}%</span></div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        {/* Coverage gaps by area */}
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          <SectionHeader title="Coverage by area (lowest first)" to={`${base}/coverage`} linkLabel="Coverage" />
+          {cov.byArea.length === 0 ? (
+            <p className="px-5 py-10 text-center text-sm text-slate-500">No requirements in scope.</p>
+          ) : (
+            <table className="w-full text-sm">
+              <thead><tr className="text-left text-xs text-slate-500 border-b border-slate-100">
+                <th className="px-5 py-2 font-medium">Area</th>
+                <th className="px-3 py-2 font-medium w-32">Coverage</th>
+                <th className="px-3 py-2 font-medium text-right w-16">Gaps</th>
+              </tr></thead>
+              <tbody className="divide-y divide-slate-50">
+                {cov.byArea.slice(0, 6).map(a => (
+                  <tr key={a.label} className="hover:bg-slate-50">
+                    <td className="px-5 py-2 font-medium text-slate-800 max-w-[14rem] truncate" title={a.label}>{pathLeaf(a.label)}</td>
+                    <td className="px-3 py-2">
+                      <div className="flex items-center gap-1.5"><Bar pct={a.coveragePct} color={rateColor(a.coveragePct)} />
+                        <span className="text-xs tabular-nums" style={{ color: rateColor(a.coveragePct) }}>{a.coveragePct}%</span></div>
+                    </td>
+                    <td className="px-3 py-2 text-right tabular-nums text-red-600">{a.uncovered}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+
+        {/* Defects */}
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+          <SectionHeader title="Defects" to={`${base}/quality`} linkLabel="Quality" />
+          {!qual ? <p className="px-5 py-10 text-center text-sm text-slate-500">No defect data.</p> : (
+            <div className="p-5 space-y-4">
+              <div className="grid grid-cols-3 gap-3">
+                <div><p className="text-xs text-slate-500">Open</p><p className="text-xl font-bold text-red-600">{qual.openDefects}</p></div>
+                <div><p className="text-xs text-slate-500">Blocked</p><p className="text-xl font-bold text-orange-600">{qual.blockedDefects}</p></div>
+                <div><p className="text-xs text-slate-500">Done</p><p className="text-xl font-bold text-green-600">{qual.doneDefects}</p></div>
+              </div>
+              {qual.bySeverity.length > 0 && (
+                <div>
+                  <p className="text-xs text-slate-500 mb-1.5">By severity</p>
+                  <div className="flex flex-wrap gap-2">
+                    {qual.bySeverity.map(s => (
+                      <span key={s.label} className="text-xs px-2 py-0.5 rounded bg-slate-100 text-slate-600">{s.label}: <b>{s.value}</b></span>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <p className="text-xs text-slate-400">{qual.totalDefects} total · {qual.qualityEngineers} quality engineers</p>
+            </div>
+          )}
         </div>
       </div>
 
-      {/* Test Impact Analysis */}
-      <TestImpactPanel projectId={projectId!} />
-
-      {/* Recent runs */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
-        <div className="px-5 py-4 border-b border-slate-100">
-          <h2 className="font-semibold text-slate-900">Recent Runs</h2>
-        </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="text-xs text-slate-500 uppercase tracking-wide bg-slate-50">
-                <th className="px-5 py-3 text-left font-medium">Run</th>
-                <th className="px-4 py-3 text-left font-medium">Branch</th>
-                <th className="px-4 py-3 text-left font-medium">Mode</th>
-                <th className="px-4 py-3 text-right font-medium">Tests</th>
-                <th className="px-4 py-3 text-right font-medium">Pass Rate</th>
-                <th className="px-4 py-3 text-right font-medium">Duration</th>
-                <th className="px-4 py-3 text-right font-medium">When</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-50">
-              {(recentExecutions ?? []).length === 0 && (
-                <tr><td colSpan={7} className="px-5 py-8 text-center text-slate-500">No runs yet.</td></tr>
-              )}
-              {(recentExecutions ?? []).map(e => (
-                <tr
-                  key={e.id}
-                  onClick={() => navigate(`/runs/${e.runId}`)}
-                  className="hover:bg-slate-50 cursor-pointer transition-colors"
-                >
-                  <td className="px-5 py-3">
-                    <span className="font-mono text-xs text-blue-600 hover:underline">
-                      {e.runId.slice(0, 12)}…
-                    </span>
-                  </td>
-                  <td className="px-4 py-3 text-slate-600">{e.branch ?? '—'}</td>
-                  <td className="px-4 py-3">
-                    <Badge
-                      label={e.executionMode ?? 'UNKNOWN'}
-                      colorClass={e.executionMode === 'PARALLEL' ? 'text-purple-700 bg-purple-100' : 'text-slate-600 bg-slate-100'}
-                    />
-                  </td>
-                  <td className="px-4 py-3 text-right text-slate-600">
-                    <span className="text-green-600">{e.passed}</span>
-                    {' / '}
-                    <span className="text-red-600">{e.failed}</span>
-                    {' / '}
-                    <span className="text-slate-400">{e.totalTests}</span>
-                  </td>
-                  <td className={cn('px-4 py-3 text-right font-semibold', passRateColor(e.passRate))}>
-                    {formatPassRate(e.passRate)}
-                  </td>
-                  <td className="px-4 py-3 text-right text-slate-500">{formatDuration(e.durationMs)}</td>
-                  <td className="px-4 py-3 text-right text-slate-400">{relativeTime(e.executedAt)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      {/* Quick links */}
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        {[
+          { to: `${base}/requirements`,   label: 'Requirements',  icon: FileText },
+          { to: `${base}/coverage`,       label: 'Coverage',      icon: ShieldCheck },
+          { to: `${base}/test-execution`, label: 'Test Execution', icon: Rocket },
+          { to: `${base}/quality`,        label: 'Quality',       icon: Bug },
+          { to: `${base}/productivity`,   label: 'Productivity',  icon: Gauge },
+        ].map(l => {
+          const Icon = l.icon
+          return (
+            <Link key={l.to} to={l.to}
+              className="flex items-center gap-2 px-3 py-2.5 bg-white rounded-xl border border-slate-200 shadow-sm text-sm text-slate-600 hover:border-blue-300 hover:text-blue-700 transition-colors">
+              <Icon size={15} /> {l.label}
+            </Link>
+          )
+        })}
       </div>
     </div>
   )

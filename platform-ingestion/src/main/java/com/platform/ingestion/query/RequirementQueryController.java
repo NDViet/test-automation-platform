@@ -2,6 +2,7 @@ package com.platform.ingestion.query;
 
 import com.platform.common.integration.IntegrationType;
 import com.platform.core.domain.PlatformRequirement;
+import com.platform.core.repository.AdoTeamRepository;
 import com.platform.core.repository.PlatformRequirementRepository;
 import com.platform.core.service.CredentialResolver;
 import com.platform.ingestion.query.dto.PagedRequirementsDto;
@@ -25,11 +26,27 @@ public class RequirementQueryController {
 
     private final PlatformRequirementRepository requirementRepo;
     private final CredentialResolver credentialResolver;
+    private final AdoTeamRepository teamRepo;
 
     public RequirementQueryController(PlatformRequirementRepository requirementRepo,
-                                      CredentialResolver credentialResolver) {
+                                      CredentialResolver credentialResolver,
+                                      AdoTeamRepository teamRepo) {
         this.requirementRepo    = requirementRepo;
         this.credentialResolver = credentialResolver;
+        this.teamRepo           = teamRepo;
+    }
+
+    /** Resolve a Team id to its default area path (used as a subtree prefix), or "" if none. */
+    private String teamAreaPrefix(UUID projectId, String teamId) {
+        if (teamId == null || teamId.isBlank()) return "";
+        try {
+            return teamRepo.findById(UUID.fromString(teamId.trim()))
+                    .filter(t -> projectId.equals(t.getProjectId()))
+                    .map(t -> t.getDefaultAreaPath() != null ? t.getDefaultAreaPath() : "")
+                    .orElse("");
+        } catch (IllegalArgumentException e) {
+            return "";
+        }
     }
 
     /**
@@ -61,18 +78,14 @@ public class RequirementQueryController {
             @PathVariable UUID projectId,
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String issueType,
-            @RequestParam(required = false) String search) {
+            @RequestParam(required = false) String search,
+            @RequestParam(required = false) String area,
+            @RequestParam(required = false) String team,
+            @RequestParam(required = false) String iteration) {
 
-        List<PlatformRequirement> items;
-        if (search != null && !search.isBlank()) {
-            items = requirementRepo.searchByProjectId(projectId, search.trim());
-        } else if (status != null && !status.isBlank()) {
-            items = requirementRepo.findByProjectIdAndStatusOrderByUpdatedAtDesc(projectId, status.toUpperCase());
-        } else if (issueType != null && !issueType.isBlank()) {
-            items = requirementRepo.findByProjectIdAndIssueTypeOrderByUpdatedAtDesc(projectId, issueType.toUpperCase());
-        } else {
-            items = requirementRepo.findByProjectIdOrderByUpdatedAtDesc(projectId);
-        }
+        List<PlatformRequirement> items = requirementRepo.filterList(
+                projectId, norm(status, true), norm(issueType, true),
+                norm(area, false), teamAreaPrefix(projectId, team), norm(iteration, false), norm(search, false));
         String base = adoWorkItemBase(projectId);
         return items.stream().map(r -> RequirementDto.from(r, base)).toList();
     }
@@ -84,14 +97,20 @@ public class RequirementQueryController {
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String issueType,
             @RequestParam(required = false) String search,
+            @RequestParam(required = false) String area,
+            @RequestParam(required = false) String team,
+            @RequestParam(required = false) String iteration,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "50") int size) {
 
         int safeSize = Math.min(Math.max(size, 1), 200);
+        // Native query → sort by an actual column name (created_date).
         Pageable pageable = PageRequest.of(Math.max(page, 0), safeSize,
-                Sort.by(new Sort.Order(Sort.Direction.DESC, "createdDate").nullsLast()));
-        Page<PlatformRequirement> p = requirementRepo.searchPage(
-                projectId, norm(status, true), norm(issueType, true), norm(search, false), pageable);
+                Sort.by(new Sort.Order(Sort.Direction.DESC, "created_date").nullsLast()));
+        Page<PlatformRequirement> p = requirementRepo.filterPage(
+                projectId, norm(status, true), norm(issueType, true),
+                norm(area, false), teamAreaPrefix(projectId, team), norm(iteration, false),
+                norm(search, false), pageable);
         String base = adoWorkItemBase(projectId);
         return new PagedRequirementsDto(
                 p.getContent().stream().map(r -> RequirementDto.from(r, base)).toList(),

@@ -36,10 +36,13 @@ public class ApiKeyAuthFilter extends OncePerRequestFilter {
 
     private final ApiKeyRepository keyRepo;
     private final ApiKeyService keyService;
+    private final String internalServiceKey;
 
-    public ApiKeyAuthFilter(ApiKeyRepository keyRepo, ApiKeyService keyService) {
-        this.keyRepo    = keyRepo;
-        this.keyService = keyService;
+    public ApiKeyAuthFilter(ApiKeyRepository keyRepo, ApiKeyService keyService, String internalServiceKey) {
+        this.keyRepo            = keyRepo;
+        this.keyService         = keyService;
+        this.internalServiceKey = (internalServiceKey != null && !internalServiceKey.isBlank())
+                ? internalServiceKey : null;
     }
 
     private static final List<String> PUBLIC_PATHS = List.of(
@@ -61,6 +64,16 @@ public class ApiKeyAuthFilter extends OncePerRequestFilter {
 
         if (rawKey == null || rawKey.isBlank()) {
             rejectUnauthorized(response, "Missing X-API-Key header");
+            return;
+        }
+
+        // Static internal service key — allows portal→ingestion calls before any DB key exists
+        if (internalServiceKey != null && internalServiceKey.equals(rawKey)) {
+            UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(
+                    "internal-service", null,
+                    List.of(new SimpleGrantedAuthority("ROLE_INGESTION")));
+            SecurityContextHolder.getContext().setAuthentication(auth);
+            chain.doFilter(request, response);
             return;
         }
 

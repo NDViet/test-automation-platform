@@ -1,0 +1,28 @@
+{
+  "name": "@ndviet/playwright-streaming-reporter",
+  "version": "1.0.0",
+  "description": "Playwright reporter that streams test results to the Test Automation Platform in real-time as each test completes",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": ["dist"],
+  "scripts": {
+    "build": "tsc",
+    "build:watch": "tsc --watch"
+  },
+  "peerDependencies": {
+    "@playwright/test": ">=1.40.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.57.0",
+    "@types/node": "^20.14.9",
+    "typescript": "^5.4.5"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "keywords": ["playwright", "reporter", "streaming", "real-time", "test-automation"],
+  "license": "MIT",
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
+  }
+}

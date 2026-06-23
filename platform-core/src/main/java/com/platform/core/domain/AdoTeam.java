@@ -26,6 +26,7 @@ public class AdoTeam {
     @Column(name = "area_paths", columnDefinition = "jsonb")
     private List<String> areaPaths = new java.util.ArrayList<>();
 
+    @Column(name = "slug", length = 100)              private String slug;
     @Column(name = "member_count", nullable = false) private int memberCount = 0;
     @Column(name = "synced_at", nullable = false)    private Instant syncedAt = Instant.now();
 
@@ -38,6 +39,7 @@ public class AdoTeam {
     public UUID getProjectId() { return projectId; }
     public String getAdoId() { return adoId; }
     public String getName() { return name; }
+    public String getSlug() { return slug; }
     public String getDescription() { return description; }
     public String getDefaultAreaPath() { return defaultAreaPath; }
     public List<String> getAreaPaths() { return areaPaths; }
@@ -45,6 +47,7 @@ public class AdoTeam {
     public Instant getSyncedAt() { return syncedAt; }
 
     public void setName(String v) { this.name = v; }
+    public void setSlug(String v) { this.slug = v; }
     public void setDescription(String v) { this.description = v; }
     public void setDefaultAreaPath(String v) { this.defaultAreaPath = v; }
     public void setAreaPaths(List<String> v) { this.areaPaths = v != null ? v : new java.util.ArrayList<>(); }

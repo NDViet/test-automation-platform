@@ -75,6 +75,43 @@ public class PortalProjectController {
                 .retrieve().body(Object.class);
     }
 
+    @PatchMapping("/{projectId}/executions/{runId}/scope")
+    @ResponseStatus(org.springframework.http.HttpStatus.NO_CONTENT)
+    @Operation(summary = "Link an automated execution to a sprint/area")
+    public void updateExecutionScope(
+            @PathVariable String projectId,
+            @PathVariable String runId,
+            @RequestParam(required = false) String iterationPath,
+            @RequestParam(required = false) String areaSlug) {
+        StringBuilder uri = new StringBuilder("/api/v1/executions/").append(runId).append("/scope?_=1");
+        if (iterationPath != null) uri.append("&iterationPath=").append(iterationPath);
+        if (areaSlug      != null) uri.append("&areaSlug=").append(areaSlug);
+        ingestionClient.patch().uri(uri.toString())
+                .accept(MediaType.APPLICATION_JSON)
+                .retrieve().toBodilessEntity();
+    }
+
+    @GetMapping("/{projectId}/test-execution/unified")
+    @Operation(summary = "Unified chronological list of manual runs and automated executions")
+    public Object unifiedExecutions(
+            @PathVariable String projectId,
+            @RequestParam(defaultValue = "ALL") String type,
+            @RequestParam(required = false) String teamId,
+            @RequestParam(required = false) String area,
+            @RequestParam(required = false) String iteration,
+            @RequestParam(defaultValue = "100") int limit) {
+        StringBuilder uri = new StringBuilder("/api/v1/projects/")
+                .append(projectId).append("/test-execution/unified")
+                .append("?type=").append(type)
+                .append("&limit=").append(limit);
+        if (teamId != null)    uri.append("&teamId=").append(teamId);
+        if (area != null)      uri.append("&area=").append(area);
+        if (iteration != null) uri.append("&iteration=").append(iteration);
+        return ingestionClient.get().uri(uri.toString())
+                .accept(MediaType.APPLICATION_JSON)
+                .retrieve().body(Object.class);
+    }
+
     @GetMapping("/{projectId}/trends/pass-rate")
     @Operation(summary = "Pass rate trend for a project")
     public Object passRateTrend(
@@ -159,6 +196,64 @@ public class PortalProjectController {
         if (tag != null) uri += "&tag=" + tag;
         return analyticsClient.get().uri(uri)
                 .accept(MediaType.APPLICATION_JSON)
+                .retrieve().body(Object.class);
+    }
+
+    // ── GitHub Actions workflows ──────────────────────────────────────────────
+
+    @GetMapping("/{projectId}/github/workflows")
+    @Operation(summary = "List GitHub Actions workflows across TEST_AUTOMATION repos")
+    public Object githubWorkflows(@PathVariable String projectId) {
+        return ingestionClient.get()
+                .uri("/api/v1/projects/" + projectId + "/github/workflows")
+                .accept(MediaType.APPLICATION_JSON)
+                .retrieve().body(Object.class);
+    }
+
+    @GetMapping("/{projectId}/github/workflow-runs")
+    @Operation(summary = "Recent runs for a workflow")
+    public Object githubWorkflowRuns(
+            @PathVariable String projectId,
+            @RequestParam String repo,
+            @RequestParam long workflowId,
+            @RequestParam(defaultValue = "15") int limit) {
+        return ingestionClient.get()
+                .uri("/api/v1/projects/" + projectId + "/github/workflow-runs"
+                        + "?repo=" + repo + "&workflowId=" + workflowId + "&limit=" + limit)
+                .accept(MediaType.APPLICATION_JSON)
+                .retrieve().body(Object.class);
+    }
+
+    @PostMapping("/{projectId}/github/workflow-dispatch")
+    @Operation(summary = "Trigger a workflow_dispatch event")
+    public Object githubWorkflowDispatch(@PathVariable String projectId, @RequestBody Object body) {
+        return ingestionClient.post()
+                .uri("/api/v1/projects/" + projectId + "/github/workflow-dispatch")
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON)
+                .body(body)
+                .retrieve().body(Object.class);
+    }
+
+    // ── GitHub repo assignments ───────────────────────────────────────────────
+
+    @GetMapping("/{projectId}/github/repos")
+    @Operation(summary = "List repo assignments for a project")
+    public Object projectGithubRepos(@PathVariable String projectId) {
+        return ingestionClient.get()
+                .uri("/api/v1/projects/" + projectId + "/github/repos")
+                .accept(MediaType.APPLICATION_JSON)
+                .retrieve().body(Object.class);
+    }
+
+    @PutMapping("/{projectId}/github/repos")
+    @Operation(summary = "Replace repo assignments for a project")
+    public Object setProjectGithubRepos(@PathVariable String projectId, @RequestBody Object body) {
+        return ingestionClient.put()
+                .uri("/api/v1/projects/" + projectId + "/github/repos")
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON)
+                .body(body)
                 .retrieve().body(Object.class);
     }
 

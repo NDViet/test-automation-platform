@@ -8,7 +8,9 @@ import com.platform.core.domain.AdoIteration;
 import com.platform.core.domain.AdoTeam;
 import com.platform.core.domain.AdoUser;
 import com.platform.core.domain.ProjectIntegrationConfig;
+import com.platform.core.domain.Team;
 import com.platform.core.repository.*;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -43,6 +45,7 @@ public class AzureOrgSyncService {
     private final AdoIterationRepository iterationRepo;
     private final AdoUserRepository userRepo;
     private final PlatformRequirementRepository requirementRepo;
+    private final TeamRepository platformTeamRepo;
 
     public AzureOrgSyncService(ProjectIntegrationConfigRepository configRepo,
                                AzureBoardsPollClient client,
@@ -50,14 +53,16 @@ public class AzureOrgSyncService {
                                AdoAreaRepository areaRepo,
                                AdoIterationRepository iterationRepo,
                                AdoUserRepository userRepo,
-                               PlatformRequirementRepository requirementRepo) {
-        this.configRepo      = configRepo;
-        this.client          = client;
-        this.teamRepo        = teamRepo;
-        this.areaRepo        = areaRepo;
-        this.iterationRepo   = iterationRepo;
-        this.userRepo        = userRepo;
-        this.requirementRepo = requirementRepo;
+                               PlatformRequirementRepository requirementRepo,
+                               TeamRepository platformTeamRepo) {
+        this.configRepo        = configRepo;
+        this.client            = client;
+        this.teamRepo          = teamRepo;
+        this.areaRepo          = areaRepo;
+        this.iterationRepo     = iterationRepo;
+        this.userRepo          = userRepo;
+        this.requirementRepo   = requirementRepo;
+        this.platformTeamRepo  = platformTeamRepo;
     }
 
     public record SyncResult(int teams, int areas, int iterations, int users) {}
@@ -85,7 +90,7 @@ public class AzureOrgSyncService {
         int teams      = syncTeams(projectId, project, ado, memberUsers);
         int areas      = syncAreas(projectId, project, ado);
         int iterations = syncIterations(projectId, project, ado);
-        int users      = syncUsers(projectId, memberUsers);
+        int users      = syncUsers(projectId, ado, memberUsers);
 
         log.info("ADO structure sync for project {}: {} teams, {} areas, {} iterations, {} users",
                 projectId, teams, areas, iterations, users);
@@ -147,7 +152,13 @@ public class AzureOrgSyncService {
             }
 
             team.setSyncedAt(Instant.now());
+            String slug = toSlug(name);
+            team.setSlug(slug);
             teamRepo.save(team);
+
+            // Bridge: ensure a platform Team entity exists so automation adapters can use the slug.
+            upsertPlatformTeam(projectId, name, slug);
+
             count++;
         }
         // prune teams that no longer exist upstream
@@ -170,7 +181,9 @@ public class AzureOrgSyncService {
             AdoArea a = areaRepo.findByProjectIdAndPath(projectId, path)
                     .orElseGet(() -> new AdoArea(projectId, path, node.path("name").asText(path)));
             a.setAdoId(node.path("id").asText(null));
-            a.setName(node.path("name").asText(path));
+            String areaName = node.path("name").asText(path);
+            a.setName(areaName);
+            a.setSlug(toSlug(areaName));
             a.setParentPath(parentOf(path));
             a.setHasChildren(node.path("hasChildren").asBoolean(false));
             a.setSyncedAt(Instant.now());
@@ -212,7 +225,28 @@ public class AzureOrgSyncService {
 
     // ── Users (members ∪ work-item people) ─────────────────────────────────────────
 
-    private int syncUsers(UUID projectId, Map<String, AdoUser> memberUsers) {
+    private int syncUsers(UUID projectId, AzureBoardsPollClient.Ado ado, Map<String, AdoUser> memberUsers) {
+        // 0) Always include the PAT owner — may be an org/project admin not on any team
+        try {
+            JsonNode me = client.getAuthenticatedUser(ado);
+            String display = me.path("providerDisplayName").asText(null);
+            if (display != null && !display.isBlank()) {
+                String descriptor = blankToNull(me.path("subjectDescriptor").asText(""));
+                boolean alreadyPresent = memberUsers.values().stream().anyMatch(u ->
+                        display.equals(u.getDisplayName()) ||
+                        (descriptor != null && descriptor.equals(u.getDescriptor())));
+                if (!alreadyPresent) {
+                    AdoUser u = new AdoUser(projectId, display, display);
+                    u.setDescriptor(descriptor);
+                    u.setTeamMember(true);
+                    memberUsers.put(display, u);
+                    log.debug("Added PAT owner '{}' to user sync (not a member of any team)", display);
+                }
+            }
+        } catch (Exception e) {
+            log.debug("Could not fetch authenticated ADO user from connectionData: {}", e.getMessage());
+        }
+
         // 1) upsert team members
         for (AdoUser m : memberUsers.values()) {
             AdoUser u = userRepo.findByProjectIdAndUniqueName(projectId, m.getUniqueName()).orElse(m);
@@ -280,5 +314,29 @@ public class AzureOrgSyncService {
     private static String firstNonBlank(String a, String b) {
         if (a != null && !a.isBlank()) return a;
         return (b != null && !b.isBlank()) ? b : null;
+    }
+
+    /** "Frontend Squad" → "frontend-squad", "QA / Automation" → "qa-automation" */
+    private static String toSlug(String name) {
+        if (name == null) return "unknown";
+        return name.toLowerCase()
+                   .replaceAll("[^a-z0-9]+", "-")
+                   .replaceAll("^-+|-+$", "");
+    }
+
+    /**
+     * Ensures a platform Team entity (with slug) exists for this ADO team.
+     * Called during syncTeams so automation adapters can use the slug without
+     * needing to create teams manually.
+     */
+    private void upsertPlatformTeam(UUID projectId, String name, String slug) {
+        platformTeamRepo.findByProjectIdAndSlug(projectId, slug).orElseGet(() -> {
+            try {
+                return platformTeamRepo.save(new Team(projectId, name, slug));
+            } catch (DataIntegrityViolationException e) {
+                // Race condition — another thread already created it; that's fine.
+                return platformTeamRepo.findByProjectIdAndSlug(projectId, slug).orElseThrow();
+            }
+        });
     }
 }

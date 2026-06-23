@@ -24,6 +24,10 @@
             <groupId>org.ndviet</groupId>
             <artifactId>platform-core</artifactId>
         </dependency>
+        <dependency>
+            <groupId>org.ndviet</groupId>
+            <artifactId>platform-storage</artifactId>
+        </dependency>
 
         <dependency>
             <groupId>org.springframework.boot</groupId>

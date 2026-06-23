@@ -17,7 +17,10 @@ public class CoverageController {
     }
 
     @GetMapping
-    public CoverageDto coverage(@PathVariable UUID projectId) {
-        return service.coverage(projectId);
+    public CoverageDto coverage(@PathVariable UUID projectId,
+                                @RequestParam(required = false) String area,
+                                @RequestParam(required = false) String team,
+                                @RequestParam(required = false) String iteration) {
+        return service.coverage(projectId, area, team, iteration);
     }
 }

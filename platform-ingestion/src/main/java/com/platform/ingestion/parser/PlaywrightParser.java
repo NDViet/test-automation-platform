@@ -75,7 +75,7 @@ public class PlaywrightParser implements ResultParser {
                 totalMs > 0 ? totalMs : null,
                 SourceFormat.PLAYWRIGHT, allCases,
                 ctx.executionMode(), ctx.parallelism(), ctx.suiteName(),
-                null, null
+                null, null, null, null
         ));
     }
 

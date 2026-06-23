@@ -43,4 +43,8 @@ public interface TestExecutionRepository extends JpaRepository<TestExecution, UU
     List<TestExecution> findByProjectIdsAndSince(
             @Param("projectIds") Set<UUID> projectIds,
             @Param("since") Instant since);
+
+    /** Fetch all executions in a given lifecycle status — used to detect zombie RUNNING executions. */
+    @Query("SELECT e FROM TestExecution e JOIN FETCH e.project p JOIN FETCH p.organization WHERE e.status = :status")
+    List<TestExecution> findByStatus(@Param("status") String status);
 }

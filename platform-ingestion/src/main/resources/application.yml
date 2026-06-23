@@ -40,6 +40,8 @@ spring:
 
 server:
   port: ${SERVER_PORT:8081}
+  error:
+    include-message: always
 
 management:
   endpoints:
@@ -61,10 +63,28 @@ springdoc:
     path: /swagger-ui.html
 
 platform:
+  storage:
+    type: ${PLATFORM_STORAGE_TYPE:filesystem}
+    endpoint: ${MINIO_ENDPOINT:http://localhost:9000}
+    access-key: ${MINIO_ACCESS_KEY:minioadmin}
+    secret-key: ${MINIO_SECRET_KEY:minioadmin}
+    region: ${MINIO_REGION:us-east-1}
+    path-style: true
+    filesystem-base-path: ${PLATFORM_BLOB_DIR:./blobs}
+    presign-url-ttl-minutes: ${MINIO_PRESIGN_TTL:60}
   security:
     api-key:
       # Set to false in local dev to bypass API key authentication
       enabled: ${API_KEY_AUTH_ENABLED:true}
+  portal:
+    # Raw plat_... key value used by the portal to authenticate to this service.
+    # Set PLATFORM_PORTAL_KEY to the same value on both ingestion and portal.
+    # Generate: python3 -c "import secrets,base64; print('plat_'+base64.urlsafe_b64encode(secrets.token_bytes(32)).decode().rstrip('='))"
+    service-key: ${PLATFORM_PORTAL_KEY:}
+  cred:
+    # Previous AES-256-GCM key (base64). Set during key rotation, unset after.
+    key:
+      previous: ${PLATFORM_CRED_KEY_PREVIOUS:}
 
 logging:
   level:

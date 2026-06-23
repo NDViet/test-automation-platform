@@ -63,6 +63,10 @@ public class IntegrationCredential {
     @Column(name = "enabled", nullable = false)
     private boolean enabled = true;
 
+    /** Minutes between automatic repo-cache syncs. 0 = manual only. GitHub-specific. */
+    @Column(name = "sync_interval_minutes", nullable = false)
+    private int syncIntervalMinutes = 0;
+
     @Column(name = "created_by", length = 200)
     private String createdBy;
 
@@ -98,6 +102,7 @@ public class IntegrationCredential {
     public Map<String, String> getConnectionParams() { return connectionParams; }
     public String getSecretCiphertext()        { return secretCiphertext; }
     public boolean isEnabled()                 { return enabled; }
+    public int getSyncIntervalMinutes()        { return syncIntervalMinutes; }
     public String getCreatedBy()               { return createdBy; }
     public Instant getCreatedAt()              { return createdAt; }
     public Instant getUpdatedAt()              { return updatedAt; }
@@ -107,6 +112,7 @@ public class IntegrationCredential {
     public void setConnectionParams(Map<String, String> v) { this.connectionParams = v; }
     public void setSecretCiphertext(String v)  { this.secretCiphertext = v; }
     public void setEnabled(boolean v)          { this.enabled = v; }
+    public void setSyncIntervalMinutes(int v)  { this.syncIntervalMinutes = v; }
     public void setCreatedBy(String v)         { this.createdBy = v; }
 
     public String param(String key) {

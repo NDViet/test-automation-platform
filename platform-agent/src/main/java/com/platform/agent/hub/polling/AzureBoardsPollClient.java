@@ -6,12 +6,17 @@ import com.platform.core.service.CredentialResolver;
 import com.platform.core.service.ResolvedCredential;
 import org.springframework.stereotype.Component;
 
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509TrustManager;
 import java.net.URI;
 import java.net.URLEncoder;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
+import java.security.SecureRandom;
+import java.security.cert.X509Certificate;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Base64;
@@ -33,7 +38,7 @@ public class AzureBoardsPollClient {
 
     private final CredentialResolver credentialResolver;
     private final ObjectMapper mapper;
-    private final HttpClient http = HttpClient.newBuilder().connectTimeout(Duration.ofSeconds(10)).build();
+    private final HttpClient http = trustAllClient(Duration.ofSeconds(10));
 
     public AzureBoardsPollClient(CredentialResolver credentialResolver, ObjectMapper mapper) {
         this.credentialResolver = credentialResolver;
@@ -126,6 +131,14 @@ public class AzureBoardsPollClient {
                 + "/updates?" + API, null, ado);
     }
 
+    /**
+     * Returns the {@code authenticatedUser} node from {@code /_apis/connectionData}.
+     * Contains {@code providerDisplayName} and {@code subjectDescriptor} of the PAT owner.
+     */
+    public JsonNode getAuthenticatedUser(Ado ado) {
+        return send("GET", "/_apis/connectionData", null, ado).path("authenticatedUser");
+    }
+
     // ── http ─────────────────────────────────────────────────────────────────────
 
     private JsonNode send(String method, String path, String body, Ado ado) {
@@ -160,5 +173,19 @@ public class AzureBoardsPollClient {
     private static String firstNonBlank(String a, String b) {
         if (a != null && !a.isBlank()) return a;
         return (b != null && !b.isBlank()) ? b : null;
+    }
+
+    private static HttpClient trustAllClient(Duration connectTimeout) {
+        try {
+            SSLContext ctx = SSLContext.getInstance("TLS");
+            ctx.init(null, new TrustManager[]{new X509TrustManager() {
+                public X509Certificate[] getAcceptedIssuers() { return new X509Certificate[0]; }
+                public void checkClientTrusted(X509Certificate[] c, String a) {}
+                public void checkServerTrusted(X509Certificate[] c, String a) {}
+            }}, new SecureRandom());
+            return HttpClient.newBuilder().connectTimeout(connectTimeout).sslContext(ctx).build();
+        } catch (Exception e) {
+            throw new IllegalStateException("Cannot create HTTP client", e);
+        }
     }
 }

@@ -31,6 +31,9 @@ public class SecurityConfig {
     @Value("${platform.security.api-key.enabled:true}")
     private boolean apiKeyEnabled;
 
+    @Value("${platform.portal.service-key:}")
+    private String internalServiceKey;
+
     private final ApiKeyRepository keyRepo;
     private final ApiKeyService keyService;
 
@@ -43,42 +46,20 @@ public class SecurityConfig {
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http
             .csrf(AbstractHttpConfigurer::disable)
-            .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-            .authorizeHttpRequests(auth -> auth
-                // Infrastructure endpoints — always open
-                .requestMatchers(
-                        "/actuator/health",
-                        "/actuator/health/**",
-                        "/actuator/info",
-                        "/swagger-ui/**",
-                        "/swagger-ui.html",
-                        "/api-docs/**",
-                        "/v3/api-docs/**"
-                ).permitAll()
-                // Read-only query endpoints for the portal — no auth required
-                .requestMatchers(
-                        "/api/v1/teams/**",
-                        "/api/v1/projects/**",
-                        "/api/v1/executions/**"
-                ).permitAll()
-                // Coverage manifest — requires auth (teams must have an API key)
-                .requestMatchers("/api/v1/coverage").authenticated()
-                // API key management endpoints — require auth
-                .requestMatchers("/api/v1/api-keys/**").authenticated()
-                // All other requests — require auth (or open if disabled)
-                .anyRequest().access((authSupplier, ctx) -> {
-                    if (!apiKeyEnabled) {
-                        return new org.springframework.security.authorization.AuthorizationDecision(true);
-                    }
-                    return new org.springframework.security.authorization.AuthorizationDecision(
-                            authSupplier.get().isAuthenticated());
-                })
-            );
+            .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
 
         if (apiKeyEnabled) {
-            http.addFilterBefore(
-                    new ApiKeyAuthFilter(keyRepo, keyService),
+            http
+                .authorizeHttpRequests(auth -> auth
+                    .requestMatchers("/actuator/health", "/actuator/health/**", "/actuator/info").permitAll()
+                    .anyRequest().authenticated()
+                )
+                .addFilterBefore(
+                    new ApiKeyAuthFilter(keyRepo, keyService, internalServiceKey),
                     UsernamePasswordAuthenticationFilter.class);
+        } else {
+            // Auth disabled (local dev) — allow everything
+            http.authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
         }
 
         return http.build();

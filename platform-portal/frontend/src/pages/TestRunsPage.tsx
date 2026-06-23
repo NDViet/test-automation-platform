@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useProject } from '@/components/layout/ProjectLayout'
+import { useProject, useProjectFilter } from '@/components/layout/ProjectLayout'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { cn, relativeTime } from '@/lib/utils'
@@ -77,17 +77,79 @@ function NewTestRunModal({
   const [selectedTcIds, setSelectedTcIds] = useState<Set<string>>(new Set())
   const [environmentId, setEnvironmentId] = useState('')          // '' = use label below
   const [matrixType, setMatrixType] = useState<'FULL' | 'PAIRWISE'>('FULL')
+  // Monitoring dimensions (run-level tags)
+  const [releaseId, setReleaseId] = useState('')
+  const [iterationPath, setIterationPath] = useState('')
+  const [areaPath, setAreaPath] = useState('')
+  const [teamId, setTeamId] = useState('')
+  const [caseSearch, setCaseSearch] = useState('')
   const [error, setError] = useState<string | null>(null)
 
+  // Scope-filtered, searchable picker — narrows by the Monitoring scope (sprint/area/team)
+  // and matches test-case id / title / linked requirement id. Scales to large catalogs.
   const { data: testCases = [], isLoading: tcLoading } = useQuery({
-    queryKey: ['testCases', projectId, 'APPROVED'],
-    queryFn: () => api.testCases(projectId, { status: 'APPROVED' }),
+    queryKey: ['selectableTestCases', projectId, iterationPath, areaPath, teamId, caseSearch],
+    queryFn: () => api.selectableTestCases(projectId, {
+      status: 'APPROVED',
+      iteration: iterationPath || undefined,
+      area: areaPath || undefined,
+      teamId: teamId || undefined,
+      q: caseSearch.trim() || undefined,
+    }),
   })
 
   const { data: environments = [] } = useQuery({
     queryKey: ['environments', projectId],
     queryFn: () => api.environments(projectId),
   })
+
+  const { data: releases = [] } = useQuery({
+    queryKey: ['releases', projectId],
+    queryFn: () => api.releases(projectId),
+  })
+  const { data: iterations = [] } = useQuery({
+    queryKey: ['adoIterations', projectId],
+    queryFn: () => api.adoIterations(projectId),
+  })
+  const { data: areas = [] } = useQuery({
+    queryKey: ['adoAreas', projectId],
+    queryFn: () => api.adoAreas(projectId),
+  })
+  const { data: teams = [] } = useQuery({
+    queryKey: ['adoTeams', projectId],
+    queryFn: () => api.adoTeams(projectId),
+  })
+  const { data: suites = [] } = useQuery({
+    queryKey: ['testSuites', projectId],
+    queryFn: () => api.testSuites(projectId),
+  })
+  // Suite selection is tracked separately from individual picks; a suite contributes its
+  // resolved cases (cached) and can be toggled off to remove them.
+  const [selectedSuiteIds, setSelectedSuiteIds] = useState<Set<string>>(new Set())
+  const [suiteResolved, setSuiteResolved] = useState<Record<string, string[]>>({})
+  const [suiteSearch, setSuiteSearch] = useState('')
+
+  async function toggleSuite(suiteId: string) {
+    setSelectedSuiteIds(prev => {
+      const n = new Set(prev)
+      n.has(suiteId) ? n.delete(suiteId) : n.add(suiteId)
+      return n
+    })
+    if (!suiteResolved[suiteId]) {
+      const cases = await queryClient.fetchQuery({
+        queryKey: ['suiteCases', projectId, suiteId],
+        queryFn: () => api.suiteCases(projectId, suiteId),
+      })
+      setSuiteResolved(prev => ({ ...prev, [suiteId]: cases.map(c => c.id) }))
+    }
+  }
+
+  // Cases contributed by the currently-selected suites (union of their resolved ids).
+  const suiteContributedIds = new Set<string>()
+  selectedSuiteIds.forEach(sid => (suiteResolved[sid] ?? []).forEach(id => suiteContributedIds.add(id)))
+  const effectiveCount = new Set<string>([...selectedTcIds, ...suiteContributedIds]).size
+  const filteredSuites = suites.filter(s =>
+    !suiteSearch.trim() || s.name.toLowerCase().includes(suiteSearch.toLowerCase()))
 
   const [newEnvName, setNewEnvName] = useState('')
   const createEnvMutation = useMutation({
@@ -116,18 +178,24 @@ function NewTestRunModal({
     })
   }
 
+  // Visible (filtered) set; "select all" acts on what's currently shown, preserving
+  // any selections made under other filters.
+  const visibleIds = testCases.map(tc => tc.id)
+  const allVisibleSelected = visibleIds.length > 0 && visibleIds.every(id => selectedTcIds.has(id))
+
   function toggleAll() {
-    if (selectedTcIds.size === testCases.length) {
-      setSelectedTcIds(new Set())
-    } else {
-      setSelectedTcIds(new Set(testCases.map(tc => tc.id)))
-    }
+    setSelectedTcIds(prev => {
+      const next = new Set(prev)
+      if (allVisibleSelected) visibleIds.forEach(id => next.delete(id))
+      else visibleIds.forEach(id => next.add(id))
+      return next
+    })
   }
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
     if (!name.trim()) { setError('Name is required'); return }
-    if (selectedTcIds.size === 0) { setError('Select at least one test case'); return }
+    if (effectiveCount === 0) { setError('Select at least one test case or suite'); return }
     mutation.mutate({
       name: name.trim(),
       releaseVersion: releaseVersion.trim() || undefined,
@@ -136,6 +204,11 @@ function NewTestRunModal({
       matrixType,
       triggeredBy: triggeredBy.trim() || undefined,
       testCaseIds: Array.from(selectedTcIds),
+      suiteIds: selectedSuiteIds.size ? Array.from(selectedSuiteIds) : undefined,
+      releaseId: releaseId || undefined,
+      iterationPath: iterationPath || undefined,
+      areaPath: areaPath || undefined,
+      teamId: teamId || undefined,
     })
   }
 
@@ -255,10 +328,98 @@ function NewTestRunModal({
             </div>
           </div>
 
+          {/* Monitoring dimensions — used to roll up execution by Release / Sprint / Area / Team */}
+          <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-3 space-y-3">
+            <p className="text-xs font-semibold text-slate-600">Monitoring scope (optional)</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">Release</label>
+                <select
+                  value={releaseId}
+                  onChange={e => setReleaseId(e.target.value)}
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">— none —</option>
+                  {releases.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">Team</label>
+                <select
+                  value={teamId}
+                  onChange={e => setTeamId(e.target.value)}
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">— none —</option>
+                  {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">Sprint (Iteration)</label>
+                <select
+                  value={iterationPath}
+                  onChange={e => setIterationPath(e.target.value)}
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">— none —</option>
+                  {iterations.map(it => <option key={it.id} value={it.path}>{it.path}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">Area</label>
+                <select
+                  value={areaPath}
+                  onChange={e => setAreaPath(e.target.value)}
+                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+                >
+                  <option value="">— none —</option>
+                  {areas.map(a => <option key={a.id} value={a.path}>{a.path}</option>)}
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* Reuse suites instead of re-picking cases — searchable, toggleable */}
+          {suites.length > 0 && (
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1">
+                From test suites <span className="font-normal text-slate-400">({selectedSuiteIds.size} selected · +{suiteContributedIds.size} cases)</span>
+              </label>
+              {suites.length > 6 && (
+                <input
+                  type="text"
+                  value={suiteSearch}
+                  onChange={e => setSuiteSearch(e.target.value)}
+                  placeholder="Filter suites…"
+                  className="w-full border border-slate-200 rounded-lg px-3 py-1.5 text-sm mb-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              )}
+              <div className="border border-slate-200 rounded-lg max-h-40 overflow-y-auto divide-y divide-slate-50">
+                {filteredSuites.length === 0 && (
+                  <div className="px-3 py-2 text-xs text-slate-400 text-center">No suites match.</div>
+                )}
+                {filteredSuites.map(s => (
+                  <label key={s.id} className="flex items-center gap-2.5 px-3 py-1.5 cursor-pointer hover:bg-slate-50">
+                    <input
+                      type="checkbox"
+                      checked={selectedSuiteIds.has(s.id)}
+                      onChange={() => toggleSuite(s.id)}
+                      className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 shrink-0"
+                    />
+                    <span className="text-sm text-slate-800 flex-1 truncate">{s.name}</span>
+                    {s.selectionMode === 'SMART' && <span className="text-[10px] text-blue-500 shrink-0">✦ smart</span>}
+                    {s.planType && <span className="text-[10px] uppercase text-slate-400 shrink-0">{s.planType}</span>}
+                    <span className="text-xs text-slate-400 shrink-0">{s.caseCount}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+          )}
+
           <div>
             <div className="flex items-center justify-between mb-2">
               <label className="block text-xs font-medium text-slate-700">
-                Test Cases ({selectedTcIds.size} selected)
+                Test Cases <span className="font-normal text-slate-400">({selectedTcIds.size} picked individually)</span>
               </label>
               {testCases.length > 0 && (
                 <button
@@ -266,15 +427,29 @@ function NewTestRunModal({
                   onClick={toggleAll}
                   className="text-xs text-blue-600 hover:text-blue-700"
                 >
-                  {selectedTcIds.size === testCases.length ? 'Deselect all' : 'Select all'}
+                  {allVisibleSelected ? 'Deselect shown' : 'Select shown'}
                 </button>
               )}
             </div>
 
+            {/* Search by test-case title/id or linked requirement id */}
+            <input
+              type="text"
+              value={caseSearch}
+              onChange={e => setCaseSearch(e.target.value)}
+              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              placeholder="Search by title, test-case id, or requirement id (e.g. 13849)…"
+            />
+            {(iterationPath || areaPath || teamId) && (
+              <p className="text-xs text-slate-400 mb-2">
+                Filtered to the monitoring scope above (sprint / area / team).
+              </p>
+            )}
+
             {tcLoading && <div className="text-sm text-slate-400 py-3 text-center">Loading test cases…</div>}
             {!tcLoading && testCases.length === 0 && (
               <div className="text-sm text-slate-500 py-3 text-center bg-slate-50 rounded-lg">
-                No approved test cases found. Approve test cases first.
+                No approved test cases match this scope/search.
               </div>
             )}
             {testCases.length > 0 && (
@@ -286,16 +461,31 @@ function NewTestRunModal({
                   >
                     <input
                       type="checkbox"
-                      checked={selectedTcIds.has(tc.id)}
+                      checked={selectedTcIds.has(tc.id) || suiteContributedIds.has(tc.id)}
                       onChange={() => toggleTc(tc.id)}
-                      className="rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                      className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 shrink-0"
                     />
-                    <span className="text-sm text-slate-800 flex-1 truncate">{tc.title}</span>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm text-slate-800 truncate">
+                        {tc.title}
+                        {suiteContributedIds.has(tc.id) && !selectedTcIds.has(tc.id) &&
+                          <span className="ml-2 text-[10px] text-blue-500">via suite</span>}
+                      </div>
+                      {tc.requirementExternalIds.length > 0 && (
+                        <div className="text-xs text-slate-400 truncate">
+                          req {tc.requirementExternalIds.slice(0, 6).join(', ')}
+                        </div>
+                      )}
+                    </div>
                     <span className="text-xs text-slate-400 shrink-0">{tc.priority}</span>
                   </label>
                 ))}
               </div>
             )}
+            <p className="text-xs text-slate-500 mt-1 font-medium">
+              {effectiveCount} case{effectiveCount === 1 ? '' : 's'} to run
+              <span className="font-normal text-slate-400"> · {selectedTcIds.size} individual + {suiteContributedIds.size} from suites · showing {testCases.length}</span>
+            </p>
           </div>
         </form>
 
@@ -328,6 +518,7 @@ type StatusTab = 'ALL' | 'IN_PROGRESS' | 'COMPLETED'
 
 export default function TestRunsPage() {
   const { projectId, base } = useProject()
+  const { filter } = useProjectFilter()   // project-wide Area / Team / Iteration scope
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
@@ -353,7 +544,13 @@ export default function TestRunsPage() {
   if (isLoading) return <LoadingSpinner message="Loading test runs…" />
   if (error) return <ErrorMessage message="Failed to load test runs." />
 
-  const filtered = tab === 'ALL' ? runs : runs.filter(r => r.status === tab)
+  // Honor the project scope filter against each run's own dimension tags.
+  const scoped = runs.filter(r =>
+    (!filter.teamId   || r.teamId === filter.teamId) &&
+    (!filter.area     || r.areaPath === filter.area) &&
+    (!filter.iteration || r.iterationPath === filter.iteration))
+
+  const filtered = tab === 'ALL' ? scoped : scoped.filter(r => r.status === tab)
 
   const tabs: { key: StatusTab; label: string }[] = [
     { key: 'ALL', label: 'All' },
@@ -367,7 +564,9 @@ export default function TestRunsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Test Runs</h1>
-          <p className="text-sm text-slate-500 mt-0.5">{runs.length} total runs</p>
+          <p className="text-sm text-slate-500 mt-0.5">
+            {scoped.length} runs{scoped.length !== runs.length ? ` (of ${runs.length})` : ''}
+          </p>
         </div>
         <button
           onClick={() => setShowNewModal(true)}
@@ -394,7 +593,7 @@ export default function TestRunsPage() {
             {t.label}
             {t.key !== 'ALL' && (
               <span className="ml-1.5 text-xs text-slate-400">
-                {runs.filter(r => r.status === t.key).length}
+                {scoped.filter(r => r.status === t.key).length}
               </span>
             )}
           </button>

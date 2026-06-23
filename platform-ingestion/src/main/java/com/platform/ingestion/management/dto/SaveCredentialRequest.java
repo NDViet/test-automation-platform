@@ -20,5 +20,7 @@ public record SaveCredentialRequest(
         String baseUrl,
         Map<String, String> connectionParams,
         Map<String, String> secret,
-        Boolean enabled
+        Boolean enabled,
+        /** Minutes between auto-syncs (GitHub only). Null = don't change. 0 = manual only. */
+        Integer syncIntervalMinutes
 ) {}

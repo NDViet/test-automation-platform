@@ -39,7 +39,8 @@ public class ApiKey {
     @Column(name = "key_prefix", nullable = false, length = 10)
     private String keyPrefix;
 
-    @Column(name = "team_id", nullable = false)
+    /** Team that owns this key, or {@code null} for service-account keys. */
+    @Column(name = "team_id")
     private UUID teamId;
 
     @Column(name = "revoked", nullable = false)

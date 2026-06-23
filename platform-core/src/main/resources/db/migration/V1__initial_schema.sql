@@ -1,27 +1,26 @@
 -- =====================================================================================
--- Test Automation Platform — consolidated initial schema (baseline).
+-- Test Automation Platform -- consolidated initial schema (V1-V17 merged).
 --
--- This single baseline replaces the previous incremental migrations (former V1–V63).
--- It represents the final cumulative schema: all later ALTERs folded into their
--- CREATE TABLEs, the org-first hierarchy (Organization → Project → Team) applied,
--- JSONB column types applied, and one-time data backfills/seeds omitted (a fresh
--- deployment starts empty; create Organizations/Projects/Teams via the portal or API).
---
--- Existing databases are baselined at this version (Flyway baselineOnMigrate), so it is
--- NOT re-run against a populated schema. Fresh databases run it to create everything.
+-- All incremental migrations (former V2-V17) have been folded into their respective
+-- CREATE TABLE statements. A fresh database runs this file once to create everything.
+-- Existing databases are baselined at this version via Flyway baselineOnMigrate so
+-- this file is NOT re-run against a populated schema.
 -- =====================================================================================
 
 CREATE EXTENSION IF NOT EXISTS ltree;
 
 -- =====================================================================================
--- Tenancy: Organization → Project → Team  (+ RBAC)
+-- Tenancy: Organization -> Project -> Team  (+ RBAC)
 -- =====================================================================================
 
 CREATE TABLE organizations (
-    id         UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
-    name       VARCHAR(100) NOT NULL UNIQUE,
-    slug       VARCHAR(50)  NOT NULL UNIQUE,
-    created_at TIMESTAMPTZ  NOT NULL DEFAULT now()
+    id                 UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    name               VARCHAR(100) NOT NULL UNIQUE,
+    slug               VARCHAR(50)  NOT NULL UNIQUE,
+    display_name       VARCHAR(100),
+    logo_key           VARCHAR(255),
+    logo_content_type  VARCHAR(100),
+    created_at         TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
 
 CREATE TABLE projects (
@@ -49,7 +48,7 @@ CREATE INDEX idx_teams_project_id ON teams(project_id);
 CREATE TABLE team_members (
     id         UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
     user_id    VARCHAR(200) NOT NULL,
-    team_id    UUID         REFERENCES teams(id) ON DELETE CASCADE,  -- NULL = org-wide
+    team_id    UUID         REFERENCES teams(id) ON DELETE CASCADE,
     role       VARCHAR(20)  NOT NULL,
     granted_at TIMESTAMPTZ  NOT NULL DEFAULT now(),
     granted_by VARCHAR(200),
@@ -61,13 +60,100 @@ CREATE INDEX idx_tm_user ON team_members(user_id);
 CREATE INDEX idx_tm_team ON team_members(team_id);
 
 -- =====================================================================================
+-- Azure DevOps organizational structure
+-- (defined before test_suites and sot_releases which reference ado_teams)
+-- =====================================================================================
+
+CREATE TABLE ado_teams (
+    id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    project_id        UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    ado_id            VARCHAR(100) NOT NULL,
+    name              VARCHAR(200) NOT NULL,
+    description       TEXT,
+    slug              VARCHAR(100),
+    default_area_path VARCHAR(1000),
+    area_paths        JSONB NOT NULL DEFAULT '[]',
+    member_count      INT NOT NULL DEFAULT 0,
+    synced_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (project_id, ado_id)
+);
+CREATE INDEX idx_ado_teams_project ON ado_teams(project_id);
+
+CREATE TABLE ado_areas (
+    id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    project_id   UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    ado_id       VARCHAR(100),
+    path         VARCHAR(1000) NOT NULL,
+    name         VARCHAR(400) NOT NULL,
+    slug         VARCHAR(100),
+    parent_path  VARCHAR(1000),
+    has_children BOOLEAN NOT NULL DEFAULT false,
+    synced_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (project_id, path)
+);
+CREATE INDEX idx_ado_areas_project ON ado_areas(project_id);
+
+CREATE TABLE ado_iterations (
+    id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    project_id   UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    ado_id       VARCHAR(100),
+    path         VARCHAR(1000) NOT NULL,
+    name         VARCHAR(400) NOT NULL,
+    parent_path  VARCHAR(1000),
+    start_date   DATE,
+    finish_date  DATE,
+    has_children BOOLEAN NOT NULL DEFAULT false,
+    synced_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (project_id, path)
+);
+CREATE INDEX idx_ado_iterations_project ON ado_iterations(project_id);
+
+CREATE TABLE ado_users (
+    id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    project_id         UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    unique_name        VARCHAR(400) NOT NULL,
+    display_name       VARCHAR(400),
+    email              VARCHAR(400),
+    descriptor         VARCHAR(400),
+    is_team_member     BOOLEAN NOT NULL DEFAULT false,
+    seen_on_work_items BOOLEAN NOT NULL DEFAULT false,
+    quality_role       VARCHAR(20),
+    synced_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (project_id, unique_name)
+);
+CREATE INDEX idx_ado_users_project ON ado_users(project_id);
+CREATE INDEX idx_ado_users_quality ON ado_users(project_id, quality_role) WHERE quality_role IS NOT NULL;
+
+CREATE TABLE work_item_events (
+    id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    project_id    UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    external_id   VARCHAR(200) NOT NULL,
+    issue_type    VARCHAR(40),
+    rev           INT NOT NULL,
+    event_type    VARCHAR(30) NOT NULL,
+    field         VARCHAR(120),
+    from_value    TEXT,
+    to_value      TEXT,
+    from_category VARCHAR(30),
+    to_category   VARCHAR(30),
+    actor_name    VARCHAR(400),
+    actor_unique  VARCHAR(400),
+    revised_at    TIMESTAMPTZ,
+    UNIQUE (project_id, external_id, rev, event_type, field)
+);
+CREATE INDEX idx_wie_project_actor ON work_item_events(project_id, actor_name);
+CREATE INDEX idx_wie_project_ext   ON work_item_events(project_id, external_id);
+CREATE INDEX idx_wie_revised       ON work_item_events(project_id, revised_at DESC);
+CREATE INDEX idx_wie_to_category   ON work_item_events(project_id, to_category);
+
+-- =====================================================================================
 -- Ingestion: executions & results
 -- =====================================================================================
 
 CREATE TABLE test_executions (
     id             UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
     run_id         VARCHAR(200) NOT NULL UNIQUE,
-    project_id     UUID         NOT NULL REFERENCES projects(id),
+    project_id     UUID         NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
     branch         VARCHAR(200),
     commit_sha     VARCHAR(40),
     environment    VARCHAR(50)  DEFAULT 'unknown',
@@ -86,7 +172,11 @@ CREATE TABLE test_executions (
     execution_mode VARCHAR(20)  NOT NULL DEFAULT 'UNKNOWN',
     parallelism    INTEGER      NOT NULL DEFAULT 0,
     suite_name     VARCHAR(500) NOT NULL DEFAULT '',
-    test_type      VARCHAR(20)  NOT NULL DEFAULT 'FUNCTIONAL'
+    test_type      VARCHAR(20)  NOT NULL DEFAULT 'FUNCTIONAL',
+    status         VARCHAR(20)  NOT NULL DEFAULT 'COMPLETED',
+    team_id        UUID         REFERENCES teams(id),
+    area_slug      VARCHAR(200),
+    iteration_path VARCHAR(500)
 );
 CREATE INDEX idx_te_project_id        ON test_executions(project_id);
 CREATE INDEX idx_te_branch            ON test_executions(branch);
@@ -95,26 +185,43 @@ CREATE INDEX idx_te_execution_mode    ON test_executions(execution_mode);
 CREATE INDEX idx_te_ci_provider       ON test_executions(ci_provider);
 CREATE INDEX idx_te_test_type         ON test_executions(test_type);
 CREATE INDEX idx_te_project_test_type ON test_executions(project_id, test_type);
+CREATE INDEX idx_te_team_id           ON test_executions(team_id);
+CREATE INDEX idx_te_area_slug         ON test_executions(area_slug);
 
 CREATE TABLE test_case_results (
-    id              UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
-    execution_id    UUID         NOT NULL REFERENCES test_executions(id),
-    test_id         VARCHAR(500) NOT NULL,
-    display_name    VARCHAR(500),
-    class_name      VARCHAR(300),
-    method_name     VARCHAR(200),
-    tags            JSONB,
-    status          VARCHAR(20)  NOT NULL,
-    duration_ms     BIGINT,
-    failure_message TEXT,
-    stack_trace     TEXT,
-    retry_count     INT          NOT NULL DEFAULT 0,
-    created_at      TIMESTAMP    NOT NULL DEFAULT now()
+    id                  UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    execution_id        UUID         NOT NULL REFERENCES test_executions(id) ON DELETE CASCADE,
+    test_id             VARCHAR(500) NOT NULL,
+    display_name        VARCHAR(500),
+    class_name          VARCHAR(300),
+    method_name         VARCHAR(200),
+    tags                JSONB,
+    status              VARCHAR(20)  NOT NULL,
+    duration_ms         BIGINT,
+    failure_message     TEXT,
+    stack_trace         TEXT,
+    retry_count         INT          NOT NULL DEFAULT 0,
+    created_at          TIMESTAMP    NOT NULL DEFAULT now(),
+    trace_store_path    VARCHAR(500),
+    spec_file           VARCHAR(500),
+    browser             VARCHAR(100),
+    annotations         JSONB,
+    has_screenshot      BOOLEAN      NOT NULL DEFAULT FALSE,
+    has_video           BOOLEAN      NOT NULL DEFAULT FALSE,
+    worker_index        INTEGER,
+    covered_files       JSONB,
+    covered_components  JSONB,
+    covered_routes      JSONB,
+    labels              JSONB
 );
-CREATE INDEX idx_tcr_execution_id ON test_case_results(execution_id);
-CREATE INDEX idx_tcr_test_id      ON test_case_results(test_id);
-CREATE INDEX idx_tcr_status       ON test_case_results(status);
-CREATE INDEX idx_tcr_test_project ON test_case_results(test_id, execution_id);
+CREATE INDEX idx_tcr_execution_id         ON test_case_results(execution_id);
+CREATE INDEX idx_tcr_test_id              ON test_case_results(test_id);
+CREATE INDEX idx_tcr_status               ON test_case_results(status);
+CREATE INDEX idx_tcr_test_project         ON test_case_results(test_id, execution_id);
+CREATE INDEX idx_tcr_spec_file            ON test_case_results(spec_file);
+CREATE INDEX idx_tcr_browser              ON test_case_results(browser);
+CREATE INDEX idx_tcr_covered_files_gin    ON test_case_results USING GIN (covered_files);
+CREATE INDEX idx_tcr_labels_gin           ON test_case_results USING GIN (labels);
 
 CREATE TABLE flakiness_scores (
     id              UUID           PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -205,12 +312,13 @@ CREATE INDEX idx_ah_project_id ON alert_history(project_id);
 CREATE INDEX idx_ah_fired_at   ON alert_history(fired_at);
 CREATE INDEX idx_ah_severity   ON alert_history(severity);
 
+-- team_id nullable (V6), FK to teams dropped (V7): soft reference only
 CREATE TABLE api_keys (
     id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name          VARCHAR(200)  NOT NULL,
     key_hash      VARCHAR(64)   NOT NULL UNIQUE,
     key_prefix    VARCHAR(10)   NOT NULL,
-    team_id       UUID          NOT NULL REFERENCES teams(id),
+    team_id       UUID,
     revoked       BOOLEAN       NOT NULL DEFAULT false,
     expires_at    TIMESTAMP,
     last_used_at  TIMESTAMP,
@@ -219,12 +327,13 @@ CREATE TABLE api_keys (
 CREATE UNIQUE INDEX idx_ak_key_hash ON api_keys(key_hash);
 CREATE        INDEX idx_ak_team_id  ON api_keys(team_id);
 
+-- team_id FK to teams dropped (V7): soft reference only
 CREATE TABLE audit_events (
     id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     event_type        VARCHAR(50)  NOT NULL,
     actor_key_id      UUID         REFERENCES api_keys(id),
     actor_key_prefix  VARCHAR(10),
-    team_id           UUID         REFERENCES teams(id),
+    team_id           UUID,
     resource_type     VARCHAR(50),
     resource_id       VARCHAR(500),
     details           TEXT,
@@ -257,7 +366,7 @@ ON CONFLICT (key) DO NOTHING;
 -- Per-team / per-project setting overrides (SettingResolver deep-merges PROJECT > TEAM > ORG).
 CREATE TABLE scoped_settings (
     id         UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
-    scope      VARCHAR(10)  NOT NULL,           -- TEAM, PROJECT
+    scope      VARCHAR(10)  NOT NULL,
     scope_id   UUID         NOT NULL,
     key        VARCHAR(200) NOT NULL,
     value      TEXT,
@@ -318,7 +427,7 @@ CREATE TABLE impact_analyses (
 CREATE INDEX idx_ia_project ON impact_analyses(project_id);
 
 -- =====================================================================================
--- Integrations (legacy per-team) + per-project config + unified encrypted credentials
+-- Integrations: per-team config, per-project config, unified encrypted credentials
 -- =====================================================================================
 
 CREATE TABLE integration_configs (
@@ -351,7 +460,6 @@ CREATE INDEX idx_itl_test_id    ON issue_tracker_links(test_id);
 CREATE INDEX idx_itl_project_id ON issue_tracker_links(project_id);
 CREATE INDEX idx_itl_issue_key  ON issue_tracker_links(issue_key);
 
--- Per-project, per-tier integration behaviour (multiple per type allowed).
 CREATE TABLE project_integration_configs (
     id                  UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
     project_id          UUID         NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
@@ -373,21 +481,21 @@ CREATE INDEX idx_pic_project_id ON project_integration_configs(project_id);
 CREATE INDEX idx_pic_tier       ON project_integration_configs(project_id, tier);
 CREATE INDEX idx_pic_enabled    ON project_integration_configs(project_id, enabled);
 
--- Unified, scoped, encrypted credentials. Resolution: ORG -> TEAM -> PROJECT
--- (precedence PROJECT > TEAM > ORG). scope_id is the org/team/project id at each scope.
+-- Unified, scoped, encrypted credentials. Resolution: ORG -> TEAM -> PROJECT.
 CREATE TABLE integration_credentials (
-    id                 UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
-    scope              VARCHAR(10)  NOT NULL,
-    scope_id           UUID         NOT NULL,
-    integration_type   VARCHAR(40)  NOT NULL,
-    display_name       VARCHAR(100) NOT NULL,
-    base_url           VARCHAR(500),
-    connection_params  JSONB        NOT NULL DEFAULT '{}',
-    secret_ciphertext  TEXT,                                  -- v1:base64(iv||ct||tag), AES-256-GCM
-    enabled            BOOLEAN      NOT NULL DEFAULT true,
-    created_by         VARCHAR(200),
-    created_at         TIMESTAMPTZ  NOT NULL DEFAULT now(),
-    updated_at         TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    id                    UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    scope                 VARCHAR(10)  NOT NULL,
+    scope_id              UUID         NOT NULL,
+    integration_type      VARCHAR(40)  NOT NULL,
+    display_name          VARCHAR(100) NOT NULL,
+    base_url              VARCHAR(500),
+    connection_params     JSONB        NOT NULL DEFAULT '{}',
+    secret_ciphertext     TEXT,
+    enabled               BOOLEAN      NOT NULL DEFAULT true,
+    created_by            VARCHAR(200),
+    sync_interval_minutes INTEGER      NOT NULL DEFAULT 0,
+    created_at            TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    updated_at            TIMESTAMPTZ  NOT NULL DEFAULT now(),
     CONSTRAINT chk_intcred_scope    CHECK (scope IN ('ORG', 'TEAM', 'PROJECT')),
     CONSTRAINT chk_intcred_scope_id CHECK (scope_id IS NOT NULL)
 );
@@ -395,7 +503,6 @@ CREATE UNIQUE INDEX uq_intcred_scoped ON integration_credentials(scope, scope_id
 CREATE INDEX idx_intcred_lookup ON integration_credentials(integration_type, enabled);
 CREATE INDEX idx_intcred_scope  ON integration_credentials(scope, scope_id);
 
--- Persisted mapping-rule overrides (Mapping Suggester). PROJECT -> ORG -> built-in default.
 CREATE TABLE mapping_rulesets (
     id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     scope       VARCHAR(16)  NOT NULL CHECK (scope IN ('ORG', 'PROJECT')),
@@ -407,7 +514,6 @@ CREATE TABLE mapping_rulesets (
 );
 CREATE UNIQUE INDEX uq_mapping_ruleset_scope ON mapping_rulesets(scope, scope_id);
 
--- Baseline of an upstream work-item-type schema, for drift detection.
 CREATE TABLE integration_schema_snapshots (
     id                    UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     project_id            UUID         NOT NULL,
@@ -423,6 +529,52 @@ CREATE TABLE integration_schema_snapshots (
 );
 CREATE UNIQUE INDEX uq_schema_snapshot
     ON integration_schema_snapshots(project_id, integration_type, ado_project, work_item_type);
+
+-- =====================================================================================
+-- GitHub repo management (V5, V16)
+-- =====================================================================================
+
+-- Repos explicitly managed by the platform, linked to a credential
+CREATE TABLE github_managed_repos (
+    id             UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    credential_id  UUID NOT NULL REFERENCES integration_credentials(id) ON DELETE CASCADE,
+    full_name      VARCHAR(400) NOT NULL,
+    owner          VARCHAR(200),
+    name           VARCHAR(200),
+    private        BOOLEAN NOT NULL DEFAULT false,
+    default_branch VARCHAR(200),
+    html_url       VARCHAR(500),
+    added_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (credential_id, full_name)
+);
+CREATE INDEX idx_gmr_cred ON github_managed_repos(credential_id);
+
+-- Cache of ALL repos accessible to a credential; populated via Sync from GitHub
+CREATE TABLE github_repo_cache (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    credential_id   UUID NOT NULL REFERENCES integration_credentials(id) ON DELETE CASCADE,
+    full_name       VARCHAR(400) NOT NULL,
+    owner           VARCHAR(200),
+    repo_name       VARCHAR(200),
+    is_private      BOOLEAN NOT NULL DEFAULT false,
+    default_branch  VARCHAR(200),
+    html_url        VARCHAR(500),
+    synced_at       TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (credential_id, full_name)
+);
+CREATE INDEX idx_ghrc_credential_id ON github_repo_cache(credential_id);
+
+-- Which repos each project uses, with a role per repo
+CREATE TABLE project_repo_assignments (
+    id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    project_id      UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    credential_id   UUID NOT NULL REFERENCES integration_credentials(id) ON DELETE CASCADE,
+    repo_full_name  VARCHAR(400) NOT NULL,
+    role            VARCHAR(30) NOT NULL DEFAULT 'GENERAL',
+    added_at        TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (project_id, repo_full_name)
+);
+CREATE INDEX idx_pra_project_id ON project_repo_assignments(project_id);
 
 -- =====================================================================================
 -- Requirements (source of truth), test cases (TCM), traceability
@@ -465,23 +617,31 @@ CREATE UNIQUE INDEX idx_req_external_unique
 CREATE INDEX idx_req_area         ON platform_requirements(project_id, area_path);
 CREATE INDEX idx_req_iteration    ON platform_requirements(project_id, iteration_path);
 CREATE INDEX idx_req_assignee     ON platform_requirements(project_id, assigned_to);
-CREATE INDEX idx_req_created_date  ON platform_requirements(project_id, created_date DESC);
+CREATE INDEX idx_req_created_date ON platform_requirements(project_id, created_date DESC);
 
--- Hierarchical test plans / suites (tree + plan type).
+-- Hierarchical test plans / suites
 CREATE TABLE test_suites (
-    id          UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
-    project_id  UUID         NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-    name        VARCHAR(200) NOT NULL,
-    description TEXT,
-    parent_id   UUID         REFERENCES test_suites(id) ON DELETE SET NULL,
-    plan_type   VARCHAR(40),
-    is_active   BOOLEAN      NOT NULL DEFAULT true,
-    created_at  TIMESTAMPTZ  NOT NULL DEFAULT now(),
-    updated_at  TIMESTAMPTZ  NOT NULL DEFAULT now()
+    id               UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    project_id       UUID         NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    name             VARCHAR(200) NOT NULL,
+    description      TEXT,
+    parent_id        UUID         REFERENCES test_suites(id) ON DELETE SET NULL,
+    plan_type        VARCHAR(40),
+    is_active        BOOLEAN      NOT NULL DEFAULT true,
+    area_path        VARCHAR(1000),
+    team_id          UUID         REFERENCES ado_teams(id) ON DELETE SET NULL,
+    selection_mode   VARCHAR(10)  NOT NULL DEFAULT 'STATIC',
+    filter_iteration VARCHAR(1000),
+    filter_status    VARCHAR(20),
+    filter_tags      TEXT,
+    created_at       TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    updated_at       TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
 CREATE INDEX idx_ts_project        ON test_suites(project_id);
 CREATE INDEX idx_ts_parent         ON test_suites(parent_id);
 CREATE INDEX idx_ts_project_active ON test_suites(project_id, is_active);
+CREATE INDEX idx_ts_team           ON test_suites(project_id, team_id);
+CREATE INDEX idx_ts_plan           ON test_suites(project_id, plan_type);
 
 CREATE TABLE platform_test_cases (
     id                          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -520,6 +680,16 @@ CREATE INDEX idx_tc_has_automation  ON platform_test_cases(project_id, has_autom
 CREATE INDEX idx_ptc_suite          ON platform_test_cases(project_id, suite_id);
 CREATE INDEX idx_ptc_status         ON platform_test_cases(project_id, status);
 
+-- Many-to-many membership for STATIC suites
+CREATE TABLE test_suite_members (
+    suite_id     UUID NOT NULL REFERENCES test_suites(id) ON DELETE CASCADE,
+    test_case_id UUID NOT NULL REFERENCES platform_test_cases(id) ON DELETE CASCADE,
+    added_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
+    PRIMARY KEY (suite_id, test_case_id)
+);
+CREATE INDEX idx_tsm_suite ON test_suite_members(suite_id);
+CREATE INDEX idx_tsm_case  ON test_suite_members(test_case_id);
+
 CREATE TABLE test_case_steps (
     id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     test_case_id     UUID NOT NULL REFERENCES platform_test_cases(id) ON DELETE CASCADE,
@@ -531,7 +701,6 @@ CREATE TABLE test_case_steps (
 );
 CREATE INDEX idx_tcs_test_case ON test_case_steps(test_case_id);
 
--- Kiwi-style parametrized testing: properties expand into one execution per combination.
 CREATE TABLE test_case_properties (
     id           UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
     test_case_id UUID         NOT NULL REFERENCES platform_test_cases(id) ON DELETE CASCADE,
@@ -594,6 +763,35 @@ CREATE TABLE environment_properties (
 );
 CREATE INDEX idx_envprop_env ON environment_properties(environment_id);
 
+-- =====================================================================================
+-- Releases / source-of-truth test plans / token budgets
+-- =====================================================================================
+
+-- V2 added mapping_kind/mapping_field/mapping_value on sot_releases.
+-- V3 replaced mapping_kind with composite map_* columns (mapping_kind dropped).
+-- V2 added release_id/iteration_path/area_path/team_id on test_runs.
+CREATE TABLE sot_releases (
+    id                  UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    project_id          UUID        NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    name                TEXT        NOT NULL,
+    release_type        VARCHAR(20) NOT NULL DEFAULT 'VERSION',
+    external_id         TEXT,
+    target_date         DATE,
+    state               VARCHAR(20) NOT NULL DEFAULT 'PLANNED',
+    mapping_field       VARCHAR(200),
+    mapping_value       VARCHAR(1000),
+    map_iteration_path  VARCHAR(1000),
+    map_area_path       VARCHAR(1000),
+    map_team_id         UUID        REFERENCES ado_teams(id) ON DELETE SET NULL,
+    map_tag             VARCHAR(200),
+    created_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+    updated_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (project_id, name)
+);
+CREATE INDEX idx_rel_project   ON sot_releases(project_id, state);
+CREATE INDEX idx_rel_map_iter  ON sot_releases(project_id, map_iteration_path);
+CREATE INDEX idx_rel_map_team  ON sot_releases(project_id, map_team_id);
+
 CREATE TABLE test_runs (
     id               UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
     project_id       UUID         NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
@@ -605,11 +803,19 @@ CREATE TABLE test_runs (
     triggered_by     VARCHAR(200),
     started_at       TIMESTAMPTZ,
     completed_at     TIMESTAMPTZ,
+    release_id       UUID         REFERENCES sot_releases(id) ON DELETE SET NULL,
+    iteration_path   VARCHAR(1000),
+    area_path        VARCHAR(1000),
+    team_id          UUID         REFERENCES ado_teams(id) ON DELETE SET NULL,
     created_at       TIMESTAMPTZ  NOT NULL DEFAULT now(),
     updated_at       TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
 CREATE INDEX idx_tr_project        ON test_runs(project_id);
 CREATE INDEX idx_tr_project_status ON test_runs(project_id, status);
+CREATE INDEX idx_tr_release        ON test_runs(project_id, release_id);
+CREATE INDEX idx_tr_iteration      ON test_runs(project_id, iteration_path);
+CREATE INDEX idx_tr_area           ON test_runs(project_id, area_path);
+CREATE INDEX idx_tr_team           ON test_runs(project_id, team_id);
 
 CREATE TABLE test_case_executions (
     id             UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
@@ -636,24 +842,6 @@ CREATE TABLE test_execution_properties (
     value                  VARCHAR(500) NOT NULL
 );
 CREATE INDEX idx_tep_exec ON test_execution_properties(test_case_execution_id);
-
--- =====================================================================================
--- Releases / source-of-truth test plans / token budgets
--- =====================================================================================
-
-CREATE TABLE sot_releases (
-    id           UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
-    project_id   UUID        NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-    name         TEXT        NOT NULL,
-    release_type VARCHAR(20) NOT NULL DEFAULT 'VERSION',
-    external_id  TEXT,
-    target_date  DATE,
-    state        VARCHAR(20) NOT NULL DEFAULT 'PLANNED',
-    created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
-    updated_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
-    UNIQUE (project_id, name)
-);
-CREATE INDEX idx_rel_project ON sot_releases(project_id, state);
 
 CREATE TABLE sot_release_requirements (
     release_id     UUID NOT NULL REFERENCES sot_releases(id) ON DELETE CASCADE,
@@ -788,7 +976,6 @@ CREATE INDEX idx_chk_session_id  ON agent_checkpoints(session_id);
 CREATE INDEX idx_chk_workflow_id ON agent_checkpoints(workflow_id) WHERE workflow_id IS NOT NULL;
 CREATE INDEX idx_chk_expires_at  ON agent_checkpoints(expires_at) WHERE expires_at IS NOT NULL;
 
--- Captures agent inputs/outputs after human review for RAG / project learning. Partitioned monthly.
 CREATE TABLE agent_interaction_log (
     id                  UUID         NOT NULL DEFAULT gen_random_uuid(),
     project_id          UUID         NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
@@ -832,90 +1019,6 @@ CREATE TABLE github_pr_tracking (
 );
 CREATE INDEX idx_gpt_project        ON github_pr_tracking(project_id);
 CREATE INDEX idx_gpt_last_triggered ON github_pr_tracking(last_triggered_at);
-
--- =====================================================================================
--- Azure DevOps organizational structure + work-item history
--- =====================================================================================
-
-CREATE TABLE ado_teams (
-    id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    project_id        UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-    ado_id            VARCHAR(100) NOT NULL,
-    name              VARCHAR(200) NOT NULL,
-    description       TEXT,
-    default_area_path VARCHAR(1000),
-    area_paths        JSONB NOT NULL DEFAULT '[]',
-    member_count      INT NOT NULL DEFAULT 0,
-    synced_at         TIMESTAMPTZ NOT NULL DEFAULT now(),
-    UNIQUE (project_id, ado_id)
-);
-CREATE INDEX idx_ado_teams_project ON ado_teams(project_id);
-
-CREATE TABLE ado_areas (
-    id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    project_id   UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-    ado_id       VARCHAR(100),
-    path         VARCHAR(1000) NOT NULL,
-    name         VARCHAR(400) NOT NULL,
-    parent_path  VARCHAR(1000),
-    has_children BOOLEAN NOT NULL DEFAULT false,
-    synced_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
-    UNIQUE (project_id, path)
-);
-CREATE INDEX idx_ado_areas_project ON ado_areas(project_id);
-
-CREATE TABLE ado_iterations (
-    id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    project_id   UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-    ado_id       VARCHAR(100),
-    path         VARCHAR(1000) NOT NULL,
-    name         VARCHAR(400) NOT NULL,
-    parent_path  VARCHAR(1000),
-    start_date   DATE,
-    finish_date  DATE,
-    has_children BOOLEAN NOT NULL DEFAULT false,
-    synced_at    TIMESTAMPTZ NOT NULL DEFAULT now(),
-    UNIQUE (project_id, path)
-);
-CREATE INDEX idx_ado_iterations_project ON ado_iterations(project_id);
-
-CREATE TABLE ado_users (
-    id                 UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    project_id         UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-    unique_name        VARCHAR(400) NOT NULL,
-    display_name       VARCHAR(400),
-    email              VARCHAR(400),
-    descriptor         VARCHAR(400),
-    is_team_member     BOOLEAN NOT NULL DEFAULT false,
-    seen_on_work_items BOOLEAN NOT NULL DEFAULT false,
-    quality_role       VARCHAR(20),
-    synced_at          TIMESTAMPTZ NOT NULL DEFAULT now(),
-    UNIQUE (project_id, unique_name)
-);
-CREATE INDEX idx_ado_users_project ON ado_users(project_id);
-CREATE INDEX idx_ado_users_quality ON ado_users(project_id, quality_role) WHERE quality_role IS NOT NULL;
-
-CREATE TABLE work_item_events (
-    id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-    project_id    UUID NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
-    external_id   VARCHAR(200) NOT NULL,
-    issue_type    VARCHAR(40),
-    rev           INT NOT NULL,
-    event_type    VARCHAR(30) NOT NULL,
-    field         VARCHAR(120),
-    from_value    TEXT,
-    to_value      TEXT,
-    from_category VARCHAR(30),
-    to_category   VARCHAR(30),
-    actor_name    VARCHAR(400),
-    actor_unique  VARCHAR(400),
-    revised_at    TIMESTAMPTZ,
-    UNIQUE (project_id, external_id, rev, event_type, field)
-);
-CREATE INDEX idx_wie_project_actor ON work_item_events(project_id, actor_name);
-CREATE INDEX idx_wie_project_ext   ON work_item_events(project_id, external_id);
-CREATE INDEX idx_wie_revised       ON work_item_events(project_id, revised_at DESC);
-CREATE INDEX idx_wie_to_category   ON work_item_events(project_id, to_category);
 
 -- =====================================================================================
 -- Views (knowledge graph / coverage)
