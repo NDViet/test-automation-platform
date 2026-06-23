@@ -3,10 +3,27 @@ export interface PlatformReporterOptions {
   endpoint: string
   /** API key for authentication (X-API-Key header). Skip if auth is disabled. */
   apiKey?: string
-  /** Team identifier registered in the platform (e.g. 'team-frontend'). */
-  teamId: string
-  /** Project identifier registered in the platform (e.g. 'proj-checkout'). */
-  projectId: string
+  /**
+   * Organisation slug — the FIRST path segment in the portal URL.
+   * Example: portal URL is `/my-org/my-project/…` → set `orgSlug: 'my-org'`
+   */
+  orgSlug: string
+  /**
+   * Project slug — the SECOND path segment in the portal URL.
+   * Example: portal URL is `/my-org/my-project/…` → set `projectSlug: 'my-project'`
+   */
+  projectSlug: string
+  /**
+   * Team slug — optional. Attributes this run to a specific team within the project.
+   * Find the slug in the portal under Teams & Structure → copy the team slug chip.
+   */
+  teamSlug?: string
+  /**
+   * Area slug — optional. Attributes this run to an area or component (e.g. "frontend").
+   * For ADO users: find it in Teams & Structure → copy the area slug chip.
+   * For non-ADO users: any meaningful label you choose.
+   */
+  areaSlug?: string
   /**
    * Git branch name. Auto-detected from CI environment variables if omitted.
    * Priority: option → CI env → 'unknown'

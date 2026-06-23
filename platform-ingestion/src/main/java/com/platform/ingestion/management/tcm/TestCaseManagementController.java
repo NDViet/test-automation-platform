@@ -24,8 +24,22 @@ public class TestCaseManagementController {
     public List<ManagedTestCaseDto> list(@PathVariable UUID projectId,
                                          @RequestParam(required = false) String status,
                                          @RequestParam(required = false) String suiteId,
-                                         @RequestParam(required = false) String search) {
-        return service.list(projectId, status, suiteId, search);
+                                         @RequestParam(required = false) String search,
+                                         @RequestParam(required = false) String area,
+                                         @RequestParam(required = false) String teamId,
+                                         @RequestParam(required = false) String iteration) {
+        return service.list(projectId, status, suiteId, search, area, teamId, iteration);
+    }
+
+    /** Scope-filtered, searchable picker for run creation (by area/iteration/team + search). */
+    @GetMapping("/selectable")
+    public List<SelectableTestCaseDto> selectable(@PathVariable UUID projectId,
+                                                  @RequestParam(required = false) String status,
+                                                  @RequestParam(required = false) String area,
+                                                  @RequestParam(required = false) String iteration,
+                                                  @RequestParam(required = false) String teamId,
+                                                  @RequestParam(required = false) String q) {
+        return service.selectable(projectId, status, area, iteration, teamId, q);
     }
 
     @PostMapping
@@ -85,6 +99,22 @@ public class TestCaseManagementController {
             @PathVariable UUID tcId,
             @RequestParam(required = false) String githubConfigId) {
         return service.triggerAutomationGeneration(projectId, tcId, githubConfigId);
+    }
+
+    /** STATIC suite ids this case belongs to. */
+    @GetMapping("/{tcId}/suites")
+    public List<String> caseSuites(@PathVariable UUID projectId, @PathVariable UUID tcId) {
+        return service.caseSuites(projectId, tcId);
+    }
+
+    public record CaseSuitesRequest(List<String> suiteIds) {}
+
+    /** Replace the case's (static) suite memberships — a case may belong to many suites. */
+    @PutMapping("/{tcId}/suites")
+    public ResponseEntity<Void> setCaseSuites(@PathVariable UUID projectId, @PathVariable UUID tcId,
+                                              @RequestBody CaseSuitesRequest req) {
+        service.setCaseSuites(projectId, tcId, req.suiteIds());
+        return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/{tcId}/link-requirement/{requirementId}")

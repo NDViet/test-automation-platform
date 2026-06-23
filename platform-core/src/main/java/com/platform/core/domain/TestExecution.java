@@ -34,6 +34,10 @@ public class TestExecution {
     @JoinColumn(name = "project_id", nullable = false)
     private Project project;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "team_id")
+    private Team team;
+
     @Column(name = "branch", length = 200)
     private String branch;
 
@@ -95,6 +99,16 @@ public class TestExecution {
     @Column(name = "ingested_at", nullable = false, updatable = false)
     private Instant ingestedAt;
 
+    @Column(name = "area_slug", length = 200)
+    private String areaSlug;
+
+    @Column(name = "iteration_path", length = 500)
+    private String iterationPath;
+
+    /** RUNNING while a streaming run is in progress; COMPLETED once finishRun() is called. */
+    @Column(name = "status", nullable = false, length = 20)
+    private String status = "COMPLETED";
+
     @OneToMany(mappedBy = "execution", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<TestCaseResult> testCaseResults = new ArrayList<>();
 
@@ -103,6 +117,9 @@ public class TestExecution {
     private TestExecution(Builder b) {
         this.runId = b.runId;
         this.project = b.project;
+        this.team = b.team;
+        this.areaSlug = b.areaSlug;
+        this.iterationPath = b.iterationPath;
         this.branch = b.branch;
         this.commitSha = b.commitSha;
         this.environment = b.environment;
@@ -121,6 +138,7 @@ public class TestExecution {
         this.parallelism = b.parallelism;
         this.suiteName = b.suiteName != null ? b.suiteName : "";
         this.executedAt = b.executedAt;
+        this.status = b.status != null ? b.status : "COMPLETED";
     }
 
     public static Builder builder() { return new Builder(); }
@@ -129,6 +147,9 @@ public class TestExecution {
     public UUID getId() { return id; }
     public String getRunId() { return runId; }
     public Project getProject() { return project; }
+    public Team getTeam() { return team; }
+    public String getAreaSlug() { return areaSlug; }
+    public String getIterationPath() { return iterationPath; }
     public String getBranch() { return branch; }
     public String getCommitSha() { return commitSha; }
     public String getEnvironment() { return environment; }
@@ -148,7 +169,19 @@ public class TestExecution {
     public String getSuiteName() { return suiteName; }
     public Instant getExecutedAt() { return executedAt; }
     public Instant getIngestedAt() { return ingestedAt; }
+    public String getStatus() { return status; }
     public List<TestCaseResult> getTestCaseResults() { return testCaseResults; }
+
+    // Setters for fields updated during streaming run finalization and scope linking
+    public void setStatus(String v)        { this.status        = v; }
+    public void setAreaSlug(String v)      { this.areaSlug      = v; }
+    public void setIterationPath(String v) { this.iterationPath = v; }
+    public void setTotalTests(int v)   { this.totalTests = v; }
+    public void setPassed(int v)       { this.passed     = v; }
+    public void setFailed(int v)       { this.failed     = v; }
+    public void setSkipped(int v)      { this.skipped    = v; }
+    public void setBroken(int v)       { this.broken     = v; }
+    public void setDurationMs(Long v)  { this.durationMs = v; }
 
     @Override
     public boolean equals(Object o) {
@@ -163,6 +196,9 @@ public class TestExecution {
     public static class Builder {
         private String runId;
         private Project project;
+        private Team team;
+        private String areaSlug;
+        private String iterationPath;
         private String branch;
         private String commitSha;
         private String environment = "unknown";
@@ -181,9 +217,13 @@ public class TestExecution {
         private int parallelism;
         private String suiteName = "";
         private Instant executedAt;
+        private String status;
 
         public Builder runId(String v) { this.runId = v; return this; }
         public Builder project(Project v) { this.project = v; return this; }
+        public Builder team(Team v) { this.team = v; return this; }
+        public Builder areaSlug(String v) { this.areaSlug = v; return this; }
+        public Builder iterationPath(String v) { this.iterationPath = v; return this; }
         public Builder branch(String v) { this.branch = v; return this; }
         public Builder commitSha(String v) { this.commitSha = v; return this; }
         public Builder environment(String v) { this.environment = v; return this; }
@@ -202,6 +242,7 @@ public class TestExecution {
         public Builder parallelism(int v) { this.parallelism = v; return this; }
         public Builder suiteName(String v) { this.suiteName = v; return this; }
         public Builder executedAt(Instant v) { this.executedAt = v; return this; }
+        public Builder status(String v) { this.status = v; return this; }
         public TestExecution build() { return new TestExecution(this); }
     }
 }

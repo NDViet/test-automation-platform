@@ -53,7 +53,7 @@ public class ApiKeyService {
         String rawKey = "plat_" + Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
 
         String hash   = sha256hex(rawKey);
-        String prefix = rawKey.substring(0, Math.min(12, rawKey.length()));
+        String prefix = rawKey.substring(0, Math.min(10, rawKey.length()));
 
         Instant expiresAt = ttlDays != null
                 ? Instant.now().plus(ttlDays, ChronoUnit.DAYS)
@@ -71,8 +71,6 @@ public class ApiKeyService {
 
         auditRepo.save(AuditEvent.builder()
                 .eventType("API_KEY_CREATED")
-                .actorKeyId(saved.getId())
-                .actorKeyPrefix(prefix)
                 .teamId(teamId)
                 .resourceType("API_KEY")
                 .resourceId(saved.getId() != null ? saved.getId().toString() : null)
@@ -107,8 +105,11 @@ public class ApiKeyService {
     }
 
     @Transactional(readOnly = true)
-    public List<ApiKey> listForTeam(UUID teamId) {
-        return keyRepo.findByTeamIdAndRevokedFalseOrderByCreatedAtDesc(teamId);
+    public List<ApiKey> list(UUID teamId) {
+        if (teamId != null) {
+            return keyRepo.findByTeamIdAndRevokedFalseOrderByCreatedAtDesc(teamId);
+        }
+        return keyRepo.findByRevokedFalseOrderByCreatedAtDesc();
     }
 
     /**

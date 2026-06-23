@@ -9,11 +9,14 @@ import org.aspectj.lang.annotation.Around;
 import org.aspectj.lang.annotation.Aspect;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
+
+import java.util.Set;
 
 import java.util.UUID;
 
@@ -28,6 +31,9 @@ import java.util.UUID;
 public class AuditAspect {
 
     private static final Logger log = LoggerFactory.getLogger(AuditAspect.class);
+
+    @Value("${platform.trusted-proxy-ips:127.0.0.1,::1,0:0:0:0:0:0:0:1}")
+    private Set<String> trustedProxyIps;
 
     private final AuditEventRepository auditRepo;
 
@@ -87,10 +93,15 @@ public class AuditAspect {
             var attrs = RequestContextHolder.getRequestAttributes();
             if (attrs instanceof ServletRequestAttributes sra) {
                 HttpServletRequest req = sra.getRequest();
-                String forwarded = req.getHeader("X-Forwarded-For");
-                return (forwarded != null && !forwarded.isBlank())
-                        ? forwarded.split(",")[0].trim()
-                        : req.getRemoteAddr();
+                String remoteAddr = req.getRemoteAddr();
+                // Only trust X-Forwarded-For when the TCP peer is a known proxy
+                if (trustedProxyIps.contains(remoteAddr)) {
+                    String forwarded = req.getHeader("X-Forwarded-For");
+                    if (forwarded != null && !forwarded.isBlank()) {
+                        return forwarded.split(",")[0].trim();
+                    }
+                }
+                return remoteAddr;
             }
         } catch (Exception ignored) {}
         return null;

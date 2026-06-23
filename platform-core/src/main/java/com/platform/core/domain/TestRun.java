@@ -31,6 +31,23 @@ public class TestRun {
     @Column(name = "environment_id")
     private UUID environmentId;
 
+    // ── Monitoring dimensions (run-level tags) ─────────────────────────────────
+    /** Platform release this run validates (FK to {@link SotRelease}); null = none. */
+    @Column(name = "release_id")
+    private UUID releaseId;
+
+    /** ADO iteration (Sprint) path this run targets, e.g. {@code Product House\2026 Q2\Sprint 5}. */
+    @Column(name = "iteration_path", length = 1000)
+    private String iterationPath;
+
+    /** ADO area path this run targets, e.g. {@code Product House\Checkout}. */
+    @Column(name = "area_path", length = 1000)
+    private String areaPath;
+
+    /** Owning ADO team (FK to {@link AdoTeam}); null = none. */
+    @Column(name = "team_id")
+    private UUID teamId;
+
     @Column(name = "status", nullable = false, length = 20)
     private String status = "IN_PROGRESS"; // IN_PROGRESS, COMPLETED, ABANDONED
 
@@ -78,6 +95,10 @@ public class TestRun {
     public String getReleaseVersion() { return releaseVersion; }
     public String getEnvironment()   { return environment; }
     public UUID getEnvironmentId()   { return environmentId; }
+    public UUID getReleaseId()       { return releaseId; }
+    public String getIterationPath() { return iterationPath; }
+    public String getAreaPath()      { return areaPath; }
+    public UUID getTeamId()          { return teamId; }
     public String getStatus()        { return status; }
     public String getTriggeredBy()   { return triggeredBy; }
     public Instant getStartedAt()    { return startedAt; }
@@ -107,6 +128,15 @@ public class TestRun {
 
     public void setEnvironmentId(UUID environmentId) {
         this.environmentId = environmentId;
+        this.updatedAt     = Instant.now();
+    }
+
+    /** Sets the run-level monitoring dimensions (release / iteration / area / team). */
+    public void setDimensions(UUID releaseId, String iterationPath, String areaPath, UUID teamId) {
+        this.releaseId     = releaseId;
+        this.iterationPath = (iterationPath != null && !iterationPath.isBlank()) ? iterationPath : null;
+        this.areaPath      = (areaPath != null && !areaPath.isBlank()) ? areaPath : null;
+        this.teamId        = teamId;
         this.updatedAt     = Instant.now();
     }
 

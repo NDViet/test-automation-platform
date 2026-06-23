@@ -2,6 +2,7 @@ package com.platform.ingestion.management.tcm;
 
 import com.platform.core.domain.PlatformRequirement;
 import com.platform.core.domain.PlatformTestCase;
+import com.platform.core.repository.AdoTeamRepository;
 import com.platform.core.repository.PlatformRequirementRepository;
 import com.platform.core.repository.PlatformTestCaseRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -18,6 +19,7 @@ class CoverageServiceTest {
 
     private PlatformRequirementRepository reqRepo;
     private PlatformTestCaseRepository tcRepo;
+    private AdoTeamRepository teamRepo;
     private CoverageService service;
 
     private final UUID projectId = UUID.randomUUID();
@@ -29,7 +31,9 @@ class CoverageServiceTest {
     void setUp() {
         reqRepo = mock(PlatformRequirementRepository.class);
         tcRepo = mock(PlatformTestCaseRepository.class);
-        service = new CoverageService(reqRepo, tcRepo);
+        teamRepo = mock(AdoTeamRepository.class);
+        when(teamRepo.findByProjectIdOrderByName(projectId)).thenReturn(List.of());
+        service = new CoverageService(reqRepo, tcRepo, teamRepo);
     }
 
     private PlatformRequirement req(UUID id, String key) {

@@ -44,4 +44,22 @@ public class TestSuiteController {
         service.delete(projectId, suiteId);
         return ResponseEntity.noContent().build();
     }
+
+    /** Resolved cases for a suite (static members or smart filter). */
+    @GetMapping("/{suiteId}/cases")
+    public List<SelectableTestCaseDto> cases(@PathVariable UUID projectId,
+                                             @PathVariable UUID suiteId) {
+        return service.cases(projectId, suiteId);
+    }
+
+    public record MembersRequest(List<String> testCaseIds) {}
+
+    /** Replace the static membership of a suite. */
+    @PutMapping("/{suiteId}/members")
+    public ResponseEntity<Void> replaceMembers(@PathVariable UUID projectId,
+                                               @PathVariable UUID suiteId,
+                                               @RequestBody MembersRequest req) {
+        service.replaceMembers(projectId, suiteId, req.testCaseIds());
+        return ResponseEntity.noContent().build();
+    }
 }

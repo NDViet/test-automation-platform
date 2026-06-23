@@ -58,6 +58,16 @@ public class TcmRunService {
     public TestRun createRun(UUID projectId, String name, String releaseVersion,
                              UUID environmentId, List<UUID> caseIds,
                              MatrixType matrixType, String triggeredBy) {
+        return createRun(projectId, name, releaseVersion, environmentId, caseIds,
+                matrixType, triggeredBy, null, null, null, null);
+    }
+
+    /** As above, with run-level monitoring dimensions (release / iteration / area / team). */
+    @Transactional
+    public TestRun createRun(UUID projectId, String name, String releaseVersion,
+                             UUID environmentId, List<UUID> caseIds,
+                             MatrixType matrixType, String triggeredBy,
+                             UUID releaseId, String iterationPath, String areaPath, UUID teamId) {
 
         if (caseIds == null || caseIds.isEmpty()) {
             throw new IllegalArgumentException("A test run requires at least one test case");
@@ -94,6 +104,7 @@ public class TcmRunService {
 
         TestRun run = new TestRun(projectId, name, releaseVersion, envName, triggeredBy);
         run.setEnvironmentId(environmentId);
+        run.setDimensions(releaseId, iterationPath, areaPath, teamId);
         run.setStartedAt(java.time.Instant.now());
         run = runRepo.save(run);
 

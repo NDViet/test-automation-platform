@@ -13,6 +13,8 @@ import java.util.UUID;
 @Repository
 public interface SotReleaseRepository extends JpaRepository<SotRelease, UUID> {
 
+    List<SotRelease> findByProjectIdOrderByCreatedAtDesc(UUID projectId);
+
     List<SotRelease> findByProjectIdAndState(UUID projectId, String state);
 
     Optional<SotRelease> findByProjectIdAndName(UUID projectId, String name);

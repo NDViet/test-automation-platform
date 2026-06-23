@@ -6,13 +6,32 @@ import { cn } from '@/lib/utils'
 import Badge from '@/components/Badge'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import ErrorMessage from '@/components/ErrorMessage'
-import { Users, Loader2, RefreshCw, FolderTree, CalendarRange, UsersRound, Layers } from 'lucide-react'
+import { Users, Loader2, RefreshCw, FolderTree, CalendarRange, UsersRound, Layers, Copy, Check } from 'lucide-react'
 import type { AdoTeam, AdoArea, AdoIteration, AdoUser } from '@/lib/types'
 
 type Tab = 'teams' | 'areas' | 'iterations' | 'users'
 
+function SlugChip({ value }: { value: string }) {
+  const [copied, setCopied] = useState(false)
+  function copy(e: React.MouseEvent) {
+    e.stopPropagation()
+    navigator.clipboard.writeText(value).then(() => {
+      setCopied(true)
+      setTimeout(() => setCopied(false), 1500)
+    })
+  }
+  return (
+    <span className="inline-flex items-center gap-1 bg-slate-100 rounded px-2 py-0.5 font-mono text-xs text-slate-600">
+      {value}
+      <button onClick={copy} title="Copy slug" className="text-slate-400 hover:text-slate-700 transition-colors">
+        {copied ? <Check size={11} className="text-green-600" /> : <Copy size={11} />}
+      </button>
+    </span>
+  )
+}
+
 export default function AdoStructurePage() {
-  const { projectId } = useProject()
+  const { projectId, project } = useProject()
   const qc = useQueryClient()
   const [tab, setTab] = useState<Tab>('teams')
   const [error, setError] = useState<string | null>(null)
@@ -52,6 +71,9 @@ export default function AdoStructurePage() {
             <h1 className="text-2xl font-bold text-slate-900">Teams &amp; Structure</h1>
           </div>
           <p className="text-sm text-slate-500 mt-1">Azure DevOps teams, area paths, iterations, and people synced for this project.</p>
+          <p className="text-xs text-slate-400 mt-1">
+            Adapter config: <code className="font-mono text-slate-600">PLATFORM_ORG_SLUG=<span className="text-blue-600">{project.orgSlug}</span></code> · <code className="font-mono text-slate-600">PLATFORM_PROJECT_SLUG=<span className="text-blue-600">{project.slug}</span></code> · <code className="font-mono text-slate-500">PLATFORM_TEAM_SLUG</code> · <code className="font-mono text-slate-500">PLATFORM_AREA_SLUG</code> — pick team &amp; area slugs from the lists below.
+          </p>
         </div>
         <button onClick={() => sync.mutate()} disabled={sync.isPending}
           className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors">
@@ -110,8 +132,9 @@ function TeamsTab({ projectId }: { projectId: string }) {
     <div className="divide-y divide-slate-50">
       {teams.map((t: AdoTeam) => (
         <div key={t.id} className="px-5 py-3.5">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="text-sm font-medium text-slate-900">{t.name}</span>
+            {t.slug && <SlugChip value={t.slug} />}
             <Badge label={`${t.memberCount} member${t.memberCount !== 1 ? 's' : ''}`} colorClass="text-slate-600 bg-slate-100" />
           </div>
           {t.description && <p className="text-xs text-slate-500 mt-0.5">{t.description}</p>}
@@ -136,10 +159,11 @@ function AreasTab({ projectId }: { projectId: string }) {
   return (
     <div className="divide-y divide-slate-50">
       {areas.map((a: AdoArea) => (
-        <div key={a.id} className="px-5 py-2 flex items-center gap-2" style={{ paddingLeft: `${20 + indent(a.path) * 18}px` }}>
+        <div key={a.id} className="py-2 flex items-center gap-2" style={{ paddingLeft: `${20 + indent(a.path) * 18}px`, paddingRight: '20px' }}>
           <FolderTree size={13} className="text-slate-300 shrink-0" />
           <span className="text-sm text-slate-700">{leaf(a.path)}</span>
-          <span className="text-xs font-mono text-slate-400 truncate">{a.path}</span>
+          {a.slug && <SlugChip value={a.slug} />}
+          <span className="text-xs font-mono text-slate-400 truncate ml-auto">{a.path}</span>
         </div>
       ))}
     </div>
@@ -156,7 +180,7 @@ function IterationsTab({ projectId }: { projectId: string }) {
   return (
     <div className="divide-y divide-slate-50">
       {iters.map((it: AdoIteration) => (
-        <div key={it.id} className="px-5 py-2 flex items-center gap-3" style={{ paddingLeft: `${20 + indent(it.path) * 18}px` }}>
+        <div key={it.id} className="py-2 flex items-center gap-3" style={{ paddingLeft: `${20 + indent(it.path) * 18}px`, paddingRight: '20px' }}>
           <CalendarRange size={13} className="text-slate-300 shrink-0" />
           <span className="text-sm text-slate-700 flex-1 min-w-0 truncate">{leaf(it.path)}</span>
           {(it.startDate || it.finishDate) && (
@@ -197,52 +221,50 @@ function UsersTab({ projectId }: { projectId: string }) {
   let users = data ?? []
   if (!users.length) return <Empty text="No users synced." />
 
-  const q = search.trim().toLowerCase()
-  const filtered = users.filter((u: AdoUser) =>
-    (!qualityOnly || u.qualityRole) &&
-    (!q || (u.displayName ?? '').toLowerCase().includes(q) || (u.email ?? '').toLowerCase().includes(q)))
-  const flaggedCount = users.filter(u => u.qualityRole).length
+  if (search) users = users.filter((u: AdoUser) =>
+    (u.displayName ?? '').toLowerCase().includes(search.toLowerCase()) ||
+    (u.email ?? '').toLowerCase().includes(search.toLowerCase()))
+  if (qualityOnly) users = users.filter((u: AdoUser) => u.qualityRole)
 
   return (
     <div>
-      <div className="flex items-center gap-3 px-5 py-3 border-b border-slate-100">
-        <div className="relative flex-1 max-w-xs">
-          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search people…"
-            className="w-full px-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
-        </div>
-        <label className="flex items-center gap-1.5 text-sm text-slate-600 cursor-pointer">
-          <input type="checkbox" checked={qualityOnly} onChange={e => setQualityOnly(e.target.checked)} />
-          Quality only
+      <div className="px-5 py-3 border-b border-slate-100 flex items-center gap-3">
+        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search users…"
+          className="flex-1 text-sm border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+        <label className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer select-none">
+          <input type="checkbox" checked={qualityOnly} onChange={e => setQualityOnly(e.target.checked)} className="accent-blue-600" />
+          Quality roles only
         </label>
-        <span className="text-xs text-slate-400 ml-auto">{flaggedCount} flagged · {filtered.length} shown</span>
       </div>
       <div className="divide-y divide-slate-50">
-        {filtered.map((u: AdoUser) => (
-          <div key={u.id} className="px-5 py-2.5 flex items-center gap-2">
-            <span className="text-sm text-slate-800">{u.displayName ?? u.uniqueName}</span>
-            {u.email && <span className="text-xs text-slate-400">{u.email}</span>}
-            {u.qualityRole && <Badge label={u.qualityRole} colorClass={qualityColor(u.qualityRole)} />}
-            <div className="flex items-center gap-2 ml-auto">
-              {u.teamMember && <Badge label="team member" colorClass="text-blue-700 bg-blue-100" />}
-              {u.seenOnWorkItems && <Badge label="on work items" colorClass="text-slate-600 bg-slate-100" />}
-              <select
-                value={u.qualityRole ?? ''}
-                disabled={setRole.isPending}
-                onChange={e => setRole.mutate({ userId: u.id, role: e.target.value || null })}
-                title="Flag this person's quality role"
-                className="text-xs border border-slate-200 rounded px-1.5 py-1 bg-white focus:outline-none focus:ring-1 focus:ring-blue-500">
-                <option value="">— role —</option>
-                {QUALITY_ROLES.map(r => <option key={r} value={r}>{r}</option>)}
-              </select>
+        {users.map((u: AdoUser) => (
+          <div key={u.id} className="px-5 py-2.5 flex items-center gap-3">
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium text-slate-800 truncate">{u.displayName ?? u.uniqueName}</p>
+              {u.email && <p className="text-xs text-slate-400 truncate">{u.email}</p>}
+            </div>
+            <div className="flex items-center gap-2 shrink-0">
+              {u.teamMember && <span className="text-xs bg-blue-50 text-blue-700 rounded px-1.5 py-0.5">Team member</span>}
+              <div className="flex gap-1">
+                {QUALITY_ROLES.map(role => (
+                  <button key={role}
+                    onClick={() => setRole.mutate({ userId: u.id, role: u.qualityRole === role ? null : role })}
+                    className={cn('text-xs rounded px-1.5 py-0.5 transition-colors',
+                      u.qualityRole === role
+                        ? qualityColor(role)
+                        : 'text-slate-400 bg-slate-50 hover:bg-slate-100')}>
+                    {role}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         ))}
-        {filtered.length === 0 && <Empty text="No matching people." />}
       </div>
     </div>
   )
 }
 
 function Empty({ text }: { text: string }) {
-  return <p className="px-5 py-12 text-sm text-slate-500 text-center">{text}</p>
+  return <p className="px-5 py-8 text-sm text-slate-400 text-center">{text}</p>
 }

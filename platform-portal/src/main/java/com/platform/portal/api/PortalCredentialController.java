@@ -61,4 +61,56 @@ public class PortalCredentialController {
                 .retrieve()
                 .body(Object.class);
     }
+
+    /** GitHub: list repos the credential's PAT can access (each flagged if managed). */
+    @GetMapping("/{id}/github/repos")
+    public Object githubRepos(@PathVariable String id) {
+        return ingestionClient.get()
+                .uri("/api/v1/credentials/" + id + "/github/repos")
+                .accept(MediaType.APPLICATION_JSON)
+                .retrieve()
+                .body(Object.class);
+    }
+
+    /** GitHub: set which discovered repos the platform manages. */
+    @PutMapping("/{id}/github/repos")
+    public Object setGithubRepos(@PathVariable String id, @RequestBody Object body) {
+        return ingestionClient.put()
+                .uri("/api/v1/credentials/" + id + "/github/repos")
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON)
+                .body(body)
+                .retrieve()
+                .body(Object.class);
+    }
+
+    /** GitHub: sync all accessible repos into the local cache (calls GitHub API). */
+    @PostMapping("/{id}/github/repos/sync")
+    public Object syncGithubRepos(@PathVariable String id) {
+        return ingestionClient.post()
+                .uri("/api/v1/credentials/" + id + "/github/repos/sync")
+                .accept(MediaType.APPLICATION_JSON)
+                .retrieve()
+                .body(Object.class);
+    }
+
+    /** GitHub: return cached repos (no GitHub API call). */
+    @GetMapping("/{id}/github/repos/cached")
+    public Object cachedGithubRepos(@PathVariable String id) {
+        return ingestionClient.get()
+                .uri("/api/v1/credentials/" + id + "/github/repos/cached")
+                .accept(MediaType.APPLICATION_JSON)
+                .retrieve()
+                .body(Object.class);
+    }
+
+    /** Update the auto-sync interval for a GitHub credential. */
+    @PatchMapping("/{id}/sync-interval")
+    public Object updateSyncInterval(@PathVariable String id, @RequestParam int minutes) {
+        return ingestionClient.patch()
+                .uri("/api/v1/credentials/" + id + "/sync-interval?minutes=" + minutes)
+                .accept(MediaType.APPLICATION_JSON)
+                .retrieve()
+                .body(Object.class);
+    }
 }

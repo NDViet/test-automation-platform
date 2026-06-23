@@ -1,5 +1,8 @@
 package com.platform.agent.hub.webhook;
 
+import jakarta.annotation.PostConstruct;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -15,8 +18,19 @@ import java.util.HexFormat;
 @Component
 public class HmacVerifier {
 
+    private static final Logger log = LoggerFactory.getLogger(HmacVerifier.class);
+
     @Value("${platform.agent.github.webhook-secret:}")
     private String webhookSecret;
+
+    @PostConstruct
+    void warnIfUnsecured() {
+        if (webhookSecret == null || webhookSecret.isBlank()) {
+            log.warn("[Security] platform.agent.github.webhook-secret is not set — " +
+                     "GitHub webhook signature verification is DISABLED. " +
+                     "Set this property in production to prevent unauthenticated webhook delivery.");
+        }
+    }
 
     /**
      * Returns true if the signature header matches the expected "sha256=<hex>" of the payload,

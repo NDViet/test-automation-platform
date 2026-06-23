@@ -27,6 +27,15 @@ public class Organization {
     @Column(name = "slug", nullable = false, unique = true, length = 50)
     private String slug;
 
+    @Column(name = "display_name", length = 100)
+    private String displayName;
+
+    @Column(name = "logo_key", length = 255)
+    private String logoKey;
+
+    @Column(name = "logo_content_type", length = 100)
+    private String logoContentType;
+
     @CreatedDate
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
@@ -38,12 +47,18 @@ public class Organization {
         this.slug = slug;
     }
 
-    public UUID getId()        { return id; }
-    public String getName()    { return name; }
-    public String getSlug()    { return slug; }
-    public Instant getCreatedAt() { return createdAt; }
+    public UUID getId()           { return id; }
+    public String getName()       { return name; }
+    public String getSlug()       { return slug; }
+    public String getDisplayName(){ return displayName; }
+    public String getLogoKey()         { return logoKey; }
+    public String getLogoContentType() { return logoContentType; }
+    public Instant getCreatedAt()      { return createdAt; }
 
-    public void setName(String name) { this.name = name; }
+    public void setName(String name)                       { this.name = name; }
+    public void setDisplayName(String displayName)         { this.displayName = displayName; }
+    public void setLogoKey(String logoKey)                 { this.logoKey = logoKey; }
+    public void setLogoContentType(String logoContentType) { this.logoContentType = logoContentType; }
 
     @Override public boolean equals(Object o) {
         if (this == o) return true;

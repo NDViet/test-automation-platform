@@ -73,6 +73,27 @@ public class PortalTestCaseController {
         return ResponseEntity.noContent().build();
     }
 
+    @GetMapping("/test-suites/{suiteId}/cases")
+    @Operation(summary = "Resolved cases for a suite (static members or smart filter)")
+    public Object suiteCases(@PathVariable String projectId, @PathVariable String suiteId) {
+        return ingestionClient.get()
+                .uri("/api/v1/projects/" + projectId + "/test-suites/" + suiteId + "/cases")
+                .accept(MediaType.APPLICATION_JSON)
+                .retrieve().body(Object.class);
+    }
+
+    @PutMapping("/test-suites/{suiteId}/members")
+    @Operation(summary = "Replace the static membership of a suite")
+    public Object replaceSuiteMembers(@PathVariable String projectId, @PathVariable String suiteId,
+                                      @RequestBody Object body) {
+        ingestionClient.put()
+                .uri("/api/v1/projects/" + projectId + "/test-suites/" + suiteId + "/members")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(body)
+                .retrieve().toBodilessEntity();
+        return java.util.Map.of("status", "ok");
+    }
+
     // ── Test Cases ─────────────────────────────────────────────────────────────
 
     @GetMapping("/test-cases")
@@ -80,16 +101,51 @@ public class PortalTestCaseController {
     public Object listTestCases(@PathVariable String projectId,
                                 @RequestParam(required = false) String status,
                                 @RequestParam(required = false) String suiteId,
-                                @RequestParam(required = false) String search) {
+                                @RequestParam(required = false) String search,
+                                @RequestParam(required = false) String area,
+                                @RequestParam(required = false) String teamId,
+                                @RequestParam(required = false) String iteration) {
         StringBuilder uri = new StringBuilder("/api/v1/projects/").append(projectId).append("/test-cases");
         String sep = "?";
-        if (status != null)  { uri.append(sep).append("status=").append(status);    sep = "&"; }
-        if (suiteId != null) { uri.append(sep).append("suiteId=").append(suiteId);  sep = "&"; }
-        if (search != null)  { uri.append(sep).append("search=").append(search); }
+        sep = appendParam(uri, sep, "status", status);
+        sep = appendParam(uri, sep, "suiteId", suiteId);
+        sep = appendParam(uri, sep, "search", search);
+        sep = appendParam(uri, sep, "area", area);
+        sep = appendParam(uri, sep, "teamId", teamId);
+        appendParam(uri, sep, "iteration", iteration);
         return ingestionClient.get()
                 .uri(uri.toString())
                 .accept(MediaType.APPLICATION_JSON)
                 .retrieve().body(Object.class);
+    }
+
+    @GetMapping("/test-cases/selectable")
+    @Operation(summary = "Scope-filtered, searchable test cases for run creation")
+    public Object selectableTestCases(@PathVariable String projectId,
+                                      @RequestParam(required = false) String status,
+                                      @RequestParam(required = false) String area,
+                                      @RequestParam(required = false) String iteration,
+                                      @RequestParam(required = false) String teamId,
+                                      @RequestParam(required = false) String q) {
+        StringBuilder uri = new StringBuilder("/api/v1/projects/").append(projectId).append("/test-cases/selectable");
+        String sep = "?";
+        sep = appendParam(uri, sep, "status", status);
+        sep = appendParam(uri, sep, "area", area);
+        sep = appendParam(uri, sep, "iteration", iteration);
+        sep = appendParam(uri, sep, "teamId", teamId);
+        appendParam(uri, sep, "q", q);
+        return ingestionClient.get()
+                .uri(uri.toString())
+                .accept(MediaType.APPLICATION_JSON)
+                .retrieve().body(Object.class);
+    }
+
+    // Append a raw query value; RestClient's URI template handling encodes it once.
+    // (Pre-encoding here would double-encode, e.g. backslash %5C -> %255C.)
+    private static String appendParam(StringBuilder uri, String sep, String key, String value) {
+        if (value == null || value.isBlank()) return sep;
+        uri.append(sep).append(key).append('=').append(value);
+        return "&";
     }
 
     @PostMapping("/test-cases")
@@ -148,6 +204,27 @@ public class PortalTestCaseController {
                 .accept(MediaType.APPLICATION_JSON)
                 .body(body)
                 .retrieve().body(Object.class);
+    }
+
+    @GetMapping("/test-cases/{tcId}/suites")
+    @Operation(summary = "STATIC suite ids this case belongs to")
+    public Object caseSuites(@PathVariable String projectId, @PathVariable String tcId) {
+        return ingestionClient.get()
+                .uri("/api/v1/projects/" + projectId + "/test-cases/" + tcId + "/suites")
+                .accept(MediaType.APPLICATION_JSON)
+                .retrieve().body(Object.class);
+    }
+
+    @PutMapping("/test-cases/{tcId}/suites")
+    @Operation(summary = "Replace the case's suite memberships (a case may belong to many)")
+    public ResponseEntity<Void> setCaseSuites(@PathVariable String projectId, @PathVariable String tcId,
+                                              @RequestBody Object body) {
+        ingestionClient.put()
+                .uri("/api/v1/projects/" + projectId + "/test-cases/" + tcId + "/suites")
+                .contentType(MediaType.APPLICATION_JSON)
+                .body(body)
+                .retrieve().toBodilessEntity();
+        return ResponseEntity.noContent().build();
     }
 
     @PostMapping("/test-cases/{tcId}/submit-review")
@@ -374,10 +451,18 @@ public class PortalTestCaseController {
     // ── Requirements Coverage ────────────────────────────────────────────────────
 
     @GetMapping("/coverage")
-    @Operation(summary = "Requirements coverage matrix for a project")
-    public Object coverage(@PathVariable String projectId) {
+    @Operation(summary = "Requirements coverage matrix for a project (scoped by area/team/iteration)")
+    public Object coverage(@PathVariable String projectId,
+                           @RequestParam(required = false) String area,
+                           @RequestParam(required = false) String team,
+                           @RequestParam(required = false) String iteration) {
+        StringBuilder uri = new StringBuilder("/api/v1/projects/").append(projectId).append("/coverage");
+        String sep = "?";
+        sep = appendParam(uri, sep, "area", area);
+        sep = appendParam(uri, sep, "team", team);
+        appendParam(uri, sep, "iteration", iteration);
         return ingestionClient.get()
-                .uri("/api/v1/projects/" + projectId + "/coverage")
+                .uri(uri.toString())
                 .accept(MediaType.APPLICATION_JSON)
                 .retrieve().body(Object.class);
     }
@@ -434,6 +519,104 @@ public class PortalTestCaseController {
                 .contentType(MediaType.APPLICATION_JSON)
                 .accept(MediaType.APPLICATION_JSON)
                 .body(body)
+                .retrieve().body(Object.class);
+    }
+
+    // ── Releases ─────────────────────────────────────────────────────────────────
+
+    @GetMapping("/releases")
+    @Operation(summary = "List releases for a project")
+    public Object listReleases(@PathVariable String projectId) {
+        return ingestionClient.get()
+                .uri("/api/v1/projects/" + projectId + "/releases")
+                .accept(MediaType.APPLICATION_JSON)
+                .retrieve().body(Object.class);
+    }
+
+    @PostMapping("/releases")
+    @Operation(summary = "Create a release")
+    public Object createRelease(@PathVariable String projectId, @RequestBody Object body) {
+        return ingestionClient.post()
+                .uri("/api/v1/projects/" + projectId + "/releases")
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON)
+                .body(body)
+                .retrieve().body(Object.class);
+    }
+
+    @PutMapping("/releases/{id}")
+    @Operation(summary = "Update a release")
+    public Object updateRelease(@PathVariable String projectId, @PathVariable String id,
+                                @RequestBody Object body) {
+        return ingestionClient.put()
+                .uri("/api/v1/projects/" + projectId + "/releases/" + id)
+                .contentType(MediaType.APPLICATION_JSON)
+                .accept(MediaType.APPLICATION_JSON)
+                .body(body)
+                .retrieve().body(Object.class);
+    }
+
+    @DeleteMapping("/releases/{id}")
+    @Operation(summary = "Delete a release")
+    public ResponseEntity<Void> deleteRelease(@PathVariable String projectId, @PathVariable String id) {
+        ingestionClient.delete()
+                .uri("/api/v1/projects/" + projectId + "/releases/" + id)
+                .retrieve().toBodilessEntity();
+        return ResponseEntity.noContent().build();
+    }
+
+    // ── Test Execution monitor (rollups by Release / Sprint / Area / Team) ────────
+
+    @GetMapping("/test-execution-board")
+    @Operation(summary = "Release board: releases grouped by team with pass-rate + coverage")
+    public Object testExecutionBoard(@PathVariable String projectId,
+                                     @RequestParam(required = false) String iteration,
+                                     @RequestParam(required = false) String area,
+                                     @RequestParam(required = false) String team) {
+        StringBuilder uri = new StringBuilder("/api/v1/projects/").append(projectId)
+                .append("/test-execution/release-board");
+        String sep = "?";
+        sep = appendParam(uri, sep, "iteration", iteration);
+        sep = appendParam(uri, sep, "area", area);
+        appendParam(uri, sep, "team", team);
+        return ingestionClient.get()
+                .uri(uri.toString())
+                .accept(MediaType.APPLICATION_JSON)
+                .retrieve().body(Object.class);
+    }
+
+    @GetMapping("/test-execution/{dimension}")
+    @Operation(summary = "Test execution rollup by dimension: by-release|by-sprint|by-area|by-team")
+    public Object testExecutionByDimension(@PathVariable String projectId,
+                                           @PathVariable String dimension,
+                                           @RequestParam(required = false) String area,
+                                           @RequestParam(required = false) String team,
+                                           @RequestParam(required = false) String iteration) {
+        StringBuilder uri = new StringBuilder("/api/v1/projects/").append(projectId)
+                .append("/test-execution/").append(dimension);
+        String sep = "?";
+        sep = appendParam(uri, sep, "area", area);
+        sep = appendParam(uri, sep, "team", team);
+        appendParam(uri, sep, "iteration", iteration);
+        return ingestionClient.get()
+                .uri(uri.toString())
+                .accept(MediaType.APPLICATION_JSON)
+                .retrieve().body(Object.class);
+    }
+
+    @GetMapping("/test-execution-runs")
+    @Operation(summary = "Drill-down: test runs for one dimension group")
+    public Object testExecutionRuns(@PathVariable String projectId,
+                                    @RequestParam String dimension,
+                                    @RequestParam(required = false) String value) {
+        StringBuilder uri = new StringBuilder("/api/v1/projects/" + projectId
+                + "/test-execution/runs?dimension=" + dimension);
+        if (value != null && !value.isBlank()) {
+            uri.append("&value=").append(value);   // raw; RestClient encodes the URI once
+        }
+        return ingestionClient.get()
+                .uri(uri.toString())
+                .accept(MediaType.APPLICATION_JSON)
                 .retrieve().body(Object.class);
     }
 }

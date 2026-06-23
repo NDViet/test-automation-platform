@@ -5,8 +5,8 @@ import { relativeTime } from '@/lib/utils'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import ErrorMessage from '@/components/ErrorMessage'
 import { OrganizationSelect, ProjectSelect, TeamSelect } from '@/components/ScopeSelectors'
-import { Plus, Trash2, Plug, CheckCircle2, XCircle, ShieldCheck } from 'lucide-react'
-import type { Credential, CredentialScope, SaveCredentialForm } from '@/lib/types'
+import { Plus, Trash2, Plug, CheckCircle2, XCircle, ShieldCheck, X, Loader2 } from 'lucide-react'
+import type { Credential, CredentialScope, SaveCredentialForm, GithubRepo } from '@/lib/types'
 
 type FieldSpec = { key: string; label: string; placeholder?: string }
 type TypeSpec = { params: FieldSpec[]; secrets: FieldSpec[]; baseUrl?: string }
@@ -26,16 +26,15 @@ const TYPE_SPECS: Record<string, TypeSpec> = {
               { key: 'area_path', label: 'Area path (optional)', placeholder: 'Checkout\\Payments' }],
     secrets: [{ key: 'pat', label: 'Personal access token' }],
   },
+  // GitHub onboards from a PAT alone — repos are discovered and selected after saving.
   GITHUB_ISSUES: {
     baseUrl: 'https://api.github.com',
-    params:  [{ key: 'owner', label: 'Owner', placeholder: 'acme' },
-              { key: 'repo', label: 'Repository', placeholder: 'checkout' }],
+    params:  [],
     secrets: [{ key: 'pat', label: 'Personal access token' }],
   },
   GITHUB: {
     baseUrl: 'https://api.github.com',
-    params:  [{ key: 'owner', label: 'Owner', placeholder: 'acme' },
-              { key: 'repo', label: 'Repository', placeholder: 'checkout' }],
+    params:  [],
     secrets: [{ key: 'pat', label: 'Personal access token' }],
   },
   AZURE_DEVOPS_REPOS: {
@@ -63,6 +62,7 @@ export default function AdminIntegrationsPage() {
   const [showForm, setShowForm] = useState(false)
   const [form, setForm] = useState<SaveCredentialForm>(emptyForm())
   const [testResult, setTestResult] = useState<Record<string, { ok: boolean; message: string }>>({})
+  const [repoCred, setRepoCred] = useState<Credential | null>(null)
 
   // ADO-first: every scope is keyed by an id — ORG=organization, PROJECT=project, TEAM=sub-team.
   const effectiveScopeId = scope === 'ORG' ? orgId : scope === 'PROJECT' ? projectId : teamId
@@ -236,6 +236,12 @@ export default function AdminIntegrationsPage() {
                   )}
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
+                  {(c.integrationType === 'GITHUB' || c.integrationType === 'GITHUB_ISSUES') && (
+                    <button onClick={() => setRepoCred(c)}
+                      className="px-3 py-1.5 text-xs font-medium border border-slate-200 rounded-lg hover:bg-slate-50">
+                      Repositories
+                    </button>
+                  )}
                   <button onClick={() => void testMutation.mutate(c.id)}
                     disabled={testMutation.isPending}
                     className="px-3 py-1.5 text-xs font-medium border border-slate-200 rounded-lg hover:bg-slate-50">
@@ -251,6 +257,77 @@ export default function AdminIntegrationsPage() {
           })}
         </div>
       )}
+
+      {repoCred && <RepoSelectModal credential={repoCred} onClose={() => setRepoCred(null)} />}
+    </div>
+  )
+}
+
+// ── GitHub: discover accessible repos from the PAT and pick which to manage ──────────
+function RepoSelectModal({ credential, onClose }: { credential: Credential; onClose: () => void }) {
+  const qc = useQueryClient()
+  const [search, setSearch] = useState('')
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [seeded, setSeeded] = useState(false)
+
+  const { data: repos = [], isLoading, error } = useQuery({
+    queryKey: ['githubRepos', credential.id],
+    queryFn: () => api.githubRepos(credential.id),
+    select: (data: GithubRepo[]) => {
+      if (!seeded) { setSelected(new Set(data.filter(r => r.managed).map(r => r.fullName))); setSeeded(true) }
+      return data
+    },
+  })
+
+  const save = useMutation({
+    mutationFn: () => api.setGithubRepos(credential.id, repos.filter(r => selected.has(r.fullName))),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ['githubRepos', credential.id] }); onClose() },
+  })
+
+  const toggle = (full: string) => setSelected(p => { const n = new Set(p); n.has(full) ? n.delete(full) : n.add(full); return n })
+  const shown = repos.filter(r => !search.trim() || r.fullName.toLowerCase().includes(search.toLowerCase()))
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+      <div className="bg-white rounded-xl shadow-xl w-full max-w-xl mx-4 max-h-[90vh] flex flex-col">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200">
+          <div>
+            <h2 className="font-semibold text-slate-900">Manage repositories</h2>
+            <p className="text-xs text-slate-500 mt-0.5">{credential.displayName} · {selected.size} selected</p>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
+        </div>
+        <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
+          {error && <ErrorMessage message="Failed to list repositories — check the PAT and its scopes." />}
+          <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Filter repositories…"
+            className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
+          {isLoading && <div className="py-8 text-center text-sm text-slate-400 flex items-center justify-center gap-2"><Loader2 size={14} className="animate-spin" /> Discovering repositories via the PAT…</div>}
+          {!isLoading && !error && shown.length === 0 && <div className="py-8 text-center text-sm text-slate-500">No repositories.</div>}
+          {shown.length > 0 && (
+            <div className="border border-slate-200 rounded-lg max-h-80 overflow-y-auto divide-y divide-slate-50">
+              {shown.map(r => (
+                <label key={r.fullName} className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-slate-50">
+                  <input type="checkbox" checked={selected.has(r.fullName)} onChange={() => toggle(r.fullName)}
+                    className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 shrink-0" />
+                  <span className="text-sm text-slate-800 flex-1 truncate">{r.fullName}</span>
+                  {r.isPrivate && <span className="text-[10px] uppercase text-slate-400 shrink-0">private</span>}
+                  {r.defaultBranch && <span className="text-[10px] text-slate-400 shrink-0">{r.defaultBranch}</span>}
+                </label>
+              ))}
+            </div>
+          )}
+        </div>
+        <div className="px-5 py-4 border-t border-slate-200 flex justify-between items-center">
+          <span className="text-xs text-slate-400">{repos.length} accessible · {selected.size} managed</span>
+          <div className="flex gap-2">
+            <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50">Cancel</button>
+            <button onClick={() => save.mutate()} disabled={save.isPending || isLoading}
+              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2">
+              {save.isPending && <Loader2 size={14} className="animate-spin" />}Save selection
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
   )
 }

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react'
-import { useNavigate, Link } from 'react-router-dom'
+import { useNavigate, useParams, Link } from 'react-router-dom'
 import { useProject } from '@/components/layout/ProjectLayout'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
@@ -8,14 +8,23 @@ import LoadingSpinner from '@/components/LoadingSpinner'
 import ErrorMessage from '@/components/ErrorMessage'
 import Badge from '@/components/Badge'
 import {
-  Save, Trash2, Plus, X, ChevronLeft, AlertTriangle,
+  Save, Trash2, Plus, X, AlertTriangle,
   CheckCircle, Pencil, RefreshCw, Building2, Lock,
 } from 'lucide-react'
 import CreateTeamModal from '@/components/CreateTeamModal'
 import MappingRulesEditor from '@/components/MappingRulesEditor'
 import type { SaveIntegrationConfigForm, IntegrationConfig, RepoType, InheritedCredential } from '@/lib/types'
 
-type Tab = 'general' | 'teams' | 'integrations' | 'mapping' | 'ai'
+type Tab = 'general' | 'teams' | 'integrations' | 'mapping' | 'ai' | 'github'
+
+const TAB_LABELS: Record<Tab, string> = {
+  general:      'General',
+  teams:        'Teams',
+  integrations: 'Integrations',
+  mapping:      'Mapping',
+  ai:           'AI',
+  github:       'GitHub',
+}
 
 const INTEGRATION_TYPES  = ['JIRA_CLOUD', 'JIRA_SERVER', 'AZURE_DEVOPS_BOARDS', 'GITHUB_ISSUES', 'LINEAR', 'GITHUB']
 const SYNC_DIRECTIONS    = ['INBOUND', 'OUTBOUND', 'BIDIRECTIONAL']
@@ -387,10 +396,13 @@ interface SyncResult {
 // ── Main page ──────────────────────────────────────────────────────────────────
 
 export default function ProjectSettingsPage() {
-  const { projectId, base } = useProject()
+  const { projectId } = useProject()
   const navigate = useNavigate()
   const qc = useQueryClient()
-  const [tab, setTab] = useState<Tab>('general')
+  const { section } = useParams<{ section: string }>()
+  const tab: Tab = (Object.keys(TAB_LABELS) as Tab[]).includes(section as Tab)
+    ? (section as Tab)
+    : 'general'
 
   // ── General tab ──────────────────────────────────────────────────────────────
   const { data: detail, isLoading, error } = useQuery({
@@ -400,21 +412,21 @@ export default function ProjectSettingsPage() {
   })
   const project = detail?.project
 
-  const [editName,    setEditName]    = useState('')
-  const [editRepoUrl, setEditRepoUrl] = useState('')
-  const [saveSuccess, setSaveSuccess] = useState(false)
+  const [editName,        setEditName]        = useState('')
+  const [editDescription, setEditDescription] = useState('')
+  const [saveSuccess,     setSaveSuccess]     = useState(false)
 
   useEffect(() => {
     if (project) {
       setEditName(project.name)
-      setEditRepoUrl((project as unknown as { repoUrl?: string }).repoUrl ?? '')
+      setEditDescription((project as unknown as { description?: string }).description ?? '')
     }
   }, [project])
 
   const saveMutation = useMutation({
     mutationFn: () => api.updateProject(projectId!, {
-      name:    editName   || undefined,
-      repoUrl: editRepoUrl || undefined,
+      name:        editName        || undefined,
+      description: editDescription || undefined,
     }),
     onSuccess: () => {
       setSaveSuccess(true)
@@ -482,34 +494,10 @@ export default function ProjectSettingsPage() {
 
   return (
     <div className="space-y-6 max-w-2xl">
-      {/* Breadcrumb */}
+      {/* Header */}
       <div>
-        <Link
-          to={base}
-          className="inline-flex items-center gap-1 text-sm text-slate-500 hover:text-blue-600 mb-2"
-        >
-          <ChevronLeft size={14} />
-          Back to {project.name}
-        </Link>
-        <h1 className="text-2xl font-bold text-slate-900">Project Settings</h1>
-        <p className="text-sm text-slate-500 mt-1">{project.slug}</p>
-      </div>
-
-      {/* Tabs */}
-      <div className="flex gap-1 border-b border-slate-200">
-        {(['general', 'teams', 'integrations', 'mapping', 'ai'] as Tab[]).map(t => (
-          <button
-            key={t}
-            onClick={() => setTab(t)}
-            className={`px-4 py-2 text-sm font-medium capitalize border-b-2 -mb-px transition-colors ${
-              tab === t
-                ? 'border-blue-600 text-blue-600'
-                : 'border-transparent text-slate-500 hover:text-slate-700'
-            }`}
-          >
-            {t}
-          </button>
-        ))}
+        <h1 className="text-2xl font-bold text-slate-900">{TAB_LABELS[tab]}</h1>
+        <p className="text-sm text-slate-500 mt-1">{project.name} · {project.slug}</p>
       </div>
 
       {/* ── General ── */}
@@ -527,13 +515,13 @@ export default function ProjectSettingsPage() {
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Repository URL</label>
-                <input
-                  type="text"
-                  value={editRepoUrl}
-                  onChange={e => setEditRepoUrl(e.target.value)}
-                  placeholder="https://github.com/org/repo"
-                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                <label className="block text-sm font-medium text-slate-700 mb-1">Description</label>
+                <textarea
+                  value={editDescription}
+                  onChange={e => setEditDescription(e.target.value)}
+                  placeholder="Brief description of this project…"
+                  rows={3}
+                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
                 />
               </div>
             </div>
@@ -791,6 +779,11 @@ export default function ProjectSettingsPage() {
 
       {/* ── AI ── */}
       {tab === 'ai' && project && <ProjectAiSettings projectId={project.id} />}
+
+      {/* ── GitHub ── */}
+      {tab === 'github' && project && (
+        <GitHubReposTab projectId={project.id} orgId={project.orgId} />
+      )}
     </div>
   )
 }
@@ -900,6 +893,298 @@ function ProjectAiSettings({ projectId }: { projectId: string }) {
 }
 
 const aiInputCls = 'text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-[10rem]'
+
+// ── GitHub repo assignments ────────────────────────────────────────────────────
+
+const REPO_ROLES: { value: string; label: string; activeClass: string }[] = [
+  { value: 'GENERAL',         label: 'General',   activeClass: 'bg-slate-700 text-white border-slate-700' },
+  { value: 'CODEBASE',        label: 'Codebase',  activeClass: 'bg-amber-600 text-white border-amber-600' },
+  { value: 'TEST_AUTOMATION', label: 'Test Auto', activeClass: 'bg-purple-600 text-white border-purple-600' },
+]
+
+function GitHubReposTab({ projectId, orgId }: { projectId: string; orgId: string }) {
+  const qc = useQueryClient()
+  const [search, setSearch] = useState('')
+  const [assignments, setAssignments] = useState<Map<string, string>>(new Map())
+  const [dirty, setDirty] = useState(false)
+  const [saveOk, setSaveOk] = useState(false)
+
+  // Sync interval local state
+  const [syncInterval, setSyncInterval] = useState<number | null>(null)
+  const [syncIntervalSaved, setSyncIntervalSaved] = useState(false)
+
+  // Find org-level GitHub credential
+  const { data: allCreds = [] } = useQuery({
+    queryKey: ['credentials', 'ORG', orgId],
+    queryFn: () => api.credentials('ORG', orgId),
+  })
+  const githubCred = allCreds.find(c => c.integrationType === 'GITHUB')
+
+  // Initialize sync interval from credential
+  useEffect(() => {
+    if (githubCred && syncInterval === null) {
+      setSyncInterval(githubCred.syncIntervalMinutes ?? 0)
+    }
+  }, [githubCred, syncInterval])
+
+  // Cached repos for that credential
+  const { data: cacheData, isLoading: cacheLoading } = useQuery({
+    queryKey: ['github-repo-cache', githubCred?.id],
+    queryFn: () => api.cachedGitHubRepos(githubCred!.id),
+    enabled: !!githubCred,
+  })
+
+  // Existing project assignments
+  const { data: existingAssignments = [] } = useQuery({
+    queryKey: ['project-github-repos', projectId],
+    queryFn: () => api.projectGitHubRepos(projectId),
+  })
+
+  // Initialize local state from loaded assignments (only when not dirty)
+  useEffect(() => {
+    if (!dirty) {
+      const m = new Map<string, string>()
+      existingAssignments.forEach(a => m.set(a.repoFullName, a.role))
+      setAssignments(m)
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [existingAssignments])
+
+  const syncMutation = useMutation({
+    mutationFn: () => api.syncGitHubRepos(githubCred!.id),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['github-repo-cache', githubCred?.id] })
+    },
+  })
+
+  const syncIntervalMutation = useMutation({
+    mutationFn: () => api.updateSyncInterval(githubCred!.id, syncInterval ?? 0),
+    onSuccess: () => {
+      setSyncIntervalSaved(true)
+      void qc.invalidateQueries({ queryKey: ['credentials', 'ORG', orgId] })
+      setTimeout(() => setSyncIntervalSaved(false), 3000)
+    },
+  })
+
+  const saveMutation = useMutation({
+    mutationFn: () => {
+      const toSave = Array.from(assignments.entries()).map(([repoFullName, role]) => ({
+        repoFullName,
+        role,
+        credentialId: githubCred!.id,
+      }))
+      return api.setProjectGitHubRepos(projectId, toSave)
+    },
+    onSuccess: () => {
+      setSaveOk(true)
+      setDirty(false)
+      void qc.invalidateQueries({ queryKey: ['project-github-repos', projectId] })
+      setTimeout(() => setSaveOk(false), 3000)
+    },
+  })
+
+  function toggleRepo(fullName: string, checked: boolean) {
+    setAssignments(prev => {
+      const m = new Map(prev)
+      if (checked) m.set(fullName, 'GENERAL')
+      else m.delete(fullName)
+      return m
+    })
+    setDirty(true)
+    setSaveOk(false)
+  }
+
+  function setRole(fullName: string, role: string) {
+    setAssignments(prev => new Map(prev).set(fullName, role))
+    setDirty(true)
+    setSaveOk(false)
+  }
+
+  const visibleRepos = (cacheData?.repos ?? []).filter(r =>
+    !search || r.fullName.toLowerCase().includes(search.toLowerCase())
+  )
+
+  if (!allCreds.length && !githubCred) {
+    return <LoadingSpinner message="Loading credentials…" />
+  }
+
+  if (!githubCred) {
+    return (
+      <div className="bg-amber-50 border border-amber-200 rounded-xl px-5 py-8 text-center space-y-2">
+        <p className="text-sm font-medium text-amber-900">No GitHub integration configured at org level</p>
+        <p className="text-xs text-amber-700">
+          Go to{' '}
+          <Link to="/settings/integrations" className="underline hover:text-amber-900">
+            Admin → Integrations
+          </Link>{' '}
+          and add a GitHub credential with a Personal Access Token.
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Sync status + interval */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm divide-y divide-slate-100">
+        <div className="px-5 py-4 flex items-center justify-between gap-4">
+          <div>
+            <p className="text-sm font-medium text-slate-900">GitHub Repo Cache</p>
+            <p className="text-xs text-slate-500 mt-0.5">
+              {cacheData?.syncedAt
+                ? `${cacheData.totalCount} repos cached · last synced ${relativeTime(cacheData.syncedAt)}`
+                : 'Cache is empty — click Sync to fetch repos from GitHub.'}
+            </p>
+            {syncMutation.isError && (
+              <p className="text-xs text-red-600 mt-1">Sync failed — check your PAT scopes.</p>
+            )}
+          </div>
+          <button
+            onClick={() => void syncMutation.mutate()}
+            disabled={syncMutation.isPending}
+            className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-slate-700 border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-50 transition-colors whitespace-nowrap"
+          >
+            <RefreshCw size={13} className={syncMutation.isPending ? 'animate-spin' : ''} />
+            {syncMutation.isPending ? 'Syncing…' : 'Sync from GitHub'}
+          </button>
+        </div>
+
+        {/* Auto-sync interval */}
+        <div className="px-5 py-4 flex items-center gap-4">
+          <div className="flex-1">
+            <p className="text-sm font-medium text-slate-900">Auto-sync interval</p>
+            <p className="text-xs text-slate-500 mt-0.5">
+              Set to 0 to disable auto-sync. Applies to the org GitHub credential.
+            </p>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <input
+              type="number"
+              min={0}
+              max={1440}
+              value={syncInterval ?? 0}
+              onChange={e => setSyncInterval(Math.max(0, parseInt(e.target.value) || 0))}
+              className="w-20 text-sm border border-slate-200 rounded-lg px-3 py-1.5 text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
+            />
+            <span className="text-xs text-slate-500">min</span>
+            <button
+              onClick={() => void syncIntervalMutation.mutate()}
+              disabled={syncIntervalMutation.isPending || syncInterval === (githubCred?.syncIntervalMinutes ?? 0)}
+              className="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+            >
+              {syncIntervalMutation.isPending ? 'Saving…' : 'Save'}
+            </button>
+            {syncIntervalSaved && (
+              <CheckCircle size={14} className="text-green-500 shrink-0" />
+            )}
+          </div>
+        </div>
+      </div>
+
+      {/* Repo picker */}
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-3">
+          <input
+            type="search"
+            placeholder="Search repos…"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="flex-1 text-sm border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+          <span className="text-xs text-slate-400 whitespace-nowrap shrink-0">
+            {assignments.size} assigned
+          </span>
+        </div>
+
+        {cacheLoading ? (
+          <div className="py-8"><LoadingSpinner message="Loading cache…" /></div>
+        ) : visibleRepos.length === 0 ? (
+          <p className="px-5 py-8 text-sm text-slate-500 text-center">
+            {!cacheData?.totalCount
+              ? 'No repos in cache — click Sync to fetch from GitHub.'
+              : 'No repos match the search.'}
+          </p>
+        ) : (
+          <div className="max-h-[480px] overflow-y-auto divide-y divide-slate-50">
+            {visibleRepos.map(repo => {
+              const assigned = assignments.has(repo.fullName)
+              const role = assignments.get(repo.fullName) ?? 'GENERAL'
+              return (
+                <div
+                  key={repo.fullName}
+                  className={`px-4 py-3 flex items-center gap-3 ${assigned ? 'bg-blue-50/40' : 'hover:bg-slate-50'}`}
+                >
+                  <input
+                    type="checkbox"
+                    checked={assigned}
+                    onChange={e => toggleRepo(repo.fullName, e.target.checked)}
+                    className="rounded border-slate-300 accent-blue-600 shrink-0"
+                  />
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-sm font-mono text-slate-900 truncate">{repo.fullName}</span>
+                      {repo.isPrivate && (
+                        <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200 shrink-0">
+                          private
+                        </span>
+                      )}
+                      {repo.defaultBranch && (
+                        <span className="text-[10px] text-slate-400 font-mono shrink-0">{repo.defaultBranch}</span>
+                      )}
+                    </div>
+                  </div>
+                  {assigned && (
+                    <div className="flex gap-1 shrink-0">
+                      {REPO_ROLES.map(r => (
+                        <button
+                          key={r.value}
+                          type="button"
+                          onClick={() => setRole(repo.fullName, r.value)}
+                          className={`px-2 py-1 text-[11px] font-medium rounded-md border transition-colors ${
+                            role === r.value
+                              ? r.activeClass
+                              : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'
+                          }`}
+                        >
+                          {r.label}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Save footer */}
+      <div className="flex items-center gap-3">
+        <button
+          onClick={() => void saveMutation.mutate()}
+          disabled={!dirty || saveMutation.isPending}
+          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+        >
+          <Save size={14} />
+          {saveMutation.isPending ? 'Saving…' : 'Save Assignments'}
+        </button>
+        {saveOk && (
+          <span className="text-sm text-green-600 flex items-center gap-1">
+            <CheckCircle size={13} /> Saved
+          </span>
+        )}
+        {saveMutation.isError && (
+          <span className="text-sm text-red-600">Failed to save — please try again.</span>
+        )}
+        {!dirty && assignments.size > 0 && (
+          <span className="text-xs text-slate-400">
+            {assignments.size} repo{assignments.size !== 1 ? 's' : ''} assigned
+          </span>
+        )}
+      </div>
+    </div>
+  )
+}
 
 /**
  * Sub-teams within this project (ADO-first: Org → Project → Team). Teams scope

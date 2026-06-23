@@ -10,11 +10,14 @@ import org.springframework.data.repository.query.Param;
 import java.time.Instant;
 import java.util.Collection;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface TestCaseResultRepository extends JpaRepository<TestCaseResult, UUID> {
 
     List<TestCaseResult> findByExecutionId(UUID executionId);
+
+    Optional<TestCaseResult> findFirstByExecution_RunIdAndTestId(String runId, String testId);
 
     @Query("SELECT r FROM TestCaseResult r WHERE r.testId = :testId " +
            "AND r.execution.project.id = :projectId " +
@@ -67,4 +70,17 @@ public interface TestCaseResultRepository extends JpaRepository<TestCaseResult, 
     List<TestCaseResult> findByExecutionIdAndStatusIn(
             @Param("executionId") UUID executionId,
             @Param("statuses") Collection<TestStatus> statuses);
+
+    /** All results for a project since the given instant; execution is join-fetched to avoid N+1. */
+    @Query("SELECT r FROM TestCaseResult r JOIN FETCH r.execution e " +
+           "WHERE e.project.id = :projectId " +
+           "AND r.createdAt >= :since " +
+           "ORDER BY r.createdAt DESC")
+    List<TestCaseResult> findByProjectSince(
+            @Param("projectId") UUID projectId,
+            @Param("since") Instant since);
+
+    /** Per-status counts for one execution — used by finishRun to write accurate aggregates. */
+    @Query("SELECT r.status, COUNT(r) FROM TestCaseResult r WHERE r.execution.id = :executionId GROUP BY r.status")
+    List<Object[]> countGroupByStatusForExecution(@Param("executionId") UUID executionId);
 }

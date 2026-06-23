@@ -25,4 +25,8 @@ public interface IntegrationCredentialRepository extends JpaRepository<Integrati
 
     /** All credentials owned by a team or project (admin/project settings listing). */
     List<IntegrationCredential> findByScopeAndScopeId(String scope, UUID scopeId);
+
+    /** GitHub credentials that have a periodic sync interval configured (for scheduler). */
+    List<IntegrationCredential> findByIntegrationTypeAndSyncIntervalMinutesGreaterThan(
+            String integrationType, int threshold);
 }

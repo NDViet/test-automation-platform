@@ -1,9 +1,13 @@
 package com.platform.ingestion.management.tcm;
 
+import com.platform.core.domain.AdoTeam;
 import com.platform.core.domain.PlatformTestCase;
+import com.platform.core.domain.SotRelease;
 import com.platform.core.domain.TestCaseExecution;
 import com.platform.core.domain.TestRun;
+import com.platform.core.repository.AdoTeamRepository;
 import com.platform.core.repository.PlatformTestCaseRepository;
+import com.platform.core.repository.SotReleaseRepository;
 import com.platform.core.repository.TestCaseExecutionRepository;
 import com.platform.core.repository.TestRunRepository;
 import com.platform.core.service.MatrixType;
@@ -28,15 +32,27 @@ public class TestRunService {
     private final TestCaseExecutionRepository execRepo;
     private final PlatformTestCaseRepository testCaseRepo;
     private final TcmRunService tcmRunService;
+    private final SotReleaseRepository releaseRepo;
+    private final AdoTeamRepository teamRepo;
+    private final SuiteResolverService suiteResolver;
+    private final com.platform.core.repository.TestSuiteRepository suiteRepo;
 
     public TestRunService(TestRunRepository runRepo,
                           TestCaseExecutionRepository execRepo,
                           PlatformTestCaseRepository testCaseRepo,
-                          TcmRunService tcmRunService) {
+                          TcmRunService tcmRunService,
+                          SotReleaseRepository releaseRepo,
+                          AdoTeamRepository teamRepo,
+                          SuiteResolverService suiteResolver,
+                          com.platform.core.repository.TestSuiteRepository suiteRepo) {
         this.runRepo        = runRepo;
         this.execRepo       = execRepo;
         this.testCaseRepo   = testCaseRepo;
         this.tcmRunService  = tcmRunService;
+        this.releaseRepo    = releaseRepo;
+        this.teamRepo       = teamRepo;
+        this.suiteResolver  = suiteResolver;
+        this.suiteRepo      = suiteRepo;
     }
 
     @Transactional(readOnly = true)
@@ -56,14 +72,47 @@ public class TestRunService {
         // Non-empty runs go through TcmRunService: enforces the confirmed gate
         // (APPROVED-only) and expands each case's property matrix (Full/Pairwise)
         // into per-combination executions under the chosen Environment.
-        if (req.testCaseIds() != null && !req.testCaseIds().isEmpty()) {
-            List<UUID> ids = req.testCaseIds().stream().map(UUID::fromString).toList();
+        UUID releaseId = parseUuid(req.releaseId());
+        UUID teamId    = parseUuid(req.teamId());
+        String iterationPath = req.iterationPath();
+        String areaPath      = req.areaPath();
+
+        // When a Release is chosen, the run inherits the release's composite scope for
+        // any dimension the caller left blank (release = iteration ∧ area ∧ team).
+        if (releaseId != null) {
+            SotRelease rel = releaseRepo.findById(releaseId)
+                    .filter(r -> projectId.equals(r.getProjectId()))
+                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.BAD_REQUEST,
+                            "Release not found in project: " + releaseId));
+            if (isBlank(iterationPath)) iterationPath = rel.getMapIterationPath();
+            if (isBlank(areaPath))      areaPath      = rel.getMapAreaPath();
+            if (teamId == null)         teamId        = rel.getMapTeamId();
+        }
+
+        // Resolve any selected suites and union their cases with explicitly-picked ones.
+        List<String> suiteIds = req.suiteIds();
+        if (suiteIds != null && !suiteIds.isEmpty()) {
+            List<UUID> sids = suiteIds.stream().map(UUID::fromString).toList();
+            // A single suite also lends its Area/Team scope when the run left it blank.
+            if (sids.size() == 1) {
+                var suite = suiteRepo.findByProjectIdAndId(projectId, sids.get(0)).orElse(null);
+                if (suite != null) {
+                    if (isBlank(areaPath))      areaPath      = suite.getAreaPath();
+                    if (teamId == null)         teamId        = suite.getTeamId();
+                    if (isBlank(iterationPath)) iterationPath = suite.getFilterIteration();
+                }
+            }
+        }
+        List<UUID> caseIds = effectiveCaseIds(projectId, req.testCaseIds(), suiteIds);
+
+        if (!caseIds.isEmpty()) {
             UUID environmentId = (req.environmentId() != null && !req.environmentId().isBlank())
                     ? UUID.fromString(req.environmentId()) : null;
             MatrixType matrixType = parseMatrix(req.matrixType());
             try {
                 TestRun run = tcmRunService.createRun(projectId, req.name(), req.releaseVersion(),
-                        environmentId, ids, matrixType, req.triggeredBy());
+                        environmentId, caseIds, matrixType, req.triggeredBy(),
+                        releaseId, iterationPath, areaPath, teamId);
                 return toDto(run);
             } catch (IllegalArgumentException e) {
                 throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
@@ -73,9 +122,32 @@ public class TestRunService {
         // Empty run (cases added later).
         TestRun run = new TestRun(projectId, req.name(), req.releaseVersion(),
                 req.environment(), req.triggeredBy());
+        run.setDimensions(releaseId, iterationPath, areaPath, teamId);
         run.setStartedAt(Instant.now());
         run = runRepo.save(run);
         return toDto(run);
+    }
+
+    private static boolean isBlank(String s) { return s == null || s.isBlank(); }
+
+    /** Union of explicitly-selected case ids and all cases resolved from selected suites. */
+    private List<UUID> effectiveCaseIds(UUID projectId, List<String> explicit, List<String> suiteIds) {
+        java.util.LinkedHashSet<UUID> ids = new java.util.LinkedHashSet<>();
+        if (explicit != null) for (String s : explicit) ids.add(UUID.fromString(s));
+        if (suiteIds != null && !suiteIds.isEmpty()) {
+            ids.addAll(suiteResolver.resolveMany(projectId,
+                    suiteIds.stream().map(UUID::fromString).toList()));
+        }
+        return new java.util.ArrayList<>(ids);
+    }
+
+    private UUID parseUuid(String s) {
+        if (s == null || s.isBlank()) return null;
+        try {
+            return UUID.fromString(s.trim());
+        } catch (IllegalArgumentException e) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Invalid id: " + s);
+        }
     }
 
     private MatrixType parseMatrix(String value) {
@@ -152,6 +224,10 @@ public class TestRunService {
         long blocked = executions.stream().filter(e -> "BLOCKED".equals(e.getStatus())).count();
         long skipped = executions.stream().filter(e -> "SKIPPED".equals(e.getStatus())).count();
         long pending = executions.stream().filter(e -> "PENDING".equals(e.getStatus())).count();
-        return TestRunDto.from(run, total, passed, failed, blocked, skipped, pending);
+        String releaseName = run.getReleaseId() == null ? null
+                : releaseRepo.findById(run.getReleaseId()).map(SotRelease::getName).orElse(null);
+        String teamName = run.getTeamId() == null ? null
+                : teamRepo.findById(run.getTeamId()).map(AdoTeam::getName).orElse(null);
+        return TestRunDto.from(run, total, passed, failed, blocked, skipped, pending, releaseName, teamName);
     }
 }

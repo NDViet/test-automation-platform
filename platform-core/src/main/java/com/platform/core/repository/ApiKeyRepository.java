@@ -14,4 +14,6 @@ public interface ApiKeyRepository extends JpaRepository<ApiKey, UUID> {
     List<ApiKey> findByTeamIdAndRevokedFalseOrderByCreatedAtDesc(UUID teamId);
 
     List<ApiKey> findByTeamIdOrderByCreatedAtDesc(UUID teamId);
+
+    List<ApiKey> findByRevokedFalseOrderByCreatedAtDesc();
 }

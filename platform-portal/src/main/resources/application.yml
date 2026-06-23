@@ -4,15 +4,36 @@ spring:
 
 server:
   port: ${SERVER_PORT:8085}
+  ssl:
+    enabled: false  # Set SSL_ENABLED=true env var to enable HTTPS with auto-generated self-signed cert.
+  # Playwright Trace Viewer needs a secure context for service workers:
+  #   Same machine : http://localhost:8085  — works with no setup
+  #   Remote machine: add http://192.168.2.2:8085 to
+  #                   chrome://flags/#unsafely-treat-insecure-origin-as-secure
+  #                   then relaunch Chrome (one-time per browser)
 
 # Backend service URLs (portal BFF calls these)
 portal:
+  cors:
+    # Extra origins allowed to call /api/** (comma-separated).
+    # The Vite dev server origins (localhost:5173, localhost:3000) are always included.
+    # Set via env var at deploy time — no rebuild needed:
+    #   PORTAL_CORS_ALLOWED_ORIGINS=http://192.168.2.10:5173,https://portal.example.com
+    allowed-origins: ${PORTAL_CORS_ALLOWED_ORIGINS:}
+    # Wildcard patterns (comma-separated) — use when host/port vary across dev machines.
+    # Patterns support * (any chars within segment) and ** (any chars across segments).
+    # Example: http://192.168.2.*:5173  matches any LAN IP on Vite's port.
+    #   PORTAL_CORS_ALLOWED_ORIGIN_PATTERNS=http://192.168.2.*:5173
+    allowed-origin-patterns: ${PORTAL_CORS_ALLOWED_ORIGIN_PATTERNS:}
   services:
-    ingestion:  ${INGESTION_URL:http://localhost:8081}
-    analytics:  ${ANALYTICS_URL:http://localhost:8082}
+    ingestion: ${INGESTION_URL:http://localhost:8081}
+    analytics: ${ANALYTICS_URL:http://localhost:8082}
     integration: ${INTEGRATION_URL:http://localhost:8083}
-    ai:         ${AI_URL:http://localhost:8084}
-    agent:      ${AGENT_URL:http://localhost:8086}
+    ai: ${AI_URL:http://localhost:8084}
+    agent: ${AGENT_URL:http://localhost:8086}
+    # Service-account API key sent on every portal → ingestion request (X-API-Key header).
+    # Must match PLATFORM_PORTAL_KEY on the ingestion service.
+    ingestion-service-key: ${PLATFORM_PORTAL_KEY:}
 
 management:
   endpoints:

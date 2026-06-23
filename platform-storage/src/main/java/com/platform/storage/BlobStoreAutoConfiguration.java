@@ -20,12 +20,9 @@ import java.net.URI;
  * Auto-configuration for the platform blob store.
  * Selects the implementation based on platform.storage.type:
  *
- *   minio      → S3CompatibleBlobStore with path-style=true  (MinIO default)
- *   s3         → S3CompatibleBlobStore with path-style=false (AWS virtual-hosted)
- *   filesystem → FilesystemBlobStore (local dev, no external services)
- *
- * All three share the BlobStore interface. The S3Client and S3Presigner beans
- * are only registered for minio and s3 types.
+ *   minio      → S3CompatibleBlobStore (path-style=true, buckets initialised on startup)
+ *   s3         → S3CompatibleBlobStore (path-style=false, buckets initialised on startup)
+ *   filesystem → FilesystemBlobStore   (local dev, no external services required)
  */
 @AutoConfiguration
 @EnableConfigurationProperties(BlobStoreProperties.class)
@@ -40,7 +37,9 @@ public class BlobStoreAutoConfiguration {
             case minio, s3 -> {
                 log.info("blob store: S3-compatible (type={}, endpoint={})",
                         props.getType(), props.getEndpoint() != null ? props.getEndpoint() : "AWS default");
-                yield new S3CompatibleBlobStore(s3Client(props), s3Presigner(props));
+                S3Client client = s3Client(props);
+                new BlobStoreBucketInitializer(client).initBuckets();
+                yield new S3CompatibleBlobStore(client, s3Presigner(props));
             }
             case filesystem -> {
                 log.info("blob store: filesystem (basePath={})", props.getFilesystemBasePath());
@@ -49,25 +48,19 @@ public class BlobStoreAutoConfiguration {
         };
     }
 
-    // S3Client and S3Presigner are package-private so only S3CompatibleBlobStore sees them
-    // (FilesystemBlobStore path doesn't create these beans)
-
     S3Client s3Client(BlobStoreProperties props) {
         var builder = S3Client.builder()
                 .region(Region.of(props.getRegion()))
                 .serviceConfiguration(S3Configuration.builder()
                         .pathStyleAccessEnabled(props.isPathStyle())
                         .build());
-
         if (props.getEndpoint() != null) {
             builder.endpointOverride(URI.create(props.getEndpoint()));
         }
-
         if (props.getAccessKey() != null && props.getSecretKey() != null) {
             builder.credentialsProvider(StaticCredentialsProvider.create(
                     AwsBasicCredentials.create(props.getAccessKey(), props.getSecretKey())));
         }
-
         return builder.build();
     }
 
@@ -77,25 +70,13 @@ public class BlobStoreAutoConfiguration {
                 .serviceConfiguration(S3Configuration.builder()
                         .pathStyleAccessEnabled(props.isPathStyle())
                         .build());
-
         if (props.getEndpoint() != null) {
             builder.endpointOverride(URI.create(props.getEndpoint()));
         }
-
         if (props.getAccessKey() != null && props.getSecretKey() != null) {
             builder.credentialsProvider(StaticCredentialsProvider.create(
                     AwsBasicCredentials.create(props.getAccessKey(), props.getSecretKey())));
         }
-
         return builder.build();
-    }
-
-    // Register S3Client as a bean only when S3-compatible mode is active,
-    // so BlobStoreBucketInitializer can @ConditionalOnBean(S3Client.class) correctly.
-    @Bean
-    @ConditionalOnMissingBean(S3Client.class)
-    public S3Client s3ClientBean(BlobStoreProperties props) {
-        if (props.getType() == BlobStoreProperties.Type.filesystem) return null;
-        return s3Client(props);
     }
 }

@@ -49,6 +49,58 @@ public interface PlatformRequirementRepository extends JpaRepository<PlatformReq
                                          @Param("q") String query,
                                          Pageable pageable);
 
+    /**
+     * Filtered list honoring the project scope (Area exact, Team subtree via {@code areaPrefix},
+     * Iteration exact) plus status/issueType/search. Each filter is optional via "" sentinel.
+     * Native so {@code starts_with} handles backslash area paths without LIKE-escape issues.
+     */
+    @Query(nativeQuery = true, value = """
+            SELECT * FROM platform_requirements r WHERE r.project_id = :pid
+              AND (:status = '' OR r.status = :status)
+              AND (:issueType = '' OR r.issue_type = :issueType)
+              AND (:area = '' OR r.area_path = :area)
+              AND (:areaPrefix = '' OR (r.area_path IS NOT NULL AND starts_with(r.area_path, :areaPrefix)))
+              AND (:iter = '' OR r.iteration_path = :iter)
+              AND (:q = '' OR LOWER(r.title) LIKE LOWER('%'||:q||'%') OR LOWER(r.external_id) LIKE LOWER('%'||:q||'%'))
+            ORDER BY r.updated_at DESC
+            """)
+    List<PlatformRequirement> filterList(@Param("pid") UUID projectId,
+                                         @Param("status") String status,
+                                         @Param("issueType") String issueType,
+                                         @Param("area") String area,
+                                         @Param("areaPrefix") String areaPrefix,
+                                         @Param("iter") String iteration,
+                                         @Param("q") String query);
+
+    /** Paged variant of {@link #filterList}. */
+    @Query(nativeQuery = true,
+        value = """
+            SELECT * FROM platform_requirements r WHERE r.project_id = :pid
+              AND (:status = '' OR r.status = :status)
+              AND (:issueType = '' OR r.issue_type = :issueType)
+              AND (:area = '' OR r.area_path = :area)
+              AND (:areaPrefix = '' OR (r.area_path IS NOT NULL AND starts_with(r.area_path, :areaPrefix)))
+              AND (:iter = '' OR r.iteration_path = :iter)
+              AND (:q = '' OR LOWER(r.title) LIKE LOWER('%'||:q||'%') OR LOWER(r.external_id) LIKE LOWER('%'||:q||'%'))
+            """,
+        countQuery = """
+            SELECT count(*) FROM platform_requirements r WHERE r.project_id = :pid
+              AND (:status = '' OR r.status = :status)
+              AND (:issueType = '' OR r.issue_type = :issueType)
+              AND (:area = '' OR r.area_path = :area)
+              AND (:areaPrefix = '' OR (r.area_path IS NOT NULL AND starts_with(r.area_path, :areaPrefix)))
+              AND (:iter = '' OR r.iteration_path = :iter)
+              AND (:q = '' OR LOWER(r.title) LIKE LOWER('%'||:q||'%') OR LOWER(r.external_id) LIKE LOWER('%'||:q||'%'))
+            """)
+    Page<PlatformRequirement> filterPage(@Param("pid") UUID projectId,
+                                         @Param("status") String status,
+                                         @Param("issueType") String issueType,
+                                         @Param("area") String area,
+                                         @Param("areaPrefix") String areaPrefix,
+                                         @Param("iter") String iteration,
+                                         @Param("q") String query,
+                                         Pageable pageable);
+
     long countByProjectId(UUID projectId);
 
     long countByProjectIdAndStatus(UUID projectId, String status);

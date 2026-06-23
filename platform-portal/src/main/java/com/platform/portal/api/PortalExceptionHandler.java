@@ -25,6 +25,6 @@ public class PortalExceptionHandler {
     public ResponseEntity<Map<String, String>> handleServiceDown(ResourceAccessException ex) {
         log.warn("Backend service unavailable: {}", ex.getMessage());
         return ResponseEntity.status(503)
-                .body(Map.of("error", "Backend service unavailable", "detail", ex.getMessage()));
+                .body(Map.of("error", "Backend service unavailable"));
     }
 }

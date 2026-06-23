@@ -4,16 +4,18 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.platform.core.domain.IntegrationConfig;
 import com.platform.core.domain.IntegrationCredential;
 import com.platform.core.domain.IntegrationCredential.Scope;
+import com.platform.core.domain.PlatformSetting;
 import com.platform.core.domain.ProjectIntegrationConfig;
 import com.platform.core.repository.IntegrationConfigRepository;
 import com.platform.core.repository.IntegrationCredentialRepository;
+import com.platform.core.repository.PlatformSettingRepository;
 import com.platform.core.repository.ProjectIntegrationConfigRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.stereotype.Component;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -25,15 +27,19 @@ import java.util.UUID;
  * ({@code integration_configs}, {@code project_integration_configs}) into the new
  * encrypted {@link IntegrationCredential} model.
  *
- * <p>Opt-in via {@code platform.cred.backfill.enabled=true} so it runs once in a
- * single designated service. It is safe to re-run: each (scope, scopeId, type)
- * is created only if absent. Requires {@code PLATFORM_CRED_KEY} to be configured;
- * otherwise it logs and skips.</p>
+ * <p>Runs <strong>automatically</strong> on first deployment: the runner checks
+ * {@code platform_settings} for the key {@code system.backfill.v1.completed}. If
+ * absent it runs the migration, then sets the flag so subsequent restarts are
+ * instant no-ops. Requires {@code PLATFORM_CRED_KEY}; skips with a warning otherwise.</p>
+ *
+ * <p>The flag can be cleared to force a re-run, or the runner can be disabled
+ * explicitly via {@code platform.cred.backfill.enabled=false}.</p>
  */
 @Component
 public class CredentialBackfillRunner implements ApplicationRunner {
 
     private static final Logger log = LoggerFactory.getLogger(CredentialBackfillRunner.class);
+    private static final String COMPLETION_FLAG = "system.backfill.v1.completed";
 
     /** Connection-param keys treated as secret and moved into the encrypted blob. */
     private static final Set<String> SECRET_KEYS = Set.of(
@@ -50,35 +56,42 @@ public class CredentialBackfillRunner implements ApplicationRunner {
     private final IntegrationConfigRepository teamConfigRepo;
     private final ProjectIntegrationConfigRepository projectConfigRepo;
     private final IntegrationCredentialRepository credRepo;
+    private final PlatformSettingRepository settingRepo;
     private final CredentialCipher cipher;
     private final ObjectMapper objectMapper;
-    private final boolean enabled;
 
     public CredentialBackfillRunner(IntegrationConfigRepository teamConfigRepo,
                                     ProjectIntegrationConfigRepository projectConfigRepo,
                                     IntegrationCredentialRepository credRepo,
+                                    PlatformSettingRepository settingRepo,
                                     CredentialCipher cipher,
-                                    ObjectMapper objectMapper,
-                                    @Value("${platform.cred.backfill.enabled:false}") boolean enabled) {
+                                    ObjectMapper objectMapper) {
         this.teamConfigRepo    = teamConfigRepo;
         this.projectConfigRepo = projectConfigRepo;
         this.credRepo          = credRepo;
+        this.settingRepo       = settingRepo;
         this.cipher            = cipher;
         this.objectMapper      = objectMapper;
-        this.enabled           = enabled;
     }
 
     @Override
+    @Transactional
     public void run(ApplicationArguments args) {
-        if (!enabled) return;
+        if (settingRepo.findById(COMPLETION_FLAG)
+                .map(s -> "true".equalsIgnoreCase(s.getValue())).orElse(false)) {
+            log.debug("[CredBackfill] Already completed on a prior deployment — skipping.");
+            return;
+        }
         if (!cipher.isConfigured()) {
-            log.warn("[CredBackfill] Skipping: PLATFORM_CRED_KEY not configured.");
+            log.warn("[CredBackfill] Skipping: PLATFORM_CRED_KEY not configured. " +
+                     "Set it and restart to encrypt legacy plaintext credentials.");
             return;
         }
         int created = 0;
         try {
             created += backfillTeamConfigs();
             created += backfillProjectConfigs();
+            settingRepo.save(new PlatformSetting(COMPLETION_FLAG, "true"));
             log.info("[CredBackfill] Completed. {} credential row(s) created.", created);
         } catch (Exception e) {
             log.error("[CredBackfill] Backfill failed: {}", e.getMessage(), e);

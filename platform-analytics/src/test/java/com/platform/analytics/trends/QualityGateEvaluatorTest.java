@@ -116,7 +116,7 @@ class QualityGateEvaluatorTest {
                 Instant.now(), total, passed, failed, 0, broken,
                 null, SourceFormat.JUNIT_XML, cases,
                 "UNKNOWN", 0, "",
-                null, null
+                null, null, null, null
         );
     }
 

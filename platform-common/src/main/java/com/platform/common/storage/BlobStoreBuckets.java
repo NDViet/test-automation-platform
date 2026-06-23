@@ -24,4 +24,7 @@ public final class BlobStoreBuckets {
 
     /** PR diffs and other large ephemeral inputs fetched during a session. */
     public static final String DIFFS        = "platform-diffs";
+
+    /** Playwright trace ZIPs uploaded by the streaming reporter after test failures. */
+    public static final String TRACES       = "platform-traces";
 }

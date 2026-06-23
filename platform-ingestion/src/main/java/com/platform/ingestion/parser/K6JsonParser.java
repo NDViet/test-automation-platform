@@ -92,7 +92,7 @@ public class K6JsonParser implements ResultParser {
                 durationMs,
                 SourceFormat.K6, allCases,
                 ctx.executionMode(), ctx.parallelism(), ctx.suiteName(),
-                TestType.PERFORMANCE, perfMetrics
+                TestType.PERFORMANCE, perfMetrics, null, null
         ));
     }
 

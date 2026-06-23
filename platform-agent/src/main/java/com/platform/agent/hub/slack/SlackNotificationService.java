@@ -61,7 +61,8 @@ public class SlackNotificationService {
                     .retrieve()
                     .body(String.class);
 
-            log.info("Slack approval message sent for reviewRequest={} response={}", req.getId(), response);
+            boolean ok = response != null && response.contains("\"ok\":true");
+            log.info("Slack approval message sent for reviewRequest={} ok={}", req.getId(), ok);
         } catch (Exception e) {
             log.error("Failed to send Slack approval message for reviewRequest={}", req.getId(), e);
         }

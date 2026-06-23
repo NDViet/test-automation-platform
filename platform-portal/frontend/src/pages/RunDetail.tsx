@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { useParams, useNavigate } from 'react-router-dom'
+import { useState, useEffect, useRef } from 'react'
+import { useParams, useNavigate, useSearchParams } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { formatDuration, statusColor, relativeTime, cn } from '@/lib/utils'
@@ -14,8 +14,15 @@ type StatusFilter = 'ALL' | 'FAILED' | 'PASSED' | 'SKIPPED' | 'BROKEN'
 export default function RunDetail() {
   const { runId } = useParams<{ runId: string }>()
   const navigate = useNavigate()
+  const [searchParams] = useSearchParams()
+  const expandResultId = searchParams.get('expandResult')
+
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL')
-  const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  // Pre-expand the linked test result so the failure detail is immediately visible
+  const [expanded, setExpanded] = useState<Set<string>>(
+    () => expandResultId ? new Set([expandResultId]) : new Set()
+  )
+  const didAutoReset = useRef(false)
 
   const { data, isLoading, error } = useQuery({
     queryKey: ['run', runId],
@@ -24,6 +31,24 @@ export default function RunDetail() {
   })
 
   const { data: projects } = useQuery({ queryKey: ['projects'], queryFn: () => api.projects() })
+
+  // On first data load: if the linked result would be hidden by the status filter, clear it
+  useEffect(() => {
+    if (!expandResultId || !data?.testCases || didAutoReset.current) return
+    didAutoReset.current = true
+    const target = data.testCases.find(tc => tc.id === expandResultId)
+    if (target && statusFilter !== 'ALL' && target.status !== statusFilter) {
+      setStatusFilter('ALL')
+    }
+  }, [data, expandResultId, statusFilter])
+
+  // Once data is loaded, scroll the linked test into view
+  useEffect(() => {
+    if (!isLoading && expandResultId) {
+      const el = document.getElementById(`result-${expandResultId}`)
+      if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    }
+  }, [isLoading, expandResultId])
 
   if (isLoading) return <LoadingSpinner message="Loading run details…" />
   if (error || !data) return <ErrorMessage message="Failed to load run details." />
@@ -148,14 +173,17 @@ export default function RunDetail() {
         {filtered.map((tc: TestCase) => {
           const isOpen = expanded.has(tc.id)
           const hasFail = !!(tc.failureMessage || tc.stackTrace)
+          const isTarget = tc.id === expandResultId
           return (
-            <div key={tc.id}>
+            <div key={tc.id} id={`result-${tc.id}`}
+                 className={cn(isTarget && 'ring-2 ring-inset ring-blue-400 rounded-sm')}>
               <button
                 onClick={() => hasFail && toggle(tc.id)}
                 className={cn(
                   'w-full text-left px-5 py-3.5 flex items-center gap-3',
                   hasFail ? 'cursor-pointer hover:bg-slate-50' : 'cursor-default',
                   'transition-colors',
+                  isTarget && 'bg-blue-50',
                 )}
               >
                 {hasFail && (

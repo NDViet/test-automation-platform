@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useProject } from '@/components/layout/ProjectLayout'
+import { useProject, useProjectFilter } from '@/components/layout/ProjectLayout'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { cn, relativeTime } from '@/lib/utils'
@@ -318,7 +318,10 @@ function TestCaseFormModal({
   const [preconditions, setPreconditions] = useState(editing?.preconditions ?? '')
   const [expectedResult, setExpectedResult] = useState(editing?.expectedResult ?? '')
   const [priority, setPriority] = useState(editing?.priority ?? 'MEDIUM')
-  const [suiteId, setSuiteId] = useState(editing?.suiteId ?? '')
+  // A case can belong to many (static) suites — membership is set separately from the case row.
+  const [selectedSuiteIds, setSelectedSuiteIds] = useState<Set<string>>(new Set())
+  const [suitesSeeded, setSuitesSeeded] = useState(false)
+  const staticSuites = suites.filter(s => s.selectionMode !== 'SMART')
   // Full linked-requirement set (the primary/source, if any, is one of these).
   const [linkedReqIds, setLinkedReqIds] = useState<string[]>(() => {
     const set = new Set(editing?.linkedRequirementIds ?? [])
@@ -340,11 +343,28 @@ function TestCaseFormModal({
     queryFn: () => api.requirements(projectId),
   })
 
+  // Seed current suite memberships when editing.
+  useQuery({
+    queryKey: ['caseSuites', projectId, editing?.id],
+    queryFn: () => api.caseSuites(projectId, editing!.id),
+    enabled: isEdit && !suitesSeeded,
+    select: (ids: string[]) => { if (!suitesSeeded) { setSelectedSuiteIds(new Set(ids)); setSuitesSeeded(true) } return ids },
+  })
+
+  const toggleSuite = (id: string) =>
+    setSelectedSuiteIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
+
   const mutation = useMutation({
-    mutationFn: (body: CreateTestCaseForm) =>
-      isEdit ? api.updateTestCase(projectId, editing!.id, body) : api.createTestCase(projectId, body),
+    mutationFn: async (body: CreateTestCaseForm) => {
+      const tc = isEdit
+        ? await api.updateTestCase(projectId, editing!.id, body)
+        : await api.createTestCase(projectId, body)
+      await api.setCaseSuites(projectId, tc.id, Array.from(selectedSuiteIds))
+      return tc
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['testCases', projectId] })
+      queryClient.invalidateQueries({ queryKey: ['testSuites', projectId] })
       onClose()
     },
     onError: (err: Error) => setError(err.message),
@@ -365,7 +385,6 @@ function TestCaseFormModal({
       preconditions: preconditions.trim() || undefined,
       expectedResult: expectedResult.trim() || undefined,
       priority,
-      suiteId: suiteId || undefined,
       sourceRequirementId: primaryReqId || undefined,
       linkedRequirementIds,
       acRefs: acRefs.length ? acRefs : undefined,
@@ -397,20 +416,32 @@ function TestCaseFormModal({
               <input type="text" value={title} onChange={e => setTitle(e.target.value)}
                 className={inputCls} placeholder="e.g. Checkout applies the correct order total" autoFocus />
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">Priority</label>
-                <select value={priority} onChange={e => setPriority(e.target.value)} className={inputCls}>
-                  {['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'].map(p => <option key={p} value={p}>{p}</option>)}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">Suite / Plan</label>
-                <select value={suiteId} onChange={e => setSuiteId(e.target.value)} className={inputCls}>
-                  <option value="">— None —</option>
-                  {suites.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
-                </select>
-              </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1">Priority</label>
+              <select value={priority} onChange={e => setPriority(e.target.value)} className={inputCls}>
+                {['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'].map(p => <option key={p} value={p}>{p}</option>)}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-medium text-slate-700 mb-1">
+                Test Suites <span className="font-normal text-slate-400">({selectedSuiteIds.size} selected · a case can be in many)</span>
+              </label>
+              {staticSuites.length === 0 ? (
+                <p className="text-xs text-slate-500 bg-slate-50 rounded-lg px-3 py-2">
+                  No static suites yet. Create suites in <strong>Test Suites</strong>. (Smart suites assign cases automatically.)
+                </p>
+              ) : (
+                <div className="border border-slate-200 rounded-lg max-h-36 overflow-y-auto divide-y divide-slate-50">
+                  {staticSuites.map(s => (
+                    <label key={s.id} className="flex items-center gap-2.5 px-3 py-1.5 cursor-pointer hover:bg-slate-50">
+                      <input type="checkbox" checked={selectedSuiteIds.has(s.id)} onChange={() => toggleSuite(s.id)}
+                             className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 shrink-0" />
+                      <span className="text-sm text-slate-800 flex-1 truncate">{s.name}</span>
+                      {s.planType && <span className="text-[10px] uppercase text-slate-400 shrink-0">{s.planType}</span>}
+                    </label>
+                  ))}
+                </div>
+              )}
             </div>
             {!isEdit && (
               <p className="text-[11px] text-slate-400">New cases start as <strong>DRAFT</strong> — submit for review to confirm.</p>
@@ -1538,6 +1569,7 @@ function CasePropertiesSection({ projectId, caseId }: { projectId: string; caseI
 
 export default function TestCasesPage() {
   const { projectId } = useProject()
+  const { filter } = useProjectFilter()   // project-wide Area / Team / Iteration scope
   const queryClient = useQueryClient()
 
   const [selectedSuiteId, setSelectedSuiteId] = useState<string | null>(null)
@@ -1550,53 +1582,48 @@ export default function TestCasesPage() {
   const [editingTc, setEditingTc] = useState<ManagedTestCase | null>(null)
   const [editSuite, setEditSuite] = useState<TestSuite | null>(null)
   const [showAIModal, setShowAIModal] = useState(false)
-  const [showNewSuiteForm, setShowNewSuiteForm] = useState(false)
-  const [newSuiteName, setNewSuiteName] = useState('')
-  const [newSuitePlanType, setNewSuitePlanType] = useState('')
 
-  const { data: suites = [], isLoading: suitesLoading } = useQuery({
+  const { data: allSuites = [], isLoading: suitesLoading } = useQuery({
     queryKey: ['testSuites', projectId],
     queryFn: () => api.testSuites(projectId!),
     enabled: !!projectId,
   })
+  // Team default-area map → lets an Area filter match team-owned suites (suite area may be unset).
+  const { data: adoTeams = [] } = useQuery({
+    queryKey: ['adoTeams', projectId],
+    queryFn: () => api.adoTeams(projectId!),
+    enabled: !!projectId,
+  })
+  const teamArea = new Map(adoTeams.map(t => [t.id, t.defaultAreaPath ?? '']))
+
+  // Suite tree honors the project Area/Team scope (Area matches the suite's own area OR
+  // the area owned by the suite's team). Full list (allSuites) stays available for the
+  // case→suite assignment picker so a case can be added to any suite.
+  const suites = allSuites.filter(s => {
+    if (filter.teamId && s.teamId !== filter.teamId) return false
+    if (filter.area) {
+      const ownerArea = s.teamId ? teamArea.get(s.teamId) : undefined
+      const byOwnTeam = !!ownerArea && filter.area.startsWith(ownerArea)
+      if (s.areaPath !== filter.area && !byOwnTeam) return false
+    }
+    return true
+  })
 
   const { data: testCases = [], isLoading: tcLoading, error: tcError } = useQuery({
-    queryKey: ['testCases', projectId, statusFilter, selectedSuiteId, search],
+    queryKey: ['testCases', projectId, statusFilter, selectedSuiteId, search, filter.area, filter.teamId, filter.iteration],
     queryFn: () => api.testCases(projectId!, {
       status: statusFilter || undefined,
       suiteId: selectedSuiteId || undefined,
       search: search || undefined,
+      area: filter.area || undefined,
+      teamId: filter.teamId || undefined,
+      iteration: filter.iteration || undefined,
     }),
     enabled: !!projectId,
   })
 
   // Live selected test case derived from the query — reloads on any invalidation.
   const selectedTc = selectedTcId ? testCases.find(tc => tc.id === selectedTcId) ?? null : null
-
-  const createSuiteMutation = useMutation({
-    mutationFn: (input: { name: string; parentId?: string | null; planType?: string }) =>
-      api.createTestSuite(projectId!, {
-        name: input.name,
-        parentId: input.parentId ?? undefined,
-        planType: input.planType || undefined,
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['testSuites', projectId] })
-      setShowNewSuiteForm(false)
-      setNewSuiteName('')
-      setNewSuitePlanType('')
-    },
-  })
-
-  const addSuite = () => {
-    if (newSuiteName.trim()) {
-      createSuiteMutation.mutate({
-        name: newSuiteName.trim(),
-        parentId: selectedSuiteId,   // nest under the selected suite (root if "All")
-        planType: newSuitePlanType,
-      })
-    }
-  }
 
   const deleteSuiteMutation = useMutation({
     mutationFn: (suiteId: string) => api.deleteTestSuite(projectId!, suiteId),
@@ -1715,56 +1742,12 @@ export default function TestCasesPage() {
               {renderSuiteNodes(null, 0)}
             </div>
 
-            {/* New suite */}
+            {/* Suite management lives in the Test Suites page. */}
             <div className="p-3 border-t border-slate-100">
-              {showNewSuiteForm ? (
-                <div className="space-y-1.5">
-                  <p className="text-[10px] text-slate-400">
-                    Adds under: <span className="font-medium text-slate-600">{selectedSuiteId ? suiteName : 'root'}</span>
-                  </p>
-                  <input
-                    type="text"
-                    autoFocus
-                    value={newSuiteName}
-                    onChange={e => setNewSuiteName(e.target.value)}
-                    onKeyDown={e => {
-                      if (e.key === 'Enter') addSuite()
-                      if (e.key === 'Escape') { setShowNewSuiteForm(false); setNewSuiteName('') }
-                    }}
-                    placeholder="Suite / plan name"
-                    className="w-full border border-slate-200 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  />
-                  <input
-                    type="text"
-                    value={newSuitePlanType}
-                    onChange={e => setNewSuitePlanType(e.target.value)}
-                    placeholder="Plan type (optional) — SMOKE, REGRESSION…"
-                    className="w-full border border-slate-200 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
-                  />
-                  <div className="flex gap-1">
-                    <button
-                      onClick={addSuite}
-                      disabled={!newSuiteName.trim() || createSuiteMutation.isPending}
-                      className="flex-1 py-1 text-xs font-medium text-white bg-blue-600 rounded hover:bg-blue-700 disabled:opacity-50"
-                    >
-                      Add
-                    </button>
-                    <button
-                      onClick={() => { setShowNewSuiteForm(false); setNewSuiteName(''); setNewSuitePlanType('') }}
-                      className="flex-1 py-1 text-xs font-medium text-slate-600 bg-slate-100 rounded hover:bg-slate-200"
-                    >
-                      Cancel
-                    </button>
-                  </div>
-                </div>
-              ) : (
-                <button
-                  onClick={() => setShowNewSuiteForm(true)}
-                  className="w-full flex items-center gap-1.5 text-xs text-slate-500 hover:text-blue-600 transition-colors"
-                >
-                  <Plus size={12} /> New Suite
-                </button>
-              )}
+              <p className="text-[11px] text-slate-400">
+                Create &amp; manage suites in the <span className="font-medium text-slate-600">Test Suites</span> page.
+                Assign a case to suites from its edit dialog.
+              </p>
             </div>
           </div>
         </div>
@@ -1864,7 +1847,7 @@ export default function TestCasesPage() {
         <TestCaseFormModal
           key={editingTc?.id ?? 'new'}
           projectId={projectId!}
-          suites={suites}
+          suites={allSuites}
           editing={editingTc}
           onClose={() => { setShowNewModal(false); setEditingTc(null) }}
         />
@@ -1879,7 +1862,7 @@ export default function TestCasesPage() {
         <SuiteFormModal
           projectId={projectId!}
           suite={editSuite}
-          suites={suites}
+          suites={allSuites}
           onClose={() => setEditSuite(null)}
         />
       )}

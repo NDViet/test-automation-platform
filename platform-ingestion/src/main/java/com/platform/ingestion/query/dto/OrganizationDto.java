@@ -5,8 +5,20 @@ import com.platform.core.domain.Organization;
 import java.time.Instant;
 import java.util.UUID;
 
-public record OrganizationDto(UUID id, String name, String slug, Instant createdAt) {
+public record OrganizationDto(UUID id, String name, String slug, Instant createdAt,
+                               String displayName, String logoUrl) {
+
     public static OrganizationDto from(Organization o) {
-        return new OrganizationDto(o.getId(), o.getName(), o.getSlug(), o.getCreatedAt());
+        String logoUrl = o.getLogoKey() != null
+                ? "/api/v1/organizations/" + o.getId() + "/logo"
+                : null;
+        return new OrganizationDto(
+                o.getId(),
+                o.getName(),
+                o.getSlug(),
+                o.getCreatedAt(),
+                o.getDisplayName(),
+                logoUrl
+        );
     }
 }

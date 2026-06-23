@@ -91,7 +91,7 @@ public class GatlingStatsJsonParser implements ResultParser {
                 totalMs > 0 ? totalMs : null,
                 SourceFormat.GATLING, allCases,
                 ctx.executionMode(), ctx.parallelism(), ctx.suiteName(),
-                TestType.PERFORMANCE, perfMetrics
+                TestType.PERFORMANCE, perfMetrics, null, null
         ));
     }
 

@@ -4,35 +4,31 @@ import { api } from '@/lib/api'
 import { relativeTime } from '@/lib/utils'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import ErrorMessage from '@/components/ErrorMessage'
-import { ProjectSelect, TeamSelect } from '@/components/ScopeSelectors'
 import { Plus, Trash2, Copy, Check } from 'lucide-react'
 
 export default function ApiKeysPage() {
   const qc = useQueryClient()
-  const [projectId, setProjectId] = useState<string>('')
-  const [teamId, setTeamId] = useState<string>('')
   const [newKeyName, setNewKeyName] = useState('')
   const [createdKey, setCreatedKey] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
 
   const { data: keys, isLoading, error } = useQuery({
-    queryKey: ['api-keys', teamId],
-    queryFn: () => api.apiKeys(teamId),
-    enabled: !!teamId,
+    queryKey: ['api-keys'],
+    queryFn: () => api.apiKeys(),
   })
 
   const createMutation = useMutation({
-    mutationFn: () => api.createApiKey({ name: newKeyName, teamId }),
+    mutationFn: () => api.createApiKey({ name: newKeyName }),
     onSuccess: (data) => {
-      setCreatedKey(data.key)
+      setCreatedKey(data.rawKey)
       setNewKeyName('')
-      void qc.invalidateQueries({ queryKey: ['api-keys', teamId] })
+      void qc.invalidateQueries({ queryKey: ['api-keys'] })
     },
   })
 
   const revokeMutation = useMutation({
     mutationFn: (id: string) => api.revokeApiKey(id),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ['api-keys', teamId] }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['api-keys'] }),
   })
 
   const copyKey = async (key: string) => {
@@ -45,15 +41,9 @@ export default function ApiKeysPage() {
     <div className="space-y-6">
       <div>
         <h1 className="text-2xl font-bold text-slate-900">API Keys</h1>
-        <p className="text-sm text-slate-500 mt-1">Manage authentication keys for CI/CD pipelines</p>
-      </div>
-
-      {/* Scope selector — API keys are scoped to a team within a project */}
-      <div className="flex items-center gap-3">
-        <label className="text-sm font-medium text-slate-700">Project:</label>
-        <ProjectSelect value={projectId} onChange={setProjectId} />
-        <label className="text-sm font-medium text-slate-700">Team:</label>
-        <TeamSelect projectId={projectId} value={teamId} onChange={setTeamId} />
+        <p className="text-sm text-slate-500 mt-1">
+          Manage authentication keys for CI/CD pipelines. Keys are not restricted to any project or team.
+        </p>
       </div>
 
       {/* New key created banner */}
@@ -89,7 +79,7 @@ export default function ApiKeysPage() {
           />
           <button
             onClick={() => void createMutation.mutate()}
-            disabled={!newKeyName.trim() || !teamId || createMutation.isPending}
+            disabled={!newKeyName.trim() || createMutation.isPending}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
           >
             <Plus size={16} />
@@ -112,7 +102,7 @@ export default function ApiKeysPage() {
           <div className="divide-y divide-slate-50">
             {(!keys || keys.length === 0) && (
               <p className="px-5 py-8 text-center text-sm text-slate-500">
-                No API keys for this team.
+                No API keys yet.
               </p>
             )}
             {(keys ?? []).map(k => (

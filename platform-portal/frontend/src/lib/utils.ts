@@ -5,6 +5,17 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
+/**
+ * Leaf segment of a backslash-delimited ADO path (Area/Iteration), prefixed with "…\"
+ * when the rest is trimmed. e.g. "Product House\Search and Book\Search" → "…\Search".
+ */
+export function pathLeaf(path: string | null | undefined): string {
+  if (!path) return ''
+  const parts = path.split('\\')
+  const leaf = parts[parts.length - 1]
+  return parts.length > 1 ? `…\\${leaf}` : leaf
+}
+
 export function formatDuration(ms: number | null | undefined): string {
   if (!ms) return '—'
   if (ms < 1000) return `${ms}ms`

@@ -31,7 +31,7 @@ public class ApiKeyController {
     }
 
     @PostMapping
-    @Operation(summary = "Create a new API key for a team")
+    @Operation(summary = "Create a new API key (teamId optional — key is not restricted to any team)")
     public ResponseEntity<ApiKeyService.ApiKeyCreationResult> create(
             @RequestBody CreateApiKeyRequest request) {
         ApiKeyService.ApiKeyCreationResult result = keyService.create(
@@ -40,9 +40,9 @@ public class ApiKeyController {
     }
 
     @GetMapping
-    @Operation(summary = "List active API keys for a team")
-    public List<ApiKeySummary> list(@RequestParam UUID teamId) {
-        return keyService.listForTeam(teamId).stream()
+    @Operation(summary = "List active API keys, optionally filtered by teamId")
+    public List<ApiKeySummary> list(@RequestParam(required = false) UUID teamId) {
+        return keyService.list(teamId).stream()
                 .map(ApiKeySummary::from)
                 .toList();
     }
@@ -57,6 +57,7 @@ public class ApiKeyController {
 
     // ── DTOs ─────────────────────────────────────────────────────────────────
 
+    /** {@code teamId} and {@code ttlDays} are optional. Keys are not restricted to any org/project/team. */
     public record CreateApiKeyRequest(String name, UUID teamId, Integer ttlDays) {}
 
     public record ApiKeySummary(

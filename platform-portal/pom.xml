@@ -31,6 +31,13 @@
             <version>${springdoc.version}</version>
         </dependency>
 
+        <!-- Self-signed TLS certificate generation -->
+        <dependency>
+            <groupId>org.bouncycastle</groupId>
+            <artifactId>bcpkix-jdk18on</artifactId>
+            <version>1.80</version>
+        </dependency>
+
         <!-- Tests -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
