@@ -70,6 +70,7 @@ export default function App() {
             <Route path="settings/:section" element={<ProjectSettingsPage />} />
             <Route path="mapping" element={<AdoMappingPage />} />
             <Route path="test-cases" element={<TestCasesPage />} />
+            <Route path="test-cases/:tcId" element={<TestCasesPage />} />
             <Route path="test-suites" element={<SuitesPage />} />
             <Route path="test-runs/:runId" element={<TestRunExecutionPage />} />
             <Route path="test-execution" element={<TestExecutionPage />} />

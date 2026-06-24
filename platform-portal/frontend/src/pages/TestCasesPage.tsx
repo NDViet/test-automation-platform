@@ -1,5 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useParams } from 'react-router-dom'
 import { useProject, useProjectFilter } from '@/components/layout/ProjectLayout'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
@@ -12,8 +12,10 @@ import Markdown from '@/components/Markdown'
 import MarkdownEditor from '@/components/MarkdownEditor'
 import {
   Plus, Sparkles, Bot, ExternalLink, ChevronRight, ChevronDown, X,
-  FolderOpen, Layers, Loader2, Search, GitBranch, AlertTriangle, Link2, Pencil, Star,
+  Layers, Loader2, Search, GitBranch, AlertTriangle, Link2, Pencil, Star,
+  Upload, Download, FileSpreadsheet, ArrowUpRight,
 } from 'lucide-react'
+import { ExcelImportModal, downloadTemplate, exportTestCases } from '@/components/TestCaseExcelModal'
 
 // ── Color helpers ──────────────────────────────────────────────────────────────
 
@@ -1176,11 +1178,13 @@ function LinkedRequirementsSection({
 function TestCaseDetailPanel({
   tc,
   projectId,
+  base,
   onClose,
   onEdit,
 }: {
   tc: ManagedTestCase
   projectId: string
+  base: string
   onClose: () => void
   onEdit: (tc: ManagedTestCase) => void
 }) {
@@ -1207,26 +1211,55 @@ function TestCaseDetailPanel({
     },
   })
 
+  const detailUrl = `${base}/test-cases/${tc.id}`
+
   return (
-    <div className="w-96 shrink-0 border-l border-slate-200 bg-white flex flex-col h-full">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
-        <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Detail</span>
-        <div className="flex items-center gap-1">
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col h-full overflow-hidden">
+      {/* ── Panel header ── */}
+      <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 shrink-0 gap-2">
+        <div className="flex items-center gap-2 min-w-0">
+          {tc.externalId && (
+            <a
+              href={detailUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 text-xs font-mono font-semibold text-blue-600 hover:text-blue-800 hover:underline shrink-0"
+              title="Open in new tab"
+            >
+              {tc.externalId}
+              <ArrowUpRight size={11} />
+            </a>
+          )}
+          <div className="flex flex-wrap gap-1">
+            <Badge label={tc.priority} colorClass={priorityColor(tc.priority)} />
+            <Badge label={tc.status.replace('_', ' ')} colorClass={statusColor(tc.status)} />
+          </div>
+        </div>
+        <div className="flex items-center gap-1 shrink-0">
+          <a
+            href={detailUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            title="Open detail in new tab"
+            className="flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-blue-600 px-2 py-1 rounded hover:bg-slate-100 transition-colors"
+          >
+            <ArrowUpRight size={13} /> Open
+          </a>
           <button onClick={() => onEdit(tc)} title="Edit test case"
-            className="flex items-center gap-1 text-xs font-medium text-slate-600 hover:text-blue-600 px-2 py-1 rounded hover:bg-slate-100">
+            className="flex items-center gap-1 text-xs font-medium text-slate-600 hover:text-blue-600 px-2 py-1 rounded hover:bg-slate-100 transition-colors">
             <Pencil size={13} /> Edit
           </button>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={16} /></button>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1 rounded hover:bg-slate-100 transition-colors">
+            <X size={16} />
+          </button>
         </div>
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5">
-        {/* Title + badges */}
+        {/* Title */}
         <div>
-          <h3 className="font-semibold text-slate-900 text-sm leading-snug mb-2">{tc.title}</h3>
+          <h3 className="font-semibold text-slate-900 text-base leading-snug mb-2">{tc.title}</h3>
           <div className="flex flex-wrap gap-1.5">
-            <Badge label={tc.priority} colorClass={priorityColor(tc.priority)} />
-            <Badge label={tc.status.replace('_', ' ')} colorClass={statusColor(tc.status)} />
             {tc.coverageStatus && (
               <Badge label={tc.coverageStatus.replace('_', ' ')} colorClass={coverageColor(tc.coverageStatus)} />
             )}
@@ -1568,27 +1601,52 @@ function CasePropertiesSection({ projectId, caseId }: { projectId: string; caseI
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 export default function TestCasesPage() {
-  const { projectId } = useProject()
-  const { filter } = useProjectFilter()   // project-wide Area / Team / Iteration scope
+  const { projectId, base } = useProject()
+  const { filter } = useProjectFilter()
   const queryClient = useQueryClient()
+  const { tcId: tcIdParam } = useParams<{ tcId?: string }>()
 
   const [selectedSuiteId, setSelectedSuiteId] = useState<string | null>(null)
   const [statusFilter, setStatusFilter] = useState('')
   const [search, setSearch] = useState('')
-  // Keep only the id selected; the panel reads the live row from the query so it
-  // always reflects the latest data after an edit / link / status change.
-  const [selectedTcId, setSelectedTcId] = useState<string | null>(null)
+  const [selectedTcId, setSelectedTcId] = useState<string | null>(tcIdParam ?? null)
   const [showNewModal, setShowNewModal] = useState(false)
   const [editingTc, setEditingTc] = useState<ManagedTestCase | null>(null)
   const [editSuite, setEditSuite] = useState<TestSuite | null>(null)
   const [showAIModal, setShowAIModal] = useState(false)
+  const [showImportModal, setShowImportModal] = useState(false)
+
+  // When navigating directly to /test-cases/:tcId, sync the selection.
+  useEffect(() => {
+    if (tcIdParam) setSelectedTcId(tcIdParam)
+  }, [tcIdParam])
+
+  async function handleImport(rows: { title: string; externalId?: string; preconditions?: string; steps: { action: string; expectedResult?: string }[]; expectedResult?: string; priority: string; description?: string }[]) {
+    let ok = 0, failed = 0
+    for (const row of rows) {
+      try {
+        await api.createTestCase(projectId!, {
+          title: row.title,
+          preconditions: row.preconditions,
+          steps: row.steps,
+          expectedResult: row.expectedResult,
+          priority: row.priority,
+          description: row.description,
+        } as CreateTestCaseForm)
+        ok++
+      } catch {
+        failed++
+      }
+    }
+    void queryClient.invalidateQueries({ queryKey: ['testCases', projectId] })
+    return { ok, failed }
+  }
 
   const { data: allSuites = [], isLoading: suitesLoading } = useQuery({
     queryKey: ['testSuites', projectId],
     queryFn: () => api.testSuites(projectId!),
     enabled: !!projectId,
   })
-  // Team default-area map → lets an Area filter match team-owned suites (suite area may be unset).
   const { data: adoTeams = [] } = useQuery({
     queryKey: ['adoTeams', projectId],
     queryFn: () => api.adoTeams(projectId!),
@@ -1596,9 +1654,6 @@ export default function TestCasesPage() {
   })
   const teamArea = new Map(adoTeams.map(t => [t.id, t.defaultAreaPath ?? '']))
 
-  // Suite tree honors the project Area/Team scope (Area matches the suite's own area OR
-  // the area owned by the suite's team). Full list (allSuites) stays available for the
-  // case→suite assignment picker so a case can be added to any suite.
   const suites = allSuites.filter(s => {
     if (filter.teamId && s.teamId !== filter.teamId) return false
     if (filter.area) {
@@ -1622,78 +1677,61 @@ export default function TestCasesPage() {
     enabled: !!projectId,
   })
 
-  // Live selected test case derived from the query — reloads on any invalidation.
   const selectedTc = selectedTcId ? testCases.find(tc => tc.id === selectedTcId) ?? null : null
 
-  const deleteSuiteMutation = useMutation({
-    mutationFn: (suiteId: string) => api.deleteTestSuite(projectId!, suiteId),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['testSuites', projectId] })
-      if (selectedSuiteId) setSelectedSuiteId(null)
-    },
-  })
 
   if (tcLoading && !testCases.length) return <LoadingSpinner message="Loading test cases…" />
   if (tcError) return <ErrorMessage message="Failed to load test cases." />
 
-  const suiteName = suites.find(s => s.id === selectedSuiteId)?.name ?? 'All'
-
-  // Render the suite tree (parent/child) with indentation.
-  const renderSuiteNodes = (parentId: string | null, depth: number): React.ReactNode =>
+  // Build flat option list for suite dropdown (respects parent→child order)
+  const suiteOptions: { id: string; label: string; depth: number }[] = []
+  function collectSuites(parentId: string | null, depth: number) {
     suites
       .filter(s => (s.parentId ?? null) === parentId)
-      .map(suite => (
-        <div key={suite.id}>
-          <div className="group flex items-center gap-1 mx-1">
-            <button
-              onClick={() => setSelectedSuiteId(suite.id)}
-              style={{ paddingLeft: 12 + depth * 14 }}
-              className={cn(
-                'flex-1 flex items-center gap-2 pr-3 py-2 text-sm rounded-lg transition-colors text-left',
-                selectedSuiteId === suite.id
-                  ? 'bg-blue-50 text-blue-700 font-medium'
-                  : 'text-slate-600 hover:bg-slate-50',
-              )}
-            >
-              <FolderOpen size={14} className="shrink-0" />
-              <span className="truncate">{suite.name}</span>
-              {suite.planType && (
-                <span className="ml-auto text-[10px] px-1 py-0.5 rounded bg-slate-100 text-slate-500 shrink-0">
-                  {suite.planType}
-                </span>
-              )}
-            </button>
-            <button
-              onClick={() => setEditSuite(suite)}
-              className="opacity-0 group-hover:opacity-100 p-1 text-slate-300 hover:text-blue-500 transition-all"
-              title="Edit suite"
-            >
-              <Pencil size={11} />
-            </button>
-            <button
-              onClick={() => deleteSuiteMutation.mutate(suite.id)}
-              className="opacity-0 group-hover:opacity-100 p-1 text-slate-300 hover:text-red-500 transition-all"
-              title="Delete suite"
-            >
-              <X size={12} />
-            </button>
-          </div>
-          {renderSuiteNodes(suite.id, depth + 1)}
-        </div>
-      ))
+      .forEach(s => {
+        suiteOptions.push({ id: s.id, label: s.name, depth })
+        collectSuites(s.id, depth + 1)
+      })
+  }
+  collectSuites(null, 0)
+
+  const selectedSuiteName = suites.find(s => s.id === selectedSuiteId)?.name ?? 'All suites'
 
   return (
-    <div className="flex flex-col h-full space-y-0">
-      {/* Header */}
-      <div className="flex items-center justify-between mb-6">
+    <div className="flex flex-col h-full overflow-hidden">
+      {/* ── Header ── */}
+      <div className="flex items-center justify-between mb-4 shrink-0">
         <div>
           <h1 className="text-2xl font-bold text-slate-900">Test Cases</h1>
           <p className="text-sm text-slate-500 mt-0.5">
             {testCases.length} {testCases.length === 1 ? 'test case' : 'test cases'}
-            {selectedSuiteId ? ` in ${suiteName}` : ' total'}
+            {selectedSuiteId ? ` · ${selectedSuiteName}` : ''}
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <button
+            onClick={downloadTemplate}
+            className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+            title="Download Excel template"
+          >
+            <Download size={15} />
+            Template
+          </button>
+          <button
+            onClick={() => exportTestCases(testCases, `test-cases-${projectId}.xlsx`)}
+            className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+            title="Export test cases to Excel"
+          >
+            <FileSpreadsheet size={15} />
+            Export
+          </button>
+          <button
+            onClick={() => setShowImportModal(true)}
+            className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-green-700 bg-green-50 border border-green-200 rounded-lg hover:bg-green-100 transition-colors"
+          >
+            <Upload size={15} />
+            Import
+          </button>
           <button
             onClick={() => setShowAIModal(true)}
             className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-purple-700 bg-purple-50 border border-purple-200 rounded-lg hover:bg-purple-100 transition-colors"
@@ -1711,135 +1749,170 @@ export default function TestCasesPage() {
         </div>
       </div>
 
-      <div className="flex gap-5 min-h-0 flex-1">
-        {/* Left sidebar — Suite tree */}
-        <div className="w-56 shrink-0 flex flex-col">
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm flex-1 flex flex-col">
-            <div className="px-3 py-3 border-b border-slate-100">
-              <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
-                <Layers size={12} /> Suites
-              </span>
-            </div>
-            <div className="flex-1 overflow-y-auto py-1">
-              {/* All */}
-              <button
-                onClick={() => setSelectedSuiteId(null)}
-                className={cn(
-                  'w-full flex items-center gap-2 px-3 py-2 text-sm rounded-lg mx-1 transition-colors text-left',
-                  selectedSuiteId === null
-                    ? 'bg-blue-50 text-blue-700 font-medium'
-                    : 'text-slate-600 hover:bg-slate-50'
-                )}
-              >
-                <FolderOpen size={14} />
-                All
-              </button>
+      {/* ── Filter bar ── */}
+      <div className="flex items-center gap-3 mb-3 shrink-0">
+        {/* Suite dropdown */}
+        <div className="relative">
+          <select
+            value={selectedSuiteId ?? ''}
+            onChange={e => setSelectedSuiteId(e.target.value || null)}
+            className="appearance-none border border-slate-200 rounded-lg pl-3 pr-8 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-slate-700 min-w-[160px] cursor-pointer"
+          >
+            <option value="">All suites</option>
+            {suitesLoading && <option disabled>Loading…</option>}
+            {suiteOptions.map(s => (
+              <option key={s.id} value={s.id}>
+                {'  '.repeat(s.depth)}{s.depth > 0 ? '↳ ' : ''}{s.label}
+              </option>
+            ))}
+          </select>
+          <ChevronDown size={13} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+        </div>
 
-              {suitesLoading && (
-                <div className="px-3 py-2 text-xs text-slate-400">Loading…</div>
-              )}
+        {/* Status filter */}
+        <div className="relative">
+          <select
+            value={statusFilter}
+            onChange={e => setStatusFilter(e.target.value)}
+            className="appearance-none border border-slate-200 rounded-lg pl-3 pr-8 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-slate-700 cursor-pointer"
+          >
+            <option value="">All statuses</option>
+            <option value="DRAFT">Draft</option>
+            <option value="UNDER_REVIEW">Under Review</option>
+            <option value="APPROVED">Approved</option>
+            <option value="DEPRECATED">Deprecated</option>
+          </select>
+          <ChevronDown size={13} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+        </div>
 
-              {renderSuiteNodes(null, 0)}
-            </div>
+        {/* Search */}
+        <div className="relative flex-1">
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+          <input
+            type="text"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search test cases…"
+            className="w-full border border-slate-200 rounded-lg pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          />
+        </div>
+      </div>
 
-            {/* Suite management lives in the Test Suites page. */}
-            <div className="p-3 border-t border-slate-100">
-              <p className="text-[11px] text-slate-400">
-                Create &amp; manage suites in the <span className="font-medium text-slate-600">Test Suites</span> page.
-                Assign a case to suites from its edit dialog.
-              </p>
+      {/* ── Main body: list + detail panel ── */}
+      <div className="flex gap-4 min-h-0 flex-1 overflow-hidden">
+
+        {/* List */}
+        <div className={cn(
+          'flex flex-col bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden transition-all',
+          selectedTc ? 'w-[420px] shrink-0' : 'flex-1'
+        )}>
+          {tcLoading && (
+            <div className="py-8 text-center text-sm text-slate-400 shrink-0">Loading…</div>
+          )}
+          {!tcLoading && testCases.length === 0 && (
+            <div className="py-16 text-center flex-1 flex flex-col items-center justify-center">
+              <Layers size={32} className="text-slate-300 mb-3" />
+              <p className="text-sm text-slate-500">No test cases found.</p>
+              <p className="text-xs text-slate-400 mt-1">Create one manually or generate from AI.</p>
             </div>
+          )}
+          <div className="flex-1 overflow-y-auto divide-y divide-slate-50">
+            {testCases.map(tc => {
+              const isSelected = tc.id === selectedTcId
+              const detailUrl = `${base}/test-cases/${tc.id}`
+              return (
+                <div
+                  key={tc.id}
+                  onClick={() => setSelectedTcId(isSelected ? null : tc.id)}
+                  className={cn(
+                    'flex items-start gap-3 px-4 py-3 cursor-pointer transition-colors hover:bg-slate-50 group',
+                    isSelected ? 'bg-blue-50 border-l-2 border-blue-500' : 'border-l-2 border-transparent'
+                  )}
+                >
+                  {/* Priority badge */}
+                  <div className="shrink-0 mt-0.5">
+                    <Badge label={tc.priority.slice(0, 1)} colorClass={priorityColor(tc.priority)} />
+                  </div>
+
+                  <div className="flex-1 min-w-0">
+                    {/* Slug ID + new-tab link */}
+                    {tc.externalId && (
+                      <div className="flex items-center gap-1 mb-0.5">
+                        <a
+                          href={detailUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={e => e.stopPropagation()}
+                          className="inline-flex items-center gap-0.5 text-[11px] font-mono font-medium text-blue-600 hover:text-blue-800 hover:underline"
+                          title="Open in new tab"
+                        >
+                          {tc.externalId}
+                          <ArrowUpRight size={10} className="opacity-60" />
+                        </a>
+                      </div>
+                    )}
+
+                    {/* Title */}
+                    <p className={cn(
+                      'text-sm font-medium text-slate-900 leading-snug',
+                      selectedTc ? 'line-clamp-2' : 'truncate'
+                    )}>
+                      {tc.title}
+                      {tc.createdBy === 'AGENT' && (
+                        <Bot size={12} className="inline ml-1.5 text-purple-400 shrink-0" />
+                      )}
+                    </p>
+
+                    {/* Status row */}
+                    <div className="flex items-center gap-2 mt-1 flex-wrap">
+                      <Badge label={tc.status.replace('_', ' ')} colorClass={statusColor(tc.status)} />
+                      {tc.automationStatus !== 'NOT_STARTED' && (
+                        <span className={cn(
+                          'inline-flex items-center gap-1 text-xs font-medium px-1.5 py-0.5 rounded-full',
+                          automationColor(tc.automationStatus)
+                        )}>
+                          {tc.automationStatus === 'GENERATING' && <Loader2 size={10} className="animate-spin" />}
+                          {tc.automationStatus.replace('_', ' ')}
+                        </span>
+                      )}
+                      {tc.steps?.length > 0 && (
+                        <span className="text-[11px] text-slate-400">{tc.steps.length} steps</span>
+                      )}
+                      <span className="text-[11px] text-slate-400 ml-auto">{relativeTime(tc.updatedAt)}</span>
+                    </div>
+                  </div>
+
+                  {/* Open-in-new-tab button (no externalId — fallback) */}
+                  {!tc.externalId && (
+                    <a
+                      href={detailUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      onClick={e => e.stopPropagation()}
+                      title="Open in new tab"
+                      className="opacity-0 group-hover:opacity-100 shrink-0 text-slate-300 hover:text-blue-500 transition-all mt-0.5"
+                    >
+                      <ArrowUpRight size={14} />
+                    </a>
+                  )}
+                </div>
+              )
+            })}
           </div>
         </div>
 
-        {/* Main area */}
-        <div className={cn('flex-1 min-w-0 flex gap-4', selectedTc ? '' : '')}>
-          <div className="flex-1 min-w-0 flex flex-col gap-4">
-            {/* Filter bar */}
-            <div className="flex items-center gap-3">
-              <select
-                value={statusFilter}
-                onChange={e => setStatusFilter(e.target.value)}
-                className="border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
-              >
-                <option value="">All statuses</option>
-                <option value="DRAFT">Draft</option>
-                <option value="UNDER_REVIEW">Under Review</option>
-                <option value="APPROVED">Approved</option>
-                <option value="DEPRECATED">Deprecated</option>
-              </select>
-              <input
-                type="text"
-                value={search}
-                onChange={e => setSearch(e.target.value)}
-                placeholder="Search test cases…"
-                className="flex-1 border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              />
-            </div>
-
-            {/* Test case list */}
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm flex-1">
-              {tcLoading && (
-                <div className="py-8 text-center text-sm text-slate-400">Loading…</div>
-              )}
-              {!tcLoading && testCases.length === 0 && (
-                <div className="py-16 text-center">
-                  <Layers size={32} className="mx-auto text-slate-300 mb-3" />
-                  <p className="text-sm text-slate-500">No test cases found.</p>
-                  <p className="text-xs text-slate-400 mt-1">Create one manually or generate from AI.</p>
-                </div>
-              )}
-              <div className="divide-y divide-slate-50">
-                {testCases.map(tc => (
-                  <div
-                    key={tc.id}
-                    onClick={() => setSelectedTcId(tc.id === selectedTcId ? null : tc.id)}
-                    className={cn(
-                      'flex items-center gap-3 px-4 py-3 cursor-pointer transition-colors hover:bg-slate-50',
-                      selectedTcId === tc.id ? 'bg-blue-50' : ''
-                    )}
-                  >
-                    <div className="shrink-0">
-                      <Badge label={tc.priority.slice(0, 1)} colorClass={priorityColor(tc.priority)} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <p className="text-sm font-medium text-slate-900 truncate">{tc.title}</p>
-                        {tc.createdBy === 'AGENT' && (
-                          <Bot size={13} className="text-purple-500 shrink-0" aria-label="Created by Agent" />
-                        )}
-                      </div>
-                      <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                        <Badge label={tc.status.replace('_', ' ')} colorClass={statusColor(tc.status)} />
-                        {tc.automationStatus !== 'NOT_STARTED' && (
-                          <span className={cn(
-                            'inline-flex items-center gap-1 text-xs font-medium px-1.5 py-0.5 rounded-full',
-                            automationColor(tc.automationStatus)
-                          )}>
-                            {tc.automationStatus === 'GENERATING' && <Loader2 size={10} className="animate-spin" />}
-                            {tc.automationStatus.replace('_', ' ')}
-                          </span>
-                        )}
-                        <span className="text-xs text-slate-400">{relativeTime(tc.updatedAt)}</span>
-                      </div>
-                    </div>
-                    <ChevronRight size={14} className="text-slate-300 shrink-0" />
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-
-          {/* Detail panel */}
-          {selectedTc && (
+        {/* Detail panel */}
+        {selectedTc && (
+          <div className="flex-1 min-w-0 overflow-hidden">
             <TestCaseDetailPanel
               tc={selectedTc}
               projectId={projectId!}
+              base={base}
               onClose={() => setSelectedTcId(null)}
               onEdit={tc => setEditingTc(tc)}
             />
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* Modals */}
@@ -1864,6 +1937,12 @@ export default function TestCasesPage() {
           suite={editSuite}
           suites={allSuites}
           onClose={() => setEditSuite(null)}
+        />
+      )}
+      {showImportModal && (
+        <ExcelImportModal
+          onClose={() => setShowImportModal(false)}
+          onImport={handleImport}
         />
       )}
     </div>

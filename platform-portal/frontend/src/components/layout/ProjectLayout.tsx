@@ -150,8 +150,16 @@ export default function ProjectLayout() {
   return (
     <Ctx.Provider value={value}>
       <FCtx.Provider value={{ filter, setFilter, clear, active }}>
-        <FilterBar projectId={project.id} />
-        <Outlet />
+        {/* Flex column so FilterBar stays fixed-height and Outlet fills remaining space */}
+        <div className="flex-1 min-h-0 flex flex-col">
+          <FilterBar projectId={project.id} />
+          {/* overflow-y-auto here so normal (non-height-managed) pages scroll naturally.
+              Pages that control their own height (e.g. TestCasesPage) use h-full + overflow-hidden
+              to cap themselves within this bounded container instead of letting it scroll. */}
+          <div className="flex-1 min-h-0 overflow-y-auto">
+            <Outlet />
+          </div>
+        </div>
       </FCtx.Provider>
     </Ctx.Provider>
   )

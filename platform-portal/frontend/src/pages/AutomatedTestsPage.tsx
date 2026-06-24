@@ -1,9 +1,10 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState, useRef, useEffect, useMemo } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useProject } from '@/components/layout/ProjectLayout'
 import { api } from '@/lib/api'
 import { cn, relativeTime, formatDuration } from '@/lib/utils'
 import type { AutomatedTestSummary, TestTrendPoint, RecentRun, ExecutionSummary } from '@/lib/types'
+import { AreaChart, Area, Tooltip as RCTooltip, ResponsiveContainer } from 'recharts'
 import Badge from '@/components/Badge'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import ErrorMessage from '@/components/ErrorMessage'
@@ -299,6 +300,135 @@ function PassRateBar({ rate, total }: { rate: number; total: number }) {
       )}>
         {total === 0 ? '—' : `${pct}%`}
       </span>
+    </div>
+  )
+}
+
+// ── Trend sparklines ─────────────────────────────────────────────────────────
+
+interface SparkDatum { label: string; [key: string]: number | string }
+
+function SparkCard({
+  title,
+  value,
+  sub,
+  color,
+  data,
+  dataKey,
+  formatter,
+}: {
+  title: string
+  value: string
+  sub?: string
+  color: string
+  data: SparkDatum[]
+  dataKey: string
+  formatter?: (v: number) => string
+}) {
+  const half = Math.floor(data.length / 2)
+  const avg = (slice: SparkDatum[]) =>
+    slice.length === 0 ? 0 : slice.reduce((s, d) => s + ((d[dataKey] as number) ?? 0), 0) / slice.length
+  const prev = avg(data.slice(0, half))
+  const curr = avg(data.slice(half))
+  const delta = prev === 0 ? 0 : ((curr - prev) / prev) * 100
+  const up = delta >= 0
+
+  const gradId = `spark-grad-${dataKey}`
+
+  return (
+    <div className="bg-white rounded-xl border border-slate-200 shadow-sm px-4 pt-3 pb-0 overflow-hidden">
+      <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">{title}</p>
+      <div className="flex items-end justify-between mt-0.5">
+        <p className="text-2xl font-bold text-slate-900">{value}</p>
+        {data.length >= 4 && prev !== curr && (
+          <span className={cn(
+            'text-xs font-semibold mb-1',
+            up ? 'text-green-600' : 'text-red-500'
+          )}>
+            {up ? '↑' : '↓'} {Math.abs(delta).toFixed(0)}%
+          </span>
+        )}
+      </div>
+      {sub && <p className="text-[11px] text-slate-400">{sub}</p>}
+      <div className="mt-2 -mx-4">
+        <ResponsiveContainer width="100%" height={52}>
+          <AreaChart data={data} margin={{ top: 2, right: 0, bottom: 0, left: 0 }}>
+            <defs>
+              <linearGradient id={gradId} x1="0" y1="0" x2="0" y2="1">
+                <stop offset="5%" stopColor={color} stopOpacity={0.18} />
+                <stop offset="95%" stopColor={color} stopOpacity={0} />
+              </linearGradient>
+            </defs>
+            <RCTooltip
+              contentStyle={{ fontSize: 11, borderRadius: 8, border: '1px solid #e2e8f0', padding: '4px 8px' }}
+              formatter={(v) => [formatter ? formatter(v as number) : String(v), title]}
+              labelFormatter={(_, payload) => (payload?.[0]?.payload?.label as string | undefined) ?? ''}
+            />
+            <Area type="monotone" dataKey={dataKey} stroke={color} strokeWidth={1.5}
+              fill={`url(#${gradId})`} dot={false} activeDot={{ r: 3 }} />
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+    </div>
+  )
+}
+
+function TrendSparklines({
+  filteredExecs,
+  uniqueTests,
+  execPassRate,
+  execRunCount,
+  failingNow,
+}: {
+  filteredExecs: ExecutionSummary[]
+  uniqueTests: number
+  execPassRate: number
+  execRunCount: number
+  failingNow: number
+}) {
+  // One data point per execution, sorted oldest → newest
+  const data: SparkDatum[] = useMemo(() => {
+    return [...filteredExecs]
+      .sort((a, b) => new Date(a.executedAt).getTime() - new Date(b.executedAt).getTime())
+      .map(e => ({
+        label: `${e.executedAt.slice(0, 10)}${e.branch ? ' · ' + e.branch : ''}`,
+        totalTests: e.totalTests,
+        passRate: Math.round(e.passRate * 1000) / 10,
+        failed: e.failed + (e.broken ?? 0),
+      }))
+  }, [filteredExecs])
+
+  if (data.length < 2) return null
+
+  return (
+    <div className="grid grid-cols-3 gap-3">
+      <SparkCard
+        title="Unique Tests / Run"
+        value={uniqueTests.toLocaleString()}
+        sub="distinct test IDs in period"
+        color="#3b82f6"
+        data={data}
+        dataKey="totalTests"
+        formatter={v => v.toLocaleString()}
+      />
+      <SparkCard
+        title="Pass Rate / Run"
+        value={execRunCount === 0 ? '—' : `${Math.round(execPassRate * 100)}%`}
+        sub="avg across execution runs"
+        color="#22c55e"
+        data={data}
+        dataKey="passRate"
+        formatter={v => `${v}%`}
+      />
+      <SparkCard
+        title="Currently Failing"
+        value={failingNow.toLocaleString()}
+        sub="tests with last status failed"
+        color="#ef4444"
+        data={data}
+        dataKey="failed"
+        formatter={v => v.toLocaleString()}
+      />
     </div>
   )
 }
@@ -718,7 +848,7 @@ function FilterChipRow({
 
 export default function AutomatedTestsPage() {
   const { projectId, base } = useProject()
-  const [dateRange, setDateRange]               = useState<DateRange>(makePreset(30, 'Last 30d'))
+  const [dateRange, setDateRange]               = useState<DateRange>(makePreset(7, 'Last 7d'))
   const [viewMode, setViewMode]                 = useState<ViewMode>('tests')
   const [search, setSearch]                     = useState('')
   const [statusFilter, setStatusFilter]         = useState<StatusFilter>('ALL')
@@ -869,23 +999,14 @@ export default function AutomatedTestsPage() {
 
       {/* ── By Individual Test tab ── */}
       {viewMode === 'tests' && (<>
-        {/* KPI row — pass rate and run count come from exact-range executions */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-          {[
-            { label: 'Unique Tests',    value: uniqueTests === 0 && testsLoading ? '…' : uniqueTests.toString() },
-            { label: 'Overall Pass Rate',
-              value: execRunCount === 0 ? '—' : `${Math.round(execPassRate * 100)}%`,
-              color: execPassRate >= 0.9 ? 'text-green-700' : execPassRate >= 0.7 ? 'text-yellow-700' : 'text-red-700' },
-            { label: 'Currently Failing', value: failingNow.toString(),
-              color: failingNow > 0 ? 'text-red-700' : 'text-slate-900' },
-            { label: 'Execution Runs',  value: execRunCount.toString() },
-          ].map(({ label, value, color }) => (
-            <div key={label} className="bg-white rounded-xl border border-slate-200 shadow-sm px-4 py-3">
-              <p className="text-xs text-slate-500">{label}</p>
-              <p className={cn('text-2xl font-bold mt-0.5', color ?? 'text-slate-900')}>{value}</p>
-            </div>
-          ))}
-        </div>
+        {/* Trend sparklines — one data point per execution run */}
+        <TrendSparklines
+          filteredExecs={filteredExecs}
+          uniqueTests={uniqueTests}
+          execPassRate={execPassRate}
+          execRunCount={execRunCount}
+          failingNow={failingNow}
+        />
 
         {/* Row 1: Search + status chips */}
         <div className="flex items-center gap-3 flex-wrap">

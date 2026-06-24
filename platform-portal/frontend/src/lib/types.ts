@@ -110,6 +110,11 @@ export interface TestCase {
   stackTrace: string | null
   retryCount: number
   createdAt: string
+  hasTrace: boolean
+  hasScreenshot: boolean
+  hasVideo: boolean
+  specFile: string | null
+  browser: string | null
 }
 
 export interface FlakinessItem {

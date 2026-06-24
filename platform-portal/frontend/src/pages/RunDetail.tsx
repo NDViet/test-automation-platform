@@ -7,7 +7,7 @@ import Badge from '@/components/Badge'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import ErrorMessage from '@/components/ErrorMessage'
 import type { TestCase } from '@/lib/types'
-import { ChevronRight, ChevronDown, ExternalLink } from 'lucide-react'
+import { ChevronRight, ChevronDown, ExternalLink, Play, Download, Camera, Video, Globe } from 'lucide-react'
 
 type StatusFilter = 'ALL' | 'FAILED' | 'PASSED' | 'SKIPPED' | 'BROKEN'
 
@@ -18,7 +18,6 @@ export default function RunDetail() {
   const expandResultId = searchParams.get('expandResult')
 
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL')
-  // Pre-expand the linked test result so the failure detail is immediately visible
   const [expanded, setExpanded] = useState<Set<string>>(
     () => expandResultId ? new Set([expandResultId]) : new Set()
   )
@@ -32,7 +31,6 @@ export default function RunDetail() {
 
   const { data: projects } = useQuery({ queryKey: ['projects'], queryFn: () => api.projects() })
 
-  // On first data load: if the linked result would be hidden by the status filter, clear it
   useEffect(() => {
     if (!expandResultId || !data?.testCases || didAutoReset.current) return
     didAutoReset.current = true
@@ -42,7 +40,6 @@ export default function RunDetail() {
     }
   }, [data, expandResultId, statusFilter])
 
-  // Once data is loaded, scroll the linked test into view
   useEffect(() => {
     if (!isLoading && expandResultId) {
       const el = document.getElementById(`result-${expandResultId}`)
@@ -54,7 +51,6 @@ export default function RunDetail() {
   if (error || !data) return <ErrorMessage message="Failed to load run details." />
 
   const { summary: s, testCases } = data
-  // Resolve the project's slug URL; fall back to the UUID route (which redirects).
   const proj = projects?.find(p => p.id === s.projectId)
   const projectHref = proj ? `/${proj.orgSlug}/${proj.slug}` : `/projects/${s.projectId}`
 
@@ -173,35 +169,133 @@ export default function RunDetail() {
         {filtered.map((tc: TestCase) => {
           const isOpen = expanded.has(tc.id)
           const hasFail = !!(tc.failureMessage || tc.stackTrace)
+          const hasTrace = !!tc.hasTrace
+          const isExpandable = hasFail || hasTrace
           const isTarget = tc.id === expandResultId
+
+          const traceViewerUrl = `${window.location.origin}/pw-trace/index.html?trace=${encodeURIComponent(`${window.location.origin}/api/portal/traces/${tc.id}`)}`
+
           return (
             <div key={tc.id} id={`result-${tc.id}`}
-                 className={cn(isTarget && 'ring-2 ring-inset ring-blue-400 rounded-sm')}>
-              <button
-                onClick={() => hasFail && toggle(tc.id)}
+                 className={cn('group', isTarget && 'ring-2 ring-inset ring-blue-400 rounded-sm')}>
+              {/* ── Row header ── */}
+              <div
+                onClick={() => isExpandable && toggle(tc.id)}
                 className={cn(
                   'w-full text-left px-5 py-3.5 flex items-center gap-3',
-                  hasFail ? 'cursor-pointer hover:bg-slate-50' : 'cursor-default',
+                  isExpandable ? 'cursor-pointer hover:bg-slate-50' : 'cursor-default',
                   'transition-colors',
-                  isTarget && 'bg-blue-50',
+                  isTarget && !isOpen && 'bg-blue-50',
                 )}
               >
-                {hasFail && (
-                  isOpen
+                {/* Expand chevron */}
+                {isExpandable
+                  ? isOpen
                     ? <ChevronDown size={14} className="text-slate-400 shrink-0" />
                     : <ChevronRight size={14} className="text-slate-400 shrink-0" />
-                )}
-                {!hasFail && <div className="w-3.5 shrink-0" />}
-                <Badge label={tc.status} colorClass={statusColor(tc.status)} />
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-medium text-slate-900 truncate">{tc.displayName}</p>
-                  <p className="text-xs text-slate-400 truncate">{tc.className}</p>
-                </div>
-                <span className="text-xs text-slate-400 shrink-0">{formatDuration(tc.durationMs)}</span>
-              </button>
+                  : <div className="w-3.5 shrink-0" />
+                }
 
-              {isOpen && hasFail && (
-                <div className="px-5 pb-4 space-y-3">
+                <Badge label={tc.status} colorClass={statusColor(tc.status)} />
+
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <p className="text-sm font-medium text-slate-900 truncate">{tc.displayName}</p>
+                    {tc.hasScreenshot && (
+                      <span title="Has screenshot"><Camera size={12} className="text-slate-400 shrink-0" /></span>
+                    )}
+                    {tc.hasVideo && (
+                      <span title="Has video"><Video size={12} className="text-slate-400 shrink-0" /></span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <p className="text-xs text-slate-400 truncate">{tc.className}</p>
+                    {tc.browser && (
+                      <span className="inline-flex items-center gap-0.5 text-[10px] text-slate-400">
+                        <Globe size={9} /> {tc.browser}
+                      </span>
+                    )}
+                    {tc.retryCount > 0 && (
+                      <span className="text-[10px] text-amber-600 font-medium">
+                        {tc.retryCount} retr{tc.retryCount === 1 ? 'y' : 'ies'}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <span className="text-xs text-slate-400 shrink-0">{formatDuration(tc.durationMs)}</span>
+
+                {/* Trace / attachment quick-actions — visible on row hover */}
+                {hasTrace && (
+                  <div className="shrink-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                       onClick={e => e.stopPropagation()}>
+                    <a
+                      href={traceViewerUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      title="Open in Playwright Trace Viewer"
+                      className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium
+                                 bg-violet-50 text-violet-700 border border-violet-200
+                                 hover:bg-violet-100 transition-colors"
+                    >
+                      <Play size={10} />
+                      Trace
+                    </a>
+                    <a
+                      href={api.traceUrl(tc.id)}
+                      download={`trace-${tc.id}.zip`}
+                      title="Download trace ZIP"
+                      className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium
+                                 bg-slate-100 text-slate-500 border border-slate-200
+                                 hover:bg-slate-200 transition-colors"
+                    >
+                      <Download size={10} />
+                    </a>
+                  </div>
+                )}
+              </div>
+
+              {/* ── Expanded detail ── */}
+              {isOpen && (
+                <div className="px-5 pb-5 space-y-3 border-t border-slate-50 pt-3">
+
+                  {/* Trace viewer — shown prominently at the top of the expanded section */}
+                  {hasTrace && (
+                    <div className="flex items-center gap-2 p-3 bg-violet-50 border border-violet-200 rounded-lg">
+                      <Play size={14} className="text-violet-600 shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-semibold text-violet-800">Playwright Trace</p>
+                        <p className="text-[11px] text-violet-600 truncate font-mono mt-0.5">
+                          {tc.specFile ?? tc.displayName}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <a
+                          href={traceViewerUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold
+                                     bg-violet-600 text-white hover:bg-violet-700 transition-colors"
+                        >
+                          <Play size={11} />
+                          Open Trace
+                        </a>
+                        <a
+                          href={api.traceUrl(tc.id)}
+                          download={`trace-${tc.id}.zip`}
+                          title="Download trace ZIP — view with: npx playwright show-trace trace.zip"
+                          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium
+                                     bg-white border border-violet-200 text-violet-700
+                                     hover:bg-violet-50 transition-colors"
+                        >
+                          <Download size={11} />
+                          .zip
+                        </a>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Failure message */}
                   {tc.failureMessage && (
                     <div className="bg-red-50 border border-red-100 rounded-lg p-3">
                       <p className="text-xs font-semibold text-red-700 mb-1">Failure message</p>
@@ -210,6 +304,8 @@ export default function RunDetail() {
                       </p>
                     </div>
                   )}
+
+                  {/* Stack trace */}
                   {tc.stackTrace && (
                     <div className="bg-slate-900 rounded-lg p-3 overflow-x-auto">
                       <p className="text-xs font-semibold text-slate-300 mb-2">Stack trace</p>
