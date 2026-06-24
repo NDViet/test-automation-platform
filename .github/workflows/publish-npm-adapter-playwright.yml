@@ -71,6 +71,11 @@ jobs:
           test -f dist/index.js   || (echo "ERROR: dist/index.js missing" && exit 1)
           test -f dist/index.d.ts || (echo "ERROR: dist/index.d.ts missing" && exit 1)
 
+      # publishConfig.registry in package.json points to GitHub Packages.
+      # Override it here so this workflow publishes to NPMJS instead.
+      - name: Override publishConfig registry
+        run: npm pkg set publishConfig.registry=https://registry.npmjs.org
+
       - name: Publish to NPMJS
         run: npm publish --access public --tag "$PUBLISH_TAG"
         env:
