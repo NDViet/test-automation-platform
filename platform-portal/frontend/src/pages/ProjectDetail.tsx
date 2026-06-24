@@ -9,6 +9,10 @@ import {
   FileText, ShieldCheck, Bug, Gauge, Rocket, ChevronRight, ArrowRight,
   MonitorCheck, CheckCircle, XCircle, AlertTriangle, GitBranch,
 } from 'lucide-react'
+import {
+  LineChart, Line as RCLine, XAxis, YAxis, Tooltip as RCTooltip,
+  ResponsiveContainer, Legend, CartesianGrid,
+} from 'recharts'
 import type { ExecutionSummary } from '@/lib/types'
 
 function rateColor(p: number): string {
@@ -70,13 +74,15 @@ function execPct(e: ExecutionSummary): number {
 }
 
 function ExecutionRow({ exec, base }: { exec: ExecutionSummary; base: string }) {
-  const pr = execPct(exec)
-  const failed = exec.failed + (exec.broken ?? 0)
+  const pr      = execPct(exec)
+  const failed  = exec.failed + (exec.broken ?? 0)
+  const skipped = exec.skipped ?? 0
   return (
     <Link
       to={`${base}/automated-tests`}
-      className="flex items-center gap-3 px-5 py-2.5 hover:bg-slate-50 transition-colors"
+      className="flex items-center gap-3 px-5 py-3 hover:bg-slate-50 transition-colors"
     >
+      {/* Status icon */}
       <div className="shrink-0">
         {pr >= 80
           ? <CheckCircle size={14} className="text-green-500" />
@@ -85,20 +91,73 @@ function ExecutionRow({ exec, base }: { exec: ExecutionSummary; base: string }) 
             : <XCircle size={14} className="text-red-500" />
         }
       </div>
+
+      {/* Suite + branch + time */}
       <div className="flex-1 min-w-0">
-        <p className="text-sm text-slate-800 truncate">{exec.suiteName || exec.sourceFormat}</p>
-        <div className="flex items-center gap-2 mt-0.5">
+        <p className="text-sm font-medium text-slate-800 truncate">{exec.suiteName || exec.sourceFormat}</p>
+        <div className="flex items-center gap-1.5 mt-0.5">
           <GitBranch size={10} className="text-slate-400 shrink-0" />
-          <span className="text-[11px] text-slate-400 font-mono truncate">{exec.branch || '—'}</span>
-          <span className="text-[11px] text-slate-400">·</span>
+          <span className="text-[11px] text-slate-400 font-mono truncate max-w-[120px]">{exec.branch || '—'}</span>
+          <span className="text-[11px] text-slate-300">·</span>
           <span className="text-[11px] text-slate-400">{relativeTime(exec.executedAt)}</span>
         </div>
       </div>
-      <div className="shrink-0 text-right">
-        <p className="text-sm font-semibold tabular-nums" style={{ color: rateColor(pr) }}>{pr.toFixed(1)}%</p>
-        <p className="text-[11px] text-slate-400 tabular-nums">{exec.totalTests} tests · {failed} fail</p>
+
+      {/* Pass / Fail / Skip pill row */}
+      <div className="shrink-0 flex items-center gap-1.5">
+        <span className="inline-flex items-center gap-0.5 text-[11px] font-medium tabular-nums px-1.5 py-0.5 rounded bg-green-50 text-green-700">
+          <CheckCircle size={10} /> {exec.passed}
+        </span>
+        {failed > 0 && (
+          <span className="inline-flex items-center gap-0.5 text-[11px] font-medium tabular-nums px-1.5 py-0.5 rounded bg-red-50 text-red-600">
+            <XCircle size={10} /> {failed}
+          </span>
+        )}
+        {skipped > 0 && (
+          <span className="inline-flex items-center gap-0.5 text-[11px] font-medium tabular-nums px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">
+            {skipped} skip
+          </span>
+        )}
+      </div>
+
+      {/* Pass rate */}
+      <div className="shrink-0 w-14 text-right">
+        <p className="text-sm font-bold tabular-nums" style={{ color: rateColor(pr) }}>{pr.toFixed(1)}%</p>
+        <p className="text-[10px] text-slate-400 tabular-nums">{exec.totalTests} total</p>
       </div>
     </Link>
+  )
+}
+
+function TrendLineChart({ execs }: { execs: ExecutionSummary[] }) {
+  if (execs.length < 2) return null
+  // Oldest → newest left-to-right
+  const data = [...execs].reverse().map((e, i) => ({
+    idx:     i + 1,
+    label:   (e.suiteName || e.sourceFormat || `#${i + 1}`).split(/[/\\]/).pop()!.slice(0, 12),
+    Passed:  e.passed,
+    Failed:  e.failed + (e.broken ?? 0),
+    Skipped: e.skipped ?? 0,
+  }))
+  return (
+    <div className="px-5 pt-4 pb-3 border-t border-slate-100">
+      <p className="text-xs font-medium text-slate-500 mb-3">Trend — Pass / Fail / Skip</p>
+      <ResponsiveContainer width="100%" height={160}>
+        <LineChart data={data} margin={{ top: 2, right: 8, bottom: 0, left: -24 }}>
+          <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+          <XAxis dataKey="label" tick={{ fontSize: 9, fill: '#94a3b8' }} tickLine={false} axisLine={false} interval="preserveStartEnd" />
+          <YAxis tick={{ fontSize: 10, fill: '#94a3b8' }} tickLine={false} axisLine={false} />
+          <RCTooltip
+            contentStyle={{ fontSize: 11, borderRadius: 8, border: '1px solid #e2e8f0', padding: '6px 10px' }}
+            formatter={(value, name) => [(value ?? 0).toLocaleString(), name]}
+          />
+          <Legend iconType="circle" iconSize={7} wrapperStyle={{ fontSize: 11, paddingTop: 4 }} />
+          <RCLine type="monotone" dataKey="Passed"  stroke="#22c55e" strokeWidth={2} dot={false} activeDot={{ r: 3 }} />
+          <RCLine type="monotone" dataKey="Failed"  stroke="#ef4444" strokeWidth={2} dot={false} activeDot={{ r: 3 }} />
+          <RCLine type="monotone" dataKey="Skipped" stroke="#94a3b8" strokeWidth={1.5} dot={false} strokeDasharray="4 3" activeDot={{ r: 3 }} />
+        </LineChart>
+      </ResponsiveContainer>
+    </div>
   )
 }
 
@@ -143,6 +202,8 @@ export default function ProjectDetail() {
     : null
   const totalAutoTests = recentExecs.reduce((s, e) => s + (e.totalTests ?? 0), 0)
   const totalFailed    = recentExecs.reduce((s, e) => s + (e.failed ?? 0) + (e.broken ?? 0), 0)
+  const totalSkipped   = recentExecs.reduce((s, e) => s + (e.skipped ?? 0), 0)
+  const totalPassed    = totalAutoTests - totalFailed - totalSkipped
 
   const covered    = cov.coveredByAutomation + cov.coveredManualOnly
   const coveredPct = cov.totalRequirements ? Math.round(covered * 1000 / cov.totalRequirements) / 10 : 0
@@ -204,9 +265,10 @@ export default function ProjectDetail() {
             <p className="text-xs text-slate-500">Tests executed</p>
             <p className="text-2xl font-bold text-slate-800 mt-0.5">{totalAutoTests.toLocaleString()}</p>
             <p className="text-[11px] text-slate-400 mt-0.5">
-              <span className="text-red-500">{totalFailed} failed</span>
+              <span className="text-green-600">{totalPassed.toLocaleString()} passed</span>
               {' · '}
-              <span className="text-green-500">{(totalAutoTests - totalFailed).toLocaleString()} passed</span>
+              <span className="text-red-500">{totalFailed} failed</span>
+              {totalSkipped > 0 && <><span> · </span><span className="text-slate-400">{totalSkipped} skipped</span></>}
             </p>
           </div>
 
@@ -244,6 +306,9 @@ export default function ProjectDetail() {
             )}
           </div>
         </div>
+
+        {/* Pass / Fail / Skip trend */}
+        <TrendLineChart execs={recentExecs} />
 
         {/* Recent executions */}
         {recentExecs.length === 0 ? (

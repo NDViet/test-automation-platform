@@ -24,7 +24,7 @@ export default function PassRateChart({ data, threshold = 80, height = 220 }: Pr
         <XAxis dataKey="date" tick={{ fontSize: 11, fill: '#94a3b8' }} tickLine={false} />
         <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: '#94a3b8' }} tickLine={false} unit="%" />
         <Tooltip
-          formatter={(value: number) => [`${value}%`, 'Pass Rate']}
+          formatter={(value) => [`${value ?? ''}%`, 'Pass Rate']}
           contentStyle={{ fontSize: 12, borderRadius: 8, border: '1px solid #e2e8f0' }}
         />
         <ReferenceLine y={threshold} stroke="#f59e0b" strokeDasharray="4 4" label={{ value: `${threshold}%`, fontSize: 10, fill: '#f59e0b' }} />

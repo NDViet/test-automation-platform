@@ -9,11 +9,16 @@
         <groupId>org.ndviet</groupId>
         <artifactId>test-automation-platform</artifactId>
         <version>1.0.0-SNAPSHOT</version>
+        <relativePath>../pom.xml</relativePath>
     </parent>
 
-    <artifactId>platform-ai</artifactId>
-    <name>Platform AI</name>
-    <description>Claude-powered failure classification, similarity detection, and nightly batch analysis</description>
+    <artifactId>platform-agent</artifactId>
+    <name>Platform Agent</name>
+    <description>
+        Agent Grid runtime: Hub and Node modes selected via Spring profiles.
+        Hub owns workflow orchestration, context assembly, and review routing.
+        Node owns stateless task execution against an LLM + tool set.
+    </description>
 
     <dependencies>
         <dependency>
@@ -24,12 +29,19 @@
             <groupId>org.ndviet</groupId>
             <artifactId>platform-core</artifactId>
         </dependency>
-
-        <!-- Anthropic Claude SDK -->
+        <dependency>
+            <groupId>org.ndviet</groupId>
+            <artifactId>platform-storage</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.ndviet</groupId>
+            <artifactId>platform-integration-config</artifactId>
+            <version>${project.version}</version>
+        </dependency>
         <dependency>
             <groupId>com.anthropic</groupId>
             <artifactId>anthropic-java</artifactId>
-            <version>2.43.0</version>
+            <version>2.15.0</version>
         </dependency>
 
         <dependency>
@@ -42,49 +54,41 @@
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>
-            <artifactId>spring-boot-starter-actuator</artifactId>
+            <artifactId>spring-boot-starter-data-redis</artifactId>
         </dependency>
         <dependency>
             <groupId>org.springframework.kafka</groupId>
             <artifactId>spring-kafka</artifactId>
         </dependency>
         <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-actuator</artifactId>
+        </dependency>
+
+        <dependency>
             <groupId>com.fasterxml.jackson.core</groupId>
             <artifactId>jackson-databind</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.fasterxml.jackson.datatype</groupId>
+            <artifactId>jackson-datatype-jsr310</artifactId>
+        </dependency>
 
+        <!-- PostgreSQL driver -->
         <dependency>
             <groupId>org.postgresql</groupId>
             <artifactId>postgresql</artifactId>
             <scope>runtime</scope>
         </dependency>
-        <dependency>
-            <groupId>org.flywaydb</groupId>
-            <artifactId>flyway-core</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>org.flywaydb</groupId>
-            <artifactId>flyway-database-postgresql</artifactId>
-        </dependency>
 
-        <dependency>
-            <groupId>org.springdoc</groupId>
-            <artifactId>springdoc-openapi-starter-webmvc-ui</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>io.micrometer</groupId>
-            <artifactId>micrometer-registry-prometheus</artifactId>
-        </dependency>
-
-        <!-- Test -->
         <dependency>
             <groupId>org.springframework.boot</groupId>
             <artifactId>spring-boot-starter-test</artifactId>
             <scope>test</scope>
         </dependency>
         <dependency>
-            <groupId>org.mockito</groupId>
-            <artifactId>mockito-core</artifactId>
+            <groupId>org.springframework.kafka</groupId>
+            <artifactId>spring-kafka-test</artifactId>
             <scope>test</scope>
         </dependency>
     </dependencies>

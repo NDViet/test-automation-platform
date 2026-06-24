@@ -51,7 +51,7 @@
         <dependency>
             <groupId>org.testng</groupId>
             <artifactId>testng</artifactId>
-            <version>7.12.0</version>
+            <version>7.11.0</version>
             <optional>true</optional>
         </dependency>
 
@@ -59,13 +59,13 @@
         <dependency>
             <groupId>io.cucumber</groupId>
             <artifactId>cucumber-java</artifactId>
-            <version>7.34.3</version>
+            <version>7.22.2</version>
             <optional>true</optional>
         </dependency>
         <dependency>
             <groupId>io.cucumber</groupId>
             <artifactId>cucumber-plugin</artifactId>
-            <version>7.34.3</version>
+            <version>7.22.2</version>
             <optional>true</optional>
         </dependency>
 
@@ -73,7 +73,7 @@
         <dependency>
             <groupId>com.microsoft.playwright</groupId>
             <artifactId>playwright</artifactId>
-            <version>1.60.0</version>
+            <version>1.49.0</version>
             <optional>true</optional>
         </dependency>
 
@@ -97,14 +97,14 @@
         <dependency>
             <groupId>io.opentelemetry</groupId>
             <artifactId>opentelemetry-api</artifactId>
-            <version>1.63.0</version>
+            <version>1.62.0</version>
         </dependency>
 
         <!-- Logstash log shipping — structured JSON over TCP to Logstash/OpenSearch -->
         <dependency>
             <groupId>net.logstash.logback</groupId>
             <artifactId>logstash-logback-encoder</artifactId>
-            <version>9.0</version>
+            <version>8.0</version>
         </dependency>
 
         <!-- Jackson — serialize UnifiedTestResult for native publishing -->

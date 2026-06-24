@@ -5,8 +5,8 @@ import {
   LayoutDashboard, FolderOpen, Bell, Key, Bot,
   FlaskConical, BarChart3, FileText, GitBranch, Zap,
   Inbox, Plug, ShieldCheck, Boxes, Users, ShieldAlert, Gauge,
-  Rocket, ClipboardCheck, Layers, MonitorCheck, Github,
-  ChevronLeft, ChevronRight, Building2, Settings, ArrowLeftRight,
+  Rocket, ClipboardCheck, Layers, MonitorCheck,
+  ChevronLeft, ChevronRight, Building2, Settings, ArrowLeftRight, GitMerge,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { api } from '@/lib/api'
@@ -64,7 +64,7 @@ function projectGroups(base: string): NavGroup[] {
         { to: `${base}/test-suites`,      label: 'Test Suites',      icon: Layers },
         { to: `${base}/test-execution`,   label: 'Test Execution',   icon: ClipboardCheck },
         { to: `${base}/automated-tests`,  label: 'Automated Tests',  icon: MonitorCheck },
-        { to: `${base}/github-workflows`, label: 'GitHub Workflows', icon: Github },
+        { to: `${base}/github-workflows`, label: 'GitHub Workflows', icon: GitMerge},
         { to: `${base}/flaky-tests`,      label: 'Flaky Tests',      icon: Zap },
         { to: `${base}/review-queue`,     label: 'Review Queue',     icon: Inbox },
       ],
@@ -84,7 +84,7 @@ function projectGroups(base: string): NavGroup[] {
         { to: `${base}/settings/integrations`, label: 'Integrations', icon: Plug },
         { to: `${base}/settings/mapping`,      label: 'Mapping',      icon: Boxes },
         { to: `${base}/settings/ai`,           label: 'AI',           icon: Bot },
-        { to: `${base}/settings/github`,       label: 'GitHub',       icon: Github },
+        { to: `${base}/settings/github`,       label: 'GitHub',       icon: GitMerge},
       ],
     },
   ]
