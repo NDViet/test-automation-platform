@@ -39,14 +39,14 @@ export default function PRAnalysesPage() {
   const { projectId, base } = useProject()
   const navigate = useNavigate()
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['pr-analyses', projectId],
     queryFn:  () => api.prAnalyses(projectId!, 30),
     enabled:  !!projectId,
   })
 
   if (isLoading) return <LoadingSpinner message="Loading PR analyses…" />
-  if (error)     return <ErrorMessage  message="Failed to load PR analyses." />
+  if (error)     return <ErrorMessage  message="Failed to load PR analyses." onRetry={() => void refetch()} />
 
   const items: PrAnalysis[] = Array.isArray(data) ? data : []
 

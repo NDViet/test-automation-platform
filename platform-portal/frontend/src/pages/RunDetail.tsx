@@ -23,7 +23,7 @@ export default function RunDetail() {
   )
   const didAutoReset = useRef(false)
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['run', runId],
     queryFn: () => api.runDetail(runId!),
     enabled: !!runId,
@@ -48,7 +48,7 @@ export default function RunDetail() {
   }, [isLoading, expandResultId])
 
   if (isLoading) return <LoadingSpinner message="Loading run details…" />
-  if (error || !data) return <ErrorMessage message="Failed to load run details." />
+  if (error || !data) return <ErrorMessage message="Failed to load run details." onRetry={() => void refetch()} />
 
   const { summary: s, testCases } = data
   const proj = projects?.find(p => p.id === s.projectId)

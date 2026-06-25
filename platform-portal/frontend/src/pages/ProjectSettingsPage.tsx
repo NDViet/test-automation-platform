@@ -405,7 +405,7 @@ export default function ProjectSettingsPage() {
     : 'general'
 
   // ── General tab ──────────────────────────────────────────────────────────────
-  const { data: detail, isLoading, error } = useQuery({
+  const { data: detail, isLoading, error, refetch } = useQuery({
     queryKey: ['project', projectId],
     queryFn:  () => api.projectDetail(projectId!),
     enabled:  !!projectId,
@@ -490,7 +490,7 @@ export default function ProjectSettingsPage() {
   }
 
   if (isLoading) return <LoadingSpinner message="Loading project…" />
-  if (error || !project) return <ErrorMessage message="Failed to load project." />
+  if (error || !project) return <ErrorMessage message="Failed to load project." onRetry={() => void refetch()} />
 
   return (
     <div className="space-y-6 max-w-2xl">

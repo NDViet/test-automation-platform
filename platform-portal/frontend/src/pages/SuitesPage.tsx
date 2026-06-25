@@ -252,7 +252,7 @@ export default function SuitesPage() {
   const [modal, setModal] = useState<{ kind: 'edit' | 'members'; suite?: TestSuite } | null>(null)
 
   const { filter } = useProjectFilter()   // project-wide Team / Area scope
-  const { data: allSuites = [], isLoading, error } = useQuery({
+  const { data: allSuites = [], isLoading, error, refetch } = useQuery({
     queryKey: ['testSuites', projectId],
     queryFn: () => api.testSuites(projectId!),
     enabled: !!projectId,
@@ -282,7 +282,7 @@ export default function SuitesPage() {
   })
 
   if (isLoading) return <LoadingSpinner message="Loading suites…" />
-  if (error) return <ErrorMessage message="Failed to load suites." />
+  if (error) return <ErrorMessage message="Failed to load suites." onRetry={() => void refetch()} />
 
   return (
     <div className="space-y-6">

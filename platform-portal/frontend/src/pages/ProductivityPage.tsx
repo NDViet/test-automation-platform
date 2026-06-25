@@ -31,7 +31,7 @@ export default function ProductivityPage() {
   const leadQ  = useQuery({ queryKey: ['productivity-lead', projectId], queryFn: () => api.productivityLeadByArea(projectId) })
 
   if (cycleQ.isLoading) return <LoadingSpinner message="Computing cycle times…" />
-  if (cycleQ.error || !cycleQ.data) return <ErrorMessage message="Failed to load productivity metrics." />
+  if (cycleQ.error || !cycleQ.data) return <ErrorMessage message="Failed to load productivity metrics." onRetry={() => void cycleQ.refetch()} />
   const c = cycleQ.data
   const lead = leadQ.data
   const pctOver = c.totalWip > 0 ? Math.round((c.totalOver / c.totalWip) * 100) : 0
@@ -211,7 +211,7 @@ function DrillModal({ projectId, drill, onClose }: { projectId: string; drill: D
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
         </div>
         <div className="overflow-y-auto flex-1">
-          {q.isLoading ? <LoadingSpinner /> : q.error ? <ErrorMessage message="Failed to load." /> :
+          {q.isLoading ? <LoadingSpinner /> : q.error ? <ErrorMessage message="Failed to load." onRetry={() => void q.refetch()} /> :
            items.length === 0 ? <Empty text="No items." /> : (
             <table className="w-full text-sm">
               <thead className="sticky top-0 bg-white">

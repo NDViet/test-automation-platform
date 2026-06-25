@@ -728,7 +728,7 @@ export default function ImpactAnalysesPage() {
   const failed    = analyses.filter(a => a.status === 'FAILED').length
 
   if (isLoading) return <LoadingSpinner message="Loading impact analyses…" />
-  if (error)     return <ErrorMessage  message="Failed to load impact analyses." />
+  if (error)     return <ErrorMessage  message="Failed to load impact analyses." onRetry={() => void refetch()} />
 
   return (
     <div className="space-y-6">

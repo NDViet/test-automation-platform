@@ -59,7 +59,7 @@ export default function QualityDashboardPage() {
   }, [statusQ.data, statusQ.dataUpdatedAt])  // eslint-disable-line react-hooks/exhaustive-deps
 
   if (overviewQ.isLoading) return <LoadingSpinner message="Computing quality metrics…" />
-  if (overviewQ.error || !overviewQ.data) return <ErrorMessage message="Failed to load quality metrics." />
+  if (overviewQ.error || !overviewQ.data) return <ErrorMessage message="Failed to load quality metrics." onRetry={() => void overviewQ.refetch()} />
   const o = overviewQ.data
   const engineers = engineersQ.data ?? []
 
@@ -236,7 +236,7 @@ export default function QualityDashboardPage() {
 }
 
 function ActivityModal({ projectId, person, onClose }: { projectId: string; person: string; onClose: () => void }) {
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['quality-activity', projectId, person],
     queryFn: () => api.qualityActivity(projectId, person, 80),
   })
@@ -250,7 +250,7 @@ function ActivityModal({ projectId, person, onClose }: { projectId: string; pers
         </div>
         <div className="overflow-y-auto flex-1 p-4">
           {isLoading ? <LoadingSpinner /> :
-           error ? <ErrorMessage message="Failed to load activity." /> :
+           error ? <ErrorMessage message="Failed to load activity." onRetry={() => void refetch()} /> :
            events.length === 0 ? <p className="py-10 text-sm text-slate-500 text-center">No history events. Sync work-item history first.</p> : (
             <ol className="relative border-l border-slate-200 ml-2">
               {events.map((ev: ActivityEvent, i) => (
@@ -291,7 +291,7 @@ function DrillCell({ value, onClick, danger, accent }: { value: number; onClick:
 }
 
 function DrillModal({ projectId, drill, onClose }: { projectId: string; drill: Drill; onClose: () => void }) {
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['quality-drill', projectId, drill.person, drill.involvementKind ?? '', drill.attribution, drill.type, drill.status],
     queryFn: () => drill.involvementKind
       ? api.qualityInvolvementItems(projectId, drill.person, drill.involvementKind)
@@ -307,7 +307,7 @@ function DrillModal({ projectId, drill, onClose }: { projectId: string; drill: D
         </div>
         <div className="overflow-y-auto flex-1">
           {isLoading ? <LoadingSpinner /> :
-           error ? <ErrorMessage message="Failed to load items." /> :
+           error ? <ErrorMessage message="Failed to load items." onRetry={() => void refetch()} /> :
            items.length === 0 ? <p className="px-5 py-10 text-sm text-slate-500 text-center">No items.</p> : (
             <table className="w-full text-sm">
               <thead className="sticky top-0 bg-white">

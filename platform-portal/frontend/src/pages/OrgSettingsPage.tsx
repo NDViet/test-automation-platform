@@ -1,7 +1,12 @@
 import { useState, useRef, useCallback } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
+import { Building2, Plus } from 'lucide-react'
 import { api } from '@/lib/api'
 import type { Organization } from '@/lib/types'
+import LoadingSpinner from '@/components/LoadingSpinner'
+import ErrorMessage from '@/components/ErrorMessage'
+import EmptyState from '@/components/EmptyState'
+import CreateOrganizationModal from '@/components/CreateOrganizationModal'
 
 // ── Helpers (mirrors Sidebar) ─────────────────────────────────────────────────
 
@@ -241,22 +246,65 @@ function OrgSelect({
 // ── Page ──────────────────────────────────────────────────────────────────────
 
 export default function OrgSettingsPage() {
-  const { data: orgs, isLoading, isError } = useQuery({
+  const qc = useQueryClient()
+  const { data: orgs, isLoading, isError, refetch } = useQuery({
     queryKey: ['organizations'],
     queryFn: api.organizations,
   })
 
   const [selectedId, setSelectedId] = useState<string | null>(null)
+  const [showCreate, setShowCreate] = useState(false)
 
   if (isLoading) {
+    return <LoadingSpinner message="Loading organization…" />
+  }
+
+  // Genuine failure (network / 5xx) — offer a retry, not a dead end.
+  if (isError) {
     return (
-      <div className="p-8 text-sm text-slate-500">Loading organization…</div>
+      <div className="max-w-4xl mx-auto px-6 py-8">
+        <ErrorMessage
+          title="Couldn't load organization data"
+          message="Something went wrong while fetching your organizations. Please try again."
+          onRetry={() => void refetch()}
+        />
+      </div>
     )
   }
 
-  if (isError || !orgs || orgs.length === 0) {
+  // Request succeeded but there are no organizations yet — friendly empty state.
+  if (!orgs || orgs.length === 0) {
     return (
-      <div className="p-8 text-sm text-red-500">Failed to load organization data.</div>
+      <div className="max-w-4xl mx-auto px-6 py-8 space-y-6">
+        <div className="flex flex-col gap-1">
+          <h1 className="text-2xl font-bold text-slate-900">Organization Branding</h1>
+          <p className="text-sm text-slate-500">
+            Customize how your organization appears across the platform.
+          </p>
+        </div>
+
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
+          <EmptyState
+            icon={Building2}
+            title="No organization yet"
+            description="Create your first organization to customize its branding, logo, and display name."
+            action={
+              <button
+                onClick={() => setShowCreate(true)}
+                className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+              >
+                <Plus size={14} /> Create organization
+              </button>
+            }
+          />
+        </div>
+
+        <CreateOrganizationModal
+          open={showCreate}
+          onClose={() => setShowCreate(false)}
+          onCreated={() => void qc.invalidateQueries({ queryKey: ['organizations'] })}
+        />
+      </div>
     )
   }
 

@@ -655,11 +655,13 @@ function RunsView({
   filteredExecs,
   isLoading,
   error,
+  onRetry,
   base,
 }: {
   filteredExecs: ExecutionSummary[]
   isLoading: boolean
   error: Error | null
+  onRetry: () => void
   base: string
 }) {
   const [search, setSearch] = useState('')
@@ -724,7 +726,7 @@ function RunsView({
         </div>
 
         {isLoading && <LoadingSpinner message="Loading runs…" />}
-        {error     && <ErrorMessage message="Failed to load execution runs." />}
+        {error     && <ErrorMessage message="Failed to load execution runs." onRetry={onRetry} />}
 
         {!isLoading && !error && filtered.length === 0 && (
           <p className="px-4 py-12 text-center text-sm text-slate-400">
@@ -861,7 +863,7 @@ export default function AutomatedTestsPage() {
   const [selected, setSelected]                 = useState<AutomatedTestSummary | null>(null)
 
   // Executions fetched once, shared by both tabs for consistent KPIs.
-  const { data: allExecutions, isLoading: execsLoading, error: execsError } = useQuery({
+  const { data: allExecutions, isLoading: execsLoading, error: execsError, refetch: execsRefetch } = useQuery({
     queryKey: ['executions-full', projectId],
     queryFn: () => api.executions(projectId, 500),
   })
@@ -909,7 +911,7 @@ export default function AutomatedTestsPage() {
     enabled: viewMode === 'tests' && labelKey !== '',
   })
 
-  const { data: tests, isLoading: testsLoading, error: testsError } = useQuery({
+  const { data: tests, isLoading: testsLoading, error: testsError, refetch: testsRefetch } = useQuery({
     queryKey: ['automated-tests', projectId, days, search, statusFilter,
                selectedTags, selectedBrowsers, selectedAnnotations,
                labelKey, labelValue, specFilePrefix],
@@ -993,6 +995,7 @@ export default function AutomatedTestsPage() {
           filteredExecs={filteredExecs}
           isLoading={execsLoading}
           error={execsError}
+          onRetry={() => void execsRefetch()}
           base={base}
         />
       )}
@@ -1150,7 +1153,7 @@ export default function AutomatedTestsPage() {
             </div>
 
             {testsLoading && <LoadingSpinner message="Loading tests…" />}
-            {testsError  && <ErrorMessage message="Failed to load automated tests." />}
+            {testsError  && <ErrorMessage message="Failed to load automated tests." onRetry={() => void testsRefetch()} />}
 
             {!testsLoading && !testsError && (tests ?? []).length === 0 && (
               <p className="px-4 py-12 text-center text-sm text-slate-400">

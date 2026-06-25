@@ -123,9 +123,9 @@ function indent(path: string | null) {
 function leaf(path: string) { const i = path.lastIndexOf('\\'); return i >= 0 ? path.slice(i + 1) : path }
 
 function TeamsTab({ projectId }: { projectId: string }) {
-  const { data, isLoading, error } = useQuery({ queryKey: ['ado-teams', projectId], queryFn: () => api.adoTeams(projectId) })
+  const { data, isLoading, error, refetch } = useQuery({ queryKey: ['ado-teams', projectId], queryFn: () => api.adoTeams(projectId) })
   if (isLoading) return <LoadingSpinner />
-  if (error) return <ErrorMessage message="Failed to load teams." />
+  if (error) return <ErrorMessage message="Failed to load teams." onRetry={() => void refetch()} />
   const teams = data ?? []
   if (!teams.length) return <Empty text="No teams synced." />
   return (
@@ -151,9 +151,9 @@ function TeamsTab({ projectId }: { projectId: string }) {
 }
 
 function AreasTab({ projectId }: { projectId: string }) {
-  const { data, isLoading, error } = useQuery({ queryKey: ['ado-areas', projectId], queryFn: () => api.adoAreas(projectId) })
+  const { data, isLoading, error, refetch } = useQuery({ queryKey: ['ado-areas', projectId], queryFn: () => api.adoAreas(projectId) })
   if (isLoading) return <LoadingSpinner />
-  if (error) return <ErrorMessage message="Failed to load areas." />
+  if (error) return <ErrorMessage message="Failed to load areas." onRetry={() => void refetch()} />
   const areas = data ?? []
   if (!areas.length) return <Empty text="No area paths synced." />
   return (
@@ -171,9 +171,9 @@ function AreasTab({ projectId }: { projectId: string }) {
 }
 
 function IterationsTab({ projectId }: { projectId: string }) {
-  const { data, isLoading, error } = useQuery({ queryKey: ['ado-iterations', projectId], queryFn: () => api.adoIterations(projectId) })
+  const { data, isLoading, error, refetch } = useQuery({ queryKey: ['ado-iterations', projectId], queryFn: () => api.adoIterations(projectId) })
   if (isLoading) return <LoadingSpinner />
-  if (error) return <ErrorMessage message="Failed to load iterations." />
+  if (error) return <ErrorMessage message="Failed to load iterations." onRetry={() => void refetch()} />
   const iters = data ?? []
   if (!iters.length) return <Empty text="No iterations synced." />
   const fmt = (d: string | null) => d ? new Date(d).toLocaleDateString() : '—'
@@ -206,7 +206,7 @@ function UsersTab({ projectId }: { projectId: string }) {
   const qc = useQueryClient()
   const [qualityOnly, setQualityOnly] = useState(false)
   const [search, setSearch] = useState('')
-  const { data, isLoading, error } = useQuery({ queryKey: ['ado-users', projectId], queryFn: () => api.adoUsers(projectId) })
+  const { data, isLoading, error, refetch } = useQuery({ queryKey: ['ado-users', projectId], queryFn: () => api.adoUsers(projectId) })
 
   const setRole = useMutation({
     mutationFn: ({ userId, role }: { userId: string; role: string | null }) => api.setUserQualityRole(projectId, userId, role),
@@ -217,7 +217,7 @@ function UsersTab({ projectId }: { projectId: string }) {
   })
 
   if (isLoading) return <LoadingSpinner />
-  if (error) return <ErrorMessage message="Failed to load users." />
+  if (error) return <ErrorMessage message="Failed to load users." onRetry={() => void refetch()} />
   let users = data ?? []
   if (!users.length) return <Empty text="No users synced." />
 

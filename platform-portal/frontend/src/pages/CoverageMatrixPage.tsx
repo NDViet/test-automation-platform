@@ -50,7 +50,7 @@ export default function CoverageMatrixPage() {
   const [groupBy, setGroupBy] = useState<'area' | 'team'>('area')
   const [selectedGroup, setSelectedGroup] = useState<string | null>(null)
 
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['coverage', projectId, filter.area, filter.teamId, filter.iteration],
     queryFn: () => api.coverage(projectId!, {
       area: filter.area || undefined, team: filter.teamId || undefined, iteration: filter.iteration || undefined,
@@ -64,7 +64,7 @@ export default function CoverageMatrixPage() {
   })
 
   if (isLoading) return <LoadingSpinner message="Computing coverage…" />
-  if (error) return <ErrorMessage message="Failed to load coverage." />
+  if (error) return <ErrorMessage message="Failed to load coverage." onRetry={() => void refetch()} />
   if (!data) return null
 
   const groups = groupBy === 'area' ? data.byArea : data.byTeam

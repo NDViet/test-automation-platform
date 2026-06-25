@@ -33,7 +33,7 @@ export default function RolesPage() {
   // ORG scope is global (scopeId = null/undefined); TEAM scope targets a sub-team.
   const effectiveScopeId = scope === 'ORG' ? undefined : (teamId || undefined)
 
-  const { data: members, isLoading, error } = useQuery({
+  const { data: members, isLoading, error, refetch } = useQuery({
     queryKey: ['rbac-members', scope, effectiveScopeId ?? 'org'],
     queryFn: () => api.rbacMembers(scope, effectiveScopeId),
     enabled: scope === 'ORG' || !!effectiveScopeId,
@@ -128,7 +128,7 @@ export default function RolesPage() {
 
       {/* Members list */}
       {isLoading && <LoadingSpinner message="Loading members…" />}
-      {error && <ErrorMessage message="Failed to load members." />}
+      {error && <ErrorMessage message="Failed to load members." onRetry={() => void refetch()} />}
       {!isLoading && !error && (
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm divide-y divide-slate-50">
           {(!members || members.length === 0) && (

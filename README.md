@@ -53,7 +53,7 @@ Commit `b4640398780f0f339bb3a9bf5e83b271ab4e1b01` initializes the v2.0 platform 
   +----------------------+                    +----------------------+
 
   Supporting services: Redis, OpenSearch, Logstash, Loki, Promtail, Grafana,
-  Prometheus, InfluxDB, and Flyway.
+  Prometheus, and Flyway.
 ```
 
 ## Maven modules
@@ -91,7 +91,7 @@ Commit `b4640398780f0f339bb3a9bf5e83b271ab4e1b01` initializes the v2.0 platform 
 | Kafka | localhost:9092 | KRaft mode |
 | Redis | localhost:6379 | Agent checkpoints |
 | Loki | http://localhost:3100 | Log aggregation |
-| InfluxDB | http://localhost:8086 | k6 performance datasource |
+| Prometheus | http://localhost:9090 | Metrics + k6 real-time (remote write) |
 
 ## Quick start with Docker
 
@@ -111,7 +111,7 @@ Stop the stack:
 ```bash
 docker compose --profile services down
 
-# Wipes database, Kafka, Redis, OpenSearch, MinIO, Grafana, Loki, Prometheus, and InfluxDB data.
+# Wipes database, Kafka, Redis, OpenSearch, MinIO, Grafana, Loki, and Prometheus data.
 docker compose --profile services down -v
 ```
 
@@ -371,7 +371,7 @@ The React portal is served by `platform-portal` and backed by `/api/portal/**`.
 | Metrics | Prometheus at http://localhost:9090 |
 | Service logs | Loki through Grafana Explore |
 | Test execution logs | OpenSearch indices `test_execution_logs-*` |
-| k6 performance | InfluxDB plus Grafana dashboards |
+| k6 performance | Prometheus (remote write) plus Grafana dashboards |
 | TIA trends | Grafana TIA dashboard and analytics APIs |
 
 ## Database migrations

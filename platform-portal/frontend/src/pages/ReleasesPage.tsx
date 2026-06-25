@@ -181,7 +181,7 @@ export default function ReleasesPage() {
   const queryClient = useQueryClient()
   const [modal, setModal] = useState<{ open: boolean; release?: Release }>({ open: false })
 
-  const { data: allReleases = [], isLoading, error } = useQuery({
+  const { data: allReleases = [], isLoading, error, refetch } = useQuery({
     queryKey: ['releases', projectId],
     queryFn: () => api.releases(projectId!),
     enabled: !!projectId,
@@ -198,7 +198,7 @@ export default function ReleasesPage() {
   })
 
   if (isLoading) return <LoadingSpinner message="Loading releases…" />
-  if (error) return <ErrorMessage message="Failed to load releases." />
+  if (error) return <ErrorMessage message="Failed to load releases." onRetry={() => void refetch()} />
 
   return (
     <div className="space-y-6">

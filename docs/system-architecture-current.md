@@ -504,18 +504,17 @@ flowchart LR
     end
 
     subgraph METRICS["Metrics Pipeline"]
-        PROM["Prometheus v3.10.0<br/>:9090<br/>scrapes all services"]
-        GRAFANA["Grafana 12.4.0<br/>:3000<br/>Dashboards"]
-        INFLUX["InfluxDB 1.8<br/>:8086<br/>k6 / perf metrics"]
+        PROM["Prometheus v3.12.0<br/>:9090<br/>scrapes services + k6 remote write"]
+        GRAFANA["Grafana 13.1.0<br/>:3000<br/>Dashboards"]
         AM["AlertManager<br/>Prometheus rules → alerts"]
     end
 
     subgraph LOGS["Log Pipeline"]
         STDOUT["stdout (JSON structured)"]
         PT["Promtail<br/>collects container logs"]
-        LOKI["Loki 3.5.0<br/>:3100<br/>log aggregation"]
+        LOKI["Loki 3.6.12<br/>:3100<br/>log aggregation"]
         LS["Logstash<br/>:5044<br/>OpenSearch indexing"]
-        OS["OpenSearch 3.5.0<br/>:9200"]
+        OS["OpenSearch 3.7.0<br/>:9200"]
     end
 
     subgraph TRACES["Trace Pipeline"]
@@ -527,7 +526,6 @@ flowchart LR
     ACT --> PROM
     PROM --> GRAFANA
     PROM --> AM
-    INFLUX --> GRAFANA
 
     SERVICES --> STDOUT
     STDOUT --> PT
@@ -578,7 +576,6 @@ flowchart LR
             PR_L["prometheus :9090"]
             LK_L["loki :3100"]
             JG_L["jaeger :16686"]
-            IDB_L["influxdb :8086"]
         end
     end
 

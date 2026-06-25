@@ -218,13 +218,13 @@ export default function TestRunExecutionPage() {
   // Local optimistic state for executions list
   const [localExecutions, setLocalExecutions] = useState<TestCaseExecution[] | null>(null)
 
-  const { data: run, isLoading: runLoading, error: runError } = useQuery({
+  const { data: run, isLoading: runLoading, error: runError, refetch: runRefetch } = useQuery({
     queryKey: ['testRun', projectId, runId],
     queryFn: () => api.testRun(projectId!, runId!),
     enabled: !!projectId && !!runId,
   })
 
-  const { data: executions = [], isLoading: execLoading, error: execError } = useQuery({
+  const { data: executions = [], isLoading: execLoading, error: execError, refetch: execRefetch } = useQuery({
     queryKey: ['runExecutions', projectId, runId],
     queryFn: () => api.runExecutions(projectId!, runId!),
     enabled: !!projectId && !!runId,
@@ -243,8 +243,8 @@ export default function TestRunExecutionPage() {
   })
 
   if (runLoading || execLoading) return <LoadingSpinner message="Loading test run…" />
-  if (runError || !run)  return <ErrorMessage message="Failed to load test run." />
-  if (execError) return <ErrorMessage message="Failed to load executions." />
+  if (runError || !run)  return <ErrorMessage message="Failed to load test run." onRetry={() => void runRefetch()} />
+  if (execError) return <ErrorMessage message="Failed to load executions." onRetry={() => void execRefetch()} />
 
   const displayExecutions = localExecutions ?? executions
   const pendingCount = displayExecutions.filter(e => e.status === 'PENDING').length

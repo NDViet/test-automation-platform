@@ -1,7 +1,7 @@
 services:
 
   postgres:
-    image: postgres:17
+    image: postgres:18
     container_name: platform-postgres
     environment:
       POSTGRES_DB: platform
@@ -10,7 +10,8 @@ services:
     ports:
       - "5432:5432"
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      # PG18 moved PGDATA to /var/lib/postgresql/18/docker; the declared VOLUME is the parent dir.
+      - postgres_data:/var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U platform -d platform"]
       interval: 5s
@@ -18,7 +19,7 @@ services:
       retries: 10
 
   kafka:
-    image: apache/kafka:4.2.0
+    image: apache/kafka:4.3.1
     container_name: platform-kafka
     ports:
       - "9092:9092"   # host-machine access (e.g. kafka-ui, local producers)
@@ -43,6 +44,10 @@ services:
       CLUSTER_ID: MkU3OEVBNTcwNTJENDM2Qk
     volumes:
       - kafka_data:/var/lib/kafka/data
+      # The apache/kafka image also declares these two paths as VOLUMEs; name them
+      # so Docker doesn't spawn anonymous (hash-named) volumes for them.
+      - kafka_secrets:/etc/kafka/secrets
+      - kafka_config:/mnt/shared/config
     healthcheck:
       test: ["CMD", "/opt/kafka/bin/kafka-broker-api-versions.sh", "--bootstrap-server", "localhost:9092"]
       interval: 10s
@@ -50,7 +55,7 @@ services:
       retries: 10
 
   redis:
-    image: redis:8.6.1
+    image: redis:8.8.0
     container_name: platform-redis
     ports:
       - "6379:6379"
@@ -63,7 +68,7 @@ services:
       retries: 5
 
   opensearch:
-    image: opensearchproject/opensearch:3.5.0
+    image: opensearchproject/opensearch:3.7.0
     container_name: platform-opensearch
     environment:
       - discovery.type=single-node
@@ -128,8 +133,11 @@ services:
       - "5044:5044"    # TCP input — logstash-logback-encoder
       - "9600:9600"    # Logstash monitoring API
     volumes:
-      - ./infrastructure/logstash/pipeline:/usr/share/logstash/pipeline
-      - ./infrastructure/logstash/logstash.yml:/usr/share/logstash/config/logstash.yml
+      - logstash_pipeline:/usr/share/logstash/pipeline:ro
+      # Single-file config can't be a named volume (the local bind driver mounts
+      # directories, not files), so this one stays an inline bind mount.
+      - ./infrastructure/logstash/logstash.yml:/usr/share/logstash/config/logstash.yml:ro
+      - logstash_data:/usr/share/logstash/data
     environment:
       OPENSEARCH_HOST: opensearch
       OPENSEARCH_PORT: "9200"
@@ -144,33 +152,31 @@ services:
       retries: 10
 
   loki:
-    image: grafana/loki:3.5.0
+    image: grafana/loki:3.6.12
     container_name: platform-loki
     ports:
       - "3100:3100"
     volumes:
-      - ./infrastructure/loki/loki-config.yml:/etc/loki/local-config.yaml
+      - loki_config:/etc/loki:ro
       - loki_data:/loki
-    command: -config.file=/etc/loki/local-config.yaml
-    healthcheck:
-      test: ["CMD-SHELL", "wget -q --spider http://localhost:3100/ready || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
+    command: -config.file=/etc/loki/loki-config.yml
+    # No healthcheck: the loki 3.6.x image is distroless (no shell/wget/curl), so
+    # there is no in-container way to probe /ready. Dependents gate on service_started.
 
   promtail:
-    image: grafana/promtail:3.5.0
+    image: grafana/promtail:3.6.11
     container_name: platform-promtail
     volumes:
-      - ./infrastructure/promtail/promtail-config.yml:/etc/promtail/config.yml
+      - promtail_config:/etc/promtail:ro
+      - promtail_positions:/var/lib/promtail
       - /var/run/docker.sock:/var/run/docker.sock
-    command: -config.file=/etc/promtail/config.yml
+    command: -config.file=/etc/promtail/promtail-config.yml
     depends_on:
       loki:
-        condition: service_healthy
+        condition: service_started
 
   grafana:
-    image: grafana/grafana:12.4.0
+    image: grafana/grafana:13.1.0
     container_name: platform-grafana
     ports:
       - "3000:3000"
@@ -181,45 +187,31 @@ services:
       GF_INSTALL_PLUGINS: "grafana-opensearch-datasource"
     volumes:
       - grafana_data:/var/lib/grafana
-      - ./infrastructure/grafana/provisioning:/etc/grafana/provisioning
-      - ./infrastructure/grafana/dashboards:/var/lib/grafana/dashboards
+      - grafana_provisioning:/etc/grafana/provisioning:ro
+      - grafana_dashboards:/var/lib/grafana/dashboards:ro
     depends_on:
       - prometheus
       - loki
 
   prometheus:
-    image: prom/prometheus:v3.10.0
+    image: prom/prometheus:v3.12.0
     container_name: platform-prometheus
     ports:
       - "9090:9090"
     volumes:
-      - ./infrastructure/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml
+      - prometheus_config:/etc/prometheus:ro
       - prometheus_data:/prometheus
     command:
       - '--config.file=/etc/prometheus/prometheus.yml'
       - '--storage.tsdb.retention.time=30d'
-
-  influxdb:
-    image: influxdb:1.8
-    container_name: platform-influxdb
-    ports:
-      - "8086:8086"
-    environment:
-      INFLUXDB_DB: k6
-      INFLUXDB_HTTP_AUTH_ENABLED: "false"
-    volumes:
-      - influxdb_data:/var/lib/influxdb
-    healthcheck:
-      test: ["CMD", "curl", "-sf", "http://localhost:8086/ping"]
-      interval: 5s
-      timeout: 3s
-      retries: 10
+      # Receives k6 real-time metrics via `k6 run -o experimental-prometheus-rw`
+      - '--web.enable-remote-write-receiver'
 
   # Runs all Flyway migrations before any platform service starts.
   # Idempotent — safe to run on every `docker compose up`.
   # First-time users get the full schema without needing to start the Spring Boot services.
   db-migrate:
-    image: flyway/flyway:11
+    image: flyway/flyway:12.9
     command: migrate
     environment:
       FLYWAY_URL: jdbc:postgresql://postgres:5432/platform
@@ -228,7 +220,7 @@ services:
       FLYWAY_LOCATIONS: filesystem:/flyway/sql
       FLYWAY_BASELINE_ON_MIGRATE: "true"
     volumes:
-      - ./platform-core/src/main/resources/db/migration:/flyway/sql:ro
+      - db_migration:/flyway/sql:ro
     depends_on:
       postgres:
         condition: service_healthy
@@ -412,15 +404,131 @@ services:
     profiles:
       - services
 
+# Named volumes pinned to ./volume_data/<name> inside the project folder via the
+# local driver's bind option. Data lives in the project tree, so backing up /
+# moving to another deploy is just archiving volume_data (e.g. tar czf backup.tgz volume_data).
 volumes:
   platform_blobs:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/volume_data/platform_blobs
   postgres_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/volume_data/postgres
   kafka_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/volume_data/kafka
+  kafka_secrets:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/volume_data/kafka_secrets
+  kafka_config:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/volume_data/kafka_config
   redis_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/volume_data/redis
   opensearch_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/volume_data/opensearch
   minio_data:
-  logstash_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/volume_data/minio
   grafana_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/volume_data/grafana
   prometheus_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/volume_data/prometheus
   loki_data:
-  influxdb_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/volume_data/loki
+  logstash_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/volume_data/logstash
+  promtail_positions:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/volume_data/promtail
+
+# Config volumes — bound (read-only at mount) to tracked files under ./infrastructure
+# (and the Flyway migrations). Same named-volume style as the data volumes above, but
+# these point at repo sources, not volume_data, so they are NOT part of a data backup.
+  loki_config:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/infrastructure/loki
+  prometheus_config:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/infrastructure/prometheus
+  promtail_config:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/infrastructure/promtail
+  logstash_pipeline:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/infrastructure/logstash/pipeline
+  grafana_provisioning:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/infrastructure/grafana/provisioning
+  grafana_dashboards:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/infrastructure/grafana/dashboards
+  db_migration:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/platform-core/src/main/resources/db/migration

@@ -376,7 +376,7 @@ export default function FlakyTestsPage() {
   const [selected, setSelected]     = useState<FlakinessItem | null>(null)
   const [recomputeDone, setRDone]   = useState(false)
 
-  const { data: flakyList, isLoading: flakyLoading, error: flakyError } = useQuery({
+  const { data: flakyList, isLoading: flakyLoading, error: flakyError, refetch: flakyRefetch } = useQuery({
     queryKey: ['flakiness', projectId],
     queryFn:  () => api.flakiness(projectId!, 100),
     enabled:  !!projectId,
@@ -420,7 +420,7 @@ export default function FlakyTestsPage() {
   items.forEach(i => { counts[i.classification] = (counts[i.classification] ?? 0) + 1 })
 
   if (flakyLoading) return <LoadingSpinner message="Loading flaky tests…" />
-  if (flakyError)   return <ErrorMessage message="Failed to load flakiness data." />
+  if (flakyError)   return <ErrorMessage message="Failed to load flakiness data." onRetry={() => void flakyRefetch()} />
 
   return (
     <div className="flex-1 flex flex-col h-full min-h-0 overflow-hidden">

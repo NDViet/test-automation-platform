@@ -1,11 +1,11 @@
 {
   "__inputs": [],
   "__requires": [
-    { "type": "grafana",    "id": "grafana",  "name": "Grafana",  "version": "12.0.0" },
-    { "type": "datasource", "id": "influxdb", "name": "InfluxDB", "version": "1.0.0" }
+    { "type": "grafana",    "id": "grafana",    "name": "Grafana",    "version": "12.0.0" },
+    { "type": "datasource", "id": "prometheus", "name": "Prometheus", "version": "1.0.0" }
   ],
   "annotations": { "list": [] },
-  "description": "K6 real-time metrics streamed via --out influxdb. Filter by team / project / environment tags.",
+  "description": "K6 real-time metrics streamed via -o experimental-prometheus-rw. Filter by team / project / environment tags.",
   "editable": true,
   "fiscalYearStartMonth": 0,
   "graphTooltip": 1,
@@ -30,7 +30,7 @@
     },
 
     {
-      "datasource": { "type": "influxdb", "uid": "influxdb-k6" },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
@@ -53,16 +53,14 @@
       "type": "stat",
       "targets": [
         {
-          "query": "SELECT mean(\"value\") FROM \"http_req_duration\" WHERE $timeFilter AND \"team\" =~ /^$team$/ AND \"project\" =~ /^$project$/ AND \"environment\" =~ /^$environment$/",
-          "rawQuery": true,
-          "resultFormat": "time_series",
+          "expr": "avg(k6_http_req_duration_avg{team=~\"$team\", project=~\"$project\", environment=~\"$environment\"})",
           "refId": "A"
         }
       ]
     },
 
     {
-      "datasource": { "type": "influxdb", "uid": "influxdb-k6" },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
@@ -85,16 +83,14 @@
       "type": "stat",
       "targets": [
         {
-          "query": "SELECT percentile(\"value\", 95) FROM \"http_req_duration\" WHERE $timeFilter AND \"team\" =~ /^$team$/ AND \"project\" =~ /^$project$/ AND \"environment\" =~ /^$environment$/",
-          "rawQuery": true,
-          "resultFormat": "time_series",
+          "expr": "avg(k6_http_req_duration_p95{team=~\"$team\", project=~\"$project\", environment=~\"$environment\"})",
           "refId": "A"
         }
       ]
     },
 
     {
-      "datasource": { "type": "influxdb", "uid": "influxdb-k6" },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
@@ -117,16 +113,14 @@
       "type": "stat",
       "targets": [
         {
-          "query": "SELECT mean(\"value\") FROM \"http_req_failed\" WHERE $timeFilter AND \"team\" =~ /^$team$/ AND \"project\" =~ /^$project$/ AND \"environment\" =~ /^$environment$/",
-          "rawQuery": true,
-          "resultFormat": "time_series",
+          "expr": "avg(k6_http_req_failed_rate{team=~\"$team\", project=~\"$project\", environment=~\"$environment\"})",
           "refId": "A"
         }
       ]
     },
 
     {
-      "datasource": { "type": "influxdb", "uid": "influxdb-k6" },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
@@ -145,16 +139,14 @@
       "type": "stat",
       "targets": [
         {
-          "query": "SELECT max(\"value\") FROM \"vus\" WHERE $timeFilter AND \"team\" =~ /^$team$/ AND \"project\" =~ /^$project$/ AND \"environment\" =~ /^$environment$/",
-          "rawQuery": true,
-          "resultFormat": "time_series",
+          "expr": "max(k6_vus{team=~\"$team\", project=~\"$project\", environment=~\"$environment\"})",
           "refId": "A"
         }
       ]
     },
 
     {
-      "datasource": { "type": "influxdb", "uid": "influxdb-k6" },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": {
         "defaults": {
           "color": { "mode": "thresholds" },
@@ -168,14 +160,12 @@
       },
       "gridPos": { "h": 4, "w": 4, "x": 16, "y": 1 },
       "id": 6,
-      "options": { "reduceOptions": { "calcs": ["sum"] }, "colorMode": "background" },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
       "title": "Total Requests",
       "type": "stat",
       "targets": [
         {
-          "query": "SELECT sum(\"value\") FROM \"http_reqs\" WHERE $timeFilter AND \"team\" =~ /^$team$/ AND \"project\" =~ /^$project$/ AND \"environment\" =~ /^$environment$/",
-          "rawQuery": true,
-          "resultFormat": "time_series",
+          "expr": "sum(k6_http_reqs_total{team=~\"$team\", project=~\"$project\", environment=~\"$environment\"})",
           "refId": "A"
         }
       ]
@@ -190,7 +180,7 @@
     },
 
     {
-      "datasource": { "type": "influxdb", "uid": "influxdb-k6" },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": {
         "defaults": { "custom": { "lineWidth": 2 }, "color": { "mode": "palette-classic" } },
         "overrides": [
@@ -210,17 +200,15 @@
       "type": "timeseries",
       "targets": [
         {
-          "alias": "VUs",
-          "query": "SELECT last(\"value\") FROM \"vus\" WHERE $timeFilter AND \"team\" =~ /^$team$/ AND \"project\" =~ /^$project$/ AND \"environment\" =~ /^$environment$/ GROUP BY time($__interval) fill(0)",
-          "rawQuery": true,
-          "resultFormat": "time_series",
+          "expr": "max(k6_vus{team=~\"$team\", project=~\"$project\", environment=~\"$environment\"})",
+          "legendFormat": "VUs",
           "refId": "A"
         }
       ]
     },
 
     {
-      "datasource": { "type": "influxdb", "uid": "influxdb-k6" },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": {
         "defaults": { "custom": { "lineWidth": 2 }, "unit": "reqps", "color": { "mode": "palette-classic" } }
       },
@@ -231,10 +219,8 @@
       "type": "timeseries",
       "targets": [
         {
-          "alias": "req/s",
-          "query": "SELECT non_negative_derivative(sum(\"value\"), 1s) FROM \"http_reqs\" WHERE $timeFilter AND \"team\" =~ /^$team$/ AND \"project\" =~ /^$project$/ AND \"environment\" =~ /^$environment$/ GROUP BY time($__interval) fill(0)",
-          "rawQuery": true,
-          "resultFormat": "time_series",
+          "expr": "sum(rate(k6_http_reqs_total{team=~\"$team\", project=~\"$project\", environment=~\"$environment\"}[$__rate_interval]))",
+          "legendFormat": "req/s",
           "refId": "A"
         }
       ]
@@ -249,7 +235,7 @@
     },
 
     {
-      "datasource": { "type": "influxdb", "uid": "influxdb-k6" },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": {
         "defaults": { "custom": { "lineWidth": 2 }, "unit": "ms", "color": { "mode": "palette-classic" } },
         "overrides": [
@@ -265,38 +251,30 @@
       "type": "timeseries",
       "targets": [
         {
-          "alias": "p95",
-          "query": "SELECT percentile(\"value\", 95) FROM \"http_req_duration\" WHERE $timeFilter AND \"team\" =~ /^$team$/ AND \"project\" =~ /^$project$/ AND \"environment\" =~ /^$environment$/ GROUP BY time($__interval) fill(null)",
-          "rawQuery": true,
-          "resultFormat": "time_series",
+          "expr": "avg(k6_http_req_duration_p95{team=~\"$team\", project=~\"$project\", environment=~\"$environment\"})",
+          "legendFormat": "p95",
           "refId": "A"
         },
         {
-          "alias": "p90",
-          "query": "SELECT percentile(\"value\", 90) FROM \"http_req_duration\" WHERE $timeFilter AND \"team\" =~ /^$team$/ AND \"project\" =~ /^$project$/ AND \"environment\" =~ /^$environment$/ GROUP BY time($__interval) fill(null)",
-          "rawQuery": true,
-          "resultFormat": "time_series",
+          "expr": "avg(k6_http_req_duration_p90{team=~\"$team\", project=~\"$project\", environment=~\"$environment\"})",
+          "legendFormat": "p90",
           "refId": "B"
         },
         {
-          "alias": "median",
-          "query": "SELECT median(\"value\") FROM \"http_req_duration\" WHERE $timeFilter AND \"team\" =~ /^$team$/ AND \"project\" =~ /^$project$/ AND \"environment\" =~ /^$environment$/ GROUP BY time($__interval) fill(null)",
-          "rawQuery": true,
-          "resultFormat": "time_series",
+          "expr": "avg(k6_http_req_duration_med{team=~\"$team\", project=~\"$project\", environment=~\"$environment\"})",
+          "legendFormat": "median",
           "refId": "C"
         },
         {
-          "alias": "avg",
-          "query": "SELECT mean(\"value\") FROM \"http_req_duration\" WHERE $timeFilter AND \"team\" =~ /^$team$/ AND \"project\" =~ /^$project$/ AND \"environment\" =~ /^$environment$/ GROUP BY time($__interval) fill(null)",
-          "rawQuery": true,
-          "resultFormat": "time_series",
+          "expr": "avg(k6_http_req_duration_avg{team=~\"$team\", project=~\"$project\", environment=~\"$environment\"})",
+          "legendFormat": "avg",
           "refId": "D"
         }
       ]
     },
 
     {
-      "datasource": { "type": "influxdb", "uid": "influxdb-k6" },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": {
         "defaults": { "custom": { "lineWidth": 2 }, "unit": "ms", "color": { "mode": "palette-classic" } }
       },
@@ -307,10 +285,8 @@
       "type": "timeseries",
       "targets": [
         {
-          "alias": "$tag_group",
-          "query": "SELECT mean(\"value\") FROM \"http_req_duration\" WHERE $timeFilter AND \"team\" =~ /^$team$/ AND \"project\" =~ /^$project$/ AND \"environment\" =~ /^$environment$/ AND \"group\" != '' GROUP BY time($__interval), \"group\" fill(null)",
-          "rawQuery": true,
-          "resultFormat": "time_series",
+          "expr": "avg by (group) (k6_http_req_duration_avg{team=~\"$team\", project=~\"$project\", environment=~\"$environment\", group!=\"\"})",
+          "legendFormat": "{{group}}",
           "refId": "A"
         }
       ]
@@ -325,7 +301,7 @@
     },
 
     {
-      "datasource": { "type": "influxdb", "uid": "influxdb-k6" },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": {
         "defaults": {
           "custom": { "lineWidth": 2 },
@@ -348,17 +324,15 @@
       "type": "timeseries",
       "targets": [
         {
-          "alias": "error rate",
-          "query": "SELECT mean(\"value\") FROM \"http_req_failed\" WHERE $timeFilter AND \"team\" =~ /^$team$/ AND \"project\" =~ /^$project$/ AND \"environment\" =~ /^$environment$/ GROUP BY time($__interval) fill(0)",
-          "rawQuery": true,
-          "resultFormat": "time_series",
+          "expr": "avg(k6_http_req_failed_rate{team=~\"$team\", project=~\"$project\", environment=~\"$environment\"})",
+          "legendFormat": "error rate",
           "refId": "A"
         }
       ]
     },
 
     {
-      "datasource": { "type": "influxdb", "uid": "influxdb-k6" },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
       "fieldConfig": {
         "defaults": { "custom": { "lineWidth": 2 }, "unit": "ms", "color": { "mode": "palette-classic" } }
       },
@@ -369,24 +343,18 @@
       "type": "timeseries",
       "targets": [
         {
-          "alias": "connecting",
-          "query": "SELECT mean(\"value\") FROM \"http_req_connecting\" WHERE $timeFilter AND \"team\" =~ /^$team$/ AND \"project\" =~ /^$project$/ AND \"environment\" =~ /^$environment$/ GROUP BY time($__interval) fill(null)",
-          "rawQuery": true,
-          "resultFormat": "time_series",
+          "expr": "avg(k6_http_req_connecting_avg{team=~\"$team\", project=~\"$project\", environment=~\"$environment\"})",
+          "legendFormat": "connecting",
           "refId": "A"
         },
         {
-          "alias": "waiting (TTFB)",
-          "query": "SELECT mean(\"value\") FROM \"http_req_waiting\" WHERE $timeFilter AND \"team\" =~ /^$team$/ AND \"project\" =~ /^$project$/ AND \"environment\" =~ /^$environment$/ GROUP BY time($__interval) fill(null)",
-          "rawQuery": true,
-          "resultFormat": "time_series",
+          "expr": "avg(k6_http_req_waiting_avg{team=~\"$team\", project=~\"$project\", environment=~\"$environment\"})",
+          "legendFormat": "waiting (TTFB)",
           "refId": "B"
         },
         {
-          "alias": "receiving",
-          "query": "SELECT mean(\"value\") FROM \"http_req_receiving\" WHERE $timeFilter AND \"team\" =~ /^$team$/ AND \"project\" =~ /^$project$/ AND \"environment\" =~ /^$environment$/ GROUP BY time($__interval) fill(null)",
-          "rawQuery": true,
-          "resultFormat": "time_series",
+          "expr": "avg(k6_http_req_receiving_avg{team=~\"$team\", project=~\"$project\", environment=~\"$environment\"})",
+          "legendFormat": "receiving",
           "refId": "C"
         }
       ]
@@ -395,15 +363,16 @@
   ],
   "refresh": "5s",
   "schemaVersion": 39,
-  "tags": ["k6", "performance", "realtime", "influxdb"],
+  "tags": ["k6", "performance", "realtime", "prometheus"],
   "templating": {
     "list": [
       {
         "name": "team",
         "label": "Team",
         "type": "query",
-        "datasource": { "type": "influxdb", "uid": "influxdb-k6" },
-        "query": "SHOW TAG VALUES FROM \"vus\" WITH KEY = \"team\"",
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "query": { "query": "label_values(k6_vus, team)", "refId": "team" },
+        "definition": "label_values(k6_vus, team)",
         "includeAll": true,
         "allValue": ".*",
         "multi": false,
@@ -415,8 +384,9 @@
         "name": "project",
         "label": "Project",
         "type": "query",
-        "datasource": { "type": "influxdb", "uid": "influxdb-k6" },
-        "query": "SHOW TAG VALUES FROM \"vus\" WITH KEY = \"project\" WHERE \"team\" =~ /^$team$/",
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "query": { "query": "label_values(k6_vus{team=~\"$team\"}, project)", "refId": "project" },
+        "definition": "label_values(k6_vus{team=~\"$team\"}, project)",
         "includeAll": true,
         "allValue": ".*",
         "multi": false,
@@ -428,8 +398,9 @@
         "name": "environment",
         "label": "Environment",
         "type": "query",
-        "datasource": { "type": "influxdb", "uid": "influxdb-k6" },
-        "query": "SHOW TAG VALUES FROM \"vus\" WITH KEY = \"environment\"",
+        "datasource": { "type": "prometheus", "uid": "prometheus" },
+        "query": { "query": "label_values(k6_vus, environment)", "refId": "environment" },
+        "definition": "label_values(k6_vus, environment)",
         "includeAll": true,
         "allValue": ".*",
         "multi": false,
@@ -444,5 +415,5 @@
   "timezone": "browser",
   "title": "K6 Real-time Metrics",
   "uid": "k6-realtime",
-  "version": 1
+  "version": 2
 }

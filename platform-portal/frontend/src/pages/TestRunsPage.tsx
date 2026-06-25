@@ -525,7 +525,7 @@ export default function TestRunsPage() {
   const [tab, setTab] = useState<StatusTab>('ALL')
   const [showNewModal, setShowNewModal] = useState(false)
 
-  const { data: runs = [], isLoading, error } = useQuery({
+  const { data: runs = [], isLoading, error, refetch } = useQuery({
     queryKey: ['testRuns', projectId],
     queryFn: () => api.testRuns(projectId!),
     enabled: !!projectId,
@@ -542,7 +542,7 @@ export default function TestRunsPage() {
   })
 
   if (isLoading) return <LoadingSpinner message="Loading test runs…" />
-  if (error) return <ErrorMessage message="Failed to load test runs." />
+  if (error) return <ErrorMessage message="Failed to load test runs." onRetry={() => void refetch()} />
 
   // Honor the project scope filter against each run's own dimension tags.
   const scoped = runs.filter(r =>

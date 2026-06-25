@@ -766,7 +766,6 @@ These templates:
 - Promtail
 - Grafana
 - Prometheus
-- InfluxDB
 - a Flyway migration job
 - all 5 platform services
 

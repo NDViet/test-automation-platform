@@ -183,7 +183,7 @@ export default function ProjectDetail() {
   const detailQ = useQuery({ queryKey: ['project', projectId], queryFn: () => api.projectDetail(projectId!), enabled: !!projectId })
 
   if (covQ.isLoading) return <LoadingSpinner message="Loading project quality…" />
-  if (covQ.error || !covQ.data) return <ErrorMessage message="Failed to load project quality." />
+  if (covQ.error || !covQ.data) return <ErrorMessage message="Failed to load project quality." onRetry={() => void covQ.refetch()} />
 
   const cov   = covQ.data
   const board = boardQ.data

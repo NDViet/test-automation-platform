@@ -389,7 +389,7 @@ export default function TestExecutionPage() {
   const [typeTab, setTypeTab] = useState<TypeTab>('ALL')
   const [showNewModal, setShowNewModal] = useState(false)
 
-  const { data: items = [], isLoading, error } = useQuery({
+  const { data: items = [], isLoading, error, refetch } = useQuery({
     queryKey: ['unifiedExecutions', projectId, typeTab, filter.teamId, filter.area, filter.iteration],
     queryFn: () => api.unifiedExecutions(projectId!, {
       type: typeTab,
@@ -416,7 +416,7 @@ export default function TestExecutionPage() {
   ]
 
   if (isLoading) return <LoadingSpinner message="Loading executions…" />
-  if (error)     return <ErrorMessage message="Failed to load test executions." />
+  if (error)     return <ErrorMessage message="Failed to load test executions." onRetry={() => void refetch()} />
 
   return (
     <div className="space-y-5">

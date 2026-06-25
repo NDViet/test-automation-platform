@@ -67,7 +67,7 @@ export default function AdminIntegrationsPage() {
   // ADO-first: every scope is keyed by an id — ORG=organization, PROJECT=project, TEAM=sub-team.
   const effectiveScopeId = scope === 'ORG' ? orgId : scope === 'PROJECT' ? projectId : teamId
 
-  const { data: creds, isLoading, error } = useQuery({
+  const { data: creds, isLoading, error, refetch } = useQuery({
     queryKey: ['credentials', scope, effectiveScopeId || 'none'],
     queryFn: () => api.credentials(scope, effectiveScopeId),
     enabled: !!effectiveScopeId,
@@ -206,7 +206,7 @@ export default function AdminIntegrationsPage() {
 
       {/* List */}
       {isLoading && <LoadingSpinner message="Loading credentials…" />}
-      {error && <ErrorMessage message="Failed to load credentials." />}
+      {error && <ErrorMessage message="Failed to load credentials." onRetry={() => void refetch()} />}
       {!isLoading && !error && (
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm divide-y divide-slate-50">
           {(!creds || creds.length === 0) && (
@@ -270,7 +270,7 @@ function RepoSelectModal({ credential, onClose }: { credential: Credential; onCl
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [seeded, setSeeded] = useState(false)
 
-  const { data: repos = [], isLoading, error } = useQuery({
+  const { data: repos = [], isLoading, error, refetch } = useQuery({
     queryKey: ['githubRepos', credential.id],
     queryFn: () => api.githubRepos(credential.id),
     select: (data: GithubRepo[]) => {
@@ -298,7 +298,7 @@ function RepoSelectModal({ credential, onClose }: { credential: Credential; onCl
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
         </div>
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-3">
-          {error && <ErrorMessage message="Failed to list repositories — check the PAT and its scopes." />}
+          {error && <ErrorMessage message="Failed to list repositories — check the PAT and its scopes." onRetry={() => void refetch()} />}
           <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Filter repositories…"
             className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500" />
           {isLoading && <div className="py-8 text-center text-sm text-slate-400 flex items-center justify-center gap-2"><Loader2 size={14} className="animate-spin" /> Discovering repositories via the PAT…</div>}

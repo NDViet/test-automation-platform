@@ -9,14 +9,14 @@ import ErrorMessage from '@/components/ErrorMessage'
 export default function AlertsPage() {
   const [days, setDays] = useState(7)
 
-  const { data: alerts, isLoading, error } = useQuery({
+  const { data: alerts, isLoading, error, refetch } = useQuery({
     queryKey: ['alerts', days],
     queryFn: () => api.alerts(days),
     refetchInterval: 30_000,
   })
 
   if (isLoading) return <LoadingSpinner message="Loading alerts…" />
-  if (error) return <ErrorMessage message="Failed to load alerts." />
+  if (error) return <ErrorMessage message="Failed to load alerts." onRetry={() => void refetch()} />
 
   const list = alerts ?? []
 

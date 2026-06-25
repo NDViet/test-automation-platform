@@ -143,7 +143,7 @@ function Card({ c, onOpen }: { c: ReleaseCard; onOpen: () => void }) {
 function BoardView({ projectId }: { projectId: string }) {
   const { filter } = useProjectFilter()   // project-wide Area / Team / Iteration scope
   const [drill, setDrill] = useState<ReleaseCard | null>(null)
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['execBoard', projectId, filter.area, filter.teamId, filter.iteration],
     queryFn: () => api.testExecutionBoard(projectId, {
       iteration: filter.iteration || undefined, area: filter.area || undefined, team: filter.teamId || undefined,
@@ -151,7 +151,7 @@ function BoardView({ projectId }: { projectId: string }) {
   })
 
   if (isLoading) return <LoadingSpinner message="Loading…" />
-  if (error) return <ErrorMessage message="Failed to load release board." />
+  if (error) return <ErrorMessage message="Failed to load release board." onRetry={() => void refetch()} />
   if (!data) return null
 
   return (
@@ -197,7 +197,7 @@ function PivotView({ projectId }: { projectId: string }) {
   const { filter } = useProjectFilter()   // project-wide Area / Team / Iteration scope
   const [dim, setDim] = useState<Dim>('sprint')
   const [drill, setDrill] = useState<ExecDimensionGroup | null>(null)
-  const { data, isLoading, error } = useQuery({
+  const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['testExecution', projectId, dim, filter.area, filter.teamId, filter.iteration],
     queryFn: () => api.testExecutionBy(projectId, dim, {
       area: filter.area || undefined, team: filter.teamId || undefined, iteration: filter.iteration || undefined,
@@ -218,7 +218,7 @@ function PivotView({ projectId }: { projectId: string }) {
         })}
       </div>
       {isLoading && <LoadingSpinner message="Loading…" />}
-      {error && <ErrorMessage message="Failed to load." />}
+      {error && <ErrorMessage message="Failed to load." onRetry={() => void refetch()} />}
       {data && (
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
           <table className="w-full text-sm">

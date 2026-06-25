@@ -349,7 +349,7 @@ export default function ReviewQueuePage() {
   const pendingCount = items.filter(i => i.status === 'PENDING').length
 
   if (isLoading) return <LoadingSpinner message="Loading review queue…" />
-  if (error)     return <ErrorMessage  message="Failed to load work items." />
+  if (error)     return <ErrorMessage  message="Failed to load work items." onRetry={() => void refetch()} />
 
   return (
     <div className="space-y-6">

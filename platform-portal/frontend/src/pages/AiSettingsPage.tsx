@@ -59,7 +59,7 @@ function KeyField({
 export default function AiSettingsPage() {
   const qc = useQueryClient()
 
-  const { data: settings, isLoading, error } = useQuery({
+  const { data: settings, isLoading, error, refetch } = useQuery({
     queryKey: ['ai-settings'],
     queryFn: api.aiSettings,
   })
@@ -118,7 +118,7 @@ export default function AiSettingsPage() {
   })
 
   if (isLoading) return <LoadingSpinner message="Loading AI settings…" />
-  if (error)     return <ErrorMessage message="Failed to load AI settings." />
+  if (error)     return <ErrorMessage message="Failed to load AI settings." onRetry={() => void refetch()} />
 
   return (
     <div className="space-y-6 max-w-2xl">

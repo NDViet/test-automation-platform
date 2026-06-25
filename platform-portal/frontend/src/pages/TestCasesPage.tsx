@@ -1664,7 +1664,7 @@ export default function TestCasesPage() {
     return true
   })
 
-  const { data: testCases = [], isLoading: tcLoading, error: tcError } = useQuery({
+  const { data: testCases = [], isLoading: tcLoading, error: tcError, refetch: tcRefetch } = useQuery({
     queryKey: ['testCases', projectId, statusFilter, selectedSuiteId, search, filter.area, filter.teamId, filter.iteration],
     queryFn: () => api.testCases(projectId!, {
       status: statusFilter || undefined,
@@ -1681,7 +1681,7 @@ export default function TestCasesPage() {
 
 
   if (tcLoading && !testCases.length) return <LoadingSpinner message="Loading test cases…" />
-  if (tcError) return <ErrorMessage message="Failed to load test cases." />
+  if (tcError) return <ErrorMessage message="Failed to load test cases." onRetry={() => void tcRefetch()} />
 
   // Build flat option list for suite dropdown (respects parent→child order)
   const suiteOptions: { id: string; label: string; depth: number }[] = []

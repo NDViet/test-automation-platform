@@ -102,7 +102,7 @@ export default function AdoMappingPage() {
   const laneOrder = ['REQUIREMENT', 'DEFECT', 'IGNORE']
 
   if (projectsQ.isLoading) return <LoadingSpinner message="Connecting to Azure DevOps…" />
-  if (projectsQ.error) return <ErrorMessage message="Could not reach Azure DevOps. Ensure an AZURE_DEVOPS_BOARDS credential is configured for this project (Settings → Integrations)." />
+  if (projectsQ.error) return <ErrorMessage message="Could not reach Azure DevOps. Ensure an AZURE_DEVOPS_BOARDS credential is configured for this project (Settings → Integrations)." onRetry={() => void projectsQ.refetch()} />
 
   return (
     <div className="space-y-6">
@@ -211,7 +211,7 @@ export default function AdoMappingPage() {
               </div>
             </>
           )}
-          {selectedType && schemaQ.error && <ErrorMessage message="Failed to load the work-item schema." />}
+          {selectedType && schemaQ.error && <ErrorMessage message="Failed to load the work-item schema." onRetry={() => void schemaQ.refetch()} />}
         </div>
       </div>
 

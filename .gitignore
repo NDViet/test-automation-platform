@@ -35,3 +35,5 @@ dist/
 .node/
 *.iml
 .env
+# Local data volumes (bind-mounted by docker-compose)
+volume_data/

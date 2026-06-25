@@ -12,7 +12,7 @@ export default function ApiKeysPage() {
   const [createdKey, setCreatedKey] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
 
-  const { data: keys, isLoading, error } = useQuery({
+  const { data: keys, isLoading, error, refetch } = useQuery({
     queryKey: ['api-keys'],
     queryFn: () => api.apiKeys(),
   })
@@ -93,7 +93,7 @@ export default function ApiKeysPage() {
 
       {/* Keys list */}
       {isLoading && <LoadingSpinner message="Loading API keys…" />}
-      {error && <ErrorMessage message="Failed to load API keys." />}
+      {error && <ErrorMessage message="Failed to load API keys." onRetry={() => void refetch()} />}
       {!isLoading && !error && (
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
           <div className="px-5 py-4 border-b border-slate-100">

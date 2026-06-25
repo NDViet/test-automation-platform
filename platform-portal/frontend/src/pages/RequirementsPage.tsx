@@ -420,7 +420,7 @@ export default function RequirementsPage() {
   // ── List view (server-paginated) ──────────────────────────────────────────────
   function listView() {
     if (listQ.isLoading) return <LoadingSpinner message="Loading requirements…" />
-    if (listQ.error) return <ErrorMessage message="Failed to load requirements." />
+    if (listQ.error) return <ErrorMessage message="Failed to load requirements." onRetry={() => void listQ.refetch()} />
     const data = listQ.data
     const items = data?.content ?? []
     const totalPages = data?.totalPages ?? 0
@@ -494,7 +494,7 @@ export default function RequirementsPage() {
   // ── Tree view (full hierarchy, bounded render) ────────────────────────────────
   function treeView() {
     if (treeQ.isLoading) return <LoadingSpinner message="Loading hierarchy…" />
-    if (treeQ.error) return <ErrorMessage message="Failed to load requirements." />
+    if (treeQ.error) return <ErrorMessage message="Failed to load requirements." onRetry={() => void treeQ.refetch()} />
     const all = treeQ.data ?? []
     const treeData = buildTree(all)
     const f = { q: search.trim().toLowerCase(), status, issueType }
