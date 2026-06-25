@@ -3,7 +3,7 @@ name: Publish Playwright Streaming Reporter
 on:
   push:
     branches:
-      - master
+      - main
     paths:
       - 'platform-adapters/js/playwright-streaming/**'
     tags:

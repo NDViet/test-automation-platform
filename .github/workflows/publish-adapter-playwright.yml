@@ -3,7 +3,7 @@ name: Publish Playwright Adapter
 on:
   push:
     branches:
-      - master
+      - main
     paths:
       - 'platform-adapters/js/playwright/**'
     tags:
