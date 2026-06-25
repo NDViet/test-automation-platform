@@ -1,0 +1,39 @@
+# Keep the Docker build context small. Service images only need the prebuilt
+# fat jars under platform-*/target — everything below is irrelevant and would
+# otherwise be uploaded as context on every build, slowing things down.
+
+# VCS / IDE / agent state
+.git
+.github
+.idea
+.vscode
+.claude
+.remember
+
+# Local data volumes (bind-mounted at runtime, ~200 MB)
+volume_data
+
+# Bazel outputs (symlinks + large generated trees)
+bazel-bin
+bazel-out
+bazel-test-automation-platform
+bazel-testlogs
+
+# Node / frontend build inputs — the portal jar already embeds the built SPA
+**/node_modules
+**/.node
+platform-portal/frontend/src
+platform-portal/frontend/public
+platform-portal/frontend/dist
+
+# Maven intermediate output we don't need in the image (the *.jar is kept)
+**/target/classes
+**/target/generated-sources
+**/target/maven-status
+**/target/test-classes
+**/target/surefire-reports
+
+# Docs and misc
+docs
+*.md
+*.log

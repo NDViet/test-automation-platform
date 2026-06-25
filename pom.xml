@@ -8,7 +8,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>4.0.3</version>
+        <version>4.0.6</version>
         <relativePath/>
     </parent>
 
@@ -39,6 +39,15 @@
         <maven.compiler.source>21</maven.compiler.source>
         <maven.compiler.target>21</maven.compiler.target>
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+
+        <!-- CVE overrides: bump Spring Boot 4.0.6 managed transitive deps to patched
+             releases. Re-check with Trivy after any Spring Boot upgrade and drop any
+             override the new BOM already satisfies. -->
+        <tomcat.version>11.0.22</tomcat.version>            <!-- CVE-2026-41293/43512/43515 (CRITICAL) + more -->
+        <netty.version>4.2.15.Final</netty.version>          <!-- CVE-2026-44249/45416/50010/45674/47691 + codec CVEs -->
+        <jackson-bom.version>3.1.4</jackson-bom.version>      <!-- Jackson 3: CVE-2026-54512/54513 -->
+        <jackson-2-bom.version>2.22.0</jackson-2-bom.version> <!-- Jackson 2: CVE-2026-54512/54513 (>= 2.21.4 patch) -->
+        <postgresql.version>42.7.11</postgresql.version>     <!-- CVE-2026-42198 -->
 
         <!-- Dependency versions -->
         <spring-kafka.version>4.0.6</spring-kafka.version>

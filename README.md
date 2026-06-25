@@ -194,9 +194,25 @@ npm run bundle
 
 ### Build and run local images
 
+All service images build `FROM` a shared `platform-base` image (JRE + OS packages +
+non-root user + JVM entrypoint, defined in `infrastructure/docker/base.Dockerfile`).
+That common layer is built once instead of repeated in every service image.
+
+Fastest path — build the base and all services in parallel with one command:
+
 ```bash
+docker buildx bake          # builds platform-base:local + all six service images
+```
+
+Or with Compose (build the base once first, then the services):
+
+```bash
+docker buildx bake base                       # creates platform-base:local
 docker compose --profile services up -d --build
 ```
+
+CI builds the base once and publishes it to `ghcr.io/<owner>/platform-base`; the
+service images pull it via the `BASE_IMAGE` build-arg.
 
 ### Run one service from source
 

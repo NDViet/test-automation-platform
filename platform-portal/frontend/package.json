@@ -22,7 +22,7 @@
     "react-router-dom": "^7.18.0",
     "recharts": "^3.9.0",
     "tailwind-merge": "^3.6.0",
-    "xlsx": "^0.18.5"
+    "xlsx": "https://cdn.sheetjs.com/xlsx-0.20.3/xlsx-0.20.3.tgz"
   },
   "devDependencies": {
     "@tailwindcss/forms": "^0.5.11",

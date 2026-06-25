@@ -1,15 +1,7 @@
-FROM eclipse-temurin:21-jre-alpine AS runtime
-
-RUN addgroup -S platform && adduser -S platform -G platform
-USER platform
-
-WORKDIR /app
+# Runtime built on the shared platform-base image (infrastructure/docker/base.Dockerfile).
+ARG BASE_IMAGE=platform-base:local
+FROM ${BASE_IMAGE}
 
 COPY platform-agent/target/platform-agent-*.jar app.jar
 
 EXPOSE 8086
-
-ENTRYPOINT ["java", \
-  "-XX:+UseContainerSupport", \
-  "-XX:MaxRAMPercentage=75.0", \
-  "-jar", "app.jar"]
