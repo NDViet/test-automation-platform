@@ -16,7 +16,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @EnableAsync
 @EnableScheduling
 public class PlatformAgentApplication {
-    public static void main(String[] args) {
-        SpringApplication.run(PlatformAgentApplication.class, args);
-    }
+  public static void main(String[] args) {
+    SpringApplication.run(PlatformAgentApplication.class, args);
+  }
 }

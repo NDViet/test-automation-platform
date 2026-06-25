@@ -12,7 +12,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @EntityScan(basePackages = "com.platform.core.domain")
 @EnableScheduling
 public class IngestionApplication {
-    public static void main(String[] args) {
-        SpringApplication.run(IngestionApplication.class, args);
-    }
+  public static void main(String[] args) {
+    SpringApplication.run(IngestionApplication.class, args);
+  }
 }

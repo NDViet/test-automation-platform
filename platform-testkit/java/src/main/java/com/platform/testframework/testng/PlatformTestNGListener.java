@@ -1,9 +1,9 @@
 package com.platform.testframework.testng;
 
-import com.platform.testframework.annotation.AffectedBy;
-import com.platform.testframework.annotation.TestMetadata;
 import com.platform.common.enums.TestStatus;
 import com.platform.sdk.config.PlatformConfig;
+import com.platform.testframework.annotation.AffectedBy;
+import com.platform.testframework.annotation.TestMetadata;
 import com.platform.testframework.classify.FailureCategory;
 import com.platform.testframework.classify.FailureClassifier;
 import com.platform.testframework.classify.FailureHint;
@@ -13,25 +13,25 @@ import com.platform.testframework.diagnostics.DiagnosticsRegistry;
 import com.platform.testframework.diagnostics.LocatorAiAnalyzer;
 import com.platform.testframework.report.EnvironmentInfo;
 import com.platform.testframework.report.NativeReportPublisher;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.slf4j.MDC;
-import org.testng.*;
-
 import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+import org.slf4j.MDC;
+import org.testng.*;
 
 /**
  * TestNG listener that integrates with platform-testkit-java.
  *
- * <p>Provides the same structured logging, OTel trace IDs, step tracking,
- * failure classification, and platform publishing as {@link
- * com.platform.testframework.extension.PlatformExtension} does for JUnit5.</p>
+ * <p>Provides the same structured logging, OTel trace IDs, step tracking, failure classification,
+ * and platform publishing as {@link com.platform.testframework.extension.PlatformExtension} does
+ * for JUnit5.
  *
  * <h3>Registration — choose one:</h3>
+ *
  * <pre>{@code
  * // 1. On the test class (simplest):
  * @Listeners(PlatformTestNGListener.class)
@@ -47,6 +47,7 @@ import java.util.UUID;
  * }</pre>
  *
  * <h3>Step logging:</h3>
+ *
  * <pre>{@code
  * private final TestLogger log = TestLogger.forClass(getClass());
  *
@@ -60,190 +61,209 @@ import java.util.UUID;
  */
 public class PlatformTestNGListener implements ITestListener {
 
-    private static final Logger log = LoggerFactory.getLogger(PlatformTestNGListener.class);
+  private static final Logger log = LoggerFactory.getLogger(PlatformTestNGListener.class);
 
-    @Override
-    public void onTestStart(ITestResult result) {
-        String className  = result.getTestClass().getName();
-        String methodName = result.getMethod().getMethodName();
-        String testId     = className + "#" + methodName;
-        String displayName = result.getMethod().getDescription() != null
+  @Override
+  public void onTestStart(ITestResult result) {
+    String className = result.getTestClass().getName();
+    String methodName = result.getMethod().getMethodName();
+    String testId = className + "#" + methodName;
+    String displayName =
+        result.getMethod().getDescription() != null
                 && !result.getMethod().getDescription().isBlank()
-                ? result.getMethod().getDescription() : methodName;
-        Method method = result.getMethod().getConstructorOrMethod().getMethod();
-        Class<?> clazz = result.getTestClass().getRealClass();
+            ? result.getMethod().getDescription()
+            : methodName;
+    Method method = result.getMethod().getConstructorOrMethod().getMethod();
+    Class<?> clazz = result.getTestClass().getRealClass();
 
-        String traceId = UUID.randomUUID().toString().replace("-", "");
+    String traceId = UUID.randomUUID().toString().replace("-", "");
 
-        // MDC
-        MDC.put("testId",    testId);
-        MDC.put("testClass", className);
-        MDC.put("testMethod", methodName);
-        MDC.put("traceId",   traceId);
+    // MDC
+    MDC.put("testId", testId);
+    MDC.put("testClass", className);
+    MDC.put("testMethod", methodName);
+    MDC.put("traceId", traceId);
 
-        List<String> tags = collectTags(result, clazz, method);
-        List<String> coveredClasses = collectCoveredClasses(clazz, method);
+    List<String> tags = collectTags(result, clazz, method);
+    List<String> coveredClasses = collectCoveredClasses(clazz, method);
 
-        PlatformConfig config = PlatformConfig.load();
+    PlatformConfig config = PlatformConfig.load();
 
-        TestContext ctx = new TestContext(
-                testId, displayName, className, methodName, tags,
-                traceId, config.getTeamId(), config.getProjectId()
-        );
-        ctx.setCoveredClasses(coveredClasses);
-        ctx.putAllEnvironment(EnvironmentInfo.collect());
-        TestContextHolder.set(ctx);
+    TestContext ctx =
+        new TestContext(
+            testId,
+            displayName,
+            className,
+            methodName,
+            tags,
+            traceId,
+            config.getTeamId(),
+            config.getProjectId());
+    ctx.setCoveredClasses(coveredClasses);
+    ctx.putAllEnvironment(EnvironmentInfo.collect());
+    TestContextHolder.set(ctx);
 
-        log.info("[Platform/TestNG] Test started — {} traceId={}", testId, traceId);
+    log.info("[Platform/TestNG] Test started — {} traceId={}", testId, traceId);
+  }
+
+  @Override
+  public void onTestSuccess(ITestResult result) {
+    publish(result, TestStatus.PASSED, null, null);
+  }
+
+  @Override
+  public void onTestFailure(ITestResult result) {
+    Throwable t = result.getThrowable();
+    TestStatus status = (t instanceof AssertionError) ? TestStatus.FAILED : TestStatus.BROKEN;
+    publish(result, status, t != null ? t.getMessage() : null, stackTrace(t));
+  }
+
+  @Override
+  public void onTestSkipped(ITestResult result) {
+    publish(result, TestStatus.SKIPPED, null, null);
+  }
+
+  @Override
+  public void onTestFailedButWithinSuccessPercentage(ITestResult result) {
+    onTestFailure(result); // treat as failure for platform purposes
+  }
+
+  // -------------------------------------------------------------------------
+
+  private void publish(
+      ITestResult result, TestStatus status, String failureMessage, String stackTrace) {
+    TestContext ctx = TestContextHolder.get();
+    if (ctx == null) {
+      cleanupMdc();
+      return;
     }
 
-    @Override
-    public void onTestSuccess(ITestResult result) {
-        publish(result, TestStatus.PASSED, null, null);
+    long durationMs = result.getEndMillis() - result.getStartMillis();
+
+    // Failure classification
+    if (result.getThrowable() != null) {
+      TestContext.Snapshot snap = ctx.snapshot(); // peek without clearing
+      String lastStep =
+          snap.rootSteps().isEmpty()
+              ? null
+              : snap.rootSteps().get(snap.rootSteps().size() - 1).getName();
+      FailureHint hint =
+          FailureClassifier.classify(result.getThrowable(), lastStep, snap.capturedLog());
+      ctx.putEnvironment("platform.hint.category", hint.category().name());
+      ctx.putEnvironment("platform.hint.confidence", String.format("%.2f", hint.confidence()));
+      ctx.putEnvironment("platform.hint.message", hint.message());
+
+      // AI locator analysis — triggered for BAD_LOCATOR failures when a
+      // DiagnosticsProvider is registered on this thread (e.g. from BaseTest).
+      if (hint.category() == FailureCategory.BAD_LOCATOR) {
+        runAiLocatorAnalysis(result.getThrowable(), ctx);
+      }
     }
 
-    @Override
-    public void onTestFailure(ITestResult result) {
-        Throwable t = result.getThrowable();
-        TestStatus status = (t instanceof AssertionError) ? TestStatus.FAILED : TestStatus.BROKEN;
-        publish(result, status, t != null ? t.getMessage() : null, stackTrace(t));
+    TestContext.Snapshot snap = ctx.snapshot();
+
+    try {
+      PlatformConfig config = PlatformConfig.load();
+      new NativeReportPublisher(config)
+          .publish(snap, status, failureMessage, stackTrace, durationMs);
+    } catch (Exception e) {
+      log.warn("[Platform/TestNG] Failed to publish result: {}", e.getMessage());
     }
 
-    @Override
-    public void onTestSkipped(ITestResult result) {
-        publish(result, TestStatus.SKIPPED, null, null);
+    log.info(
+        "[Platform/TestNG] Test finished — {} status={} duration={}ms",
+        snap.testId(),
+        status,
+        durationMs);
+
+    TestContextHolder.clear();
+    cleanupMdc();
+  }
+
+  private void cleanupMdc() {
+    MDC.remove("testId");
+    MDC.remove("testClass");
+    MDC.remove("testMethod");
+    MDC.remove("traceId");
+    MDC.remove("step");
+  }
+
+  private void runAiLocatorAnalysis(Throwable t, TestContext ctx) {
+    DiagnosticsRegistry.get()
+        .ifPresentOrElse(
+            provider -> {
+              String selector = extractSelector(t.getMessage());
+              LocatorAiAnalyzer.attach(selector, provider, ctx);
+              log.info(
+                  "[Diagnostics] Diagnostic data attached — platform-ai will classify on the"
+                      + " backend");
+            },
+            () -> log.debug("[Diagnostics] No DiagnosticsProvider registered — skipping"));
+  }
+
+  private String extractSelector(String msg) {
+    if (msg == null) return "(unknown)";
+    for (String prefix :
+        java.util.List.of("By.cssSelector:", "By.xpath:", "By.id:", "By.name:", "By.className:")) {
+      int idx = msg.indexOf(prefix);
+      if (idx >= 0) {
+        String rest = msg.substring(idx + prefix.length()).trim();
+        int end = rest.indexOf('\n');
+        return prefix.trim().replace(":", "=")
+            + (end > 0 ? rest.substring(0, end).trim() : rest.trim());
+      }
+    }
+    return firstLine(msg);
+  }
+
+  private String firstLine(String s) {
+    if (s == null || s.isBlank()) return "(no message)";
+    int nl = s.indexOf('\n');
+    return nl > 0 ? s.substring(0, nl).trim() : s.trim();
+  }
+
+  private String stackTrace(Throwable t) {
+    if (t == null) return null;
+    var sw = new java.io.StringWriter();
+    t.printStackTrace(new java.io.PrintWriter(sw));
+    return sw.toString();
+  }
+
+  private List<String> collectTags(ITestResult result, Class<?> clazz, Method method) {
+    List<String> tags = new ArrayList<>(Arrays.asList(result.getMethod().getGroups()));
+
+    TestMetadata meta = method != null ? method.getAnnotation(TestMetadata.class) : null;
+    if (meta == null) {
+      meta = clazz.getAnnotation(TestMetadata.class);
     }
 
-    @Override
-    public void onTestFailedButWithinSuccessPercentage(ITestResult result) {
-        onTestFailure(result); // treat as failure for platform purposes
+    if (meta != null) {
+      if (!meta.feature().isBlank()) {
+        tags.add("feature:" + meta.feature());
+      }
+      if (!meta.story().isBlank()) {
+        tags.add("story:" + meta.story());
+      }
+      if (!meta.owner().isBlank()) {
+        tags.add("owner:" + meta.owner());
+      }
+      tags.add("severity:" + meta.severity().name().toLowerCase());
     }
 
-    // -------------------------------------------------------------------------
+    return tags;
+  }
 
-    private void publish(ITestResult result, TestStatus status,
-                         String failureMessage, String stackTrace) {
-        TestContext ctx = TestContextHolder.get();
-        if (ctx == null) {
-            cleanupMdc();
-            return;
-        }
-
-        long durationMs = result.getEndMillis() - result.getStartMillis();
-
-        // Failure classification
-        if (result.getThrowable() != null) {
-            TestContext.Snapshot snap = ctx.snapshot(); // peek without clearing
-            String lastStep = snap.rootSteps().isEmpty() ? null
-                    : snap.rootSteps().get(snap.rootSteps().size() - 1).getName();
-            FailureHint hint = FailureClassifier.classify(
-                    result.getThrowable(), lastStep, snap.capturedLog());
-            ctx.putEnvironment("platform.hint.category",    hint.category().name());
-            ctx.putEnvironment("platform.hint.confidence",  String.format("%.2f", hint.confidence()));
-            ctx.putEnvironment("platform.hint.message",     hint.message());
-
-            // AI locator analysis — triggered for BAD_LOCATOR failures when a
-            // DiagnosticsProvider is registered on this thread (e.g. from BaseTest).
-            if (hint.category() == FailureCategory.BAD_LOCATOR) {
-                runAiLocatorAnalysis(result.getThrowable(), ctx);
-            }
-        }
-
-        TestContext.Snapshot snap = ctx.snapshot();
-
-        try {
-            PlatformConfig config = PlatformConfig.load();
-            new NativeReportPublisher(config)
-                    .publish(snap, status, failureMessage, stackTrace, durationMs);
-        } catch (Exception e) {
-            log.warn("[Platform/TestNG] Failed to publish result: {}", e.getMessage());
-        }
-
-        log.info("[Platform/TestNG] Test finished — {} status={} duration={}ms",
-                snap.testId(), status, durationMs);
-
-        TestContextHolder.clear();
-        cleanupMdc();
+  private List<String> collectCoveredClasses(Class<?> clazz, Method method) {
+    AffectedBy methodAnn = method != null ? method.getAnnotation(AffectedBy.class) : null;
+    if (methodAnn != null) {
+      return List.of(methodAnn.value());
     }
 
-    private void cleanupMdc() {
-        MDC.remove("testId");
-        MDC.remove("testClass");
-        MDC.remove("testMethod");
-        MDC.remove("traceId");
-        MDC.remove("step");
+    AffectedBy classAnn = clazz.getAnnotation(AffectedBy.class);
+    if (classAnn != null) {
+      return List.of(classAnn.value());
     }
 
-    private void runAiLocatorAnalysis(Throwable t, TestContext ctx) {
-        DiagnosticsRegistry.get().ifPresentOrElse(provider -> {
-            String selector = extractSelector(t.getMessage());
-            LocatorAiAnalyzer.attach(selector, provider, ctx);
-            log.info("[Diagnostics] Diagnostic data attached — platform-ai will classify on the backend");
-        }, () -> log.debug("[Diagnostics] No DiagnosticsProvider registered — skipping"));
-    }
-
-    private String extractSelector(String msg) {
-        if (msg == null) return "(unknown)";
-        for (String prefix : java.util.List.of("By.cssSelector:", "By.xpath:", "By.id:",
-                                                "By.name:", "By.className:")) {
-            int idx = msg.indexOf(prefix);
-            if (idx >= 0) {
-                String rest = msg.substring(idx + prefix.length()).trim();
-                int end = rest.indexOf('\n');
-                return prefix.trim().replace(":", "=") + (end > 0 ? rest.substring(0, end).trim() : rest.trim());
-            }
-        }
-        return firstLine(msg);
-    }
-
-    private String firstLine(String s) {
-        if (s == null || s.isBlank()) return "(no message)";
-        int nl = s.indexOf('\n');
-        return nl > 0 ? s.substring(0, nl).trim() : s.trim();
-    }
-
-    private String stackTrace(Throwable t) {
-        if (t == null) return null;
-        var sw = new java.io.StringWriter();
-        t.printStackTrace(new java.io.PrintWriter(sw));
-        return sw.toString();
-    }
-
-    private List<String> collectTags(ITestResult result, Class<?> clazz, Method method) {
-        List<String> tags = new ArrayList<>(Arrays.asList(result.getMethod().getGroups()));
-
-        TestMetadata meta = method != null ? method.getAnnotation(TestMetadata.class) : null;
-        if (meta == null) {
-            meta = clazz.getAnnotation(TestMetadata.class);
-        }
-
-        if (meta != null) {
-            if (!meta.feature().isBlank()) {
-                tags.add("feature:" + meta.feature());
-            }
-            if (!meta.story().isBlank()) {
-                tags.add("story:" + meta.story());
-            }
-            if (!meta.owner().isBlank()) {
-                tags.add("owner:" + meta.owner());
-            }
-            tags.add("severity:" + meta.severity().name().toLowerCase());
-        }
-
-        return tags;
-    }
-
-    private List<String> collectCoveredClasses(Class<?> clazz, Method method) {
-        AffectedBy methodAnn = method != null ? method.getAnnotation(AffectedBy.class) : null;
-        if (methodAnn != null) {
-            return List.of(methodAnn.value());
-        }
-
-        AffectedBy classAnn = clazz.getAnnotation(AffectedBy.class);
-        if (classAnn != null) {
-            return List.of(classAnn.value());
-        }
-
-        return List.of();
-    }
+    return List.of();
+  }
 }

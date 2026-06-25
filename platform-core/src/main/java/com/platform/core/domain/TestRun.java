@@ -1,7 +1,6 @@
 package com.platform.core.domain;
 
 import jakarta.persistence.*;
-
 import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
@@ -11,139 +10,191 @@ import java.util.UUID;
 @Table(name = "test_runs")
 public class TestRun {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    private UUID id;
+  @Id
+  @GeneratedValue(strategy = GenerationType.UUID)
+  private UUID id;
 
-    @Column(name = "project_id", nullable = false)
-    private UUID projectId;
+  @Column(name = "project_id", nullable = false)
+  private UUID projectId;
 
-    @Column(name = "name", nullable = false, length = 200)
-    private String name;
+  @Column(name = "name", nullable = false, length = 200)
+  private String name;
 
-    @Column(name = "release_version", length = 100)
-    private String releaseVersion;
+  @Column(name = "release_version", length = 100)
+  private String releaseVersion;
 
-    @Column(name = "environment", nullable = false, length = 50)
-    private String environment = "STAGING";
+  @Column(name = "environment", nullable = false, length = 50)
+  private String environment = "STAGING";
 
-    /** Optional FK to a named {@link Environment}; {@code environment} holds its display name. */
-    @Column(name = "environment_id")
-    private UUID environmentId;
+  /** Optional FK to a named {@link Environment}; {@code environment} holds its display name. */
+  @Column(name = "environment_id")
+  private UUID environmentId;
 
-    // ── Monitoring dimensions (run-level tags) ─────────────────────────────────
-    /** Platform release this run validates (FK to {@link SotRelease}); null = none. */
-    @Column(name = "release_id")
-    private UUID releaseId;
+  // ── Monitoring dimensions (run-level tags) ─────────────────────────────────
+  /** Platform release this run validates (FK to {@link SotRelease}); null = none. */
+  @Column(name = "release_id")
+  private UUID releaseId;
 
-    /** ADO iteration (Sprint) path this run targets, e.g. {@code Product House\2026 Q2\Sprint 5}. */
-    @Column(name = "iteration_path", length = 1000)
-    private String iterationPath;
+  /** ADO iteration (Sprint) path this run targets, e.g. {@code Product House\2026 Q2\Sprint 5}. */
+  @Column(name = "iteration_path", length = 1000)
+  private String iterationPath;
 
-    /** ADO area path this run targets, e.g. {@code Product House\Checkout}. */
-    @Column(name = "area_path", length = 1000)
-    private String areaPath;
+  /** ADO area path this run targets, e.g. {@code Product House\Checkout}. */
+  @Column(name = "area_path", length = 1000)
+  private String areaPath;
 
-    /** Owning ADO team (FK to {@link AdoTeam}); null = none. */
-    @Column(name = "team_id")
-    private UUID teamId;
+  /** Owning ADO team (FK to {@link AdoTeam}); null = none. */
+  @Column(name = "team_id")
+  private UUID teamId;
 
-    @Column(name = "status", nullable = false, length = 20)
-    private String status = "IN_PROGRESS"; // IN_PROGRESS, COMPLETED, ABANDONED
+  @Column(name = "status", nullable = false, length = 20)
+  private String status = "IN_PROGRESS"; // IN_PROGRESS, COMPLETED, ABANDONED
 
-    @Column(name = "triggered_by", length = 200)
-    private String triggeredBy;
+  @Column(name = "triggered_by", length = 200)
+  private String triggeredBy;
 
-    @Column(name = "started_at")
-    private Instant startedAt;
+  @Column(name = "started_at")
+  private Instant startedAt;
 
-    @Column(name = "completed_at")
-    private Instant completedAt;
+  @Column(name = "completed_at")
+  private Instant completedAt;
 
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private Instant createdAt = Instant.now();
+  @Column(name = "created_at", nullable = false, updatable = false)
+  private Instant createdAt = Instant.now();
 
-    @Column(name = "updated_at", nullable = false)
-    private Instant updatedAt = Instant.now();
+  @Column(name = "updated_at", nullable = false)
+  private Instant updatedAt = Instant.now();
 
-    protected TestRun() {}
+  protected TestRun() {}
 
-    public TestRun(UUID projectId, String name, String releaseVersion,
-                   String environment, String triggeredBy) {
-        this.projectId      = projectId;
-        this.name           = name;
-        this.releaseVersion = releaseVersion;
-        this.environment    = environment != null ? environment : "STAGING";
-        this.triggeredBy    = triggeredBy;
-    }
+  public TestRun(
+      UUID projectId, String name, String releaseVersion, String environment, String triggeredBy) {
+    this.projectId = projectId;
+    this.name = name;
+    this.releaseVersion = releaseVersion;
+    this.environment = environment != null ? environment : "STAGING";
+    this.triggeredBy = triggeredBy;
+  }
 
-    public void complete() {
-        this.status      = "COMPLETED";
-        this.completedAt = Instant.now();
-        this.updatedAt   = Instant.now();
-    }
+  public void complete() {
+    this.status = "COMPLETED";
+    this.completedAt = Instant.now();
+    this.updatedAt = Instant.now();
+  }
 
-    public void abandon() {
-        this.status      = "ABANDONED";
-        this.completedAt = Instant.now();
-        this.updatedAt   = Instant.now();
-    }
+  public void abandon() {
+    this.status = "ABANDONED";
+    this.completedAt = Instant.now();
+    this.updatedAt = Instant.now();
+  }
 
-    public UUID getId()              { return id; }
-    public UUID getProjectId()       { return projectId; }
-    public String getName()          { return name; }
-    public String getReleaseVersion() { return releaseVersion; }
-    public String getEnvironment()   { return environment; }
-    public UUID getEnvironmentId()   { return environmentId; }
-    public UUID getReleaseId()       { return releaseId; }
-    public String getIterationPath() { return iterationPath; }
-    public String getAreaPath()      { return areaPath; }
-    public UUID getTeamId()          { return teamId; }
-    public String getStatus()        { return status; }
-    public String getTriggeredBy()   { return triggeredBy; }
-    public Instant getStartedAt()    { return startedAt; }
-    public Instant getCompletedAt()  { return completedAt; }
-    public Instant getCreatedAt()    { return createdAt; }
-    public Instant getUpdatedAt()    { return updatedAt; }
+  public UUID getId() {
+    return id;
+  }
 
-    public void setName(String name) {
-        this.name      = name;
-        this.updatedAt = Instant.now();
-    }
+  public UUID getProjectId() {
+    return projectId;
+  }
 
-    public void setReleaseVersion(String releaseVersion) {
-        this.releaseVersion = releaseVersion;
-        this.updatedAt      = Instant.now();
-    }
+  public String getName() {
+    return name;
+  }
 
-    public void setStartedAt(Instant startedAt) {
-        this.startedAt = startedAt;
-        this.updatedAt = Instant.now();
-    }
+  public String getReleaseVersion() {
+    return releaseVersion;
+  }
 
-    public void setEnvironment(String environment) {
-        this.environment = environment;
-        this.updatedAt   = Instant.now();
-    }
+  public String getEnvironment() {
+    return environment;
+  }
 
-    public void setEnvironmentId(UUID environmentId) {
-        this.environmentId = environmentId;
-        this.updatedAt     = Instant.now();
-    }
+  public UUID getEnvironmentId() {
+    return environmentId;
+  }
 
-    /** Sets the run-level monitoring dimensions (release / iteration / area / team). */
-    public void setDimensions(UUID releaseId, String iterationPath, String areaPath, UUID teamId) {
-        this.releaseId     = releaseId;
-        this.iterationPath = (iterationPath != null && !iterationPath.isBlank()) ? iterationPath : null;
-        this.areaPath      = (areaPath != null && !areaPath.isBlank()) ? areaPath : null;
-        this.teamId        = teamId;
-        this.updatedAt     = Instant.now();
-    }
+  public UUID getReleaseId() {
+    return releaseId;
+  }
 
-    @Override public boolean equals(Object o) {
-        if (this == o) return true;
-        if (!(o instanceof TestRun r)) return false;
-        return Objects.equals(id, r.id);
-    }
-    @Override public int hashCode() { return Objects.hashCode(id); }
+  public String getIterationPath() {
+    return iterationPath;
+  }
+
+  public String getAreaPath() {
+    return areaPath;
+  }
+
+  public UUID getTeamId() {
+    return teamId;
+  }
+
+  public String getStatus() {
+    return status;
+  }
+
+  public String getTriggeredBy() {
+    return triggeredBy;
+  }
+
+  public Instant getStartedAt() {
+    return startedAt;
+  }
+
+  public Instant getCompletedAt() {
+    return completedAt;
+  }
+
+  public Instant getCreatedAt() {
+    return createdAt;
+  }
+
+  public Instant getUpdatedAt() {
+    return updatedAt;
+  }
+
+  public void setName(String name) {
+    this.name = name;
+    this.updatedAt = Instant.now();
+  }
+
+  public void setReleaseVersion(String releaseVersion) {
+    this.releaseVersion = releaseVersion;
+    this.updatedAt = Instant.now();
+  }
+
+  public void setStartedAt(Instant startedAt) {
+    this.startedAt = startedAt;
+    this.updatedAt = Instant.now();
+  }
+
+  public void setEnvironment(String environment) {
+    this.environment = environment;
+    this.updatedAt = Instant.now();
+  }
+
+  public void setEnvironmentId(UUID environmentId) {
+    this.environmentId = environmentId;
+    this.updatedAt = Instant.now();
+  }
+
+  /** Sets the run-level monitoring dimensions (release / iteration / area / team). */
+  public void setDimensions(UUID releaseId, String iterationPath, String areaPath, UUID teamId) {
+    this.releaseId = releaseId;
+    this.iterationPath = (iterationPath != null && !iterationPath.isBlank()) ? iterationPath : null;
+    this.areaPath = (areaPath != null && !areaPath.isBlank()) ? areaPath : null;
+    this.teamId = teamId;
+    this.updatedAt = Instant.now();
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) return true;
+    if (!(o instanceof TestRun r)) return false;
+    return Objects.equals(id, r.id);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hashCode(id);
+  }
 }

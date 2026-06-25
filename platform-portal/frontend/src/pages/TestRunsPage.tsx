@@ -14,19 +14,27 @@ import { Plus, PlayCircle, Trash2, CheckCircle, X, Loader2 } from 'lucide-react'
 
 function runStatusColor(status: string): string {
   switch (status) {
-    case 'IN_PROGRESS': return 'text-blue-700 bg-blue-100'
-    case 'COMPLETED':   return 'text-green-700 bg-green-100'
-    case 'ABORTED':     return 'text-red-700 bg-red-100'
-    default:            return 'text-slate-600 bg-slate-100'
+    case 'IN_PROGRESS':
+      return 'text-blue-700 bg-blue-100'
+    case 'COMPLETED':
+      return 'text-green-700 bg-green-100'
+    case 'ABORTED':
+      return 'text-red-700 bg-red-100'
+    default:
+      return 'text-slate-600 bg-slate-100'
   }
 }
 
 function envColor(env: string): string {
   switch (env?.toUpperCase()) {
-    case 'PROD':    return 'text-red-700 bg-red-100'
-    case 'STAGING': return 'text-orange-700 bg-orange-100'
-    case 'DEV':     return 'text-blue-700 bg-blue-100'
-    default:        return 'text-slate-600 bg-slate-100'
+    case 'PROD':
+      return 'text-red-700 bg-red-100'
+    case 'STAGING':
+      return 'text-orange-700 bg-orange-100'
+    case 'DEV':
+      return 'text-blue-700 bg-blue-100'
+    default:
+      return 'text-slate-600 bg-slate-100'
   }
 }
 
@@ -36,23 +44,26 @@ function RunProgressBar({ run }: { run: TestRun }) {
   const { totalTests, passed, failed, blocked, skipped } = run
   if (!totalTests) return <div className="h-1.5 bg-slate-100 rounded-full w-full" />
 
-  const pct = (n: number) => `${(n / totalTests * 100).toFixed(1)}%`
+  const pct = (n: number) => `${((n / totalTests) * 100).toFixed(1)}%`
   const passRate = passed / totalTests
 
   return (
     <div className="space-y-1">
       <div className="flex h-2 rounded-full overflow-hidden bg-slate-100 w-full">
-        <div className="bg-green-500"  style={{ width: pct(passed) }} />
-        <div className="bg-red-500"    style={{ width: pct(failed) }} />
+        <div className="bg-green-500" style={{ width: pct(passed) }} />
+        <div className="bg-red-500" style={{ width: pct(failed) }} />
         <div className="bg-orange-400" style={{ width: pct(blocked) }} />
-        <div className="bg-slate-300"  style={{ width: pct(skipped) }} />
+        <div className="bg-slate-300" style={{ width: pct(skipped) }} />
       </div>
       <div className="flex items-center gap-3 text-xs text-slate-500">
         <span className="text-green-600 font-medium">{passed} passed</span>
-        {failed > 0    && <span className="text-red-600">{failed} failed</span>}
-        {blocked > 0   && <span className="text-orange-600">{blocked} blocked</span>}
-        {skipped > 0   && <span className="text-slate-400">{skipped} skipped</span>}
-        <span className="ml-auto font-medium" style={{ color: passRate >= 0.9 ? '#16a34a' : passRate >= 0.8 ? '#ca8a04' : '#dc2626' }}>
+        {failed > 0 && <span className="text-red-600">{failed} failed</span>}
+        {blocked > 0 && <span className="text-orange-600">{blocked} blocked</span>}
+        {skipped > 0 && <span className="text-slate-400">{skipped} skipped</span>}
+        <span
+          className="ml-auto font-medium"
+          style={{ color: passRate >= 0.9 ? '#16a34a' : passRate >= 0.8 ? '#ca8a04' : '#dc2626' }}
+        >
           {totalTests > 0 ? `${(passRate * 100).toFixed(0)}%` : '—'}
         </span>
       </div>
@@ -62,20 +73,14 @@ function RunProgressBar({ run }: { run: TestRun }) {
 
 // ── New Test Run Modal ────────────────────────────────────────────────────────
 
-function NewTestRunModal({
-  projectId,
-  onClose,
-}: {
-  projectId: string
-  onClose: () => void
-}) {
+function NewTestRunModal({ projectId, onClose }: { projectId: string; onClose: () => void }) {
   const queryClient = useQueryClient()
   const [name, setName] = useState('')
   const [releaseVersion, setReleaseVersion] = useState('')
   const [environment, setEnvironment] = useState('DEV')
   const [triggeredBy, setTriggeredBy] = useState('')
   const [selectedTcIds, setSelectedTcIds] = useState<Set<string>>(new Set())
-  const [environmentId, setEnvironmentId] = useState('')          // '' = use label below
+  const [environmentId, setEnvironmentId] = useState('') // '' = use label below
   const [matrixType, setMatrixType] = useState<'FULL' | 'PAIRWISE'>('FULL')
   // Monitoring dimensions (run-level tags)
   const [releaseId, setReleaseId] = useState('')
@@ -89,13 +94,14 @@ function NewTestRunModal({
   // and matches test-case id / title / linked requirement id. Scales to large catalogs.
   const { data: testCases = [], isLoading: tcLoading } = useQuery({
     queryKey: ['selectableTestCases', projectId, iterationPath, areaPath, teamId, caseSearch],
-    queryFn: () => api.selectableTestCases(projectId, {
-      status: 'APPROVED',
-      iteration: iterationPath || undefined,
-      area: areaPath || undefined,
-      teamId: teamId || undefined,
-      q: caseSearch.trim() || undefined,
-    }),
+    queryFn: () =>
+      api.selectableTestCases(projectId, {
+        status: 'APPROVED',
+        iteration: iterationPath || undefined,
+        area: areaPath || undefined,
+        teamId: teamId || undefined,
+        q: caseSearch.trim() || undefined,
+      }),
   })
 
   const { data: environments = [] } = useQuery({
@@ -146,17 +152,21 @@ function NewTestRunModal({
 
   // Cases contributed by the currently-selected suites (union of their resolved ids).
   const suiteContributedIds = new Set<string>()
-  selectedSuiteIds.forEach(sid => (suiteResolved[sid] ?? []).forEach(id => suiteContributedIds.add(id)))
+  selectedSuiteIds.forEach(sid =>
+    (suiteResolved[sid] ?? []).forEach(id => suiteContributedIds.add(id)),
+  )
   const effectiveCount = new Set<string>([...selectedTcIds, ...suiteContributedIds]).size
-  const filteredSuites = suites.filter(s =>
-    !suiteSearch.trim() || s.name.toLowerCase().includes(suiteSearch.toLowerCase()))
+  const filteredSuites = suites.filter(
+    s => !suiteSearch.trim() || s.name.toLowerCase().includes(suiteSearch.toLowerCase()),
+  )
 
   const [newEnvName, setNewEnvName] = useState('')
   const createEnvMutation = useMutation({
     mutationFn: () => api.createEnvironment(projectId, { name: newEnvName.trim() }),
-    onSuccess: (env) => {
+    onSuccess: env => {
       setNewEnvName('')
-      setEnvironmentId(env.id); setEnvironment(env.name)
+      setEnvironmentId(env.id)
+      setEnvironment(env.name)
       queryClient.invalidateQueries({ queryKey: ['environments', projectId] })
     },
   })
@@ -194,8 +204,14 @@ function NewTestRunModal({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!name.trim()) { setError('Name is required'); return }
-    if (effectiveCount === 0) { setError('Select at least one test case or suite'); return }
+    if (!name.trim()) {
+      setError('Name is required')
+      return
+    }
+    if (effectiveCount === 0) {
+      setError('Select at least one test case or suite')
+      return
+    }
     mutation.mutate({
       name: name.trim(),
       releaseVersion: releaseVersion.trim() || undefined,
@@ -217,7 +233,9 @@ function NewTestRunModal({
       <div className="bg-white rounded-xl shadow-xl w-full max-w-xl mx-4 max-h-[90vh] flex flex-col">
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200">
           <h2 className="font-semibold text-slate-900">New Test Run</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+            <X size={18} />
+          </button>
         </div>
 
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
@@ -237,7 +255,9 @@ function NewTestRunModal({
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1">Release Version</label>
+              <label className="block text-xs font-medium text-slate-700 mb-1">
+                Release Version
+              </label>
               <input
                 type="text"
                 value={releaseVersion}
@@ -253,8 +273,10 @@ function NewTestRunModal({
                   value={environmentId || `label:${environment}`}
                   onChange={e => {
                     const v = e.target.value
-                    if (v.startsWith('label:')) { setEnvironmentId(''); setEnvironment(v.slice(6)) }
-                    else {
+                    if (v.startsWith('label:')) {
+                      setEnvironmentId('')
+                      setEnvironment(v.slice(6))
+                    } else {
                       setEnvironmentId(v)
                       const env = environments.find(x => x.id === v)
                       if (env) setEnvironment(env.name)
@@ -263,7 +285,11 @@ function NewTestRunModal({
                   className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <optgroup label="Named environments">
-                    {environments.map(env => <option key={env.id} value={env.id}>{env.name}</option>)}
+                    {environments.map(env => (
+                      <option key={env.id} value={env.id}>
+                        {env.name}
+                      </option>
+                    ))}
                   </optgroup>
                   <optgroup label="Quick label">
                     <option value="label:DEV">DEV</option>
@@ -307,16 +333,18 @@ function NewTestRunModal({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-slate-700 mb-1">Triggered By</label>
-            <input
-              type="text"
-              value={triggeredBy}
-              onChange={e => setTriggeredBy(e.target.value)}
-              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="e.g. john.doe@example.com"
-            />
+              <input
+                type="text"
+                value={triggeredBy}
+                onChange={e => setTriggeredBy(e.target.value)}
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="e.g. john.doe@example.com"
+              />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1">Matrix (parametrized cases)</label>
+              <label className="block text-xs font-medium text-slate-700 mb-1">
+                Matrix (parametrized cases)
+              </label>
               <select
                 value={matrixType}
                 onChange={e => setMatrixType(e.target.value as 'FULL' | 'PAIRWISE')}
@@ -340,7 +368,11 @@ function NewTestRunModal({
                   className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="">— none —</option>
-                  {releases.map(r => <option key={r.id} value={r.id}>{r.name}</option>)}
+                  {releases.map(r => (
+                    <option key={r.id} value={r.id}>
+                      {r.name}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div>
@@ -351,18 +383,28 @@ function NewTestRunModal({
                   className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="">— none —</option>
-                  {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+                  {teams.map(t => (
+                    <option key={t.id} value={t.id}>
+                      {t.name}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">Sprint (Iteration)</label>
+                <label className="block text-xs font-medium text-slate-700 mb-1">
+                  Sprint (Iteration)
+                </label>
                 <select
                   value={iterationPath}
                   onChange={e => setIterationPath(e.target.value)}
                   className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="">— none —</option>
-                  {iterations.map(it => <option key={it.id} value={it.path}>{it.path}</option>)}
+                  {iterations.map(it => (
+                    <option key={it.id} value={it.path}>
+                      {it.path}
+                    </option>
+                  ))}
                 </select>
               </div>
               <div>
@@ -373,7 +415,11 @@ function NewTestRunModal({
                   className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <option value="">— none —</option>
-                  {areas.map(a => <option key={a.id} value={a.path}>{a.path}</option>)}
+                  {areas.map(a => (
+                    <option key={a.id} value={a.path}>
+                      {a.path}
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>
@@ -383,7 +429,10 @@ function NewTestRunModal({
           {suites.length > 0 && (
             <div>
               <label className="block text-xs font-medium text-slate-700 mb-1">
-                From test suites <span className="font-normal text-slate-400">({selectedSuiteIds.size} selected · +{suiteContributedIds.size} cases)</span>
+                From test suites{' '}
+                <span className="font-normal text-slate-400">
+                  ({selectedSuiteIds.size} selected · +{suiteContributedIds.size} cases)
+                </span>
               </label>
               {suites.length > 6 && (
                 <input
@@ -396,10 +445,15 @@ function NewTestRunModal({
               )}
               <div className="border border-slate-200 rounded-lg max-h-40 overflow-y-auto divide-y divide-slate-50">
                 {filteredSuites.length === 0 && (
-                  <div className="px-3 py-2 text-xs text-slate-400 text-center">No suites match.</div>
+                  <div className="px-3 py-2 text-xs text-slate-400 text-center">
+                    No suites match.
+                  </div>
                 )}
                 {filteredSuites.map(s => (
-                  <label key={s.id} className="flex items-center gap-2.5 px-3 py-1.5 cursor-pointer hover:bg-slate-50">
+                  <label
+                    key={s.id}
+                    className="flex items-center gap-2.5 px-3 py-1.5 cursor-pointer hover:bg-slate-50"
+                  >
                     <input
                       type="checkbox"
                       checked={selectedSuiteIds.has(s.id)}
@@ -407,8 +461,14 @@ function NewTestRunModal({
                       className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 shrink-0"
                     />
                     <span className="text-sm text-slate-800 flex-1 truncate">{s.name}</span>
-                    {s.selectionMode === 'SMART' && <span className="text-[10px] text-blue-500 shrink-0">✦ smart</span>}
-                    {s.planType && <span className="text-[10px] uppercase text-slate-400 shrink-0">{s.planType}</span>}
+                    {s.selectionMode === 'SMART' && (
+                      <span className="text-[10px] text-blue-500 shrink-0">✦ smart</span>
+                    )}
+                    {s.planType && (
+                      <span className="text-[10px] uppercase text-slate-400 shrink-0">
+                        {s.planType}
+                      </span>
+                    )}
                     <span className="text-xs text-slate-400 shrink-0">{s.caseCount}</span>
                   </label>
                 ))}
@@ -419,7 +479,10 @@ function NewTestRunModal({
           <div>
             <div className="flex items-center justify-between mb-2">
               <label className="block text-xs font-medium text-slate-700">
-                Test Cases <span className="font-normal text-slate-400">({selectedTcIds.size} picked individually)</span>
+                Test Cases{' '}
+                <span className="font-normal text-slate-400">
+                  ({selectedTcIds.size} picked individually)
+                </span>
               </label>
               {testCases.length > 0 && (
                 <button
@@ -446,7 +509,9 @@ function NewTestRunModal({
               </p>
             )}
 
-            {tcLoading && <div className="text-sm text-slate-400 py-3 text-center">Loading test cases…</div>}
+            {tcLoading && (
+              <div className="text-sm text-slate-400 py-3 text-center">Loading test cases…</div>
+            )}
             {!tcLoading && testCases.length === 0 && (
               <div className="text-sm text-slate-500 py-3 text-center bg-slate-50 rounded-lg">
                 No approved test cases match this scope/search.
@@ -468,8 +533,9 @@ function NewTestRunModal({
                     <div className="flex-1 min-w-0">
                       <div className="text-sm text-slate-800 truncate">
                         {tc.title}
-                        {suiteContributedIds.has(tc.id) && !selectedTcIds.has(tc.id) &&
-                          <span className="ml-2 text-[10px] text-blue-500">via suite</span>}
+                        {suiteContributedIds.has(tc.id) && !selectedTcIds.has(tc.id) && (
+                          <span className="ml-2 text-[10px] text-blue-500">via suite</span>
+                        )}
                       </div>
                       {tc.requirementExternalIds.length > 0 && (
                         <div className="text-xs text-slate-400 truncate">
@@ -484,7 +550,11 @@ function NewTestRunModal({
             )}
             <p className="text-xs text-slate-500 mt-1 font-medium">
               {effectiveCount} case{effectiveCount === 1 ? '' : 's'} to run
-              <span className="font-normal text-slate-400"> · {selectedTcIds.size} individual + {suiteContributedIds.size} from suites · showing {testCases.length}</span>
+              <span className="font-normal text-slate-400">
+                {' '}
+                · {selectedTcIds.size} individual + {suiteContributedIds.size} from suites · showing{' '}
+                {testCases.length}
+              </span>
             </p>
           </div>
         </form>
@@ -518,14 +588,19 @@ type StatusTab = 'ALL' | 'IN_PROGRESS' | 'COMPLETED'
 
 export default function TestRunsPage() {
   const { projectId, base } = useProject()
-  const { filter } = useProjectFilter()   // project-wide Area / Team / Iteration scope
+  const { filter } = useProjectFilter() // project-wide Area / Team / Iteration scope
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
   const [tab, setTab] = useState<StatusTab>('ALL')
   const [showNewModal, setShowNewModal] = useState(false)
 
-  const { data: runs = [], isLoading, error, refetch } = useQuery({
+  const {
+    data: runs = [],
+    isLoading,
+    error,
+    refetch,
+  } = useQuery({
     queryKey: ['testRuns', projectId],
     queryFn: () => api.testRuns(projectId!),
     enabled: !!projectId,
@@ -542,13 +617,16 @@ export default function TestRunsPage() {
   })
 
   if (isLoading) return <LoadingSpinner message="Loading test runs…" />
-  if (error) return <ErrorMessage message="Failed to load test runs." onRetry={() => void refetch()} />
+  if (error)
+    return <ErrorMessage message="Failed to load test runs." onRetry={() => void refetch()} />
 
   // Honor the project scope filter against each run's own dimension tags.
-  const scoped = runs.filter(r =>
-    (!filter.teamId   || r.teamId === filter.teamId) &&
-    (!filter.area     || r.areaPath === filter.area) &&
-    (!filter.iteration || r.iterationPath === filter.iteration))
+  const scoped = runs.filter(
+    r =>
+      (!filter.teamId || r.teamId === filter.teamId) &&
+      (!filter.area || r.areaPath === filter.area) &&
+      (!filter.iteration || r.iterationPath === filter.iteration),
+  )
 
   const filtered = tab === 'ALL' ? scoped : scoped.filter(r => r.status === tab)
 
@@ -587,7 +665,7 @@ export default function TestRunsPage() {
               'px-4 py-1.5 text-sm font-medium rounded-md transition-colors',
               tab === t.key
                 ? 'bg-white text-slate-900 shadow-sm'
-                : 'text-slate-500 hover:text-slate-700'
+                : 'text-slate-500 hover:text-slate-700',
             )}
           >
             {t.label}
@@ -606,7 +684,9 @@ export default function TestRunsPage() {
           <div className="py-16 text-center">
             <PlayCircle size={32} className="mx-auto text-slate-300 mb-3" />
             <p className="text-sm text-slate-500">No test runs found.</p>
-            <p className="text-xs text-slate-400 mt-1">Create a test run to start executing test cases.</p>
+            <p className="text-xs text-slate-400 mt-1">
+              Create a test run to start executing test cases.
+            </p>
           </div>
         )}
         <div className="divide-y divide-slate-50">
@@ -625,7 +705,10 @@ export default function TestRunsPage() {
                         {run.releaseVersion}
                       </span>
                     )}
-                    <Badge label={run.status.replace('_', ' ')} colorClass={runStatusColor(run.status)} />
+                    <Badge
+                      label={run.status.replace('_', ' ')}
+                      colorClass={runStatusColor(run.status)}
+                    />
                     <Badge label={run.environment} colorClass={envColor(run.environment)} />
                   </div>
                   <div className="mt-2">
@@ -637,7 +720,10 @@ export default function TestRunsPage() {
                     {run.completedAt && <span>· completed {relativeTime(run.completedAt)}</span>}
                   </div>
                 </div>
-                <div className="flex items-center gap-2 shrink-0" onClick={e => e.stopPropagation()}>
+                <div
+                  className="flex items-center gap-2 shrink-0"
+                  onClick={e => e.stopPropagation()}
+                >
                   {run.status === 'IN_PROGRESS' && (
                     <button
                       onClick={() => completeMutation.mutate(run.id)}
@@ -668,10 +754,7 @@ export default function TestRunsPage() {
       </div>
 
       {showNewModal && (
-        <NewTestRunModal
-          projectId={projectId!}
-          onClose={() => setShowNewModal(false)}
-        />
+        <NewTestRunModal projectId={projectId!} onClose={() => setShowNewModal(false)} />
       )}
     </div>
   )

@@ -12,14 +12,19 @@ export default function ApiKeysPage() {
   const [createdKey, setCreatedKey] = useState<string | null>(null)
   const [copied, setCopied] = useState(false)
 
-  const { data: keys, isLoading, error, refetch } = useQuery({
+  const {
+    data: keys,
+    isLoading,
+    error,
+    refetch,
+  } = useQuery({
     queryKey: ['api-keys'],
     queryFn: () => api.apiKeys(),
   })
 
   const createMutation = useMutation({
     mutationFn: () => api.createApiKey({ name: newKeyName }),
-    onSuccess: (data) => {
+    onSuccess: data => {
       setCreatedKey(data.rawKey)
       setNewKeyName('')
       void qc.invalidateQueries({ queryKey: ['api-keys'] })
@@ -42,7 +47,8 @@ export default function ApiKeysPage() {
       <div>
         <h1 className="text-2xl font-bold text-slate-900">API Keys</h1>
         <p className="text-sm text-slate-500 mt-1">
-          Manage authentication keys for CI/CD pipelines. Keys are not restricted to any project or team.
+          Manage authentication keys for CI/CD pipelines. Keys are not restricted to any project or
+          team.
         </p>
       </div>
 
@@ -101,9 +107,7 @@ export default function ApiKeysPage() {
           </div>
           <div className="divide-y divide-slate-50">
             {(!keys || keys.length === 0) && (
-              <p className="px-5 py-8 text-center text-sm text-slate-500">
-                No API keys yet.
-              </p>
+              <p className="px-5 py-8 text-center text-sm text-slate-500">No API keys yet.</p>
             )}
             {(keys ?? []).map(k => (
               <div key={k.id} className="px-5 py-4 flex items-center justify-between gap-4">

@@ -7,7 +7,11 @@ import CreateOrganizationModal from '@/components/CreateOrganizationModal'
 import LoadingSpinner from '@/components/LoadingSpinner'
 
 function orgInitials(name: string): string {
-  return name.split(/[\s-_]+/).slice(0, 2).map(w => w[0]?.toUpperCase() ?? '').join('')
+  return name
+    .split(/[\s-_]+/)
+    .slice(0, 2)
+    .map(w => w[0]?.toUpperCase() ?? '')
+    .join('')
 }
 function orgHue(name: string): number {
   let h = 0
@@ -54,7 +58,11 @@ export default function OrgSelectPage() {
             >
               <div className="flex items-center gap-3">
                 {org.logoUrl ? (
-                  <img src={org.logoUrl} className="w-9 h-9 rounded-xl object-cover shrink-0" alt={org.name} />
+                  <img
+                    src={org.logoUrl}
+                    className="w-9 h-9 rounded-xl object-cover shrink-0"
+                    alt={org.name}
+                  />
                 ) : (
                   <div
                     className="w-9 h-9 rounded-xl flex items-center justify-center text-white text-xs font-bold shrink-0 select-none"
@@ -70,7 +78,10 @@ export default function OrgSelectPage() {
                   <p className="text-xs text-slate-400 font-mono">@{org.slug}</p>
                 </div>
               </div>
-              <ArrowRight size={15} className="text-slate-300 group-hover:text-blue-500 transition-colors shrink-0" />
+              <ArrowRight
+                size={15}
+                className="text-slate-300 group-hover:text-blue-500 transition-colors shrink-0"
+              />
             </button>
           ))}
         </div>

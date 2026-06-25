@@ -318,70 +318,154 @@ export interface AdoTeam {
   syncedAt: string
 }
 export interface AdoArea {
-  id: string; path: string; name: string; slug: string | null; parentPath: string | null
-  hasChildren: boolean; syncedAt: string
+  id: string
+  path: string
+  name: string
+  slug: string | null
+  parentPath: string | null
+  hasChildren: boolean
+  syncedAt: string
 }
 export interface AdoIteration {
-  id: string; path: string; name: string; parentPath: string | null
-  startDate: string | null; finishDate: string | null; hasChildren: boolean; syncedAt: string
+  id: string
+  path: string
+  name: string
+  parentPath: string | null
+  startDate: string | null
+  finishDate: string | null
+  hasChildren: boolean
+  syncedAt: string
 }
 export interface AdoUser {
-  id: string; uniqueName: string; displayName: string | null; email: string | null
-  teamMember: boolean; seenOnWorkItems: boolean; qualityRole: string | null; syncedAt: string
+  id: string
+  uniqueName: string
+  displayName: string | null
+  email: string | null
+  teamMember: boolean
+  seenOnWorkItems: boolean
+  qualityRole: string | null
+  syncedAt: string
 }
 export interface AdoStructureSummary {
-  teams: number; areas: number; iterations: number; users: number; qualityUsers: number
+  teams: number
+  areas: number
+  iterations: number
+  users: number
+  qualityUsers: number
 }
 
 // ── Quality dashboards ─────────────────────────────────────────────────────────
-export interface LabelValue { label: string; value: number }
-export interface IterationStat { label: string; total: number; open: number; done: number }
+export interface LabelValue {
+  label: string
+  value: number
+}
+export interface IterationStat {
+  label: string
+  total: number
+  open: number
+  done: number
+}
 export interface QualityOverview {
-  totalDefects: number; openDefects: number; doneDefects: number; blockedDefects: number
-  createdLast30: number; resolvedLast30: number; qualityEngineers: number; historyEvents: number
-  byStatus: LabelValue[]; byPriority: LabelValue[]; bySeverity: LabelValue[]
-  byArea: LabelValue[]; byIteration: IterationStat[]
+  totalDefects: number
+  openDefects: number
+  doneDefects: number
+  blockedDefects: number
+  createdLast30: number
+  resolvedLast30: number
+  qualityEngineers: number
+  historyEvents: number
+  byStatus: LabelValue[]
+  byPriority: LabelValue[]
+  bySeverity: LabelValue[]
+  byArea: LabelValue[]
+  byIteration: IterationStat[]
 }
 export interface EngineerStat {
-  name: string; role: string; email: string | null
-  defectsCreated: number; createdByStatus: LabelValue[]
-  defectsResolved: number; openDefects: number
-  otherTotal: number; otherByStatus: LabelValue[]
-  resolvedActual: number; participated: number; reopened: number
+  name: string
+  role: string
+  email: string | null
+  defectsCreated: number
+  createdByStatus: LabelValue[]
+  defectsResolved: number
+  openDefects: number
+  otherTotal: number
+  otherByStatus: LabelValue[]
+  resolvedActual: number
+  participated: number
+  reopened: number
 }
 // ── Productivity / cycle time ──────────────────────────────────────────────────
 export interface AreaProductivity {
-  area: string; wip: number; overThreshold: number; avgHours: number | null; maxHours: number | null
+  area: string
+  wip: number
+  overThreshold: number
+  avgHours: number | null
+  maxHours: number | null
 }
 export interface ProductivityOverview {
-  thresholdHours: number; totalWip: number; totalOver: number; areasAffected: number
+  thresholdHours: number
+  totalWip: number
+  totalOver: number
+  areasAffected: number
   areas: AreaProductivity[]
 }
 export interface OverThresholdItem {
-  id: string; externalId: string | null; title: string; issueType: string; status: string
-  assignedTo: string | null; areaPath: string | null; cycleHours: number | null
-  startedAt: string | null; sourceUrl: string | null
+  id: string
+  externalId: string | null
+  title: string
+  issueType: string
+  status: string
+  assignedTo: string | null
+  areaPath: string | null
+  cycleHours: number | null
+  startedAt: string | null
+  sourceUrl: string | null
 }
 export interface LeadAreaStat {
-  area: string; completed: number; avgHours: number | null; maxHours: number | null
+  area: string
+  completed: number
+  avgHours: number | null
+  maxHours: number | null
 }
 export interface LeadOverview {
-  totalCompleted: number; avgHours: number | null; maxHours: number | null; areas: LeadAreaStat[]
+  totalCompleted: number
+  avgHours: number | null
+  maxHours: number | null
+  areas: LeadAreaStat[]
 }
 export interface LeadItem {
-  id: string; externalId: string | null; title: string; issueType: string
-  assignedTo: string | null; areaPath: string | null; leadHours: number | null
-  createdDate: string | null; completedAt: string | null; sourceUrl: string | null
+  id: string
+  externalId: string | null
+  title: string
+  issueType: string
+  assignedTo: string | null
+  areaPath: string | null
+  leadHours: number | null
+  createdDate: string | null
+  completedAt: string | null
+  sourceUrl: string | null
 }
 
 export interface ActivityEvent {
-  externalId: string; title: string | null; issueType: string | null; eventType: string
-  fromValue: string | null; toValue: string | null; toCategory: string | null
-  revisedAt: string | null; sourceUrl: string | null
+  externalId: string
+  title: string | null
+  issueType: string | null
+  eventType: string
+  fromValue: string | null
+  toValue: string | null
+  toCategory: string | null
+  revisedAt: string | null
+  sourceUrl: string | null
 }
 export interface QualityWorkItem {
-  id: string; externalId: string | null; title: string; issueType: string
-  status: string; priority: string | null; areaPath: string | null; iterationPath: string | null
+  id: string
+  externalId: string | null
+  title: string
+  issueType: string
+  status: string
+  priority: string | null
+  areaPath: string | null
+  iterationPath: string | null
   sourceUrl: string | null
 }
 
@@ -409,8 +493,8 @@ export interface PrAnalysis {
 /** A mapping ruleset at a scope (ORG/PROJECT), for the Mapping Suggester editor. */
 export interface MappingRulesetView {
   scope: string
-  customized: boolean        // this scope has its own saved override
-  source: 'PROJECT' | 'ORG' | 'DEFAULT'  // where the shown rules currently come from
+  customized: boolean // this scope has its own saved override
+  source: 'PROJECT' | 'ORG' | 'DEFAULT' // where the shown rules currently come from
   json: string
   updatedBy: string | null
   updatedAt: string | null
@@ -451,7 +535,7 @@ export interface TestSuite {
   areaPath: string | null
   teamId: string | null
   teamName: string | null
-  selectionMode: string            // STATIC | SMART
+  selectionMode: string // STATIC | SMART
   filterIteration: string | null
   filterStatus: string | null
   filterTags: string | null
@@ -586,13 +670,13 @@ export interface CreateTestRunForm {
   environment?: string
   triggeredBy?: string
   testCaseIds: string[]
-  environmentId?: string            // named Environment (V50)
-  matrixType?: 'FULL' | 'PAIRWISE'  // parametrized expansion mode
-  suiteIds?: string[]               // reusable suites; their resolved cases are unioned in
-  releaseId?: string                // monitoring dimension: platform release
-  iterationPath?: string            // monitoring dimension: ADO sprint
-  areaPath?: string                 // monitoring dimension: ADO area
-  teamId?: string                   // monitoring dimension: ADO team
+  environmentId?: string // named Environment (V50)
+  matrixType?: 'FULL' | 'PAIRWISE' // parametrized expansion mode
+  suiteIds?: string[] // reusable suites; their resolved cases are unioned in
+  releaseId?: string // monitoring dimension: platform release
+  iterationPath?: string // monitoring dimension: ADO sprint
+  areaPath?: string // monitoring dimension: ADO area
+  teamId?: string // monitoring dimension: ADO team
 }
 
 // ── Releases ───────────────────────────────────────────────────────────────────
@@ -723,7 +807,7 @@ export interface CreateTestSuiteForm {
   active?: boolean
   areaPath?: string
   teamId?: string
-  selectionMode?: string           // STATIC | SMART
+  selectionMode?: string // STATIC | SMART
   filterIteration?: string
   filterStatus?: string
   filterTags?: string
@@ -765,8 +849,18 @@ export interface CoverageReport {
 }
 
 // ── Schema drift (upstream ↔ platform) ────────────────────────────────────────
-export interface DriftFieldChange { referenceName: string; name: string; type: string; mapped: boolean }
-export interface DriftTypeChange { referenceName: string; name: string; fromType: string; toType: string }
+export interface DriftFieldChange {
+  referenceName: string
+  name: string
+  type: string
+  mapped: boolean
+}
+export interface DriftTypeChange {
+  referenceName: string
+  name: string
+  fromType: string
+  toType: string
+}
 export interface SchemaDriftReport {
   workItemType: string
   hasBaseline: boolean
@@ -781,11 +875,14 @@ export interface SchemaDriftReport {
 }
 
 // ── ADO schema discovery + mapping suggestion ─────────────────────────────────
-export interface AdoProject { id: string; name: string }
+export interface AdoProject {
+  id: string
+  name: string
+}
 export interface AdoTypeSummary {
   name: string
   custom: boolean
-  suggestedLane: string            // REQUIREMENT | DEFECT | IGNORE
+  suggestedLane: string // REQUIREMENT | DEFECT | IGNORE
   suggestedIssueType: string | null
 }
 export interface AdoFieldInfo {
@@ -795,12 +892,16 @@ export interface AdoFieldInfo {
   custom: boolean
   required: boolean
 }
-export interface AdoStateInfo { name: string; category: string; color: string }
+export interface AdoStateInfo {
+  name: string
+  category: string
+  color: string
+}
 export interface AdoTypeSchema {
   workItemType: string
   fields: AdoFieldInfo[]
   states: AdoStateInfo[]
-  suggestedProfile: unknown        // MappingProfile JSON (apiVersion/kind/metadata/spec)
+  suggestedProfile: unknown // MappingProfile JSON (apiVersion/kind/metadata/spec)
 }
 
 // ── RBAC ──────────────────────────────────────────────────────────────────────
@@ -809,7 +910,7 @@ export type PlatformRole = 'ORG_ADMIN' | 'TEAM_ADMIN' | 'TEAM_MEMBER' | 'VIEWER'
 export interface TeamMemberAssignment {
   id: string
   userId: string
-  teamId: string | null   // null = org-wide
+  teamId: string | null // null = org-wide
   role: PlatformRole
   grantedBy: string | null
   grantedAt: string
@@ -942,7 +1043,14 @@ export interface GitHubWorkflowRun {
   id: number
   displayTitle: string
   status: 'queued' | 'in_progress' | 'completed' | string
-  conclusion: 'success' | 'failure' | 'cancelled' | 'skipped' | 'timed_out' | 'action_required' | null
+  conclusion:
+    | 'success'
+    | 'failure'
+    | 'cancelled'
+    | 'skipped'
+    | 'timed_out'
+    | 'action_required'
+    | null
   branch: string
   event: string
   htmlUrl: string
@@ -988,11 +1096,11 @@ export interface UnifiedExecutionItem {
   totalTests: number
   passed: number
   failed: number
-  blocked: number   // manual: BLOCKED executions; automated: 0
+  blocked: number // manual: BLOCKED executions; automated: 0
   skipped: number
-  pending: number   // manual: PENDING executions; automated: 0
-  broken: number    // automated only (timedOut / interrupted)
-  passRate: number  // 0–1
+  pending: number // manual: PENDING executions; automated: 0
+  broken: number // automated only (timedOut / interrupted)
+  passRate: number // 0–1
   durationMs: number
   // Scope dimensions
   teamId: string | null

@@ -9,7 +9,12 @@ import ErrorMessage from '@/components/ErrorMessage'
 export default function AlertsPage() {
   const [days, setDays] = useState(7)
 
-  const { data: alerts, isLoading, error, refetch } = useQuery({
+  const {
+    data: alerts,
+    isLoading,
+    error,
+    refetch,
+  } = useQuery({
     queryKey: ['alerts', days],
     queryFn: () => api.alerts(days),
     refetchInterval: 30_000,
@@ -29,10 +34,14 @@ export default function AlertsPage() {
         </div>
         <div className="flex items-center gap-2">
           {[7, 14, 30].map(d => (
-            <button key={d}
+            <button
+              key={d}
               onClick={() => setDays(d)}
-              className={cn('px-3 py-1.5 text-xs font-medium rounded-lg transition-colors',
-                days === d ? 'bg-blue-600 text-white' : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+              className={cn(
+                'px-3 py-1.5 text-xs font-medium rounded-lg transition-colors',
+                days === d
+                  ? 'bg-blue-600 text-white'
+                  : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50',
               )}
             >
               {d}d
@@ -48,10 +57,18 @@ export default function AlertsPage() {
           return (
             <div key={sev} className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
               <p className="text-xs text-slate-500 uppercase tracking-wide">{sev}</p>
-              <p className={cn('text-3xl font-bold mt-1',
-                sev === 'CRITICAL' ? 'text-red-600' :
-                sev === 'HIGH'     ? 'text-orange-600' : 'text-yellow-600'
-              )}>{count}</p>
+              <p
+                className={cn(
+                  'text-3xl font-bold mt-1',
+                  sev === 'CRITICAL'
+                    ? 'text-red-600'
+                    : sev === 'HIGH'
+                      ? 'text-orange-600'
+                      : 'text-yellow-600',
+                )}
+              >
+                {count}
+              </p>
             </div>
           )
         })}
@@ -88,7 +105,9 @@ export default function AlertsPage() {
                 <p className="text-xs text-slate-400">{relativeTime(a.firedAt)}</p>
                 <Badge
                   label={a.delivered ? 'Delivered' : 'Pending'}
-                  colorClass={a.delivered ? 'text-green-700 bg-green-100' : 'text-gray-600 bg-gray-100'}
+                  colorClass={
+                    a.delivered ? 'text-green-700 bg-green-100' : 'text-gray-600 bg-gray-100'
+                  }
                 />
               </div>
             </div>

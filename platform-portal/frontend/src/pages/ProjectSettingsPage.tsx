@@ -8,28 +8,54 @@ import LoadingSpinner from '@/components/LoadingSpinner'
 import ErrorMessage from '@/components/ErrorMessage'
 import Badge from '@/components/Badge'
 import {
-  Save, Trash2, Plus, X, AlertTriangle,
-  CheckCircle, Pencil, RefreshCw, Building2, Lock,
+  Save,
+  Trash2,
+  Plus,
+  X,
+  AlertTriangle,
+  CheckCircle,
+  Pencil,
+  RefreshCw,
+  Building2,
+  Lock,
 } from 'lucide-react'
 import CreateTeamModal from '@/components/CreateTeamModal'
 import MappingRulesEditor from '@/components/MappingRulesEditor'
-import type { SaveIntegrationConfigForm, IntegrationConfig, RepoType, InheritedCredential } from '@/lib/types'
+import type {
+  SaveIntegrationConfigForm,
+  IntegrationConfig,
+  RepoType,
+  InheritedCredential,
+} from '@/lib/types'
 
 type Tab = 'general' | 'teams' | 'integrations' | 'mapping' | 'ai' | 'github'
 
 const TAB_LABELS: Record<Tab, string> = {
-  general:      'General',
-  teams:        'Teams',
+  general: 'General',
+  teams: 'Teams',
   integrations: 'Integrations',
-  mapping:      'Mapping',
-  ai:           'AI',
-  github:       'GitHub',
+  mapping: 'Mapping',
+  ai: 'AI',
+  github: 'GitHub',
 }
 
-const INTEGRATION_TYPES  = ['JIRA_CLOUD', 'JIRA_SERVER', 'AZURE_DEVOPS_BOARDS', 'GITHUB_ISSUES', 'LINEAR', 'GITHUB']
-const SYNC_DIRECTIONS    = ['INBOUND', 'OUTBOUND', 'BIDIRECTIONAL']
+const INTEGRATION_TYPES = [
+  'JIRA_CLOUD',
+  'JIRA_SERVER',
+  'AZURE_DEVOPS_BOARDS',
+  'GITHUB_ISSUES',
+  'LINEAR',
+  'GITHUB',
+]
+const SYNC_DIRECTIONS = ['INBOUND', 'OUTBOUND', 'BIDIRECTIONAL']
 // Integration types that support on-demand pull sync
-const POLL_SUPPORTED     = new Set(['GITHUB', 'GITHUB_ISSUES', 'AZURE_DEVOPS_BOARDS', 'JIRA_CLOUD', 'JIRA_SERVER'])
+const POLL_SUPPORTED = new Set([
+  'GITHUB',
+  'GITHUB_ISSUES',
+  'AZURE_DEVOPS_BOARDS',
+  'JIRA_CLOUD',
+  'JIRA_SERVER',
+])
 
 interface ParamField {
   key: string
@@ -39,44 +65,92 @@ interface ParamField {
 
 const INTEGRATION_PARAMS: Record<string, ParamField[]> = {
   JIRA_CLOUD: [
-    { key: 'baseUrl',              required: true,  desc: 'Cloud instance URL — https://yourorg.atlassian.net' },
-    { key: 'email',                required: true,  desc: 'Atlassian account email that owns the API token' },
-    { key: 'apiToken',             required: true,  desc: 'API token from id.atlassian.com → Security → API tokens' },
-    { key: 'projectKey',           required: true,  desc: 'Jira project key prefix, e.g. PROJ or ENG' },
-    { key: 'doneTransitionName',   required: false, desc: 'Workflow transition name for "done" (default: Done)' },
-    { key: 'reopenTransitionName', required: false, desc: 'Workflow transition name for "reopen" (default: Reopen)' },
+    { key: 'baseUrl', required: true, desc: 'Cloud instance URL — https://yourorg.atlassian.net' },
+    { key: 'email', required: true, desc: 'Atlassian account email that owns the API token' },
+    {
+      key: 'apiToken',
+      required: true,
+      desc: 'API token from id.atlassian.com → Security → API tokens',
+    },
+    { key: 'projectKey', required: true, desc: 'Jira project key prefix, e.g. PROJ or ENG' },
+    {
+      key: 'doneTransitionName',
+      required: false,
+      desc: 'Workflow transition name for "done" (default: Done)',
+    },
+    {
+      key: 'reopenTransitionName',
+      required: false,
+      desc: 'Workflow transition name for "reopen" (default: Reopen)',
+    },
   ],
   JIRA_SERVER: [
-    { key: 'baseUrl',              required: true,  desc: 'Server base URL — https://jira.company.com' },
-    { key: 'username',             required: true,  desc: 'Jira username for Basic auth' },
-    { key: 'apiToken',             required: true,  desc: 'API token or password' },
-    { key: 'projectKey',           required: true,  desc: 'Jira project key prefix, e.g. PROJ' },
-    { key: 'doneTransitionName',   required: false, desc: 'Workflow transition name for "done" (default: Done)' },
-    { key: 'reopenTransitionName', required: false, desc: 'Workflow transition name for "reopen" (default: Reopen)' },
+    { key: 'baseUrl', required: true, desc: 'Server base URL — https://jira.company.com' },
+    { key: 'username', required: true, desc: 'Jira username for Basic auth' },
+    { key: 'apiToken', required: true, desc: 'API token or password' },
+    { key: 'projectKey', required: true, desc: 'Jira project key prefix, e.g. PROJ' },
+    {
+      key: 'doneTransitionName',
+      required: false,
+      desc: 'Workflow transition name for "done" (default: Done)',
+    },
+    {
+      key: 'reopenTransitionName',
+      required: false,
+      desc: 'Workflow transition name for "reopen" (default: Reopen)',
+    },
   ],
   LINEAR: [
-    { key: 'teamId',        required: true,  desc: 'Linear team ID — from Settings → API or the team URL' },
-    { key: 'apiKey',        required: true,  desc: 'Personal API key from Linear → Settings → API' },
-    { key: 'webhookSecret', required: false, desc: 'Signing secret from Linear → Settings → API → Webhooks' },
+    { key: 'teamId', required: true, desc: 'Linear team ID — from Settings → API or the team URL' },
+    { key: 'apiKey', required: true, desc: 'Personal API key from Linear → Settings → API' },
+    {
+      key: 'webhookSecret',
+      required: false,
+      desc: 'Signing secret from Linear → Settings → API → Webhooks',
+    },
   ],
   GITHUB: [
-    { key: 'repoFullName',    required: true,  desc: 'Repository in owner/repo format, e.g. acme/backend' },
-    { key: 'token',           required: false, desc: 'Personal access token — required for private repos (or inherit Org credential)' },
-    { key: 'integrationMode', required: false, desc: 'WEBHOOK (event-driven) or POLLING (scheduled, default)' },
-    { key: 'branch',          required: false, desc: 'Branch to watch for PRs (default: main)' },
+    {
+      key: 'repoFullName',
+      required: true,
+      desc: 'Repository in owner/repo format, e.g. acme/backend',
+    },
+    {
+      key: 'token',
+      required: false,
+      desc: 'Personal access token — required for private repos (or inherit Org credential)',
+    },
+    {
+      key: 'integrationMode',
+      required: false,
+      desc: 'WEBHOOK (event-driven) or POLLING (scheduled, default)',
+    },
+    { key: 'branch', required: false, desc: 'Branch to watch for PRs (default: main)' },
   ],
   AZURE_DEVOPS_BOARDS: [
-    { key: 'organization', required: true,  desc: 'Azure DevOps organization, e.g. acme (from dev.azure.com/acme)' },
-    { key: 'project',      required: true,  desc: 'Azure DevOps project that holds the work items' },
-    { key: 'area_path',    required: false, desc: 'Area path filter, e.g. Checkout\\Payments' },
-    { key: 'pat',          required: false, desc: 'PAT — leave blank to inherit the Org/Team credential' },
-    { key: 'doneState',    required: false, desc: 'Work-item state treated as closed (default: Closed)' },
-    { key: 'reopenState',  required: false, desc: 'Work-item state used to reopen (default: Active)' },
+    {
+      key: 'organization',
+      required: true,
+      desc: 'Azure DevOps organization, e.g. acme (from dev.azure.com/acme)',
+    },
+    { key: 'project', required: true, desc: 'Azure DevOps project that holds the work items' },
+    { key: 'area_path', required: false, desc: 'Area path filter, e.g. Checkout\\Payments' },
+    { key: 'pat', required: false, desc: 'PAT — leave blank to inherit the Org/Team credential' },
+    {
+      key: 'doneState',
+      required: false,
+      desc: 'Work-item state treated as closed (default: Closed)',
+    },
+    {
+      key: 'reopenState',
+      required: false,
+      desc: 'Work-item state used to reopen (default: Active)',
+    },
   ],
   GITHUB_ISSUES: [
-    { key: 'owner',      required: true,  desc: 'Repository owner (org or user), e.g. acme' },
-    { key: 'repo',       required: true,  desc: 'Repository name, e.g. checkout' },
-    { key: 'pat',        required: false, desc: 'PAT — leave blank to inherit the Org/Team credential' },
+    { key: 'owner', required: true, desc: 'Repository owner (org or user), e.g. acme' },
+    { key: 'repo', required: true, desc: 'Repository name, e.g. checkout' },
+    { key: 'pat', required: false, desc: 'PAT — leave blank to inherit the Org/Team credential' },
   ],
 }
 
@@ -132,14 +206,14 @@ function IntegrationForm({ initial, projectId, inherited, onDone }: IntegrationF
   const qc = useQueryClient()
   const isEdit = !!initial
 
-  const [formType,        setFormType]        = useState(initial?.integrationType ?? INTEGRATION_TYPES[0])
+  const [formType, setFormType] = useState(initial?.integrationType ?? INTEGRATION_TYPES[0])
   const [formDisplayName, setFormDisplayName] = useState(initial?.displayName ?? '')
-  const [formSyncDir,     setFormSyncDir]     = useState(initial?.syncDirection ?? 'INBOUND')
-  const [formRepoType,    setFormRepoType]    = useState<RepoType>(initial?.repoType ?? 'GENERAL')
-  const [formParams,      setFormParams]      = useState<KvPair[]>(
+  const [formSyncDir, setFormSyncDir] = useState(initial?.syncDirection ?? 'INBOUND')
+  const [formRepoType, setFormRepoType] = useState<RepoType>(initial?.repoType ?? 'GENERAL')
+  const [formParams, setFormParams] = useState<KvPair[]>(
     initial?.connectionParams
       ? cfgToKvPairs(initial.connectionParams)
-      : seedParams(initial?.integrationType ?? INTEGRATION_TYPES[0])
+      : seedParams(initial?.integrationType ?? INTEGRATION_TYPES[0]),
   )
   const [formEnabled, setFormEnabled] = useState(initial?.enabled ?? true)
 
@@ -151,13 +225,13 @@ function IntegrationForm({ initial, projectId, inherited, onDone }: IntegrationF
   const mutation = useMutation({
     mutationFn: () => {
       const body: SaveIntegrationConfigForm = {
-        id:              initial?.id,
+        id: initial?.id,
         integrationType: formType,
-        displayName:     formDisplayName || undefined,
-        syncDirection:   formSyncDir,
-        repoType:        formRepoType,
+        displayName: formDisplayName || undefined,
+        syncDirection: formSyncDir,
+        repoType: formRepoType,
         connectionParams: kvToMap(formParams),
-        enabled:         formEnabled,
+        enabled: formEnabled,
       }
       return api.saveIntegration(projectId, body)
     },
@@ -168,11 +242,11 @@ function IntegrationForm({ initial, projectId, inherited, onDone }: IntegrationF
   })
 
   function updateParam(idx: number, field: 'key' | 'value', val: string) {
-    setFormParams(prev => prev.map((p, i) => i === idx ? { ...p, [field]: val } : p))
+    setFormParams(prev => prev.map((p, i) => (i === idx ? { ...p, [field]: val } : p)))
   }
 
   function unmaskParam(idx: number) {
-    setFormParams(prev => prev.map((p, i) => i === idx ? { ...p, value: '', masked: false } : p))
+    setFormParams(prev => prev.map((p, i) => (i === idx ? { ...p, value: '', masked: false } : p)))
   }
 
   const inheritedMatch = (inherited ?? []).find(c => c.integrationType === formType)
@@ -198,7 +272,11 @@ function IntegrationForm({ initial, projectId, inherited, onDone }: IntegrationF
           </p>
           {Object.keys(inheritedMatch.connectionParams ?? {}).length > 0 && (
             <p className="text-xs text-blue-700 font-mono">
-              Inherited: {Object.entries(inheritedMatch.connectionParams).map(([k, v]) => `${k}=${v}`).join(' · ')} — leave blank to inherit.
+              Inherited:{' '}
+              {Object.entries(inheritedMatch.connectionParams)
+                .map(([k, v]) => `${k}=${v}`)
+                .join(' · ')}{' '}
+              — leave blank to inherit.
             </p>
           )}
         </div>
@@ -215,7 +293,11 @@ function IntegrationForm({ initial, projectId, inherited, onDone }: IntegrationF
             onChange={e => setFormType(e.target.value)}
             className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
           >
-            {INTEGRATION_TYPES.map(t => <option key={t} value={t}>{t}</option>)}
+            {INTEGRATION_TYPES.map(t => (
+              <option key={t} value={t}>
+                {t}
+              </option>
+            ))}
           </select>
         )}
       </div>
@@ -238,20 +320,26 @@ function IntegrationForm({ initial, projectId, inherited, onDone }: IntegrationF
           onChange={e => setFormSyncDir(e.target.value)}
           className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
-          {SYNC_DIRECTIONS.map(d => <option key={d} value={d}>{d}</option>)}
+          {SYNC_DIRECTIONS.map(d => (
+            <option key={d} value={d}>
+              {d}
+            </option>
+          ))}
         </select>
       </div>
 
       {/* Repo Role — only meaningful for GitHub */}
-      {(formType === 'GITHUB') && (
+      {formType === 'GITHUB' && (
         <div>
           <label className="block text-xs font-medium text-slate-700 mb-1">Repo Role</label>
           <div className="flex gap-2">
-            {([
-              { value: 'GENERAL',          label: 'General' },
-              { value: 'CODEBASE',         label: 'Codebase' },
-              { value: 'TEST_AUTOMATION',  label: 'Test Automation' },
-            ] as { value: RepoType; label: string }[]).map(opt => (
+            {(
+              [
+                { value: 'GENERAL', label: 'General' },
+                { value: 'CODEBASE', label: 'Codebase' },
+                { value: 'TEST_AUTOMATION', label: 'Test Automation' },
+              ] as { value: RepoType; label: string }[]
+            ).map(opt => (
               <button
                 key={opt.value}
                 type="button"
@@ -267,9 +355,9 @@ function IntegrationForm({ initial, projectId, inherited, onDone }: IntegrationF
             ))}
           </div>
           <p className="text-xs text-slate-400 mt-1">
-            {formRepoType === 'CODEBASE'        && 'Source code read for test generation context.'}
-            {formRepoType === 'TEST_AUTOMATION'  && 'Automation code target — PRs are raised here.'}
-            {formRepoType === 'GENERAL'          && 'No specific role assigned.'}
+            {formRepoType === 'CODEBASE' && 'Source code read for test generation context.'}
+            {formRepoType === 'TEST_AUTOMATION' && 'Automation code target — PRs are raised here.'}
+            {formRepoType === 'GENERAL' && 'No specific role assigned.'}
           </p>
         </div>
       )}
@@ -285,16 +373,22 @@ function IntegrationForm({ initial, projectId, inherited, onDone }: IntegrationF
                 {knownField ? (
                   <div className="w-44 shrink-0 pt-1.5">
                     <div className="flex items-center gap-1.5">
-                      <span className="text-xs font-mono font-medium text-slate-800">{pair.key}</span>
-                      <span className={`text-[10px] font-medium px-1 py-0.5 rounded leading-none ${
-                        knownField.required
-                          ? 'text-red-600 bg-red-50 border border-red-200'
-                          : 'text-slate-400 bg-slate-100 border border-slate-200'
-                      }`}>
+                      <span className="text-xs font-mono font-medium text-slate-800">
+                        {pair.key}
+                      </span>
+                      <span
+                        className={`text-[10px] font-medium px-1 py-0.5 rounded leading-none ${
+                          knownField.required
+                            ? 'text-red-600 bg-red-50 border border-red-200'
+                            : 'text-slate-400 bg-slate-100 border border-slate-200'
+                        }`}
+                      >
                         {knownField.required ? 'required' : 'optional'}
                       </span>
                     </div>
-                    <p className="text-[10px] text-slate-400 leading-tight mt-0.5">{knownField.desc}</p>
+                    <p className="text-[10px] text-slate-400 leading-tight mt-0.5">
+                      {knownField.desc}
+                    </p>
                   </div>
                 ) : (
                   <input
@@ -358,7 +452,9 @@ function IntegrationForm({ initial, projectId, inherited, onDone }: IntegrationF
           onChange={e => setFormEnabled(e.target.checked)}
           className="rounded border-slate-300"
         />
-        <label htmlFor="form-enabled" className="text-sm text-slate-700">Enabled</label>
+        <label htmlFor="form-enabled" className="text-sm text-slate-700">
+          Enabled
+        </label>
       </div>
 
       {mutation.isError && (
@@ -405,16 +501,21 @@ export default function ProjectSettingsPage() {
     : 'general'
 
   // ── General tab ──────────────────────────────────────────────────────────────
-  const { data: detail, isLoading, error, refetch } = useQuery({
+  const {
+    data: detail,
+    isLoading,
+    error,
+    refetch,
+  } = useQuery({
     queryKey: ['project', projectId],
-    queryFn:  () => api.projectDetail(projectId!),
-    enabled:  !!projectId,
+    queryFn: () => api.projectDetail(projectId!),
+    enabled: !!projectId,
   })
   const project = detail?.project
 
-  const [editName,        setEditName]        = useState('')
+  const [editName, setEditName] = useState('')
   const [editDescription, setEditDescription] = useState('')
-  const [saveSuccess,     setSaveSuccess]     = useState(false)
+  const [saveSuccess, setSaveSuccess] = useState(false)
 
   useEffect(() => {
     if (project) {
@@ -424,10 +525,11 @@ export default function ProjectSettingsPage() {
   }, [project])
 
   const saveMutation = useMutation({
-    mutationFn: () => api.updateProject(projectId!, {
-      name:        editName        || undefined,
-      description: editDescription || undefined,
-    }),
+    mutationFn: () =>
+      api.updateProject(projectId!, {
+        name: editName || undefined,
+        description: editDescription || undefined,
+      }),
     onSuccess: () => {
       setSaveSuccess(true)
       setTimeout(() => setSaveSuccess(false), 3000)
@@ -437,7 +539,7 @@ export default function ProjectSettingsPage() {
 
   const deleteMutation = useMutation({
     mutationFn: () => api.deleteProject(projectId!),
-    onSuccess:  () => {
+    onSuccess: () => {
       void qc.invalidateQueries({ queryKey: ['projects'] })
       navigate('/')
     },
@@ -452,35 +554,35 @@ export default function ProjectSettingsPage() {
   // ── Integrations tab ─────────────────────────────────────────────────────────
   const { data: integrations, isLoading: intLoading } = useQuery({
     queryKey: ['integrations', projectId],
-    queryFn:  () => api.integrations(projectId!),
-    enabled:  !!projectId && tab === 'integrations',
+    queryFn: () => api.integrations(projectId!),
+    enabled: !!projectId && tab === 'integrations',
   })
 
   const { data: inherited } = useQuery({
     queryKey: ['inherited-integrations', projectId],
-    queryFn:  () => api.inheritedIntegrations(projectId!),
-    enabled:  !!projectId && tab === 'integrations',
+    queryFn: () => api.inheritedIntegrations(projectId!),
+    enabled: !!projectId && tab === 'integrations',
   })
 
   // null = no form open; string id = editing that config; 'new' = adding new
-  const [activeForm,   setActiveForm]   = useState<string | null>(null)
-  const [syncResults,  setSyncResults]  = useState<Record<string, SyncResult> | null>(null)
-  const [syncError,    setSyncError]    = useState<string | null>(null)
+  const [activeForm, setActiveForm] = useState<string | null>(null)
+  const [syncResults, setSyncResults] = useState<Record<string, SyncResult> | null>(null)
+  const [syncError, setSyncError] = useState<string | null>(null)
 
   const syncMutation = useMutation({
     mutationFn: () => api.syncIntegrations(projectId!),
-    onSuccess: (data) => {
+    onSuccess: data => {
       const results = data.results as Record<string, SyncResult> | undefined
       setSyncResults(results ?? null)
       setSyncError(null)
       void qc.invalidateQueries({ queryKey: ['integrations', projectId] })
     },
-    onError: (e) => setSyncError((e as Error).message),
+    onError: e => setSyncError((e as Error).message),
   })
 
   const deleteIntMutation = useMutation({
     mutationFn: (configId: string) => api.deleteIntegration(projectId!, configId),
-    onSuccess:  () => void qc.invalidateQueries({ queryKey: ['integrations', projectId] }),
+    onSuccess: () => void qc.invalidateQueries({ queryKey: ['integrations', projectId] }),
   })
 
   function handleDeleteInt(cfg: IntegrationConfig) {
@@ -490,14 +592,17 @@ export default function ProjectSettingsPage() {
   }
 
   if (isLoading) return <LoadingSpinner message="Loading project…" />
-  if (error || !project) return <ErrorMessage message="Failed to load project." onRetry={() => void refetch()} />
+  if (error || !project)
+    return <ErrorMessage message="Failed to load project." onRetry={() => void refetch()} />
 
   return (
     <div className="space-y-6 max-w-2xl">
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-slate-900">{TAB_LABELS[tab]}</h1>
-        <p className="text-sm text-slate-500 mt-1">{project.name} · {project.slug}</p>
+        <p className="text-sm text-slate-500 mt-1">
+          {project.name} · {project.slug}
+        </p>
       </div>
 
       {/* ── General ── */}
@@ -583,16 +688,25 @@ export default function ProjectSettingsPage() {
             <div className="bg-white rounded-xl border border-blue-200 shadow-sm">
               <div className="px-5 py-3 border-b border-blue-100 flex items-center gap-2">
                 <Building2 size={15} className="text-blue-500" />
-                <h3 className="text-sm font-semibold text-slate-900">Inherited from Organization</h3>
-                <span className="text-xs text-slate-400">used automatically unless overridden below</span>
+                <h3 className="text-sm font-semibold text-slate-900">
+                  Inherited from Organization
+                </h3>
+                <span className="text-xs text-slate-400">
+                  used automatically unless overridden below
+                </span>
               </div>
               <div className="divide-y divide-slate-50">
                 {(inherited ?? []).map(c => (
-                  <div key={c.integrationType} className="px-5 py-3 flex items-center justify-between gap-4">
+                  <div
+                    key={c.integrationType}
+                    className="px-5 py-3 flex items-center justify-between gap-4"
+                  >
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <Badge label={c.integrationType} colorClass="text-blue-700 bg-blue-100" />
-                        {c.displayName && <span className="text-sm text-slate-700">{c.displayName}</span>}
+                        {c.displayName && (
+                          <span className="text-sm text-slate-700">{c.displayName}</span>
+                        )}
                         <span className="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">
                           <Lock size={11} /> {c.hasSecret ? 'secret set' : 'no secret'}
                         </span>
@@ -602,12 +716,17 @@ export default function ProjectSettingsPage() {
                         {Object.keys(c.connectionParams ?? {}).length > 0 && (
                           <span className="font-mono">
                             {c.baseUrl ? ' · ' : ''}
-                            {Object.entries(c.connectionParams).map(([k, v]) => `${k}=${v}`).join(' · ')}
+                            {Object.entries(c.connectionParams)
+                              .map(([k, v]) => `${k}=${v}`)
+                              .join(' · ')}
                           </span>
                         )}
                       </p>
                     </div>
-                    <Link to="/settings/integrations" className="text-xs text-blue-600 hover:text-blue-700 whitespace-nowrap shrink-0">
+                    <Link
+                      to="/settings/integrations"
+                      className="text-xs text-blue-600 hover:text-blue-700 whitespace-nowrap shrink-0"
+                    >
                       Manage at org →
                     </Link>
                   </div>
@@ -618,7 +737,9 @@ export default function ProjectSettingsPage() {
 
           {/* Sync now toolbar */}
           {(() => {
-            const hasPollSupport = (integrations ?? []).some(c => POLL_SUPPORTED.has(c.integrationType))
+            const hasPollSupport = (integrations ?? []).some(c =>
+              POLL_SUPPORTED.has(c.integrationType),
+            )
             return (
               <div className="flex items-center justify-between">
                 <p className="text-xs text-slate-500">
@@ -652,12 +773,15 @@ export default function ProjectSettingsPage() {
             <div className="bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 space-y-1">
               {Object.entries(syncResults).map(([type, res]) => (
                 <div key={type} className="flex items-start gap-2 text-xs">
-                  {res.success
-                    ? <CheckCircle size={13} className="text-green-600 mt-0.5 shrink-0" />
-                    : <AlertTriangle size={13} className="text-amber-500 mt-0.5 shrink-0" />}
+                  {res.success ? (
+                    <CheckCircle size={13} className="text-green-600 mt-0.5 shrink-0" />
+                  ) : (
+                    <AlertTriangle size={13} className="text-amber-500 mt-0.5 shrink-0" />
+                  )}
                   <span>
                     <span className="font-mono font-medium">{type}</span>
-                    {' — '}{res.message}
+                    {' — '}
+                    {res.message}
                   </span>
                 </div>
               ))}
@@ -682,23 +806,36 @@ export default function ProjectSettingsPage() {
                     <div className="bg-white rounded-xl border border-slate-200 shadow-sm px-5 py-4 flex items-start justify-between gap-4">
                       <div className="space-y-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <Badge label={cfg.integrationType} colorClass="text-blue-700 bg-blue-100" />
+                          <Badge
+                            label={cfg.integrationType}
+                            colorClass="text-blue-700 bg-blue-100"
+                          />
                           {cfg.displayName && (
                             <span className="text-sm text-slate-700">{cfg.displayName}</span>
                           )}
-                          {cfg.integrationType === 'GITHUB' && cfg.repoType && cfg.repoType !== 'GENERAL' && (
-                            <Badge
-                              label={cfg.repoType === 'TEST_AUTOMATION' ? 'Test Automation' : 'Codebase'}
-                              colorClass={cfg.repoType === 'TEST_AUTOMATION'
-                                ? 'text-purple-700 bg-purple-100'
-                                : 'text-amber-700 bg-amber-100'}
-                            />
-                          )}
+                          {cfg.integrationType === 'GITHUB' &&
+                            cfg.repoType &&
+                            cfg.repoType !== 'GENERAL' && (
+                              <Badge
+                                label={
+                                  cfg.repoType === 'TEST_AUTOMATION'
+                                    ? 'Test Automation'
+                                    : 'Codebase'
+                                }
+                                colorClass={
+                                  cfg.repoType === 'TEST_AUTOMATION'
+                                    ? 'text-purple-700 bg-purple-100'
+                                    : 'text-amber-700 bg-amber-100'
+                                }
+                              />
+                            )}
                           <Badge
                             label={cfg.enabled ? 'enabled' : 'disabled'}
-                            colorClass={cfg.enabled
-                              ? 'text-green-700 bg-green-100'
-                              : 'text-slate-500 bg-slate-100'}
+                            colorClass={
+                              cfg.enabled
+                                ? 'text-green-700 bg-green-100'
+                                : 'text-slate-500 bg-slate-100'
+                            }
                           />
                         </div>
                         <p className="text-xs text-slate-500">
@@ -706,13 +843,16 @@ export default function ProjectSettingsPage() {
                           {cfg.lastSyncedAt && ` · Last synced: ${relativeTime(cfg.lastSyncedAt)}`}
                           {cfg.consecutiveErrors > 0 && (
                             <span className="text-red-600">
-                              {' '}· {cfg.consecutiveErrors} error{cfg.consecutiveErrors !== 1 ? 's' : ''}
+                              {' '}
+                              · {cfg.consecutiveErrors} error
+                              {cfg.consecutiveErrors !== 1 ? 's' : ''}
                             </span>
                           )}
                         </p>
                         {!POLL_SUPPORTED.has(cfg.integrationType) && (
                           <p className="text-xs text-slate-400 italic mt-0.5">
-                            Webhook-only — trigger from Linear → Settings → API → Webhooks to sync immediately.
+                            Webhook-only — trigger from Linear → Settings → API → Webhooks to sync
+                            immediately.
                           </p>
                         )}
                       </div>
@@ -771,7 +911,8 @@ export default function ProjectSettingsPage() {
       {tab === 'mapping' && (
         <div className="space-y-3">
           <p className="text-xs text-slate-500">
-            Mapping Suggester rules for this project. Overrides the organization default; resets fall back to it.
+            Mapping Suggester rules for this project. Overrides the organization default; resets
+            fall back to it.
           </p>
           <MappingRulesEditor scope="PROJECT" id={projectId!} />
         </div>
@@ -803,7 +944,10 @@ function ProjectAiSettings({ projectId }: { projectId: string }) {
   })
 
   const val = (key: string) => (key in draft ? draft[key] : (effective?.[key] ?? ''))
-  const setVal = (key: string, v: string) => { setDraft(d => ({ ...d, [key]: v })); setSaved(false) }
+  const setVal = (key: string, v: string) => {
+    setDraft(d => ({ ...d, [key]: v }))
+    setSaved(false)
+  }
 
   const saveMutation = useMutation({
     mutationFn: async () => {
@@ -813,7 +957,8 @@ function ProjectAiSettings({ projectId }: { projectId: string }) {
       }
     },
     onSuccess: () => {
-      setDraft({}); setSaved(true)
+      setDraft({})
+      setSaved(true)
       void qc.invalidateQueries({ queryKey: ['scoped-ai', projectId] })
     },
   })
@@ -834,8 +979,11 @@ function ProjectAiSettings({ projectId }: { projectId: string }) {
             <p className="text-sm font-medium text-slate-900">Enable AI analysis</p>
             <p className="text-xs text-slate-500">Effective: {effective?.['ai.enabled'] ?? '—'}</p>
           </div>
-          <select className={aiInputCls} value={val('ai.enabled')}
-            onChange={e => setVal('ai.enabled', e.target.value)}>
+          <select
+            className={aiInputCls}
+            value={val('ai.enabled')}
+            onChange={e => setVal('ai.enabled', e.target.value)}
+          >
             <option value="">Inherit</option>
             <option value="true">Enabled</option>
             <option value="false">Disabled</option>
@@ -845,10 +993,15 @@ function ProjectAiSettings({ projectId }: { projectId: string }) {
         <div className="px-5 py-4 flex items-center justify-between">
           <div>
             <p className="text-sm font-medium text-slate-900">Real-time analysis</p>
-            <p className="text-xs text-slate-500">Effective: {effective?.['ai.realtime.enabled'] ?? '—'}</p>
+            <p className="text-xs text-slate-500">
+              Effective: {effective?.['ai.realtime.enabled'] ?? '—'}
+            </p>
           </div>
-          <select className={aiInputCls} value={val('ai.realtime.enabled')}
-            onChange={e => setVal('ai.realtime.enabled', e.target.value)}>
+          <select
+            className={aiInputCls}
+            value={val('ai.realtime.enabled')}
+            onChange={e => setVal('ai.realtime.enabled', e.target.value)}
+          >
             <option value="">Inherit</option>
             <option value="true">Enabled</option>
             <option value="false">Disabled</option>
@@ -860,8 +1013,11 @@ function ProjectAiSettings({ projectId }: { projectId: string }) {
             <p className="text-sm font-medium text-slate-900">Provider</p>
             <p className="text-xs text-slate-500">Effective: {effective?.['ai.provider'] ?? '—'}</p>
           </div>
-          <select className={aiInputCls} value={val('ai.provider')}
-            onChange={e => setVal('ai.provider', e.target.value)}>
+          <select
+            className={aiInputCls}
+            value={val('ai.provider')}
+            onChange={e => setVal('ai.provider', e.target.value)}
+          >
             <option value="">Inherit</option>
             <option value="anthropic">anthropic</option>
             <option value="openai">openai</option>
@@ -873,16 +1029,21 @@ function ProjectAiSettings({ projectId }: { projectId: string }) {
             <p className="text-sm font-medium text-slate-900">Model</p>
             <p className="text-xs text-slate-500">Effective: {effective?.['ai.model'] ?? '—'}</p>
           </div>
-          <input className={aiInputCls} value={val('ai.model')}
+          <input
+            className={aiInputCls}
+            value={val('ai.model')}
             placeholder={provider === 'openai' ? 'gpt-4o' : 'claude-sonnet-4-6'}
-            onChange={e => setVal('ai.model', e.target.value)} />
+            onChange={e => setVal('ai.model', e.target.value)}
+          />
         </div>
       </div>
 
       <div className="flex items-center gap-3">
-        <button onClick={() => void saveMutation.mutate()}
+        <button
+          onClick={() => void saveMutation.mutate()}
           disabled={Object.keys(draft).length === 0 || saveMutation.isPending}
-          className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50">
+          className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50"
+        >
           {saveMutation.isPending ? 'Saving…' : 'Save overrides'}
         </button>
         {saved && <span className="text-sm text-green-600">Saved.</span>}
@@ -892,14 +1053,19 @@ function ProjectAiSettings({ projectId }: { projectId: string }) {
   )
 }
 
-const aiInputCls = 'text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-[10rem]'
+const aiInputCls =
+  'text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-[10rem]'
 
 // ── GitHub repo assignments ────────────────────────────────────────────────────
 
 const REPO_ROLES: { value: string; label: string; activeClass: string }[] = [
-  { value: 'GENERAL',         label: 'General',   activeClass: 'bg-slate-700 text-white border-slate-700' },
-  { value: 'CODEBASE',        label: 'Codebase',  activeClass: 'bg-amber-600 text-white border-amber-600' },
-  { value: 'TEST_AUTOMATION', label: 'Test Auto', activeClass: 'bg-purple-600 text-white border-purple-600' },
+  { value: 'GENERAL', label: 'General', activeClass: 'bg-slate-700 text-white border-slate-700' },
+  { value: 'CODEBASE', label: 'Codebase', activeClass: 'bg-amber-600 text-white border-amber-600' },
+  {
+    value: 'TEST_AUTOMATION',
+    label: 'Test Auto',
+    activeClass: 'bg-purple-600 text-white border-purple-600',
+  },
 ]
 
 function GitHubReposTab({ projectId, orgId }: { projectId: string; orgId: string }) {
@@ -947,7 +1113,7 @@ function GitHubReposTab({ projectId, orgId }: { projectId: string; orgId: string
       existingAssignments.forEach(a => m.set(a.repoFullName, a.role))
       setAssignments(m)
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [existingAssignments])
 
   const syncMutation = useMutation({
@@ -1000,8 +1166,8 @@ function GitHubReposTab({ projectId, orgId }: { projectId: string; orgId: string
     setSaveOk(false)
   }
 
-  const visibleRepos = (cacheData?.repos ?? []).filter(r =>
-    !search || r.fullName.toLowerCase().includes(search.toLowerCase())
+  const visibleRepos = (cacheData?.repos ?? []).filter(
+    r => !search || r.fullName.toLowerCase().includes(search.toLowerCase()),
   )
 
   if (!allCreds.length && !githubCred) {
@@ -1011,7 +1177,9 @@ function GitHubReposTab({ projectId, orgId }: { projectId: string; orgId: string
   if (!githubCred) {
     return (
       <div className="bg-amber-50 border border-amber-200 rounded-xl px-5 py-8 text-center space-y-2">
-        <p className="text-sm font-medium text-amber-900">No GitHub integration configured at org level</p>
+        <p className="text-sm font-medium text-amber-900">
+          No GitHub integration configured at org level
+        </p>
         <p className="text-xs text-amber-700">
           Go to{' '}
           <Link to="/settings/integrations" className="underline hover:text-amber-900">
@@ -1069,14 +1237,15 @@ function GitHubReposTab({ projectId, orgId }: { projectId: string; orgId: string
             <span className="text-xs text-slate-500">min</span>
             <button
               onClick={() => void syncIntervalMutation.mutate()}
-              disabled={syncIntervalMutation.isPending || syncInterval === (githubCred?.syncIntervalMinutes ?? 0)}
+              disabled={
+                syncIntervalMutation.isPending ||
+                syncInterval === (githubCred?.syncIntervalMinutes ?? 0)
+              }
               className="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
             >
               {syncIntervalMutation.isPending ? 'Saving…' : 'Save'}
             </button>
-            {syncIntervalSaved && (
-              <CheckCircle size={14} className="text-green-500 shrink-0" />
-            )}
+            {syncIntervalSaved && <CheckCircle size={14} className="text-green-500 shrink-0" />}
           </div>
         </div>
       </div>
@@ -1097,7 +1266,9 @@ function GitHubReposTab({ projectId, orgId }: { projectId: string; orgId: string
         </div>
 
         {cacheLoading ? (
-          <div className="py-8"><LoadingSpinner message="Loading cache…" /></div>
+          <div className="py-8">
+            <LoadingSpinner message="Loading cache…" />
+          </div>
         ) : visibleRepos.length === 0 ? (
           <p className="px-5 py-8 text-sm text-slate-500 text-center">
             {!cacheData?.totalCount
@@ -1122,14 +1293,18 @@ function GitHubReposTab({ projectId, orgId }: { projectId: string; orgId: string
                   />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-sm font-mono text-slate-900 truncate">{repo.fullName}</span>
+                      <span className="text-sm font-mono text-slate-900 truncate">
+                        {repo.fullName}
+                      </span>
                       {repo.isPrivate && (
                         <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200 shrink-0">
                           private
                         </span>
                       )}
                       {repo.defaultBranch && (
-                        <span className="text-[10px] text-slate-400 font-mono shrink-0">{repo.defaultBranch}</span>
+                        <span className="text-[10px] text-slate-400 font-mono shrink-0">
+                          {repo.defaultBranch}
+                        </span>
                       )}
                     </div>
                   </div>
@@ -1227,7 +1402,9 @@ function ProjectTeams({ projectId }: { projectId: string }) {
       ) : (
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm divide-y divide-slate-50">
           {(teams ?? []).length === 0 && (
-            <p className="px-5 py-8 text-sm text-slate-500 text-center">No teams in this project yet.</p>
+            <p className="px-5 py-8 text-sm text-slate-500 text-center">
+              No teams in this project yet.
+            </p>
           )}
           {(teams ?? []).map(t => (
             <div key={t.id} className="px-5 py-3.5 flex items-center justify-between">

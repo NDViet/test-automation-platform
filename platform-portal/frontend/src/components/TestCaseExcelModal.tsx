@@ -1,6 +1,15 @@
 import { useState, useRef } from 'react'
 import * as XLSX from 'xlsx'
-import { X, Upload, FileSpreadsheet, ChevronRight, Loader2, CheckCircle, AlertTriangle, Download } from 'lucide-react'
+import {
+  X,
+  Upload,
+  FileSpreadsheet,
+  ChevronRight,
+  Loader2,
+  CheckCircle,
+  AlertTriangle,
+  Download,
+} from 'lucide-react'
 import { cn } from '@/lib/utils'
 import type { ManagedTestCase } from '@/lib/types'
 
@@ -9,53 +18,69 @@ import type { ManagedTestCase } from '@/lib/types'
 /** Maps normalised column header → platform field key */
 const KNOWN_COLUMNS: Record<string, string> = {
   'test id': 'externalId',
-  'id': 'externalId',
+  id: 'externalId',
   'external id': 'externalId',
-  'test_id': 'externalId',
-  'title': 'title',
+  test_id: 'externalId',
+  title: 'title',
   'test case title': 'title',
   'test name': 'title',
-  'name': 'title',
-  'preconditions': 'preconditions',
-  'precondition': 'preconditions',
+  name: 'title',
+  preconditions: 'preconditions',
+  precondition: 'preconditions',
   'pre-conditions': 'preconditions',
-  'prerequisites': 'preconditions',
+  prerequisites: 'preconditions',
   'test steps': 'steps',
-  'steps': 'steps',
-  'step': 'steps',
+  steps: 'steps',
+  step: 'steps',
   'test step': 'steps',
   'expected result': 'expectedResult',
   'expected results': 'expectedResult',
-  'expected': 'expectedResult',
+  expected: 'expectedResult',
   'expected outcome': 'expectedResult',
-  'priority': 'priority',
-  'notes': 'description',
-  'description': 'description',
-  'note': 'description',
-  'comments': 'description',
+  priority: 'priority',
+  notes: 'description',
+  description: 'description',
+  note: 'description',
+  comments: 'description',
 }
 
 /** Columns that are present in common test suite files but have no matching field — skip them without asking the user */
 const SKIP_COLUMNS = new Set([
-  'feature', 'complexity', 'smoke test', 'test date', 'date', 'result',
-  'run count', 'jira ticket', 'jira', 'automation status', 'assign qa',
-  'assigned qa', 'last updated', 'updated', 'column1', 'column2', 'column3',
+  'feature',
+  'complexity',
+  'smoke test',
+  'test date',
+  'date',
+  'result',
+  'run count',
+  'jira ticket',
+  'jira',
+  'automation status',
+  'assign qa',
+  'assigned qa',
+  'last updated',
+  'updated',
+  'column1',
+  'column2',
+  'column3',
 ])
 
 const PLATFORM_FIELDS = [
-  { key: 'title',          label: 'Title (required)' },
-  { key: 'externalId',     label: 'Test ID' },
-  { key: 'preconditions',  label: 'Preconditions' },
-  { key: 'steps',          label: 'Test Steps' },
+  { key: 'title', label: 'Title (required)' },
+  { key: 'externalId', label: 'Test ID' },
+  { key: 'preconditions', label: 'Preconditions' },
+  { key: 'steps', label: 'Test Steps' },
   { key: 'expectedResult', label: 'Expected Result' },
-  { key: 'priority',       label: 'Priority' },
-  { key: 'description',    label: 'Description / Notes' },
-  { key: '_skip',          label: '— Skip this column —' },
+  { key: 'priority', label: 'Priority' },
+  { key: 'description', label: 'Description / Notes' },
+  { key: '_skip', label: '— Skip this column —' },
 ]
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
-function normKey(s: string) { return s.toLowerCase().trim() }
+function normKey(s: string) {
+  return s.toLowerCase().trim()
+}
 
 function isMetaHeaderRow(row: (string | null | undefined)[]): boolean {
   // Detect Excel "Column1, Column2…" auto-generated headers
@@ -65,18 +90,24 @@ function isMetaHeaderRow(row: (string | null | undefined)[]): boolean {
 function parsePriority(raw: string | null | undefined): string {
   if (!raw) return 'MEDIUM'
   const v = raw.trim().toUpperCase()
-  if (v === 'P0' || v === 'CRITICAL')    return 'CRITICAL'
-  if (v === 'P1' || v === 'HIGH')        return 'HIGH'
+  if (v === 'P0' || v === 'CRITICAL') return 'CRITICAL'
+  if (v === 'P1' || v === 'HIGH') return 'HIGH'
   if (v === 'P2' || v === 'MEDIUM' || v === 'MED') return 'MEDIUM'
-  if (v === 'P3' || v === 'LOW')         return 'LOW'
+  if (v === 'P3' || v === 'LOW') return 'LOW'
   return 'MEDIUM'
 }
 
-interface StepInput { action: string; expectedResult?: string }
+interface StepInput {
+  action: string
+  expectedResult?: string
+}
 
 function parseSteps(raw: string | null | undefined): StepInput[] {
   if (!raw?.trim()) return []
-  const lines = raw.split('\n').map(l => l.trim()).filter(Boolean)
+  const lines = raw
+    .split('\n')
+    .map(l => l.trim())
+    .filter(Boolean)
   // Numbered: "1. ..." or "1) ..."
   const numbered = lines.filter(l => /^\d+[.)]\s/.test(l))
   if (numbered.length > 0) {
@@ -92,9 +123,9 @@ function parseSteps(raw: string | null | undefined): StepInput[] {
 }
 
 function stepsToText(steps: { action: string; expectedResult?: string | null }[]): string {
-  return steps.map((s, i) =>
-    `${i + 1}. ${s.action}${s.expectedResult ? `\n   → ${s.expectedResult}` : ''}`
-  ).join('\n')
+  return steps
+    .map((s, i) => `${i + 1}. ${s.action}${s.expectedResult ? `\n   → ${s.expectedResult}` : ''}`)
+    .join('\n')
 }
 
 // ── Template download ─────────────────────────────────────────────────────────
@@ -103,7 +134,15 @@ export function downloadTemplate() {
   const wb = XLSX.utils.book_new()
 
   // ── Sheet 1: Test Cases ──
-  const headers = ['Test ID', 'Title', 'Preconditions', 'Test Steps', 'Expected Result', 'Priority', 'Notes']
+  const headers = [
+    'Test ID',
+    'Title',
+    'Preconditions',
+    'Test Steps',
+    'Expected Result',
+    'Priority',
+    'Notes',
+  ]
   const examples = [
     [
       'REG-001',
@@ -129,8 +168,13 @@ export function downloadTemplate() {
 
   // Column widths
   ws['!cols'] = [
-    { wch: 12 }, { wch: 40 }, { wch: 35 }, { wch: 50 },
-    { wch: 40 }, { wch: 10 }, { wch: 25 },
+    { wch: 12 },
+    { wch: 40 },
+    { wch: 35 },
+    { wch: 50 },
+    { wch: 40 },
+    { wch: 10 },
+    { wch: 25 },
   ]
 
   XLSX.utils.book_append_sheet(wb, ws, 'Test Cases')
@@ -140,10 +184,25 @@ export function downloadTemplate() {
     ['Field', 'Required', 'Valid Values / Format', 'Notes'],
     ['Test ID', 'No', 'Any text e.g. REG-001', 'Unique identifier. Leave blank to auto-assign.'],
     ['Title', 'YES', 'Any text', 'Short, descriptive name for the test case.'],
-    ['Preconditions', 'No', 'Free text (multi-line)', 'System state required before running the test.'],
-    ['Test Steps', 'No', '1. Step one\n2. Step two\n3. Step three', 'Numbered list. Each step on a new line.'],
+    [
+      'Preconditions',
+      'No',
+      'Free text (multi-line)',
+      'System state required before running the test.',
+    ],
+    [
+      'Test Steps',
+      'No',
+      '1. Step one\n2. Step two\n3. Step three',
+      'Numbered list. Each step on a new line.',
+    ],
     ['Expected Result', 'No', 'Free text (multi-line)', 'Overall pass condition for the test.'],
-    ['Priority', 'No', 'P0 / P1 / P2 / P3\nor CRITICAL / HIGH / MEDIUM / LOW', 'Default: P2 (MEDIUM) if blank.'],
+    [
+      'Priority',
+      'No',
+      'P0 / P1 / P2 / P3\nor CRITICAL / HIGH / MEDIUM / LOW',
+      'Default: P2 (MEDIUM) if blank.',
+    ],
     ['Notes', 'No', 'Any text', 'Extra context or comments. Stored as Description.'],
     [],
     ['Priority mapping', '', '', ''],
@@ -163,9 +222,16 @@ export function downloadTemplate() {
 
 export function exportTestCases(cases: ManagedTestCase[], filename = 'test-cases-export.xlsx') {
   const headers = [
-    'Test ID', 'Title', 'Status', 'Priority',
-    'Preconditions', 'Test Steps', 'Expected Result',
-    'Description', 'Automation Status', 'Created At',
+    'Test ID',
+    'Title',
+    'Status',
+    'Priority',
+    'Preconditions',
+    'Test Steps',
+    'Expected Result',
+    'Description',
+    'Automation Status',
+    'Created At',
   ]
   const rows = cases.map(tc => [
     tc.externalId ?? '',
@@ -183,8 +249,16 @@ export function exportTestCases(cases: ManagedTestCase[], filename = 'test-cases
   const wb = XLSX.utils.book_new()
   const ws = XLSX.utils.aoa_to_sheet([headers, ...rows])
   ws['!cols'] = [
-    { wch: 12 }, { wch: 40 }, { wch: 14 }, { wch: 10 },
-    { wch: 35 }, { wch: 50 }, { wch: 40 }, { wch: 30 }, { wch: 16 }, { wch: 14 },
+    { wch: 12 },
+    { wch: 40 },
+    { wch: 14 },
+    { wch: 10 },
+    { wch: 35 },
+    { wch: 50 },
+    { wch: 40 },
+    { wch: 30 },
+    { wch: 16 },
+    { wch: 14 },
   ]
   XLSX.utils.book_append_sheet(wb, ws, 'Test Cases')
   XLSX.writeFile(wb, filename)
@@ -204,13 +278,7 @@ interface ParsedRow {
 
 // ── Import modal steps ────────────────────────────────────────────────────────
 
-type Step =
-  | 'upload'
-  | 'sheet-select'
-  | 'column-map'
-  | 'preview'
-  | 'importing'
-  | 'done'
+type Step = 'upload' | 'sheet-select' | 'column-map' | 'preview' | 'importing' | 'done'
 
 interface WorkbookState {
   wb: XLSX.WorkBook
@@ -269,7 +337,10 @@ export function ExcelImportModal({ onClose, onImport }: Props) {
 
   function loadSheet(wb: XLSX.WorkBook, sheetName: string) {
     const ws = wb.Sheets[sheetName]
-    const raw = XLSX.utils.sheet_to_json<(string | null)[]>(ws, { header: 1, defval: null }) as (string | null)[][]
+    const raw = XLSX.utils.sheet_to_json<(string | null)[]>(ws, { header: 1, defval: null }) as (
+      | string
+      | null
+    )[][]
 
     if (raw.length < 2) {
       setError('Sheet is empty or has no data rows.')
@@ -286,9 +357,12 @@ export function ExcelImportModal({ onClose, onImport }: Props) {
       .map(h => h?.trim() ?? '')
       .filter(Boolean)
 
-    const dataRows = raw.slice(headerRowIdx + 1).filter(row =>
-      row.some(cell => cell !== null && String(cell).trim() !== '')
-    ) as (string | null)[][]
+    const dataRows = raw
+      .slice(headerRowIdx + 1)
+      .filter(row => row.some(cell => cell !== null && String(cell).trim() !== '')) as (
+      | string
+      | null
+    )[][]
 
     // Auto-map columns
     const autoMap: Record<string, string> = {}
@@ -329,7 +403,7 @@ export function ExcelImportModal({ onClose, onImport }: Props) {
       }
 
       const title = get('title')
-      if (!title) continue  // skip rows without a title
+      if (!title) continue // skip rows without a title
 
       result.push({
         title,
@@ -371,20 +445,28 @@ export function ExcelImportModal({ onClose, onImport }: Props) {
     importing: 'Importing',
     done: 'Done',
   }
-  const STEP_ORDER: Step[] = ['upload', 'sheet-select', 'column-map', 'preview', 'importing', 'done']
+  const STEP_ORDER: Step[] = [
+    'upload',
+    'sheet-select',
+    'column-map',
+    'preview',
+    'importing',
+    'done',
+  ]
   const stepIdx = STEP_ORDER.indexOf(step)
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
       <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl mx-4 flex flex-col max-h-[90vh]">
-
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 shrink-0">
           <div className="flex items-center gap-2.5">
             <FileSpreadsheet size={18} className="text-green-600" />
             <h2 className="font-semibold text-slate-900">Import Test Cases from Excel</h2>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+            <X size={18} />
+          </button>
         </div>
 
         {/* Step breadcrumb */}
@@ -394,7 +476,11 @@ export function ExcelImportModal({ onClose, onImport }: Props) {
               .filter(s => !(s === 'sheet-select' && wbState?.wb.SheetNames.length === 1))
               .map((s, i, arr) => (
                 <span key={s} className="flex items-center gap-1">
-                  <span className={cn(stepIdx >= STEP_ORDER.indexOf(s) ? 'text-blue-600 font-medium' : '')}>
+                  <span
+                    className={cn(
+                      stepIdx >= STEP_ORDER.indexOf(s) ? 'text-blue-600 font-medium' : '',
+                    )}
+                  >
                     {STEP_LABELS[s]}
                   </span>
                   {i < arr.length - 1 && <ChevronRight size={12} />}
@@ -405,7 +491,6 @@ export function ExcelImportModal({ onClose, onImport }: Props) {
 
         {/* Body */}
         <div className="flex-1 overflow-y-auto">
-
           {/* ── Step: upload ── */}
           {step === 'upload' && (
             <div className="p-6 space-y-4">
@@ -416,7 +501,10 @@ export function ExcelImportModal({ onClose, onImport }: Props) {
                 </div>
               )}
               <div
-                onDragOver={e => { e.preventDefault(); setDragOver(true) }}
+                onDragOver={e => {
+                  e.preventDefault()
+                  setDragOver(true)
+                }}
                 onDragLeave={() => setDragOver(false)}
                 onDrop={e => {
                   e.preventDefault()
@@ -427,11 +515,15 @@ export function ExcelImportModal({ onClose, onImport }: Props) {
                 onClick={() => fileRef.current?.click()}
                 className={cn(
                   'border-2 border-dashed rounded-xl p-10 text-center cursor-pointer transition-colors',
-                  dragOver ? 'border-blue-400 bg-blue-50' : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+                  dragOver
+                    ? 'border-blue-400 bg-blue-50'
+                    : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50',
                 )}
               >
                 <Upload size={28} className="mx-auto text-slate-300 mb-3" />
-                <p className="text-sm font-medium text-slate-600">Drop an Excel file here, or click to browse</p>
+                <p className="text-sm font-medium text-slate-600">
+                  Drop an Excel file here, or click to browse
+                </p>
                 <p className="text-xs text-slate-400 mt-1">.xlsx and .xls files supported</p>
               </div>
               <input
@@ -439,11 +531,17 @@ export function ExcelImportModal({ onClose, onImport }: Props) {
                 type="file"
                 accept=".xlsx,.xls"
                 className="hidden"
-                onChange={e => { const f = e.target.files?.[0]; if (f) loadFile(f) }}
+                onChange={e => {
+                  const f = e.target.files?.[0]
+                  if (f) loadFile(f)
+                }}
               />
               <p className="text-xs text-slate-400 text-center">
                 Not sure about the format?{' '}
-                <button onClick={downloadTemplate} className="text-blue-600 hover:underline font-medium">
+                <button
+                  onClick={downloadTemplate}
+                  className="text-blue-600 hover:underline font-medium"
+                >
                   Download the template
                 </button>
               </p>
@@ -454,8 +552,8 @@ export function ExcelImportModal({ onClose, onImport }: Props) {
           {step === 'sheet-select' && wbState && (
             <div className="p-6 space-y-4">
               <p className="text-sm text-slate-600">
-                The file <span className="font-medium">{wbState.fileName}</span> has multiple sheets.
-                Select the one that contains your test cases.
+                The file <span className="font-medium">{wbState.fileName}</span> has multiple
+                sheets. Select the one that contains your test cases.
               </p>
               <div className="space-y-2">
                 {wbState.wb.SheetNames.map(name => (
@@ -469,9 +567,7 @@ export function ExcelImportModal({ onClose, onImport }: Props) {
                   </button>
                 ))}
               </div>
-              {error && (
-                <p className="text-xs text-red-600">{error}</p>
-              )}
+              {error && <p className="text-xs text-red-600">{error}</p>}
             </div>
           )}
 
@@ -494,7 +590,11 @@ export function ExcelImportModal({ onClose, onImport }: Props) {
                       onChange={e => setColumnMap(prev => ({ ...prev, [col]: e.target.value }))}
                       className="border border-slate-200 rounded-lg px-2 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                     >
-                      {PLATFORM_FIELDS.map(f => <option key={f.key} value={f.key}>{f.label}</option>)}
+                      {PLATFORM_FIELDS.map(f => (
+                        <option key={f.key} value={f.key}>
+                          {f.label}
+                        </option>
+                      ))}
                     </select>
                   </div>
                 ))}
@@ -508,7 +608,8 @@ export function ExcelImportModal({ onClose, onImport }: Props) {
               <div className="flex items-center gap-3 bg-blue-50 border border-blue-200 rounded-lg px-4 py-3">
                 <FileSpreadsheet size={16} className="text-blue-600 shrink-0" />
                 <p className="text-sm text-blue-800">
-                  <span className="font-semibold">{parsed.length}</span> test case{parsed.length !== 1 ? 's' : ''} ready to import
+                  <span className="font-semibold">{parsed.length}</span> test case
+                  {parsed.length !== 1 ? 's' : ''} ready to import
                   {parsed.filter(r => !r.title).length > 0 && (
                     <span className="ml-2 text-amber-700">
                       ({parsed.filter(r => !r.title).length} rows skipped — no title)
@@ -521,31 +622,55 @@ export function ExcelImportModal({ onClose, onImport }: Props) {
                 <table className="w-full text-xs">
                   <thead className="bg-slate-50 border-b border-slate-200">
                     <tr>
-                      <th className="px-3 py-2 text-left font-semibold text-slate-500 uppercase tracking-wide">#</th>
-                      <th className="px-3 py-2 text-left font-semibold text-slate-500 uppercase tracking-wide">Test ID</th>
-                      <th className="px-3 py-2 text-left font-semibold text-slate-500 uppercase tracking-wide">Title</th>
-                      <th className="px-3 py-2 text-left font-semibold text-slate-500 uppercase tracking-wide">Priority</th>
-                      <th className="px-3 py-2 text-left font-semibold text-slate-500 uppercase tracking-wide">Steps</th>
+                      <th className="px-3 py-2 text-left font-semibold text-slate-500 uppercase tracking-wide">
+                        #
+                      </th>
+                      <th className="px-3 py-2 text-left font-semibold text-slate-500 uppercase tracking-wide">
+                        Test ID
+                      </th>
+                      <th className="px-3 py-2 text-left font-semibold text-slate-500 uppercase tracking-wide">
+                        Title
+                      </th>
+                      <th className="px-3 py-2 text-left font-semibold text-slate-500 uppercase tracking-wide">
+                        Priority
+                      </th>
+                      <th className="px-3 py-2 text-left font-semibold text-slate-500 uppercase tracking-wide">
+                        Steps
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-50">
                     {parsed.slice(0, 8).map((row, i) => (
                       <tr key={i} className="hover:bg-slate-50">
                         <td className="px-3 py-2 text-slate-400 tabular-nums">{i + 1}</td>
-                        <td className="px-3 py-2 font-mono text-slate-500">{row.externalId ?? '—'}</td>
-                        <td className="px-3 py-2 text-slate-800 max-w-[220px] truncate" title={row.title}>{row.title}</td>
+                        <td className="px-3 py-2 font-mono text-slate-500">
+                          {row.externalId ?? '—'}
+                        </td>
+                        <td
+                          className="px-3 py-2 text-slate-800 max-w-[220px] truncate"
+                          title={row.title}
+                        >
+                          {row.title}
+                        </td>
                         <td className="px-3 py-2">
-                          <span className={cn(
-                            'px-1.5 py-0.5 rounded text-[10px] font-medium',
-                            row.priority === 'CRITICAL' ? 'bg-red-100 text-red-700' :
-                            row.priority === 'HIGH'     ? 'bg-orange-100 text-orange-700' :
-                            row.priority === 'MEDIUM'   ? 'bg-yellow-100 text-yellow-700' :
-                                                          'bg-slate-100 text-slate-600'
-                          )}>
+                          <span
+                            className={cn(
+                              'px-1.5 py-0.5 rounded text-[10px] font-medium',
+                              row.priority === 'CRITICAL'
+                                ? 'bg-red-100 text-red-700'
+                                : row.priority === 'HIGH'
+                                  ? 'bg-orange-100 text-orange-700'
+                                  : row.priority === 'MEDIUM'
+                                    ? 'bg-yellow-100 text-yellow-700'
+                                    : 'bg-slate-100 text-slate-600',
+                            )}
+                          >
                             {row.priority}
                           </span>
                         </td>
-                        <td className="px-3 py-2 text-slate-500 tabular-nums">{row.steps.length}</td>
+                        <td className="px-3 py-2 text-slate-500 tabular-nums">
+                          {row.steps.length}
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -570,7 +695,9 @@ export function ExcelImportModal({ onClose, onImport }: Props) {
               <div className="w-full bg-slate-100 rounded-full h-1.5 max-w-sm mx-auto overflow-hidden">
                 <div
                   className="h-full bg-blue-500 rounded-full transition-all"
-                  style={{ width: progress.total > 0 ? `${(progress.done / progress.total) * 100}%` : '0%' }}
+                  style={{
+                    width: progress.total > 0 ? `${(progress.done / progress.total) * 100}%` : '0%',
+                  }}
                 />
               </div>
             </div>
@@ -595,7 +722,9 @@ export function ExcelImportModal({ onClose, onImport }: Props) {
                   </div>
                 )}
               </div>
-              <p className="text-xs text-slate-400">Test cases are created as DRAFT — submit them for review to approve.</p>
+              <p className="text-xs text-slate-400">
+                Test cases are created as DRAFT — submit them for review to approve.
+              </p>
             </div>
           )}
         </div>
@@ -614,8 +743,10 @@ export function ExcelImportModal({ onClose, onImport }: Props) {
           </div>
           <div className="flex gap-2 ml-auto">
             {step !== 'importing' && step !== 'done' && (
-              <button onClick={onClose}
-                className="px-4 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50">
+              <button
+                onClick={onClose}
+                className="px-4 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50"
+              >
                 Cancel
               </button>
             )}
@@ -637,8 +768,10 @@ export function ExcelImportModal({ onClose, onImport }: Props) {
               </button>
             )}
             {step === 'done' && (
-              <button onClick={onClose}
-                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700">
+              <button
+                onClick={onClose}
+                className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
+              >
                 Close
               </button>
             )}

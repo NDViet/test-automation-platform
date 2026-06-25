@@ -149,13 +149,17 @@ function LogoCard({ org }: { org: Organization }) {
       {/* Preview / drop zone */}
       <div
         onClick={() => fileRef.current?.click()}
-        onDragOver={e => { e.preventDefault(); setDragOver(true) }}
+        onDragOver={e => {
+          e.preventDefault()
+          setDragOver(true)
+        }}
         onDragLeave={() => setDragOver(false)}
         onDrop={onDrop}
         className={`flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed p-8 cursor-pointer transition-colors select-none
-          ${dragOver
-            ? 'border-blue-500 bg-blue-50'
-            : 'border-slate-200 hover:border-blue-400 hover:bg-slate-50'
+          ${
+            dragOver
+              ? 'border-blue-500 bg-blue-50'
+              : 'border-slate-200 hover:border-blue-400 hover:bg-slate-50'
           }`}
       >
         {org.logoUrl ? (
@@ -247,7 +251,12 @@ function OrgSelect({
 
 export default function OrgSettingsPage() {
   const qc = useQueryClient()
-  const { data: orgs, isLoading, isError, refetch } = useQuery({
+  const {
+    data: orgs,
+    isLoading,
+    isError,
+    refetch,
+  } = useQuery({
     queryKey: ['organizations'],
     queryFn: api.organizations,
   })
@@ -321,11 +330,7 @@ export default function OrgSettingsPage() {
       </div>
 
       {/* Org selector (only shown when multiple orgs) */}
-      <OrgSelect
-        orgs={orgs}
-        selected={org}
-        onSelect={o => setSelectedId(o.id)}
-      />
+      <OrgSelect orgs={orgs} selected={org} onSelect={o => setSelectedId(o.id)} />
 
       {/* Cards grid: side-by-side on md+, stacked on mobile */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

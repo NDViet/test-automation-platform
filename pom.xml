@@ -220,5 +220,73 @@
                 </plugin>
             </plugins>
         </pluginManagement>
+
+        <!--
+          Spotless formats all Java sources with google-java-format.
+            mvn spotless:apply   → reformat in place
+            mvn spotless:check   → fail if any file is not formatted (use in CI)
+          `check` is intentionally NOT bound to the build lifecycle yet, so existing
+          builds keep working until the first `mvn spotless:apply` pass. To enforce
+          formatting on every build, uncomment the <executions> block below.
+        -->
+        <plugins>
+            <plugin>
+                <groupId>com.diffplug.spotless</groupId>
+                <artifactId>spotless-maven-plugin</artifactId>
+                <version>2.44.5</version>
+                <configuration>
+                    <java>
+                        <googleJavaFormat>
+                            <version>1.27.0</version>
+                            <style>GOOGLE</style>
+                            <reflowLongStrings>true</reflowLongStrings>
+                        </googleJavaFormat>
+                        <removeUnusedImports/>
+                        <importOrder/>
+                        <trimTrailingWhitespace/>
+                        <endWithNewline/>
+                    </java>
+                </configuration>
+                <!--
+                <executions>
+                    <execution>
+                        <goals>
+                            <goal>check</goal>
+                        </goals>
+                    </execution>
+                </executions>
+                -->
+            </plugin>
+        </plugins>
     </build>
+
+    <!--
+      One-shot formatting for the whole repo:
+          mvn -Pformat process-sources
+      Runs spotless:apply on every module's Java, and (in platform-portal)
+      Prettier on the React/TS frontend. See platform-portal/pom.xml for the
+      frontend half of this profile.
+    -->
+    <profiles>
+        <profile>
+            <id>format</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>com.diffplug.spotless</groupId>
+                        <artifactId>spotless-maven-plugin</artifactId>
+                        <executions>
+                            <execution>
+                                <id>spotless-apply</id>
+                                <phase>process-sources</phase>
+                                <goals>
+                                    <goal>apply</goal>
+                                </goals>
+                            </execution>
+                        </executions>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+    </profiles>
 </project>

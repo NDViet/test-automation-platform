@@ -5,50 +5,82 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { cn, relativeTime } from '@/lib/utils'
 import type {
-  ImpactAnalysis, ImpactAnalysisSuggestion, CodabasePr,
-  Requirement, LinkedPr, CreateImpactAnalysisForm,
+  ImpactAnalysis,
+  ImpactAnalysisSuggestion,
+  CodabasePr,
+  Requirement,
+  LinkedPr,
+  CreateImpactAnalysisForm,
 } from '@/lib/types'
 import Badge from '@/components/Badge'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import ErrorMessage from '@/components/ErrorMessage'
 import {
-  GitPullRequest, ChevronRight, Plus, X, ExternalLink,
-  ChevronDown, ChevronUp,
-  Loader2, Sparkles, RefreshCw, AlertTriangle, CheckCircle,
-  XCircle, Clock, ArrowRight, FileText, Code2, PlusCircle,
+  GitPullRequest,
+  ChevronRight,
+  Plus,
+  X,
+  ExternalLink,
+  ChevronDown,
+  ChevronUp,
+  Loader2,
+  Sparkles,
+  RefreshCw,
+  AlertTriangle,
+  CheckCircle,
+  XCircle,
+  Clock,
+  ArrowRight,
+  FileText,
+  Code2,
+  PlusCircle,
 } from 'lucide-react'
 
 // ── Status helpers ─────────────────────────────────────────────────────────────
 
 const STATUS_META: Record<string, { color: string; icon: React.ReactNode }> = {
-  COMPLETED: { color: 'text-green-700 bg-green-100',  icon: <CheckCircle size={13} /> },
-  FAILED:    { color: 'text-red-700 bg-red-100',      icon: <XCircle size={13} /> },
-  RUNNING:   { color: 'text-blue-700 bg-blue-100',    icon: <Loader2 size={13} className="animate-spin" /> },
-  DRAFT:     { color: 'text-slate-600 bg-slate-100',  icon: <Clock size={13} /> },
+  COMPLETED: { color: 'text-green-700 bg-green-100', icon: <CheckCircle size={13} /> },
+  FAILED: { color: 'text-red-700 bg-red-100', icon: <XCircle size={13} /> },
+  RUNNING: {
+    color: 'text-blue-700 bg-blue-100',
+    icon: <Loader2 size={13} className="animate-spin" />,
+  },
+  DRAFT: { color: 'text-slate-600 bg-slate-100', icon: <Clock size={13} /> },
 }
-function statusMeta(s: string) { return STATUS_META[s] ?? STATUS_META.DRAFT }
+function statusMeta(s: string) {
+  return STATUS_META[s] ?? STATUS_META.DRAFT
+}
 
 function priorityColor(p: string) {
   switch (p) {
-    case 'HIGH':   return 'text-red-700 bg-red-100'
-    case 'MEDIUM': return 'text-orange-700 bg-orange-100'
-    default:       return 'text-slate-600 bg-slate-100'
+    case 'HIGH':
+      return 'text-red-700 bg-red-100'
+    case 'MEDIUM':
+      return 'text-orange-700 bg-orange-100'
+    default:
+      return 'text-slate-600 bg-slate-100'
   }
 }
 
 function suggestionIcon(type: ImpactAnalysisSuggestion['type']) {
   switch (type) {
-    case 'UPDATE_MANUAL_TEST':    return <FileText size={15} className="text-blue-500 shrink-0" />
-    case 'CREATE_AUTOMATED_TEST': return <PlusCircle size={15} className="text-green-500 shrink-0" />
-    case 'UPDATE_AUTOMATION':     return <Code2 size={15} className="text-purple-500 shrink-0" />
+    case 'UPDATE_MANUAL_TEST':
+      return <FileText size={15} className="text-blue-500 shrink-0" />
+    case 'CREATE_AUTOMATED_TEST':
+      return <PlusCircle size={15} className="text-green-500 shrink-0" />
+    case 'UPDATE_AUTOMATION':
+      return <Code2 size={15} className="text-purple-500 shrink-0" />
   }
 }
 
 function suggestionLabel(type: ImpactAnalysisSuggestion['type']) {
   switch (type) {
-    case 'UPDATE_MANUAL_TEST':    return 'Update Manual Test'
-    case 'CREATE_AUTOMATED_TEST': return 'Create Automated Test'
-    case 'UPDATE_AUTOMATION':     return 'Update Automation'
+    case 'UPDATE_MANUAL_TEST':
+      return 'Update Manual Test'
+    case 'CREATE_AUTOMATED_TEST':
+      return 'Create Automated Test'
+    case 'UPDATE_AUTOMATION':
+      return 'Update Automation'
   }
 }
 
@@ -79,7 +111,7 @@ type CheckState = 'checked' | 'unchecked' | 'indeterminate'
 function nodeCheckState(node: ReqTree, selected: Set<string>): CheckState {
   const ids = collectIds(node)
   const checkedCount = ids.filter(id => selected.has(id)).length
-  if (checkedCount === 0)        return 'unchecked'
+  if (checkedCount === 0) return 'unchecked'
   if (checkedCount === ids.length) return 'checked'
   return 'indeterminate'
 }
@@ -103,8 +135,12 @@ function TreeCheckbox({ state, onChange }: { state: CheckState; onChange: () => 
 }
 
 function ReqTreeRow({
-  node, selected, expanded,
-  onToggleSelect, onToggleExpand, indent,
+  node,
+  selected,
+  expanded,
+  onToggleSelect,
+  onToggleExpand,
+  indent,
 }: {
   node: ReqTree
   selected: Set<string>
@@ -114,8 +150,8 @@ function ReqTreeRow({
   indent: number
 }) {
   const hasChildren = node.children.length > 0
-  const isExpanded  = expanded.has(node.id)
-  const state       = nodeCheckState(node, selected)
+  const isExpanded = expanded.has(node.id)
+  const state = nodeCheckState(node, selected)
 
   return (
     <>
@@ -125,7 +161,10 @@ function ReqTreeRow({
       >
         <TreeCheckbox state={state} onChange={() => onToggleSelect(node)} />
         {hasChildren ? (
-          <button onClick={() => onToggleExpand(node.id)} className="text-slate-400 hover:text-slate-700">
+          <button
+            onClick={() => onToggleExpand(node.id)}
+            className="text-slate-400 hover:text-slate-700"
+          >
             {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
           </button>
         ) : (
@@ -134,17 +173,19 @@ function ReqTreeRow({
         <span className="text-sm text-slate-700 truncate flex-1">{node.title}</span>
         <span className="text-xs text-slate-400 shrink-0">{node.issueType}</span>
       </div>
-      {hasChildren && isExpanded && node.children.map(child => (
-        <ReqTreeRow
-          key={child.id}
-          node={child}
-          selected={selected}
-          expanded={expanded}
-          onToggleSelect={onToggleSelect}
-          onToggleExpand={onToggleExpand}
-          indent={indent + 1}
-        />
-      ))}
+      {hasChildren &&
+        isExpanded &&
+        node.children.map(child => (
+          <ReqTreeRow
+            key={child.id}
+            node={child}
+            selected={selected}
+            expanded={expanded}
+            onToggleSelect={onToggleSelect}
+            onToggleExpand={onToggleExpand}
+            indent={indent + 1}
+          />
+        ))}
     </>
   )
 }
@@ -160,23 +201,23 @@ function CreateModal({
   onClose: () => void
   onCreate: (form: CreateImpactAnalysisForm) => void
 }) {
-  const [step, setStep]                     = useState<'prs' | 'reqs'>('prs')
-  const [name, setName]                     = useState('Impact Analysis')
-  const [selectedPrs, setSelectedPrs]       = useState<Set<string>>(new Set())
-  const [selectedReqs, setSelectedReqs]     = useState<Set<string>>(new Set())
-  const [expandedReqs, setExpandedReqs]     = useState<Set<string>>(new Set())
-  const [reqSearch, setReqSearch]           = useState('')
+  const [step, setStep] = useState<'prs' | 'reqs'>('prs')
+  const [name, setName] = useState('Impact Analysis')
+  const [selectedPrs, setSelectedPrs] = useState<Set<string>>(new Set())
+  const [selectedReqs, setSelectedReqs] = useState<Set<string>>(new Set())
+  const [expandedReqs, setExpandedReqs] = useState<Set<string>>(new Set())
+  const [reqSearch, setReqSearch] = useState('')
 
   const { data: prs, isLoading: prsLoading } = useQuery({
     queryKey: ['codebase-prs', projectId],
-    queryFn:  () => api.codebasePrs(projectId),
-    enabled:  !!projectId,
+    queryFn: () => api.codebasePrs(projectId),
+    enabled: !!projectId,
   })
 
   const { data: reqs, isLoading: reqsLoading } = useQuery({
     queryKey: ['requirements', projectId],
-    queryFn:  () => api.requirements(projectId),
-    enabled:  !!projectId,
+    queryFn: () => api.requirements(projectId),
+    enabled: !!projectId,
   })
 
   // Auto-expand top-level nodes on first load
@@ -189,14 +230,15 @@ function CreateModal({
     }
   }, [reqs])
 
-  const prList   = Array.isArray(prs) ? prs : []
-  const reqList  = Array.isArray(reqs) ? reqs : []
-  const reqTree  = buildTree(reqList)
+  const prList = Array.isArray(prs) ? prs : []
+  const reqList = Array.isArray(reqs) ? reqs : []
+  const reqTree = buildTree(reqList)
 
   const filteredReqs = reqSearch
-    ? reqList.filter(r =>
-        r.title.toLowerCase().includes(reqSearch.toLowerCase()) ||
-        (r.externalId && r.externalId.toLowerCase().includes(reqSearch.toLowerCase()))
+    ? reqList.filter(
+        r =>
+          r.title.toLowerCase().includes(reqSearch.toLowerCase()) ||
+          (r.externalId && r.externalId.toLowerCase().includes(reqSearch.toLowerCase())),
       )
     : null
 
@@ -209,12 +251,15 @@ function CreateModal({
   }
 
   function toggleReqNode(node: ReqTree) {
-    const ids    = collectIds(node)
-    const allIn  = ids.every(id => selectedReqs.has(id))
+    const ids = collectIds(node)
+    const allIn = ids.every(id => selectedReqs.has(id))
     setSelectedReqs(prev => {
       const next = new Set(prev)
-      if (allIn) { ids.forEach(id => next.delete(id)) }
-      else       { ids.forEach(id => next.add(id)) }
+      if (allIn) {
+        ids.forEach(id => next.delete(id))
+      } else {
+        ids.forEach(id => next.add(id))
+      }
       return next
     })
   }
@@ -236,16 +281,14 @@ function CreateModal({
       .filter(pr => selectedPrs.has(buildPrKey(pr)))
       .map(pr => ({
         repoFullName: pr.repoFullName,
-        prNumber:     pr.number,
-        prUrl:        pr.html_url,
-        prTitle:      pr.title,
+        prNumber: pr.number,
+        prUrl: pr.html_url,
+        prTitle: pr.title,
       }))
     onCreate({ name, linkedPrs: linked, linkedRequirementIds: Array.from(selectedReqs) })
   }
 
-  const canProceed = step === 'prs'
-    ? selectedPrs.size > 0
-    : true
+  const canProceed = step === 'prs' ? selectedPrs.size > 0 : true
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
@@ -255,7 +298,8 @@ function CreateModal({
           <div>
             <h2 className="font-semibold text-slate-900">New Impact Analysis</h2>
             <p className="text-xs text-slate-500 mt-0.5">
-              Step {step === 'prs' ? '1' : '2'} of 2 — {step === 'prs' ? 'Select PRs' : 'Link Requirements'}
+              Step {step === 'prs' ? '1' : '2'} of 2 —{' '}
+              {step === 'prs' ? 'Select PRs' : 'Link Requirements'}
             </p>
           </div>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-700">
@@ -282,20 +326,26 @@ function CreateModal({
               <div className="text-center py-12 text-sm text-slate-500">
                 <AlertTriangle size={32} className="mx-auto mb-3 text-amber-400" />
                 <p className="font-medium">No Codebase repos configured</p>
-                <p className="mt-1">Go to Project Settings and mark a GitHub repo as <span className="font-mono bg-slate-100 px-1 rounded">Codebase</span> to list PRs here.</p>
+                <p className="mt-1">
+                  Go to Project Settings and mark a GitHub repo as{' '}
+                  <span className="font-mono bg-slate-100 px-1 rounded">Codebase</span> to list PRs
+                  here.
+                </p>
               </div>
             ) : (
               <div className="space-y-2">
                 <p className="text-xs text-slate-500 mb-3">Select one or more PRs to analyse:</p>
                 {prList.map(pr => {
-                  const key     = buildPrKey(pr)
+                  const key = buildPrKey(pr)
                   const checked = selectedPrs.has(key)
                   return (
                     <label
                       key={key}
                       className={cn(
                         'flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors',
-                        checked ? 'border-blue-400 bg-blue-50' : 'border-slate-200 hover:border-slate-300',
+                        checked
+                          ? 'border-blue-400 bg-blue-50'
+                          : 'border-slate-200 hover:border-slate-300',
                       )}
                     >
                       <input
@@ -306,7 +356,9 @@ function CreateModal({
                       />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium text-slate-800 truncate">{pr.title}</span>
+                          <span className="text-sm font-medium text-slate-800 truncate">
+                            {pr.title}
+                          </span>
                           <a
                             href={pr.html_url}
                             target="_blank"
@@ -318,7 +370,8 @@ function CreateModal({
                           </a>
                         </div>
                         <p className="text-xs text-slate-500 mt-0.5">
-                          {pr.repoFullName} · PR #{pr.number} · {pr.user} · {pr.head_ref} → {pr.base_ref}
+                          {pr.repoFullName} · PR #{pr.number} · {pr.user} · {pr.head_ref} →{' '}
+                          {pr.base_ref}
                         </p>
                         {pr.body && (
                           <p className="text-xs text-slate-400 mt-1 line-clamp-2">{pr.body}</p>
@@ -329,62 +382,67 @@ function CreateModal({
                 })}
               </div>
             )
+          ) : reqsLoading ? (
+            <LoadingSpinner message="Loading requirements…" />
+          ) : reqList.length === 0 ? (
+            <p className="text-sm text-slate-500 text-center py-12">
+              No requirements found for this project.
+            </p>
           ) : (
-            reqsLoading ? (
-              <LoadingSpinner message="Loading requirements…" />
-            ) : reqList.length === 0 ? (
-              <p className="text-sm text-slate-500 text-center py-12">No requirements found for this project.</p>
-            ) : (
-              <>
-                <input
-                  value={reqSearch}
-                  onChange={e => setReqSearch(e.target.value)}
-                  placeholder="Search requirements…"
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
-                />
-                <div className="border border-slate-200 rounded-xl overflow-hidden">
-                  {filteredReqs ? (
-                    filteredReqs.length === 0 ? (
-                      <p className="px-4 py-6 text-sm text-slate-500 text-center">No matches.</p>
-                    ) : (
-                      filteredReqs.map(r => (
-                        <label key={r.id} className="flex items-center gap-2 px-3 py-2 hover:bg-slate-50 cursor-pointer">
-                          <input
-                            type="checkbox"
-                            checked={selectedReqs.has(r.id)}
-                            onChange={() => setSelectedReqs(prev => {
+            <>
+              <input
+                value={reqSearch}
+                onChange={e => setReqSearch(e.target.value)}
+                placeholder="Search requirements…"
+                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <div className="border border-slate-200 rounded-xl overflow-hidden">
+                {filteredReqs ? (
+                  filteredReqs.length === 0 ? (
+                    <p className="px-4 py-6 text-sm text-slate-500 text-center">No matches.</p>
+                  ) : (
+                    filteredReqs.map(r => (
+                      <label
+                        key={r.id}
+                        className="flex items-center gap-2 px-3 py-2 hover:bg-slate-50 cursor-pointer"
+                      >
+                        <input
+                          type="checkbox"
+                          checked={selectedReqs.has(r.id)}
+                          onChange={() =>
+                            setSelectedReqs(prev => {
                               const next = new Set(prev)
                               next.has(r.id) ? next.delete(r.id) : next.add(r.id)
                               return next
-                            })}
-                            className="rounded border-slate-300"
-                          />
-                          {r.externalId && (
-                            <span className="text-xs font-mono text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded shrink-0">
-                              {r.externalId}
-                            </span>
-                          )}
-                          <span className="text-sm text-slate-700 truncate flex-1">{r.title}</span>
-                          <span className="text-xs text-slate-400 shrink-0">{r.issueType}</span>
-                        </label>
-                      ))
-                    )
-                  ) : (
-                    reqTree.map(node => (
-                      <ReqTreeRow
-                        key={node.id}
-                        node={node}
-                        selected={selectedReqs}
-                        expanded={expandedReqs}
-                        onToggleSelect={toggleReqNode}
-                        onToggleExpand={toggleExpandReq}
-                        indent={0}
-                      />
+                            })
+                          }
+                          className="rounded border-slate-300"
+                        />
+                        {r.externalId && (
+                          <span className="text-xs font-mono text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded shrink-0">
+                            {r.externalId}
+                          </span>
+                        )}
+                        <span className="text-sm text-slate-700 truncate flex-1">{r.title}</span>
+                        <span className="text-xs text-slate-400 shrink-0">{r.issueType}</span>
+                      </label>
                     ))
-                  )}
-                </div>
-              </>
-            )
+                  )
+                ) : (
+                  reqTree.map(node => (
+                    <ReqTreeRow
+                      key={node.id}
+                      node={node}
+                      selected={selectedReqs}
+                      expanded={expandedReqs}
+                      onToggleSelect={toggleReqNode}
+                      onToggleExpand={toggleExpandReq}
+                      indent={0}
+                    />
+                  ))
+                )}
+              </div>
+            </>
           )}
         </div>
 
@@ -395,8 +453,7 @@ function CreateModal({
               ? `${selectedPrs.size} PR${selectedPrs.size !== 1 ? 's' : ''} selected`
               : selectedReqs.size > 0
                 ? `${selectedReqs.size} requirement${selectedReqs.size !== 1 ? 's' : ''} selected`
-                : 'No requirements selected (optional)'
-            }
+                : 'No requirements selected (optional)'}
           </div>
           <div className="flex gap-3">
             {step === 'reqs' && (
@@ -457,11 +514,12 @@ function SuggestionCard({
   })
 
   const applyMutation = useMutation({
-    mutationFn: (tcId: string) => api.applyImpactSuggestion(projectId, tcId, {
-      analysisId,
-      title: suggestion.title,
-      description: suggestion.details ?? undefined,
-    }),
+    mutationFn: (tcId: string) =>
+      api.applyImpactSuggestion(projectId, tcId, {
+        analysisId,
+        title: suggestion.title,
+        description: suggestion.details ?? undefined,
+      }),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ['testCases', projectId] })
       setApplying(false)
@@ -469,9 +527,10 @@ function SuggestionCard({
     },
   })
 
-  const filteredTcs = testCases.filter(tc =>
-    tc.title.toLowerCase().includes(tcSearch.toLowerCase()) ||
-    (tc.externalId ?? '').toLowerCase().includes(tcSearch.toLowerCase())
+  const filteredTcs = testCases.filter(
+    tc =>
+      tc.title.toLowerCase().includes(tcSearch.toLowerCase()) ||
+      (tc.externalId ?? '').toLowerCase().includes(tcSearch.toLowerCase()),
   )
 
   return (
@@ -482,15 +541,22 @@ function SuggestionCard({
           <span className="text-sm font-medium text-slate-800 truncate">{suggestion.title}</span>
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium', priorityColor(suggestion.priority))}>
+          <span
+            className={cn(
+              'text-xs px-2 py-0.5 rounded-full font-medium',
+              priorityColor(suggestion.priority),
+            )}
+          >
             {suggestion.priority}
           </span>
           <Badge
             label={suggestionLabel(suggestion.type)}
             colorClass={
-              suggestion.type === 'UPDATE_MANUAL_TEST'    ? 'text-blue-700 bg-blue-100'   :
-              suggestion.type === 'CREATE_AUTOMATED_TEST' ? 'text-green-700 bg-green-100' :
-              'text-purple-700 bg-purple-100'
+              suggestion.type === 'UPDATE_MANUAL_TEST'
+                ? 'text-blue-700 bg-blue-100'
+                : suggestion.type === 'CREATE_AUTOMATED_TEST'
+                  ? 'text-green-700 bg-green-100'
+                  : 'text-purple-700 bg-purple-100'
             }
           />
         </div>
@@ -528,14 +594,23 @@ function SuggestionCard({
               disabled={applyMutation.isPending}
               className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-50 disabled:opacity-50"
             >
-              {applyMutation.isPending ? <Loader2 size={11} className="animate-spin" /> : <ArrowRight size={11} />}
+              {applyMutation.isPending ? (
+                <Loader2 size={11} className="animate-spin" />
+              ) : (
+                <ArrowRight size={11} />
+              )}
               Apply to linked test case
             </button>
           ) : applying ? (
             <div className="border border-slate-200 rounded-lg overflow-hidden">
               <div className="flex items-center gap-1 px-2 py-1.5 border-b border-slate-100 bg-slate-50">
-                <span className="text-xs text-slate-600 font-medium flex-1">Select test case to update</span>
-                <button onClick={() => setApplying(false)} className="text-slate-400 hover:text-slate-600">
+                <span className="text-xs text-slate-600 font-medium flex-1">
+                  Select test case to update
+                </span>
+                <button
+                  onClick={() => setApplying(false)}
+                  className="text-slate-400 hover:text-slate-600"
+                >
                   <X size={12} />
                 </button>
               </div>
@@ -550,24 +625,35 @@ function SuggestionCard({
               </div>
               <div className="max-h-36 overflow-y-auto">
                 {tcLoading ? (
-                  <div className="flex justify-center py-3"><Loader2 size={14} className="animate-spin text-slate-400" /></div>
+                  <div className="flex justify-center py-3">
+                    <Loader2 size={14} className="animate-spin text-slate-400" />
+                  </div>
                 ) : filteredTcs.length === 0 ? (
                   <p className="text-xs text-slate-400 px-3 py-2">No test cases found</p>
-                ) : filteredTcs.slice(0, 10).map(tc => (
-                  <button
-                    key={tc.id}
-                    onClick={() => applyMutation.mutate(tc.id)}
-                    disabled={applyMutation.isPending}
-                    className="w-full text-left px-3 py-1.5 text-xs hover:bg-blue-50 flex items-center gap-2 disabled:opacity-50"
-                  >
-                    <span className={cn('shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium',
-                      tc.status === 'APPROVED' ? 'bg-green-100 text-green-700' :
-                      tc.status === 'DRAFT' ? 'bg-slate-100 text-slate-600' :
-                      'bg-yellow-100 text-yellow-700'
-                    )}>{tc.status}</span>
-                    <span className="text-slate-700 truncate">{tc.title}</span>
-                  </button>
-                ))}
+                ) : (
+                  filteredTcs.slice(0, 10).map(tc => (
+                    <button
+                      key={tc.id}
+                      onClick={() => applyMutation.mutate(tc.id)}
+                      disabled={applyMutation.isPending}
+                      className="w-full text-left px-3 py-1.5 text-xs hover:bg-blue-50 flex items-center gap-2 disabled:opacity-50"
+                    >
+                      <span
+                        className={cn(
+                          'shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium',
+                          tc.status === 'APPROVED'
+                            ? 'bg-green-100 text-green-700'
+                            : tc.status === 'DRAFT'
+                              ? 'bg-slate-100 text-slate-600'
+                              : 'bg-yellow-100 text-yellow-700',
+                        )}
+                      >
+                        {tc.status}
+                      </span>
+                      <span className="text-slate-700 truncate">{tc.title}</span>
+                    </button>
+                  ))
+                )}
               </div>
             </div>
           ) : (
@@ -605,8 +691,14 @@ function DetailPanel({
       <div className="px-5 py-4 border-b border-slate-100 flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2 mb-1">
-            <span className={cn('inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium', sc)}>
-              {si}{analysis.status}
+            <span
+              className={cn(
+                'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium',
+                sc,
+              )}
+            >
+              {si}
+              {analysis.status}
             </span>
           </div>
           <h3 className="font-semibold text-slate-900 text-sm">{analysis.name}</h3>
@@ -620,7 +712,9 @@ function DetailPanel({
       <div className="flex-1 overflow-y-auto p-5 space-y-5">
         {/* Linked PRs */}
         <div>
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Linked PRs</p>
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+            Linked PRs
+          </p>
           <div className="space-y-1">
             {analysis.linkedPrs.map((pr, i) => (
               <a
@@ -643,7 +737,9 @@ function DetailPanel({
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
             Linked Requirements ({analysis.linkedRequirementIds.length})
           </p>
-          <p className="text-xs text-slate-400">{analysis.linkedRequirementIds.length} requirement(s) linked</p>
+          <p className="text-xs text-slate-400">
+            {analysis.linkedRequirementIds.length} requirement(s) linked
+          </p>
         </div>
 
         {/* AI Analysis */}
@@ -666,7 +762,9 @@ function DetailPanel({
             {analysis.suggestions?.summary && (
               <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
                 <p className="text-xs font-semibold text-blue-700 mb-1">Summary</p>
-                <p className="text-sm text-blue-900 leading-relaxed">{analysis.suggestions.summary}</p>
+                <p className="text-sm text-blue-900 leading-relaxed">
+                  {analysis.suggestions.summary}
+                </p>
               </div>
             )}
 
@@ -679,7 +777,12 @@ function DetailPanel({
                 </p>
                 <div className="space-y-3">
                   {suggestions.map((s, i) => (
-                    <SuggestionCard key={i} suggestion={s} analysisId={analysis.id} projectId={projectId} />
+                    <SuggestionCard
+                      key={i}
+                      suggestion={s}
+                      analysisId={analysis.id}
+                      projectId={projectId}
+                    />
                   ))}
                 </div>
               </div>
@@ -696,24 +799,24 @@ function DetailPanel({
 export default function ImpactAnalysesPage() {
   const { projectId, base } = useProject()
   const { analysisId } = useParams<{ analysisId?: string }>()
-  const navigate      = useNavigate()
-  const queryClient   = useQueryClient()
+  const navigate = useNavigate()
+  const queryClient = useQueryClient()
   const [showCreate, setShowCreate] = useState(false)
   const [selectedId, setSelectedId] = useState<string | null>(analysisId ?? null)
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['impact-analyses', projectId],
-    queryFn:  () => api.impactAnalyses(projectId!),
-    enabled:  !!projectId,
-    refetchInterval: (query) => {
-      const list = Array.isArray(query.state.data) ? query.state.data as ImpactAnalysis[] : []
+    queryFn: () => api.impactAnalyses(projectId!),
+    enabled: !!projectId,
+    refetchInterval: query => {
+      const list = Array.isArray(query.state.data) ? (query.state.data as ImpactAnalysis[]) : []
       return list.some(a => a.status === 'RUNNING') ? 5000 : false
     },
   })
 
   const createMutation = useMutation({
     mutationFn: (form: CreateImpactAnalysisForm) => api.createImpactAnalysis(projectId!, form),
-    onSuccess: (created) => {
+    onSuccess: created => {
       queryClient.invalidateQueries({ queryKey: ['impact-analyses', projectId] })
       setShowCreate(false)
       setSelectedId(created.id)
@@ -724,18 +827,21 @@ export default function ImpactAnalysesPage() {
   const selected = analyses.find(a => a.id === selectedId) ?? null
 
   const completed = analyses.filter(a => a.status === 'COMPLETED').length
-  const running   = analyses.filter(a => a.status === 'RUNNING').length
-  const failed    = analyses.filter(a => a.status === 'FAILED').length
+  const running = analyses.filter(a => a.status === 'RUNNING').length
+  const failed = analyses.filter(a => a.status === 'FAILED').length
 
   if (isLoading) return <LoadingSpinner message="Loading impact analyses…" />
-  if (error)     return <ErrorMessage  message="Failed to load impact analyses." onRetry={() => void refetch()} />
+  if (error)
+    return <ErrorMessage message="Failed to load impact analyses." onRetry={() => void refetch()} />
 
   return (
     <div className="space-y-6">
       {/* Breadcrumb + header */}
       <div>
         <div className="flex items-center gap-2 text-sm text-slate-500 mb-1">
-          <button onClick={() => navigate('/')} className="hover:text-blue-600">Overview</button>
+          <button onClick={() => navigate('/')} className="hover:text-blue-600">
+            Overview
+          </button>
           <ChevronRight size={14} />
           <button onClick={() => navigate(base)} className="hover:text-blue-600">
             {projectId}
@@ -766,7 +872,8 @@ export default function ImpactAnalysesPage() {
           </div>
         </div>
         <p className="text-sm text-slate-500 mt-1">
-          Link pull requests from Codebase repos with requirements to get AI-powered test coverage suggestions.
+          Link pull requests from Codebase repos with requirements to get AI-powered test coverage
+          suggestions.
         </p>
       </div>
 
@@ -775,10 +882,13 @@ export default function ImpactAnalysesPage() {
         <div className="grid grid-cols-3 gap-4">
           {[
             { label: 'Completed', value: completed, color: 'text-green-600' },
-            { label: 'Running',   value: running,   color: 'text-blue-600' },
-            { label: 'Failed',    value: failed,    color: 'text-red-600' },
+            { label: 'Running', value: running, color: 'text-blue-600' },
+            { label: 'Failed', value: failed, color: 'text-red-600' },
           ].map(s => (
-            <div key={s.label} className="bg-white rounded-xl border border-slate-200 shadow-sm px-5 py-4">
+            <div
+              key={s.label}
+              className="bg-white rounded-xl border border-slate-200 shadow-sm px-5 py-4"
+            >
               <p className="text-xs text-slate-500">{s.label}</p>
               <p className={cn('text-2xl font-bold', s.color)}>{s.value}</p>
             </div>
@@ -798,7 +908,9 @@ export default function ImpactAnalysesPage() {
             <div className="px-5 py-16 text-center">
               <GitPullRequest size={32} className="mx-auto mb-3 text-slate-300" />
               <p className="text-sm font-medium text-slate-500">No impact analyses yet</p>
-              <p className="text-xs text-slate-400 mt-1">Create one by linking PRs from Codebase repos with requirements.</p>
+              <p className="text-xs text-slate-400 mt-1">
+                Create one by linking PRs from Codebase repos with requirements.
+              </p>
               <button
                 onClick={() => setShowCreate(true)}
                 className="mt-4 flex items-center gap-2 px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 mx-auto"
@@ -824,21 +936,37 @@ export default function ImpactAnalysesPage() {
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2 mb-1">
-                          <span className={cn('inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium', sc)}>
-                            {si}{a.status}
+                          <span
+                            className={cn(
+                              'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium',
+                              sc,
+                            )}
+                          >
+                            {si}
+                            {a.status}
                           </span>
                           {a.suggestions && (
                             <span className="text-xs text-slate-400">
-                              {a.suggestions.suggestions?.length ?? 0} suggestion{(a.suggestions.suggestions?.length ?? 0) !== 1 ? 's' : ''}
+                              {a.suggestions.suggestions?.length ?? 0} suggestion
+                              {(a.suggestions.suggestions?.length ?? 0) !== 1 ? 's' : ''}
                             </span>
                           )}
                         </div>
                         <p className="text-sm font-medium text-slate-800 truncate">{a.name}</p>
                         <p className="text-xs text-slate-500 mt-0.5">
-                          {a.linkedPrs.length} PR{a.linkedPrs.length !== 1 ? 's' : ''} · {a.linkedRequirementIds.length} req{a.linkedRequirementIds.length !== 1 ? 's' : ''} · {relativeTime(a.createdAt)}
+                          {a.linkedPrs.length} PR{a.linkedPrs.length !== 1 ? 's' : ''} ·{' '}
+                          {a.linkedRequirementIds.length} req
+                          {a.linkedRequirementIds.length !== 1 ? 's' : ''} ·{' '}
+                          {relativeTime(a.createdAt)}
                         </p>
                       </div>
-                      <ChevronRight size={14} className={cn('mt-1 shrink-0 transition-transform', isSelected && 'rotate-90')} />
+                      <ChevronRight
+                        size={14}
+                        className={cn(
+                          'mt-1 shrink-0 transition-transform',
+                          isSelected && 'rotate-90',
+                        )}
+                      />
                     </div>
 
                     {a.suggestions?.summary && (

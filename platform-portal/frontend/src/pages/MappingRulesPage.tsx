@@ -28,9 +28,11 @@ export default function MappingRulesPage() {
         <OrganizationSelect value={orgId} onChange={setOrgId} />
       </div>
 
-      {orgId
-        ? <MappingRulesEditor scope="ORG" id={orgId} />
-        : <p className="text-sm text-slate-400">Select an organization to edit its mapping rules.</p>}
+      {orgId ? (
+        <MappingRulesEditor scope="ORG" id={orgId} />
+      ) : (
+        <p className="text-sm text-slate-400">Select an organization to edit its mapping rules.</p>
+      )}
     </div>
   )
 }

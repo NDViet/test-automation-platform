@@ -6,11 +6,11 @@ import java.lang.annotation.RetentionPolicy;
 import java.lang.annotation.Target;
 
 /**
- * Marks a method for automatic audit logging.
- * Applied to service or controller methods that perform security-sensitive actions.
+ * Marks a method for automatic audit logging. Applied to service or controller methods that perform
+ * security-sensitive actions.
  *
- * <p>The {@link AuditAspect} intercepts calls and persists an {@code AuditEvent}
- * with the outcome (SUCCESS or FAILURE) after the method returns.</p>
+ * <p>The {@link AuditAspect} intercepts calls and persists an {@code AuditEvent} with the outcome
+ * (SUCCESS or FAILURE) after the method returns.
  *
  * <pre>{@code
  * @AuditLog(eventType = "INGEST", resourceType = "TEST_RUN")
@@ -21,9 +21,9 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 public @interface AuditLog {
 
-    /** Audit event type — e.g. "INGEST", "API_KEY_CREATED". */
-    String eventType();
+  /** Audit event type — e.g. "INGEST", "API_KEY_CREATED". */
+  String eventType();
 
-    /** The type of resource being acted on — e.g. "TEST_RUN", "API_KEY". */
-    String resourceType() default "";
+  /** The type of resource being acted on — e.g. "TEST_RUN", "API_KEY". */
+  String resourceType() default "";
 }

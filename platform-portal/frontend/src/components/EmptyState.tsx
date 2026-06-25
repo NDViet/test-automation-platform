@@ -31,9 +31,7 @@ export default function EmptyState({
         <Icon size={22} className="text-slate-400" aria-hidden="true" />
       </div>
       <h3 className="mt-4 text-sm font-semibold text-slate-800">{title}</h3>
-      {description && (
-        <p className="mt-1 max-w-sm text-sm text-slate-500">{description}</p>
-      )}
+      {description && <p className="mt-1 max-w-sm text-sm text-slate-500">{description}</p>}
       {action && <div className="mt-5">{action}</div>}
     </div>
   )

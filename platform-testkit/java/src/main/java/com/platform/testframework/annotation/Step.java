@@ -8,24 +8,26 @@ import java.lang.annotation.Target;
 /**
  * Marks a method as a named test step.
  *
- * <p>When a method annotated with {@code @Step} is called during a test, the platform
- * testkit automatically opens a step in the current test context, marks it PASSED on
- * success or FAILED/BROKEN on exception, and closes it when the method returns.</p>
+ * <p>When a method annotated with {@code @Step} is called during a test, the platform testkit
+ * automatically opens a step in the current test context, marks it PASSED on success or
+ * FAILED/BROKEN on exception, and closes it when the method returns.
  *
- * <p>If {@code allure-java-commons} is on the classpath, the same step is also written
- * to the Allure lifecycle — producing a local HTML report with no extra code.</p>
+ * <p>If {@code allure-java-commons} is on the classpath, the same step is also written to the
+ * Allure lifecycle — producing a local HTML report with no extra code.
  *
  * <h3>Step name resolution</h3>
+ *
  * <ul>
- *   <li>Empty {@link #value()} → name derived from the method name by splitting on
- *       camelCase boundaries: {@code fillShippingAddress} → {@code "Fill Shipping Address"}</li>
- *   <li>Non-empty {@link #value()} is used as-is, with optional {@code {paramName}}
- *       placeholders replaced by the actual argument values at runtime.</li>
+ *   <li>Empty {@link #value()} → name derived from the method name by splitting on camelCase
+ *       boundaries: {@code fillShippingAddress} → {@code "Fill Shipping Address"}
+ *   <li>Non-empty {@link #value()} is used as-is, with optional {@code {paramName}} placeholders
+ *       replaced by the actual argument values at runtime.
  * </ul>
  *
  * <h3>Nesting</h3>
- * <p>A {@code @Step} method calling another {@code @Step} method produces a parent-child
- * step hierarchy automatically — no extra configuration needed.</p>
+ *
+ * <p>A {@code @Step} method calling another {@code @Step} method produces a parent-child step
+ * hierarchy automatically — no extra configuration needed.
  *
  * <pre>{@code
  * // Name derived from method: "Fill Shipping Address"
@@ -45,8 +47,10 @@ import java.lang.annotation.Target;
  * }</pre>
  *
  * <h3>AOP requirement</h3>
- * <p>{@code @Step} interception requires AspectJ load-time weaving. Add
- * {@code aspectjweaver} as a JVM agent in your test runner:</p>
+ *
+ * <p>{@code @Step} interception requires AspectJ load-time weaving. Add {@code aspectjweaver} as a
+ * JVM agent in your test runner:
+ *
  * <pre>{@code
  * <!-- Maven Surefire — resolves path via maven-dependency-plugin:properties -->
  * <argLine>-javaagent:${org.aspectj:aspectjweaver:jar}</argLine>
@@ -56,9 +60,9 @@ import java.lang.annotation.Target;
 @Retention(RetentionPolicy.RUNTIME)
 public @interface Step {
 
-    /**
-     * Step description. Supports {@code {paramName}} interpolation.
-     * Leave empty to derive the name from the method name.
-     */
-    String value() default "";
+  /**
+   * Step description. Supports {@code {paramName}} interpolation. Leave empty to derive the name
+   * from the method name.
+   */
+  String value() default "";
 }

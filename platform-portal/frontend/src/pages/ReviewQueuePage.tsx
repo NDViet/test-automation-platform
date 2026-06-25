@@ -8,9 +8,21 @@ import type { WorkItem, WorkItemType } from '@/lib/types'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import ErrorMessage from '@/components/ErrorMessage'
 import {
-  Inbox, ChevronRight, RefreshCw, ExternalLink, CheckCircle,
-  XCircle, Loader2, GitPullRequest, FileText, Sparkles,
-  AlertCircle, ArrowRight, Clock, X, User,
+  Inbox,
+  ChevronRight,
+  RefreshCw,
+  ExternalLink,
+  CheckCircle,
+  XCircle,
+  Loader2,
+  GitPullRequest,
+  FileText,
+  Sparkles,
+  AlertCircle,
+  ArrowRight,
+  Clock,
+  X,
+  User,
 } from 'lucide-react'
 
 // ── Type metadata ─────────────────────────────────────────────────────────────
@@ -49,24 +61,24 @@ function typeMeta(t: WorkItemType): { label: string; color: string; icon: React.
 
 function statusIcon(status: string, itemType: WorkItemType): React.ReactNode {
   if (itemType === 'WORKFLOW') {
-    if (status === 'RUNNING')          return <Loader2 size={13} className="animate-spin text-blue-500" />
-    if (status === 'AWAITING_REVIEW')  return <AlertCircle size={13} className="text-amber-500" />
-    if (status === 'PENDING')          return <Clock size={13} className="text-slate-400" />
+    if (status === 'RUNNING') return <Loader2 size={13} className="animate-spin text-blue-500" />
+    if (status === 'AWAITING_REVIEW') return <AlertCircle size={13} className="text-amber-500" />
+    if (status === 'PENDING') return <Clock size={13} className="text-slate-400" />
   }
-  if (status === 'PENDING')    return <Clock size={13} className="text-amber-500" />
-  if (status === 'COMPLETED')  return <CheckCircle size={13} className="text-green-500" />
+  if (status === 'PENDING') return <Clock size={13} className="text-amber-500" />
+  if (status === 'COMPLETED') return <CheckCircle size={13} className="text-green-500" />
   return null
 }
 
 // ── Filter tabs ───────────────────────────────────────────────────────────────
 
 const FILTERS: { label: string; value: WorkItemType | 'ALL' }[] = [
-  { label: 'All',              value: 'ALL' },
-  { label: 'Awaiting Review',  value: 'TEST_CASE_REVIEW' },
-  { label: 'Agent Requests',   value: 'AGENT_REVIEW' },
-  { label: 'PRs to Merge',     value: 'AUTOMATION_PR' },
-  { label: 'Impact Analyses',  value: 'IMPACT_ANALYSIS' },
-  { label: 'In Progress',      value: 'WORKFLOW' },
+  { label: 'All', value: 'ALL' },
+  { label: 'Awaiting Review', value: 'TEST_CASE_REVIEW' },
+  { label: 'Agent Requests', value: 'AGENT_REVIEW' },
+  { label: 'PRs to Merge', value: 'AUTOMATION_PR' },
+  { label: 'Impact Analyses', value: 'IMPACT_ANALYSIS' },
+  { label: 'In Progress', value: 'WORKFLOW' },
 ]
 
 // ── Approve/Reject modal ──────────────────────────────────────────────────────
@@ -86,9 +98,18 @@ function DecideModal({
   const queryClient = useQueryClient()
 
   const mutation = useMutation({
-    mutationFn: () => action === 'approve'
-      ? api.approveReviewRequest(projectId, item.metadata.reviewRequestId as string, decidedBy || 'portal-user')
-      : api.rejectReviewRequest(projectId, item.metadata.reviewRequestId as string, decidedBy || 'portal-user'),
+    mutationFn: () =>
+      action === 'approve'
+        ? api.approveReviewRequest(
+            projectId,
+            item.metadata.reviewRequestId as string,
+            decidedBy || 'portal-user',
+          )
+        : api.rejectReviewRequest(
+            projectId,
+            item.metadata.reviewRequestId as string,
+            decidedBy || 'portal-user',
+          ),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['work-items', projectId] })
       onClose()
@@ -109,7 +130,9 @@ function DecideModal({
         <div className="px-6 py-5 space-y-4">
           <p className="text-sm text-slate-600 leading-relaxed">{item.title}</p>
           <div>
-            <label className="text-xs font-medium text-slate-500 block mb-1">Your name (optional)</label>
+            <label className="text-xs font-medium text-slate-500 block mb-1">
+              Your name (optional)
+            </label>
             <div className="flex items-center gap-2 border border-slate-200 rounded-lg px-3 py-2">
               <User size={14} className="text-slate-400" />
               <input
@@ -125,7 +148,10 @@ function DecideModal({
           )}
         </div>
         <div className="px-6 py-4 border-t border-slate-100 flex gap-3 justify-end">
-          <button onClick={onClose} className="px-4 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50"
+          >
             Cancel
           </button>
           <button
@@ -133,7 +159,9 @@ function DecideModal({
             disabled={mutation.isPending}
             className={cn(
               'flex items-center gap-2 px-4 py-2 text-sm text-white rounded-lg disabled:opacity-50',
-              action === 'approve' ? 'bg-green-600 hover:bg-green-700' : 'bg-red-600 hover:bg-red-700',
+              action === 'approve'
+                ? 'bg-green-600 hover:bg-green-700'
+                : 'bg-red-600 hover:bg-red-700',
             )}
           >
             {mutation.isPending && <Loader2 size={13} className="animate-spin" />}
@@ -147,13 +175,7 @@ function DecideModal({
 
 // ── Test case approve/reject ──────────────────────────────────────────────────
 
-function TestCaseActions({
-  item,
-  projectId,
-}: {
-  item: WorkItem
-  projectId: string
-}) {
+function TestCaseActions({ item, projectId }: { item: WorkItem; projectId: string }) {
   const queryClient = useQueryClient()
   const tcId = item.metadata.testCaseId as string
 
@@ -175,7 +197,11 @@ function TestCaseActions({
         disabled={busy}
         className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-700 border border-red-200 rounded-lg hover:bg-red-50 disabled:opacity-50"
       >
-        {rejectMutation.isPending ? <Loader2 size={11} className="animate-spin" /> : <XCircle size={11} />}
+        {rejectMutation.isPending ? (
+          <Loader2 size={11} className="animate-spin" />
+        ) : (
+          <XCircle size={11} />
+        )}
         Reject
       </button>
       <button
@@ -183,7 +209,11 @@ function TestCaseActions({
         disabled={busy}
         className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-green-700 border border-green-200 rounded-lg hover:bg-green-50 disabled:opacity-50"
       >
-        {approveMutation.isPending ? <Loader2 size={11} className="animate-spin" /> : <CheckCircle size={11} />}
+        {approveMutation.isPending ? (
+          <Loader2 size={11} className="animate-spin" />
+        ) : (
+          <CheckCircle size={11} />
+        )}
         Approve
       </button>
     </div>
@@ -303,7 +333,11 @@ function WorkItemCard({
 
         {item.itemType === 'WORKFLOW' && (
           <span className="text-xs text-slate-400 italic">
-            {item.status === 'RUNNING' ? 'AI is working…' : item.status === 'AWAITING_REVIEW' ? 'Awaiting decision' : 'Queued'}
+            {item.status === 'RUNNING'
+              ? 'AI is working…'
+              : item.status === 'AWAITING_REVIEW'
+                ? 'Awaiting decision'
+                : 'Queued'}
           </span>
         )}
       </div>
@@ -325,17 +359,23 @@ function WorkItemCard({
 
 export default function ReviewQueuePage() {
   const { projectId, base, project } = useProject()
-  const navigate      = useNavigate()
-  const [filter, setFilter]   = useState<WorkItemType | 'ALL'>('ALL')
-  const [decide, setDecide]   = useState<{ item: WorkItem; action: 'approve' | 'reject' } | null>(null)
+  const navigate = useNavigate()
+  const [filter, setFilter] = useState<WorkItemType | 'ALL'>('ALL')
+  const [decide, setDecide] = useState<{ item: WorkItem; action: 'approve' | 'reject' } | null>(
+    null,
+  )
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['work-items', projectId],
-    queryFn:  () => api.workItems(projectId!),
-    enabled:  !!projectId,
-    refetchInterval: (query) => {
-      const list = Array.isArray(query.state.data) ? query.state.data as WorkItem[] : []
-      return list.some(i => i.itemType === 'WORKFLOW' && (i.status === 'RUNNING' || i.status === 'PENDING')) ? 8000 : 30000
+    queryFn: () => api.workItems(projectId!),
+    enabled: !!projectId,
+    refetchInterval: query => {
+      const list = Array.isArray(query.state.data) ? (query.state.data as WorkItem[]) : []
+      return list.some(
+        i => i.itemType === 'WORKFLOW' && (i.status === 'RUNNING' || i.status === 'PENDING'),
+      )
+        ? 8000
+        : 30000
     },
   })
 
@@ -344,21 +384,28 @@ export default function ReviewQueuePage() {
   const filtered = filter === 'ALL' ? items : items.filter(i => i.itemType === filter)
 
   const counts: Partial<Record<WorkItemType | 'ALL', number>> = { ALL: items.length }
-  items.forEach(i => { counts[i.itemType] = (counts[i.itemType] ?? 0) + 1 })
+  items.forEach(i => {
+    counts[i.itemType] = (counts[i.itemType] ?? 0) + 1
+  })
 
   const pendingCount = items.filter(i => i.status === 'PENDING').length
 
   if (isLoading) return <LoadingSpinner message="Loading review queue…" />
-  if (error)     return <ErrorMessage  message="Failed to load work items." onRetry={() => void refetch()} />
+  if (error)
+    return <ErrorMessage message="Failed to load work items." onRetry={() => void refetch()} />
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <div>
         <div className="flex items-center gap-2 text-sm text-slate-500 mb-1">
-          <button onClick={() => navigate('/')} className="hover:text-blue-600">Overview</button>
+          <button onClick={() => navigate('/')} className="hover:text-blue-600">
+            Overview
+          </button>
           <ChevronRight size={14} />
-          <button onClick={() => navigate(base)} className="hover:text-blue-600">{project.name}</button>
+          <button onClick={() => navigate(base)} className="hover:text-blue-600">
+            {project.name}
+          </button>
           <ChevronRight size={14} />
           <span className="text-slate-700">Review Queue</span>
         </div>
@@ -381,7 +428,8 @@ export default function ReviewQueuePage() {
           </button>
         </div>
         <p className="text-sm text-slate-500 mt-1">
-          Everything that needs your attention — test case approvals, PRs to review, agent decisions, and more.
+          Everything that needs your attention — test case approvals, PRs to review, agent
+          decisions, and more.
         </p>
       </div>
 
@@ -400,10 +448,12 @@ export default function ReviewQueuePage() {
           >
             {f.label}
             {counts[f.value] !== undefined && counts[f.value]! > 0 && (
-              <span className={cn(
-                'text-xs px-1.5 py-0.5 rounded-full font-medium',
-                filter === f.value ? 'bg-blue-500 text-white' : 'bg-slate-100 text-slate-600',
-              )}>
+              <span
+                className={cn(
+                  'text-xs px-1.5 py-0.5 rounded-full font-medium',
+                  filter === f.value ? 'bg-blue-500 text-white' : 'bg-slate-100 text-slate-600',
+                )}
+              >
                 {counts[f.value]}
               </span>
             )}
@@ -416,7 +466,9 @@ export default function ReviewQueuePage() {
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm px-5 py-20 text-center">
           <Inbox size={36} className="mx-auto mb-3 text-slate-300" />
           <p className="text-sm font-medium text-slate-500">
-            {filter === 'ALL' ? 'No work items right now' : `No items in "${FILTERS.find(f => f.value === filter)?.label}"`}
+            {filter === 'ALL'
+              ? 'No work items right now'
+              : `No items in "${FILTERS.find(f => f.value === filter)?.label}"`}
           </p>
           <p className="text-xs text-slate-400 mt-1">
             {filter === 'ALL'

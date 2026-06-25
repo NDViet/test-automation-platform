@@ -1,65 +1,87 @@
 package com.platform.core.domain;
 
 import jakarta.persistence.*;
-import org.springframework.data.annotation.CreatedDate;
-import org.springframework.data.jpa.domain.support.AuditingEntityListener;
-
 import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
+import org.springframework.data.annotation.CreatedDate;
+import org.springframework.data.jpa.domain.support.AuditingEntityListener;
 
 @Entity
-@Table(name = "projects",
-       uniqueConstraints = @UniqueConstraint(columnNames = {"org_id", "slug"}))
+@Table(name = "projects", uniqueConstraints = @UniqueConstraint(columnNames = {"org_id", "slug"}))
 @EntityListeners(AuditingEntityListener.class)
 public class Project {
 
-    @Id
-    @GeneratedValue(strategy = GenerationType.UUID)
-    private UUID id;
+  @Id
+  @GeneratedValue(strategy = GenerationType.UUID)
+  private UUID id;
 
-    @ManyToOne(fetch = FetchType.LAZY, optional = false)
-    @JoinColumn(name = "org_id", nullable = false)
-    private Organization organization;
+  @ManyToOne(fetch = FetchType.LAZY, optional = false)
+  @JoinColumn(name = "org_id", nullable = false)
+  private Organization organization;
 
-    @Column(name = "name", nullable = false, length = 100)
-    private String name;
+  @Column(name = "name", nullable = false, length = 100)
+  private String name;
 
-    @Column(name = "slug", nullable = false, length = 50)
-    private String slug;
+  @Column(name = "slug", nullable = false, length = 50)
+  private String slug;
 
-    @Column(name = "repo_url", length = 500)
-    private String repoUrl;
+  @Column(name = "repo_url", length = 500)
+  private String repoUrl;
 
-    @CreatedDate
-    @Column(name = "created_at", nullable = false, updatable = false)
-    private Instant createdAt;
+  @CreatedDate
+  @Column(name = "created_at", nullable = false, updatable = false)
+  private Instant createdAt;
 
-    protected Project() {}
+  protected Project() {}
 
-    public Project(Organization organization, String name, String slug) {
-        this.organization = organization;
-        this.name = name;
-        this.slug = slug;
-    }
+  public Project(Organization organization, String name, String slug) {
+    this.organization = organization;
+    this.name = name;
+    this.slug = slug;
+  }
 
-    public UUID getId() { return id; }
-    public Organization getOrganization() { return organization; }
-    public String getName() { return name; }
-    public String getSlug() { return slug; }
-    public String getRepoUrl() { return repoUrl; }
-    public Instant getCreatedAt() { return createdAt; }
+  public UUID getId() {
+    return id;
+  }
 
-    public void setName(String name) { this.name = name; }
-    public void setRepoUrl(String repoUrl) { this.repoUrl = repoUrl; }
+  public Organization getOrganization() {
+    return organization;
+  }
 
-    @Override
-    public boolean equals(Object o) {
-        if (this == o) return true;
-        if (!(o instanceof Project p)) return false;
-        return Objects.equals(id, p.id);
-    }
+  public String getName() {
+    return name;
+  }
 
-    @Override
-    public int hashCode() { return Objects.hashCode(id); }
+  public String getSlug() {
+    return slug;
+  }
+
+  public String getRepoUrl() {
+    return repoUrl;
+  }
+
+  public Instant getCreatedAt() {
+    return createdAt;
+  }
+
+  public void setName(String name) {
+    this.name = name;
+  }
+
+  public void setRepoUrl(String repoUrl) {
+    this.repoUrl = repoUrl;
+  }
+
+  @Override
+  public boolean equals(Object o) {
+    if (this == o) return true;
+    if (!(o instanceof Project p)) return false;
+    return Objects.equals(id, p.id);
+  }
+
+  @Override
+  public int hashCode() {
+    return Objects.hashCode(id);
+  }
 }

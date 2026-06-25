@@ -4,57 +4,103 @@ import { useProject, useProjectFilter } from '@/components/layout/ProjectLayout'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { cn, relativeTime } from '@/lib/utils'
-import type { ManagedTestCase, TestSuite, CreateTestCaseForm, Requirement, IntegrationConfig, CaseProperty } from '@/lib/types'
+import type {
+  ManagedTestCase,
+  TestSuite,
+  CreateTestCaseForm,
+  Requirement,
+  IntegrationConfig,
+  CaseProperty,
+} from '@/lib/types'
 import Badge from '@/components/Badge'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import ErrorMessage from '@/components/ErrorMessage'
 import Markdown from '@/components/Markdown'
 import MarkdownEditor from '@/components/MarkdownEditor'
 import {
-  Plus, Sparkles, Bot, ExternalLink, ChevronRight, ChevronDown, X,
-  Layers, Loader2, Search, GitBranch, AlertTriangle, Link2, Pencil, Star,
-  Upload, Download, FileSpreadsheet, ArrowUpRight,
+  Plus,
+  Sparkles,
+  Bot,
+  ExternalLink,
+  ChevronRight,
+  ChevronDown,
+  X,
+  Layers,
+  Loader2,
+  Search,
+  GitBranch,
+  AlertTriangle,
+  Link2,
+  Pencil,
+  Star,
+  Upload,
+  Download,
+  FileSpreadsheet,
+  ArrowUpRight,
 } from 'lucide-react'
-import { ExcelImportModal, downloadTemplate, exportTestCases } from '@/components/TestCaseExcelModal'
+import {
+  ExcelImportModal,
+  downloadTemplate,
+  exportTestCases,
+} from '@/components/TestCaseExcelModal'
 
 // ── Color helpers ──────────────────────────────────────────────────────────────
 
 function statusColor(status: string): string {
   switch (status) {
-    case 'DRAFT':        return 'text-slate-600 bg-slate-100'
-    case 'UNDER_REVIEW': return 'text-yellow-700 bg-yellow-100'
-    case 'APPROVED':     return 'text-green-700 bg-green-100'
-    case 'DEPRECATED':   return 'text-red-700 bg-red-100'
-    default:             return 'text-slate-600 bg-slate-100'
+    case 'DRAFT':
+      return 'text-slate-600 bg-slate-100'
+    case 'UNDER_REVIEW':
+      return 'text-yellow-700 bg-yellow-100'
+    case 'APPROVED':
+      return 'text-green-700 bg-green-100'
+    case 'DEPRECATED':
+      return 'text-red-700 bg-red-100'
+    default:
+      return 'text-slate-600 bg-slate-100'
   }
 }
 
 function priorityColor(priority: string): string {
   switch (priority) {
-    case 'CRITICAL': return 'text-red-700 bg-red-100'
-    case 'HIGH':     return 'text-orange-700 bg-orange-100'
-    case 'MEDIUM':   return 'text-yellow-700 bg-yellow-100'
-    case 'LOW':      return 'text-slate-600 bg-slate-100'
-    default:         return 'text-slate-600 bg-slate-100'
+    case 'CRITICAL':
+      return 'text-red-700 bg-red-100'
+    case 'HIGH':
+      return 'text-orange-700 bg-orange-100'
+    case 'MEDIUM':
+      return 'text-yellow-700 bg-yellow-100'
+    case 'LOW':
+      return 'text-slate-600 bg-slate-100'
+    default:
+      return 'text-slate-600 bg-slate-100'
   }
 }
 
 function automationColor(automationStatus: string): string {
   switch (automationStatus) {
-    case 'GENERATING':  return 'text-blue-700 bg-blue-100'
-    case 'PR_CREATED':  return 'text-purple-700 bg-purple-100'
-    case 'PR_MERGED':   return 'text-green-700 bg-green-100'
-    case 'FAILED':      return 'text-red-700 bg-red-100'
-    default:            return 'text-slate-500 bg-slate-100'
+    case 'GENERATING':
+      return 'text-blue-700 bg-blue-100'
+    case 'PR_CREATED':
+      return 'text-purple-700 bg-purple-100'
+    case 'PR_MERGED':
+      return 'text-green-700 bg-green-100'
+    case 'FAILED':
+      return 'text-red-700 bg-red-100'
+    default:
+      return 'text-slate-500 bg-slate-100'
   }
 }
 
 function coverageColor(status: string): string {
   switch (status) {
-    case 'COVERED':     return 'text-green-700 bg-green-100'
-    case 'PARTIAL':     return 'text-yellow-700 bg-yellow-100'
-    case 'NOT_COVERED': return 'text-red-700 bg-red-100'
-    default:            return 'text-slate-500 bg-slate-100'
+    case 'COVERED':
+      return 'text-green-700 bg-green-100'
+    case 'PARTIAL':
+      return 'text-yellow-700 bg-yellow-100'
+    case 'NOT_COVERED':
+      return 'text-red-700 bg-red-100'
+    default:
+      return 'text-slate-500 bg-slate-100'
   }
 }
 
@@ -66,12 +112,15 @@ interface StepRow {
   notes: string
 }
 
-function StepEditor({ steps, onChange }: {
+function StepEditor({
+  steps,
+  onChange,
+}: {
   steps: StepRow[]
   onChange: (steps: StepRow[]) => void
 }) {
   function updateStep(i: number, field: keyof StepRow, value: string) {
-    const next = steps.map((s, idx) => idx === i ? { ...s, [field]: value } : s)
+    const next = steps.map((s, idx) => (idx === i ? { ...s, [field]: value } : s))
     onChange(next)
   }
   function addStep() {
@@ -84,8 +133,13 @@ function StepEditor({ steps, onChange }: {
   return (
     <div className="space-y-2">
       {steps.map((step, i) => (
-        <div key={i} className="flex gap-2 items-start rounded-lg border border-slate-100 bg-slate-50/50 p-2">
-          <span className="text-xs text-slate-400 font-mono mt-2 w-5 shrink-0 text-right">{i + 1}.</span>
+        <div
+          key={i}
+          className="flex gap-2 items-start rounded-lg border border-slate-100 bg-slate-50/50 p-2"
+        >
+          <span className="text-xs text-slate-400 font-mono mt-2 w-5 shrink-0 text-right">
+            {i + 1}.
+          </span>
           <div className="flex-1 space-y-1">
             <input
               type="text"
@@ -132,7 +186,15 @@ function StepEditor({ steps, onChange }: {
 
 // ── New Test Case Modal ────────────────────────────────────────────────────────
 
-function FormSection({ title, hint, children }: { title: string; hint?: string; children: React.ReactNode }) {
+function FormSection({
+  title,
+  hint,
+  children,
+}: {
+  title: string
+  hint?: string
+  children: React.ReactNode
+}) {
   return (
     <div>
       <div className="mb-2">
@@ -147,7 +209,11 @@ function FormSection({ title, hint, children }: { title: string; hint?: string; 
 // ── Requirement multi-select (optional, many; one can be ★ primary/source) ─────
 
 function RequirementMultiSelect({
-  requirements, value, onChange, primaryId, onPrimaryChange,
+  requirements,
+  value,
+  onChange,
+  primaryId,
+  onPrimaryChange,
 }: {
   requirements: Requirement[]
   value: string[]
@@ -159,38 +225,55 @@ function RequirementMultiSelect({
   const [search, setSearch] = useState('')
   const byId = new Map(requirements.map(r => [r.id, r]))
   const selected = new Set(value)
-  const filtered = requirements.filter(r =>
-    !selected.has(r.id) && (
-      r.title.toLowerCase().includes(search.toLowerCase()) ||
-      (r.externalId ?? '').toLowerCase().includes(search.toLowerCase())
-    ),
+  const filtered = requirements.filter(
+    r =>
+      !selected.has(r.id) &&
+      (r.title.toLowerCase().includes(search.toLowerCase()) ||
+        (r.externalId ?? '').toLowerCase().includes(search.toLowerCase())),
   )
-  function add(id: string) { if (!selected.has(id)) onChange([...value, id]) }
+  function add(id: string) {
+    if (!selected.has(id)) onChange([...value, id])
+  }
   function remove(id: string) {
     onChange(value.filter(v => v !== id))
-    if (primaryId === id) onPrimaryChange('')   // removing the primary clears it
+    if (primaryId === id) onPrimaryChange('') // removing the primary clears it
   }
   // Primary first, then the rest.
   const ordered = [...value].sort((a, b) => (a === primaryId ? -1 : b === primaryId ? 1 : 0))
   return (
     <div>
       <div className="flex flex-wrap gap-1 mb-1.5">
-        {value.length === 0 && <span className="text-xs text-slate-400 italic">None linked (optional)</span>}
+        {value.length === 0 && (
+          <span className="text-xs text-slate-400 italic">None linked (optional)</span>
+        )}
         {ordered.map(id => {
           const r = byId.get(id)
           const isPrimary = id === primaryId
           return (
-            <span key={id} className={cn('inline-flex items-center gap-1 text-xs rounded px-1.5 py-0.5',
-              isPrimary ? 'bg-blue-100 text-blue-800' : 'bg-blue-50 text-blue-700')}>
-              <button type="button"
+            <span
+              key={id}
+              className={cn(
+                'inline-flex items-center gap-1 text-xs rounded px-1.5 py-0.5',
+                isPrimary ? 'bg-blue-100 text-blue-800' : 'bg-blue-50 text-blue-700',
+              )}
+            >
+              <button
+                type="button"
                 onClick={() => onPrimaryChange(isPrimary ? '' : id)}
-                title={isPrimary ? 'Primary (source) requirement — click to unset' : 'Mark as primary (source) requirement'}
-                className={isPrimary ? 'text-amber-500' : 'text-slate-300 hover:text-amber-500'}>
+                title={
+                  isPrimary
+                    ? 'Primary (source) requirement — click to unset'
+                    : 'Mark as primary (source) requirement'
+                }
+                className={isPrimary ? 'text-amber-500' : 'text-slate-300 hover:text-amber-500'}
+              >
                 <Star size={11} fill={isPrimary ? 'currentColor' : 'none'} />
               </button>
               {r?.externalId && <span className="font-mono opacity-60">{r.externalId}</span>}
               <span className="truncate max-w-[170px]">{r?.title ?? id.slice(0, 8) + '…'}</span>
-              <button type="button" onClick={() => remove(id)} className="hover:text-red-500"><X size={10} /></button>
+              <button type="button" onClick={() => remove(id)} className="hover:text-red-500">
+                <X size={10} />
+              </button>
             </span>
           )
         })}
@@ -198,23 +281,37 @@ function RequirementMultiSelect({
       <div className="border border-slate-200 rounded-lg">
         <div className="flex items-center gap-1 px-2 py-1.5 border-b border-slate-100">
           <Search size={12} className="text-slate-400" />
-          <input value={search} onChange={e => setSearch(e.target.value)}
-            placeholder="Search requirements to link…" className="flex-1 text-xs outline-none" />
+          <input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search requirements to link…"
+            className="flex-1 text-xs outline-none"
+          />
         </div>
         <div className="max-h-40 overflow-y-auto">
           {filtered.length === 0 ? (
             <p className="text-xs text-slate-400 px-3 py-2">No matching requirements</p>
-          ) : filtered.slice(0, 30).map(r => (
-            <button type="button" key={r.id} onClick={() => add(r.id)}
-              className="w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 hover:bg-blue-50">
-              <Plus size={11} className="text-slate-300 shrink-0" />
-              {r.externalId && <span className="text-slate-400 font-mono shrink-0">{r.externalId}</span>}
-              <span className="text-slate-700 truncate">{r.title}</span>
-            </button>
-          ))}
+          ) : (
+            filtered.slice(0, 30).map(r => (
+              <button
+                type="button"
+                key={r.id}
+                onClick={() => add(r.id)}
+                className="w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 hover:bg-blue-50"
+              >
+                <Plus size={11} className="text-slate-300 shrink-0" />
+                {r.externalId && (
+                  <span className="text-slate-400 font-mono shrink-0">{r.externalId}</span>
+                )}
+                <span className="text-slate-700 truncate">{r.title}</span>
+              </button>
+            ))
+          )}
         </div>
       </div>
-      <p className="text-[11px] text-slate-400 mt-1">Click the ★ to mark one as the primary/source requirement (optional).</p>
+      <p className="text-[11px] text-slate-400 mt-1">
+        Click the ★ to mark one as the primary/source requirement (optional).
+      </p>
     </div>
   )
 }
@@ -232,7 +329,10 @@ function acToString(ac: unknown): string {
 }
 
 function AcceptanceCriteriaPicker({
-  requirements, linkedReqIds, value, onChange,
+  requirements,
+  linkedReqIds,
+  value,
+  onChange,
 }: {
   requirements: Requirement[]
   linkedReqIds: string[]
@@ -248,7 +348,8 @@ function AcceptanceCriteriaPicker({
   const selected = new Set(value)
   function toggle(s: string) {
     const next = new Set(value)
-    if (next.has(s)) next.delete(s); else next.add(s)
+    if (next.has(s)) next.delete(s)
+    else next.add(s)
     onChange([...next])
   }
 
@@ -259,10 +360,20 @@ function AcceptanceCriteriaPicker({
   if (!hasAcs) {
     return (
       <div>
-        <input type="text" value={value.join(', ')}
-          onChange={e => onChange(e.target.value.split(',').map(s => s.trim()).filter(Boolean))}
+        <input
+          type="text"
+          value={value.join(', ')}
+          onChange={e =>
+            onChange(
+              e.target.value
+                .split(',')
+                .map(s => s.trim())
+                .filter(Boolean),
+            )
+          }
           className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-          placeholder="comma-separated, e.g. AC-1, AC-2" />
+          placeholder="comma-separated, e.g. AC-1, AC-2"
+        />
         <p className="text-[11px] text-slate-400 mt-1">
           {linkedReqIds.length === 0
             ? 'Link a requirement above to pick its acceptance criteria; otherwise enter refs manually.'
@@ -276,12 +387,21 @@ function AcceptanceCriteriaPicker({
       {groups.map(g => (
         <div key={g.req.id} className="border border-slate-200 rounded-lg overflow-hidden">
           <p className="px-2.5 py-1.5 bg-slate-50 text-[11px] font-medium text-slate-500 border-b border-slate-100">
-            {g.req.externalId && <span className="font-mono mr-1">{g.req.externalId}</span>}{g.req.title}
+            {g.req.externalId && <span className="font-mono mr-1">{g.req.externalId}</span>}
+            {g.req.title}
           </p>
           <div className="divide-y divide-slate-50">
             {g.acs.map((ac, i) => (
-              <label key={i} className="flex items-start gap-2 px-2.5 py-1.5 text-xs cursor-pointer hover:bg-blue-50">
-                <input type="checkbox" checked={selected.has(ac)} onChange={() => toggle(ac)} className="mt-0.5 shrink-0" />
+              <label
+                key={i}
+                className="flex items-start gap-2 px-2.5 py-1.5 text-xs cursor-pointer hover:bg-blue-50"
+              >
+                <input
+                  type="checkbox"
+                  checked={selected.has(ac)}
+                  onChange={() => toggle(ac)}
+                  className="mt-0.5 shrink-0"
+                />
                 <span className="text-slate-700">{ac}</span>
               </label>
             ))}
@@ -291,9 +411,14 @@ function AcceptanceCriteriaPicker({
       {custom.length > 0 && (
         <div className="flex flex-wrap gap-1">
           {custom.map(c => (
-            <span key={c} className="inline-flex items-center gap-1 text-xs bg-slate-100 text-slate-600 rounded px-1.5 py-0.5">
+            <span
+              key={c}
+              className="inline-flex items-center gap-1 text-xs bg-slate-100 text-slate-600 rounded px-1.5 py-0.5"
+            >
               {c}
-              <button type="button" onClick={() => toggle(c)} className="hover:text-red-500"><X size={10} /></button>
+              <button type="button" onClick={() => toggle(c)} className="hover:text-red-500">
+                <X size={10} />
+              </button>
             </span>
           ))}
         </div>
@@ -334,7 +459,11 @@ function TestCaseFormModal({
   const [acRefs, setAcRefs] = useState<string[]>(editing?.acRefs ?? [])
   const [steps, setSteps] = useState<StepRow[]>(
     editing?.steps?.length
-      ? editing.steps.map(s => ({ action: s.action ?? '', expectedResult: s.expectedResult ?? '', notes: s.notes ?? '' }))
+      ? editing.steps.map(s => ({
+          action: s.action ?? '',
+          expectedResult: s.expectedResult ?? '',
+          notes: s.notes ?? '',
+        }))
       : [{ action: '', expectedResult: '', notes: '' }],
   )
   const [error, setError] = useState<string | null>(null)
@@ -350,11 +479,21 @@ function TestCaseFormModal({
     queryKey: ['caseSuites', projectId, editing?.id],
     queryFn: () => api.caseSuites(projectId, editing!.id),
     enabled: isEdit && !suitesSeeded,
-    select: (ids: string[]) => { if (!suitesSeeded) { setSelectedSuiteIds(new Set(ids)); setSuitesSeeded(true) } return ids },
+    select: (ids: string[]) => {
+      if (!suitesSeeded) {
+        setSelectedSuiteIds(new Set(ids))
+        setSuitesSeeded(true)
+      }
+      return ids
+    },
   })
 
   const toggleSuite = (id: string) =>
-    setSelectedSuiteIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n })
+    setSelectedSuiteIds(prev => {
+      const n = new Set(prev)
+      n.has(id) ? n.delete(id) : n.add(id)
+      return n
+    })
 
   const mutation = useMutation({
     mutationFn: async (body: CreateTestCaseForm) => {
@@ -374,13 +513,15 @@ function TestCaseFormModal({
 
   function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
-    if (!title.trim()) { setError('Title is required'); return }
+    if (!title.trim()) {
+      setError('Title is required')
+      return
+    }
     // The whole link set is sent (so edits can replace/clear it); the ★ primary, if
     // any, becomes sourceRequirementId and is guaranteed to be in the set.
-    const linkedRequirementIds = Array.from(new Set([
-      ...(primaryReqId ? [primaryReqId] : []),
-      ...linkedReqIds,
-    ]))
+    const linkedRequirementIds = Array.from(
+      new Set([...(primaryReqId ? [primaryReqId] : []), ...linkedReqIds]),
+    )
     mutation.mutate({
       title: title.trim(),
       description: description.trim() || undefined,
@@ -390,22 +531,29 @@ function TestCaseFormModal({
       sourceRequirementId: primaryReqId || undefined,
       linkedRequirementIds,
       acRefs: acRefs.length ? acRefs : undefined,
-      steps: steps.filter(s => s.action.trim()).map(s => ({
-        action: s.action.trim(),
-        expectedResult: s.expectedResult.trim() || undefined,
-        notes: s.notes.trim() || undefined,
-      })),
+      steps: steps
+        .filter(s => s.action.trim())
+        .map(s => ({
+          action: s.action.trim(),
+          expectedResult: s.expectedResult.trim() || undefined,
+          notes: s.notes.trim() || undefined,
+        })),
     })
   }
 
-  const inputCls = 'w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500'
+  const inputCls =
+    'w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500'
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
       <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl mx-4 max-h-[92vh] flex flex-col">
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200">
-          <h2 className="font-semibold text-slate-900">{isEdit ? `Edit ${editing!.externalId ?? 'Test Case'}` : 'New Test Case'}</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
+          <h2 className="font-semibold text-slate-900">
+            {isEdit ? `Edit ${editing!.externalId ?? 'Test Case'}` : 'New Test Case'}
+          </h2>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+            <X size={18} />
+          </button>
         </div>
 
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-5 py-4 space-y-6">
@@ -415,62 +563,113 @@ function TestCaseFormModal({
           <FormSection title="Details">
             <div>
               <label className="block text-xs font-medium text-slate-700 mb-1">Title *</label>
-              <input type="text" value={title} onChange={e => setTitle(e.target.value)}
-                className={inputCls} placeholder="e.g. Checkout applies the correct order total" autoFocus />
+              <input
+                type="text"
+                value={title}
+                onChange={e => setTitle(e.target.value)}
+                className={inputCls}
+                placeholder="e.g. Checkout applies the correct order total"
+                autoFocus
+              />
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-700 mb-1">Priority</label>
-              <select value={priority} onChange={e => setPriority(e.target.value)} className={inputCls}>
-                {['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'].map(p => <option key={p} value={p}>{p}</option>)}
+              <select
+                value={priority}
+                onChange={e => setPriority(e.target.value)}
+                className={inputCls}
+              >
+                {['CRITICAL', 'HIGH', 'MEDIUM', 'LOW'].map(p => (
+                  <option key={p} value={p}>
+                    {p}
+                  </option>
+                ))}
               </select>
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-700 mb-1">
-                Test Suites <span className="font-normal text-slate-400">({selectedSuiteIds.size} selected · a case can be in many)</span>
+                Test Suites{' '}
+                <span className="font-normal text-slate-400">
+                  ({selectedSuiteIds.size} selected · a case can be in many)
+                </span>
               </label>
               {staticSuites.length === 0 ? (
                 <p className="text-xs text-slate-500 bg-slate-50 rounded-lg px-3 py-2">
-                  No static suites yet. Create suites in <strong>Test Suites</strong>. (Smart suites assign cases automatically.)
+                  No static suites yet. Create suites in <strong>Test Suites</strong>. (Smart suites
+                  assign cases automatically.)
                 </p>
               ) : (
                 <div className="border border-slate-200 rounded-lg max-h-36 overflow-y-auto divide-y divide-slate-50">
                   {staticSuites.map(s => (
-                    <label key={s.id} className="flex items-center gap-2.5 px-3 py-1.5 cursor-pointer hover:bg-slate-50">
-                      <input type="checkbox" checked={selectedSuiteIds.has(s.id)} onChange={() => toggleSuite(s.id)}
-                             className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 shrink-0" />
+                    <label
+                      key={s.id}
+                      className="flex items-center gap-2.5 px-3 py-1.5 cursor-pointer hover:bg-slate-50"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={selectedSuiteIds.has(s.id)}
+                        onChange={() => toggleSuite(s.id)}
+                        className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 shrink-0"
+                      />
                       <span className="text-sm text-slate-800 flex-1 truncate">{s.name}</span>
-                      {s.planType && <span className="text-[10px] uppercase text-slate-400 shrink-0">{s.planType}</span>}
+                      {s.planType && (
+                        <span className="text-[10px] uppercase text-slate-400 shrink-0">
+                          {s.planType}
+                        </span>
+                      )}
                     </label>
                   ))}
                 </div>
               )}
             </div>
             {!isEdit && (
-              <p className="text-[11px] text-slate-400">New cases start as <strong>DRAFT</strong> — submit for review to confirm.</p>
+              <p className="text-[11px] text-slate-400">
+                New cases start as <strong>DRAFT</strong> — submit for review to confirm.
+              </p>
             )}
           </FormSection>
 
           {/* Specification */}
-          <FormSection title="Specification" hint="Markdown supported — use the Preview tab to check formatting.">
+          <FormSection
+            title="Specification"
+            hint="Markdown supported — use the Preview tab to check formatting."
+          >
             <div>
               <label className="block text-xs font-medium text-slate-700 mb-1">Preconditions</label>
-              <MarkdownEditor value={preconditions} onChange={setPreconditions} rows={2}
-                placeholder="State the system must be in before running" />
+              <MarkdownEditor
+                value={preconditions}
+                onChange={setPreconditions}
+                rows={2}
+                placeholder="State the system must be in before running"
+              />
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-700 mb-1">Description</label>
-              <MarkdownEditor value={description} onChange={setDescription} rows={3}
-                placeholder="What this test verifies and why" />
+              <MarkdownEditor
+                value={description}
+                onChange={setDescription}
+                rows={3}
+                placeholder="What this test verifies and why"
+              />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1">Expected result (overall)</label>
-              <MarkdownEditor value={expectedResult} onChange={setExpectedResult} rows={2}
-                placeholder="The overall pass condition" />
+              <label className="block text-xs font-medium text-slate-700 mb-1">
+                Expected result (overall)
+              </label>
+              <MarkdownEditor
+                value={expectedResult}
+                onChange={setExpectedResult}
+                rows={2}
+                placeholder="The overall pass condition"
+              />
             </div>
           </FormSection>
 
           {/* Steps */}
-          <FormSection title="Steps" hint="Each step: action → expected result, with optional notes.">
+          <FormSection
+            title="Steps"
+            hint="Each step: action → expected result, with optional notes."
+          >
             <StepEditor steps={steps} onChange={setSteps} />
           </FormSection>
 
@@ -478,7 +677,10 @@ function TestCaseFormModal({
           <FormSection title="Traceability">
             <div>
               <label className="block text-xs font-medium text-slate-700 mb-1">
-                Linked requirements <span className="text-slate-400 font-normal">(optional · a test case may cover any number, or none)</span>
+                Linked requirements{' '}
+                <span className="text-slate-400 font-normal">
+                  (optional · a test case may cover any number, or none)
+                </span>
               </label>
               <RequirementMultiSelect
                 requirements={requirements}
@@ -490,7 +692,10 @@ function TestCaseFormModal({
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-700 mb-1">
-                Acceptance criteria <span className="text-slate-400 font-normal">(which ACs of the linked requirements this case validates)</span>
+                Acceptance criteria{' '}
+                <span className="text-slate-400 font-normal">
+                  (which ACs of the linked requirements this case validates)
+                </span>
               </label>
               <AcceptanceCriteriaPicker
                 requirements={requirements}
@@ -503,13 +708,19 @@ function TestCaseFormModal({
         </form>
 
         <div className="px-5 py-4 border-t border-slate-200 flex justify-end gap-2">
-          <button type="button" onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors">
+          <button
+            type="button"
+            onClick={onClose}
+            className="px-4 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+          >
             Cancel
           </button>
-          <button type="button" onClick={handleSubmit as unknown as React.MouseEventHandler}
+          <button
+            type="button"
+            onClick={handleSubmit as unknown as React.MouseEventHandler}
             disabled={mutation.isPending}
-            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center gap-2">
+            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center gap-2"
+          >
             {mutation.isPending && <Loader2 size={14} className="animate-spin" />}
             {isEdit ? 'Save changes' : 'Create'}
           </button>
@@ -522,13 +733,15 @@ function TestCaseFormModal({
 // ── Generate from AI Modal ─────────────────────────────────────────────────────
 
 const ISSUE_TYPE_COLOR: Record<string, string> = {
-  EPIC:    'text-purple-700 bg-purple-100',
-  STORY:   'text-blue-700 bg-blue-100',
-  BUG:     'text-red-700 bg-red-100',
-  TASK:    'text-slate-600 bg-slate-100',
+  EPIC: 'text-purple-700 bg-purple-100',
+  STORY: 'text-blue-700 bg-blue-100',
+  BUG: 'text-red-700 bg-red-100',
+  TASK: 'text-slate-600 bg-slate-100',
   SUBTASK: 'text-teal-700 bg-teal-100',
 }
-function reqTypeColor(t: string) { return ISSUE_TYPE_COLOR[t?.toUpperCase()] ?? 'text-slate-600 bg-slate-100' }
+function reqTypeColor(t: string) {
+  return ISSUE_TYPE_COLOR[t?.toUpperCase()] ?? 'text-slate-600 bg-slate-100'
+}
 
 // ── Tree helpers for GenerateAIModal ─────────────────────────────────────────
 
@@ -571,10 +784,13 @@ function nodeCheckState(node: ReqTree, selected: Set<string>): CheckState {
 // Checkbox that supports indeterminate state via ref
 function TreeCheckbox({ state, onChange }: { state: CheckState; onChange: () => void }) {
   const ref = useRef<HTMLInputElement>(null)
-  const setRef = useCallback((el: HTMLInputElement | null) => {
-    (ref as React.MutableRefObject<HTMLInputElement | null>).current = el
-    if (el) el.indeterminate = state === 'indeterminate'
-  }, [state])
+  const setRef = useCallback(
+    (el: HTMLInputElement | null) => {
+      ;(ref as React.MutableRefObject<HTMLInputElement | null>).current = el
+      if (el) el.indeterminate = state === 'indeterminate'
+    },
+    [state],
+  )
   return (
     <input
       ref={setRef}
@@ -620,7 +836,10 @@ function ReqTreeRow({
         <button
           type="button"
           onClick={() => hasChildren && onToggleExpand(node.id)}
-          className={cn('shrink-0 text-slate-400', hasChildren ? 'hover:text-slate-600 cursor-pointer' : 'invisible')}
+          className={cn(
+            'shrink-0 text-slate-400',
+            hasChildren ? 'hover:text-slate-600 cursor-pointer' : 'invisible',
+          )}
           tabIndex={-1}
         >
           {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
@@ -642,40 +861,43 @@ function ReqTreeRow({
         </div>
       </div>
 
-      {hasChildren && isExpanded && node.children.map(child => (
-        <ReqTreeRow
-          key={child.id}
-          node={child}
-          selected={selected}
-          expanded={expanded}
-          onToggleSelect={onToggleSelect}
-          onToggleExpand={onToggleExpand}
-          indent={indent + 1}
-        />
-      ))}
+      {hasChildren &&
+        isExpanded &&
+        node.children.map(child => (
+          <ReqTreeRow
+            key={child.id}
+            node={child}
+            selected={selected}
+            expanded={expanded}
+            onToggleSelect={onToggleSelect}
+            onToggleExpand={onToggleExpand}
+            indent={indent + 1}
+          />
+        ))}
     </>
   )
 }
 
 function GenerateAIModal({ projectId, onClose }: { projectId: string; onClose: () => void }) {
   const queryClient = useQueryClient()
-  const [search, setSearch]       = useState('')
-  const [selected, setSelected]   = useState<Set<string>>(new Set())
-  const [expanded, setExpanded]   = useState<Set<string>>(new Set())
-  const [started, setStarted]     = useState(false)
+  const [search, setSearch] = useState('')
+  const [selected, setSelected] = useState<Set<string>>(new Set())
+  const [expanded, setExpanded] = useState<Set<string>>(new Set())
+  const [started, setStarted] = useState(false)
 
   const { data: reqs, isLoading: reqsLoading } = useQuery({
     queryKey: ['requirements', projectId],
-    queryFn:  () => api.requirements(projectId),
+    queryFn: () => api.requirements(projectId),
   })
 
   const allReqs = reqs ?? []
   const isSearching = search.trim().length > 0
 
   // When searching: flat filtered list. Otherwise: tree.
-  const filtered = allReqs.filter((r: Requirement) =>
-    r.title.toLowerCase().includes(search.toLowerCase()) ||
-    (r.externalId ?? '').toLowerCase().includes(search.toLowerCase())
+  const filtered = allReqs.filter(
+    (r: Requirement) =>
+      r.title.toLowerCase().includes(search.toLowerCase()) ||
+      (r.externalId ?? '').toLowerCase().includes(search.toLowerCase()),
   )
   const tree = buildTree(allReqs)
 
@@ -713,8 +935,12 @@ function GenerateAIModal({ projectId, onClose }: { projectId: string; onClose: (
     })
   }
 
-  function selectAll()   { setSelected(new Set(allReqs.map((r: Requirement) => r.id))) }
-  function deselectAll() { setSelected(new Set()) }
+  function selectAll() {
+    setSelected(new Set(allReqs.map((r: Requirement) => r.id)))
+  }
+  function deselectAll() {
+    setSelected(new Set())
+  }
 
   const mutation = useMutation({
     mutationFn: () => api.generateTestCasesFromAI(projectId, Array.from(selected)),
@@ -727,14 +953,15 @@ function GenerateAIModal({ projectId, onClose }: { projectId: string; onClose: (
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
       <div className="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 flex flex-col max-h-[85vh]">
-
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 shrink-0">
           <div className="flex items-center gap-2">
             <Sparkles size={18} className="text-purple-600" />
             <h2 className="font-semibold text-slate-900">Generate Test Cases with AI</h2>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+            <X size={18} />
+          </button>
         </div>
 
         {started ? (
@@ -746,12 +973,16 @@ function GenerateAIModal({ projectId, onClose }: { projectId: string; onClose: (
               </div>
               <p className="text-sm font-medium text-slate-800">Generation started!</p>
               <p className="text-xs text-slate-500">
-                Claude is generating test cases for {selected.size} requirement{selected.size !== 1 ? 's' : ''}.
-                This may take a minute — refresh the list to see new test cases as they appear.
+                Claude is generating test cases for {selected.size} requirement
+                {selected.size !== 1 ? 's' : ''}. This may take a minute — refresh the list to see
+                new test cases as they appear.
               </p>
             </div>
             <div className="px-5 py-4 border-t border-slate-200 flex justify-end shrink-0">
-              <button onClick={onClose} className="px-4 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors">
+              <button
+                onClick={onClose}
+                className="px-4 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+              >
                 Close
               </button>
             </div>
@@ -761,11 +992,15 @@ function GenerateAIModal({ projectId, onClose }: { projectId: string; onClose: (
           <>
             <div className="px-5 pt-4 pb-3 shrink-0 space-y-3">
               <p className="text-sm text-slate-600">
-                Select requirements for Claude to generate test cases from. Selecting an Epic selects all its children. Generated cases appear in <strong>DRAFT</strong> status.
+                Select requirements for Claude to generate test cases from. Selecting an Epic
+                selects all its children. Generated cases appear in <strong>DRAFT</strong> status.
               </p>
               {/* Search */}
               <div className="relative">
-                <Search size={13} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <Search
+                  size={13}
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                />
                 <input
                   type="text"
                   value={search}
@@ -780,8 +1015,12 @@ function GenerateAIModal({ projectId, onClose }: { projectId: string; onClose: (
                   {selected.size} of {allReqs.length} selected
                 </span>
                 <div className="flex gap-3 text-xs">
-                  <button onClick={selectAll}   className="text-purple-600 hover:text-purple-800">Select all</button>
-                  <button onClick={deselectAll} className="text-slate-500 hover:text-slate-700">Deselect all</button>
+                  <button onClick={selectAll} className="text-purple-600 hover:text-purple-800">
+                    Select all
+                  </button>
+                  <button onClick={deselectAll} className="text-slate-500 hover:text-slate-700">
+                    Deselect all
+                  </button>
                 </div>
               </div>
             </div>
@@ -789,7 +1028,9 @@ function GenerateAIModal({ projectId, onClose }: { projectId: string; onClose: (
             {/* Requirement list */}
             <div className="flex-1 overflow-y-auto border-t border-b border-slate-100 min-h-0">
               {reqsLoading ? (
-                <div className="py-8 flex justify-center"><Loader2 size={20} className="animate-spin text-slate-400" /></div>
+                <div className="py-8 flex justify-center">
+                  <Loader2 size={20} className="animate-spin text-slate-400" />
+                </div>
               ) : allReqs.length === 0 ? (
                 <p className="py-8 text-sm text-slate-500 text-center">
                   No requirements found. Sync an integration first.
@@ -797,7 +1038,9 @@ function GenerateAIModal({ projectId, onClose }: { projectId: string; onClose: (
               ) : isSearching ? (
                 /* Flat list when searching */
                 filtered.length === 0 ? (
-                  <p className="py-8 text-sm text-slate-500 text-center">No matching requirements.</p>
+                  <p className="py-8 text-sm text-slate-500 text-center">
+                    No matching requirements.
+                  </p>
                 ) : (
                   <div className="divide-y divide-slate-50">
                     {filtered.map((r: Requirement) => (
@@ -811,17 +1054,23 @@ function GenerateAIModal({ projectId, onClose }: { projectId: string; onClose: (
                         <input
                           type="checkbox"
                           checked={selected.has(r.id)}
-                          onChange={() => setSelected(prev => {
-                            const next = new Set(prev)
-                            next.has(r.id) ? next.delete(r.id) : next.add(r.id)
-                            return next
-                          })}
+                          onChange={() =>
+                            setSelected(prev => {
+                              const next = new Set(prev)
+                              next.has(r.id) ? next.delete(r.id) : next.add(r.id)
+                              return next
+                            })
+                          }
                           className="mt-0.5 shrink-0 accent-purple-600"
                         />
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2 flex-wrap">
                             <Badge label={r.issueType} colorClass={reqTypeColor(r.issueType)} />
-                            {r.externalId && <span className="text-xs font-mono text-slate-400">{r.externalId}</span>}
+                            {r.externalId && (
+                              <span className="text-xs font-mono text-slate-400">
+                                {r.externalId}
+                              </span>
+                            )}
                           </div>
                           <p className="text-sm text-slate-800 mt-0.5 leading-snug">{r.title}</p>
                         </div>
@@ -894,15 +1143,16 @@ function AutomationTargetModal({
   const { base } = useProject()
   const { data: integrations, isLoading } = useQuery({
     queryKey: ['integrations', projectId],
-    queryFn:  () => api.integrations(projectId),
+    queryFn: () => api.integrations(projectId),
   })
 
   const testAutomationRepos = (integrations ?? []).filter(
-    (c: IntegrationConfig) => c.integrationType === 'GITHUB' && c.repoType === 'TEST_AUTOMATION' && c.enabled
+    (c: IntegrationConfig) =>
+      c.integrationType === 'GITHUB' && c.repoType === 'TEST_AUTOMATION' && c.enabled,
   )
 
   const [selectedRepo, setSelectedRepo] = useState<string>(
-    testAutomationRepos.length === 1 ? testAutomationRepos[0].id : ''
+    testAutomationRepos.length === 1 ? testAutomationRepos[0].id : '',
   )
 
   // Auto-select once data loads
@@ -919,18 +1169,21 @@ function AutomationTargetModal({
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
       <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4">
-
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200">
           <div className="flex items-center gap-2">
             <GitBranch size={17} className="text-purple-600" />
             <h2 className="font-semibold text-slate-900 text-sm">Generate Automation Code</h2>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={16} /></button>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+            <X size={16} />
+          </button>
         </div>
 
         <div className="px-5 py-4 space-y-4">
           {isLoading ? (
-            <div className="py-4 flex justify-center"><Loader2 size={18} className="animate-spin text-slate-400" /></div>
+            <div className="py-4 flex justify-center">
+              <Loader2 size={18} className="animate-spin text-slate-400" />
+            </div>
           ) : testAutomationRepos.length === 0 ? (
             /* No TEST_AUTOMATION repo linked */
             <div className="space-y-3">
@@ -939,7 +1192,8 @@ function AutomationTargetModal({
                 <div>
                   <p className="font-medium">No test automation repo linked</p>
                   <p className="text-xs mt-0.5">
-                    Link at least one GitHub repository with role <strong>Test Automation</strong> in Project Settings before generating automation code.
+                    Link at least one GitHub repository with role <strong>Test Automation</strong>{' '}
+                    in Project Settings before generating automation code.
                   </p>
                 </div>
               </div>
@@ -953,9 +1207,7 @@ function AutomationTargetModal({
           ) : testAutomationRepos.length === 1 ? (
             /* Single repo — show confirmation */
             <div className="space-y-3">
-              <p className="text-sm text-slate-600">
-                A pull request will be raised to:
-              </p>
+              <p className="text-sm text-slate-600">A pull request will be raised to:</p>
               <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-lg px-4 py-3">
                 <GitBranch size={16} className="text-slate-500 shrink-0" />
                 <div>
@@ -970,7 +1222,8 @@ function AutomationTargetModal({
                 </div>
               </div>
               <p className="text-xs text-slate-500">
-                Claude will generate automation code for <strong>{tc.title}</strong> and open a PR for review.
+                Claude will generate automation code for <strong>{tc.title}</strong> and open a PR
+                for review.
               </p>
             </div>
           ) : (
@@ -987,7 +1240,7 @@ function AutomationTargetModal({
                       'flex items-center gap-3 px-4 py-3 rounded-lg border cursor-pointer transition-colors',
                       selectedRepo === cfg.id
                         ? 'border-purple-400 bg-purple-50'
-                        : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+                        : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50',
                     )}
                   >
                     <input
@@ -1001,7 +1254,9 @@ function AutomationTargetModal({
                     <div className="min-w-0">
                       <p className="text-sm font-medium text-slate-900">{repoDisplayName(cfg)}</p>
                       {cfg.connectionParams?.repo && (
-                        <p className="text-xs text-slate-500 font-mono">{cfg.connectionParams.repo}</p>
+                        <p className="text-xs text-slate-500 font-mono">
+                          {cfg.connectionParams.repo}
+                        </p>
                       )}
                     </div>
                   </label>
@@ -1038,13 +1293,7 @@ function AutomationTargetModal({
 
 // ── Linked Requirements Section ───────────────────────────────────────────────
 
-function LinkedRequirementsSection({
-  tc,
-  projectId,
-}: {
-  tc: ManagedTestCase
-  projectId: string
-}) {
+function LinkedRequirementsSection({ tc, projectId }: { tc: ManagedTestCase; projectId: string }) {
   const queryClient = useQueryClient()
   const [adding, setAdding] = useState(false)
   const [search, setSearch] = useState('')
@@ -1057,11 +1306,11 @@ function LinkedRequirementsSection({
 
   const linkedIds = new Set(tc.linkedRequirementIds ?? [])
 
-  const filtered = allRequirements.filter(r =>
-    !linkedIds.has(r.id) && (
-      r.title.toLowerCase().includes(search.toLowerCase()) ||
-      (r.externalId ?? '').toLowerCase().includes(search.toLowerCase())
-    )
+  const filtered = allRequirements.filter(
+    r =>
+      !linkedIds.has(r.id) &&
+      (r.title.toLowerCase().includes(search.toLowerCase()) ||
+        (r.externalId ?? '').toLowerCase().includes(search.toLowerCase())),
   )
 
   const linkMutation = useMutation({
@@ -1087,7 +1336,9 @@ function LinkedRequirementsSection({
   return (
     <div>
       <div className="flex items-center justify-between mb-1.5">
-        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Linked Requirements</p>
+        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+          Linked Requirements
+        </p>
         <button
           onClick={() => setAdding(v => !v)}
           className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-0.5"
@@ -1111,19 +1362,21 @@ function LinkedRequirementsSection({
           <div className="max-h-36 overflow-y-auto">
             {filtered.length === 0 ? (
               <p className="text-xs text-slate-400 px-3 py-2">No unlinked requirements found</p>
-            ) : filtered.slice(0, 12).map(r => (
-              <button
-                key={r.id}
-                onClick={() => linkMutation.mutate(r.id)}
-                disabled={linkMutation.isPending}
-                className="w-full text-left px-3 py-1.5 text-xs hover:bg-blue-50 flex items-center gap-2 disabled:opacity-50"
-              >
-                {r.externalId && (
-                  <span className="text-slate-400 font-mono shrink-0">{r.externalId}</span>
-                )}
-                <span className="text-slate-700 truncate">{r.title}</span>
-              </button>
-            ))}
+            ) : (
+              filtered.slice(0, 12).map(r => (
+                <button
+                  key={r.id}
+                  onClick={() => linkMutation.mutate(r.id)}
+                  disabled={linkMutation.isPending}
+                  className="w-full text-left px-3 py-1.5 text-xs hover:bg-blue-50 flex items-center gap-2 disabled:opacity-50"
+                >
+                  {r.externalId && (
+                    <span className="text-slate-400 font-mono shrink-0">{r.externalId}</span>
+                  )}
+                  <span className="text-slate-700 truncate">{r.title}</span>
+                </button>
+              ))
+            )}
           </div>
         </div>
       )}
@@ -1136,22 +1389,30 @@ function LinkedRequirementsSection({
             const req = reqMap.get(reqId)
             return (
               <div key={reqId} className="flex items-center gap-1.5 group">
-                <span className={cn(
-                  'flex-1 text-xs truncate rounded px-1.5 py-0.5',
-                  reqId === tc.sourceRequirementId
-                    ? 'bg-blue-50 text-blue-700'
-                    : 'bg-slate-50 text-slate-600'
-                )}>
-                  {req?.externalId && <span className="font-mono mr-1 opacity-60">{req.externalId}</span>}
+                <span
+                  className={cn(
+                    'flex-1 text-xs truncate rounded px-1.5 py-0.5',
+                    reqId === tc.sourceRequirementId
+                      ? 'bg-blue-50 text-blue-700'
+                      : 'bg-slate-50 text-slate-600',
+                  )}
+                >
+                  {req?.externalId && (
+                    <span className="font-mono mr-1 opacity-60">{req.externalId}</span>
+                  )}
                   {req?.title ?? reqId.slice(0, 8) + '…'}
                   {reqId === tc.sourceRequirementId && (
                     <span className="ml-1 opacity-60 text-[10px]">(source)</span>
                   )}
                 </span>
                 {req?.sourceUrl && (
-                  <a href={req.sourceUrl} target="_blank" rel="noreferrer"
-                     title="Open the requirement in Azure DevOps"
-                     className="text-slate-300 hover:text-blue-600 shrink-0">
+                  <a
+                    href={req.sourceUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    title="Open the requirement in Azure DevOps"
+                    className="text-slate-300 hover:text-blue-600 shrink-0"
+                  >
                     <ExternalLink size={11} />
                   </a>
                 )}
@@ -1245,11 +1506,17 @@ function TestCaseDetailPanel({
           >
             <ArrowUpRight size={13} /> Open
           </a>
-          <button onClick={() => onEdit(tc)} title="Edit test case"
-            className="flex items-center gap-1 text-xs font-medium text-slate-600 hover:text-blue-600 px-2 py-1 rounded hover:bg-slate-100 transition-colors">
+          <button
+            onClick={() => onEdit(tc)}
+            title="Edit test case"
+            className="flex items-center gap-1 text-xs font-medium text-slate-600 hover:text-blue-600 px-2 py-1 rounded hover:bg-slate-100 transition-colors"
+          >
             <Pencil size={13} /> Edit
           </button>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 p-1 rounded hover:bg-slate-100 transition-colors">
+          <button
+            onClick={onClose}
+            className="text-slate-400 hover:text-slate-600 p-1 rounded hover:bg-slate-100 transition-colors"
+          >
             <X size={16} />
           </button>
         </div>
@@ -1261,7 +1528,10 @@ function TestCaseDetailPanel({
           <h3 className="font-semibold text-slate-900 text-base leading-snug mb-2">{tc.title}</h3>
           <div className="flex flex-wrap gap-1.5">
             {tc.coverageStatus && (
-              <Badge label={tc.coverageStatus.replace('_', ' ')} colorClass={coverageColor(tc.coverageStatus)} />
+              <Badge
+                label={tc.coverageStatus.replace('_', ' ')}
+                colorClass={coverageColor(tc.coverageStatus)}
+              />
             )}
           </div>
         </div>
@@ -1272,7 +1542,9 @@ function TestCaseDetailPanel({
         {/* Description */}
         {tc.description && (
           <div>
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Description</p>
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
+              Description
+            </p>
             <Markdown>{tc.description}</Markdown>
           </div>
         )}
@@ -1280,7 +1552,9 @@ function TestCaseDetailPanel({
         {/* Preconditions */}
         {tc.preconditions && (
           <div>
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Preconditions</p>
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
+              Preconditions
+            </p>
             <Markdown>{tc.preconditions}</Markdown>
           </div>
         )}
@@ -1288,7 +1562,9 @@ function TestCaseDetailPanel({
         {/* Expected result */}
         {tc.expectedResult && (
           <div>
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Expected result</p>
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
+              Expected result
+            </p>
             <Markdown>{tc.expectedResult}</Markdown>
           </div>
         )}
@@ -1296,11 +1572,15 @@ function TestCaseDetailPanel({
         {/* Steps */}
         {tc.steps && tc.steps.length > 0 && (
           <div>
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Steps</p>
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+              Steps
+            </p>
             <ol className="space-y-2">
               {tc.steps.map((step, i) => (
                 <li key={step.id ?? i} className="flex gap-2.5 text-sm">
-                  <span className="font-mono text-xs text-slate-400 shrink-0 mt-0.5 w-5 text-right">{i + 1}.</span>
+                  <span className="font-mono text-xs text-slate-400 shrink-0 mt-0.5 w-5 text-right">
+                    {i + 1}.
+                  </span>
                   <div>
                     <p className="text-slate-800">{step.action}</p>
                     {step.expectedResult && (
@@ -1315,7 +1595,9 @@ function TestCaseDetailPanel({
 
         {/* Automation */}
         <div>
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Automation</p>
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+            Automation
+          </p>
           <div className="flex items-center gap-2 flex-wrap">
             {tc.automationStatus === 'GENERATING' ? (
               <span className="inline-flex items-center gap-1 text-xs text-blue-600">
@@ -1327,26 +1609,34 @@ function TestCaseDetailPanel({
                 colorClass={automationColor(tc.automationStatus)}
               />
             )}
-            {tc.automationPrUrl && (tc.automationStatus === 'PR_CREATED' || tc.automationStatus === 'PR_MERGED') && (
-              <a
-                href={tc.automationPrUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline"
-              >
-                View PR <ExternalLink size={11} />
-              </a>
-            )}
+            {tc.automationPrUrl &&
+              (tc.automationStatus === 'PR_CREATED' || tc.automationStatus === 'PR_MERGED') && (
+                <a
+                  href={tc.automationPrUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline"
+                >
+                  View PR <ExternalLink size={11} />
+                </a>
+              )}
           </div>
         </div>
 
         {/* acRefs */}
         {tc.acRefs && tc.acRefs.length > 0 && (
           <div>
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Acceptance Criteria</p>
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
+              Acceptance Criteria
+            </p>
             <div className="flex flex-wrap gap-1">
               {tc.acRefs.map(ref => (
-                <span key={ref} className="px-2 py-0.5 text-xs bg-slate-100 text-slate-600 rounded-full">{ref}</span>
+                <span
+                  key={ref}
+                  className="px-2 py-0.5 text-xs bg-slate-100 text-slate-600 rounded-full"
+                >
+                  {ref}
+                </span>
               ))}
             </div>
           </div>
@@ -1375,18 +1665,30 @@ function TestCaseDetailPanel({
         <div className="text-xs text-slate-400 space-y-0.5 pt-2 border-t border-slate-100">
           {tc.createdBy && (
             <p>
-              Created by {tc.createdBy === 'AGENT' ? (
-                <span className="inline-flex items-center gap-0.5"><Bot size={11} /> Agent</span>
-              ) : tc.createdBy}
+              Created by{' '}
+              {tc.createdBy === 'AGENT' ? (
+                <span className="inline-flex items-center gap-0.5">
+                  <Bot size={11} /> Agent
+                </span>
+              ) : (
+                tc.createdBy
+              )}
             </p>
           )}
           {tc.updatedBy && tc.updatedBy !== tc.createdBy && (
             <p>
-              Last updated by {tc.updatedBy === 'AGENT' ? (
-                <span className="inline-flex items-center gap-0.5"><Bot size={11} /> Agent</span>
+              Last updated by{' '}
+              {tc.updatedBy === 'AGENT' ? (
+                <span className="inline-flex items-center gap-0.5">
+                  <Bot size={11} /> Agent
+                </span>
               ) : tc.updatedBy === 'IMPACT_ANALYSIS' ? (
-                <span className="inline-flex items-center gap-0.5"><Sparkles size={11} /> Impact Analysis</span>
-              ) : tc.updatedBy}
+                <span className="inline-flex items-center gap-0.5">
+                  <Sparkles size={11} /> Impact Analysis
+                </span>
+              ) : (
+                tc.updatedBy
+              )}
             </p>
           )}
           <p>Created {relativeTime(tc.createdAt)}</p>
@@ -1444,7 +1746,7 @@ function TestCaseDetailPanel({
         <AutomationTargetModal
           projectId={projectId}
           tc={tc}
-          onConfirm={(configId) => automationMutation.mutate(configId)}
+          onConfirm={configId => automationMutation.mutate(configId)}
           onClose={() => setShowAutomationModal(false)}
         />
       )}
@@ -1469,7 +1771,7 @@ function CaseTagsCard({ projectId, caseId }: { projectId: string; caseId: string
 
   const addMutation = useMutation({
     mutationFn: (name: string) => api.addCaseTag(projectId, caseId, name),
-    onSuccess: (updated) => {
+    onSuccess: updated => {
       qc.setQueryData(['caseTags', projectId, caseId], updated)
       setInput('')
       void qc.invalidateQueries({ queryKey: ['tagSuggestions', projectId] })
@@ -1480,7 +1782,10 @@ function CaseTagsCard({ projectId, caseId }: { projectId: string; caseId: string
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['caseTags', projectId, caseId] }),
   })
 
-  const submit = () => { const v = input.trim(); if (v) addMutation.mutate(v) }
+  const submit = () => {
+    const v = input.trim()
+    if (v) addMutation.mutate(v)
+  }
 
   return (
     <div>
@@ -1488,9 +1793,16 @@ function CaseTagsCard({ projectId, caseId }: { projectId: string; caseId: string
       <div className="flex flex-wrap gap-1.5 mb-2">
         {tags.length === 0 && <span className="text-xs text-slate-400">No tags yet.</span>}
         {tags.map(t => (
-          <span key={t} className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-700">
+          <span
+            key={t}
+            className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-700"
+          >
             {t}
-            <button onClick={() => removeMutation.mutate(t)} className="text-slate-400 hover:text-red-500" title="Remove tag">
+            <button
+              onClick={() => removeMutation.mutate(t)}
+              className="text-slate-400 hover:text-red-500"
+              title="Remove tag"
+            >
               <X size={11} />
             </button>
           </span>
@@ -1501,15 +1813,27 @@ function CaseTagsCard({ projectId, caseId }: { projectId: string; caseId: string
           list={`tagsugg-${caseId}`}
           value={input}
           onChange={e => setInput(e.target.value)}
-          onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); submit() } }}
+          onKeyDown={e => {
+            if (e.key === 'Enter') {
+              e.preventDefault()
+              submit()
+            }
+          }}
           placeholder="Add tag…"
           className="flex-1 border border-slate-200 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
         />
         <datalist id={`tagsugg-${caseId}`}>
-          {suggestions.filter(s => !tags.includes(s)).map(s => <option key={s} value={s} />)}
+          {suggestions
+            .filter(s => !tags.includes(s))
+            .map(s => (
+              <option key={s} value={s} />
+            ))}
         </datalist>
-        <button onClick={submit} disabled={!input.trim() || addMutation.isPending}
-          className="text-xs px-2 py-1 border border-slate-200 rounded hover:bg-slate-50 disabled:opacity-50">
+        <button
+          onClick={submit}
+          disabled={!input.trim() || addMutation.isPending}
+          className="text-xs px-2 py-1 border border-slate-200 rounded hover:bg-slate-50 disabled:opacity-50"
+        >
           Add
         </button>
       </div>
@@ -1527,35 +1851,57 @@ function CasePropertiesSection({ projectId, caseId }: { projectId: string; caseI
   const [dirty, setDirty] = useState(false)
 
   useEffect(() => {
-    if (data) { setRows(data.length ? data : [{ name: '', value: '' }]); setDirty(false) }
+    if (data) {
+      setRows(data.length ? data : [{ name: '', value: '' }])
+      setDirty(false)
+    }
   }, [data])
 
   const saveMutation = useMutation({
-    mutationFn: () => api.replaceCaseProperties(projectId, caseId,
-      rows.filter(r => r.name.trim() && r.value.trim())),
-    onSuccess: () => { setDirty(false); void qc.invalidateQueries({ queryKey: ['caseProperties', projectId, caseId] }) },
+    mutationFn: () =>
+      api.replaceCaseProperties(
+        projectId,
+        caseId,
+        rows.filter(r => r.name.trim() && r.value.trim()),
+      ),
+    onSuccess: () => {
+      setDirty(false)
+      void qc.invalidateQueries({ queryKey: ['caseProperties', projectId, caseId] })
+    },
   })
 
   const update = (i: number, field: keyof CaseProperty, v: string) => {
-    setRows(rs => rs.map((r, idx) => idx === i ? { ...r, [field]: v } : r)); setDirty(true)
+    setRows(rs => rs.map((r, idx) => (idx === i ? { ...r, [field]: v } : r)))
+    setDirty(true)
   }
-  const addRow = () => { setRows(rs => [...rs, { name: '', value: '' }]); setDirty(true) }
-  const removeRow = (i: number) => { setRows(rs => rs.filter((_, idx) => idx !== i)); setDirty(true) }
+  const addRow = () => {
+    setRows(rs => [...rs, { name: '', value: '' }])
+    setDirty(true)
+  }
+  const removeRow = (i: number) => {
+    setRows(rs => rs.filter((_, idx) => idx !== i))
+    setDirty(true)
+  }
 
   // Full-matrix size = product of distinct value counts per property name.
   const byName = new Map<string, Set<string>>()
   rows.forEach(r => {
     if (r.name.trim() && r.value.trim()) {
       const s = byName.get(r.name.trim()) ?? new Set<string>()
-      s.add(r.value.trim()); byName.set(r.name.trim(), s)
+      s.add(r.value.trim())
+      byName.set(r.name.trim(), s)
     }
   })
   let combos = byName.size === 0 ? 0 : 1
-  byName.forEach(s => { combos *= s.size })
+  byName.forEach(s => {
+    combos *= s.size
+  })
 
   return (
     <div>
-      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Parameters (matrix axes)</p>
+      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+        Parameters (matrix axes)
+      </p>
       <div className="space-y-1.5">
         {rows.map((r, i) => (
           <div key={i} className="flex items-center gap-1.5">
@@ -1571,18 +1917,27 @@ function CasePropertiesSection({ projectId, caseId }: { projectId: string; caseI
               placeholder="value (e.g. Chrome)"
               className="flex-1 min-w-0 border border-slate-200 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
             />
-            <button onClick={() => removeRow(i)} className="p-1 text-slate-300 hover:text-red-500" title="Remove">
+            <button
+              onClick={() => removeRow(i)}
+              className="p-1 text-slate-300 hover:text-red-500"
+              title="Remove"
+            >
               <X size={12} />
             </button>
           </div>
         ))}
       </div>
       <div className="flex items-center justify-between mt-2">
-        <button onClick={addRow} className="text-xs text-slate-500 hover:text-blue-600 flex items-center gap-1">
+        <button
+          onClick={addRow}
+          className="text-xs text-slate-500 hover:text-blue-600 flex items-center gap-1"
+        >
           <Plus size={12} /> add value
         </button>
         <span className="text-[11px] text-slate-400">
-          {combos > 0 ? `Full matrix → ${combos} execution${combos === 1 ? '' : 's'}/run` : 'No parameters'}
+          {combos > 0
+            ? `Full matrix → ${combos} execution${combos === 1 ? '' : 's'}/run`
+            : 'No parameters'}
         </span>
       </div>
       {dirty && (
@@ -1621,8 +1976,19 @@ export default function TestCasesPage() {
     if (tcIdParam) setSelectedTcId(tcIdParam)
   }, [tcIdParam])
 
-  async function handleImport(rows: { title: string; externalId?: string; preconditions?: string; steps: { action: string; expectedResult?: string }[]; expectedResult?: string; priority: string; description?: string }[]) {
-    let ok = 0, failed = 0
+  async function handleImport(
+    rows: {
+      title: string
+      externalId?: string
+      preconditions?: string
+      steps: { action: string; expectedResult?: string }[]
+      expectedResult?: string
+      priority: string
+      description?: string
+    }[],
+  ) {
+    let ok = 0,
+      failed = 0
     for (const row of rows) {
       try {
         await api.createTestCase(projectId!, {
@@ -1664,24 +2030,39 @@ export default function TestCasesPage() {
     return true
   })
 
-  const { data: testCases = [], isLoading: tcLoading, error: tcError, refetch: tcRefetch } = useQuery({
-    queryKey: ['testCases', projectId, statusFilter, selectedSuiteId, search, filter.area, filter.teamId, filter.iteration],
-    queryFn: () => api.testCases(projectId!, {
-      status: statusFilter || undefined,
-      suiteId: selectedSuiteId || undefined,
-      search: search || undefined,
-      area: filter.area || undefined,
-      teamId: filter.teamId || undefined,
-      iteration: filter.iteration || undefined,
-    }),
+  const {
+    data: testCases = [],
+    isLoading: tcLoading,
+    error: tcError,
+    refetch: tcRefetch,
+  } = useQuery({
+    queryKey: [
+      'testCases',
+      projectId,
+      statusFilter,
+      selectedSuiteId,
+      search,
+      filter.area,
+      filter.teamId,
+      filter.iteration,
+    ],
+    queryFn: () =>
+      api.testCases(projectId!, {
+        status: statusFilter || undefined,
+        suiteId: selectedSuiteId || undefined,
+        search: search || undefined,
+        area: filter.area || undefined,
+        teamId: filter.teamId || undefined,
+        iteration: filter.iteration || undefined,
+      }),
     enabled: !!projectId,
   })
 
-  const selectedTc = selectedTcId ? testCases.find(tc => tc.id === selectedTcId) ?? null : null
-
+  const selectedTc = selectedTcId ? (testCases.find(tc => tc.id === selectedTcId) ?? null) : null
 
   if (tcLoading && !testCases.length) return <LoadingSpinner message="Loading test cases…" />
-  if (tcError) return <ErrorMessage message="Failed to load test cases." onRetry={() => void tcRefetch()} />
+  if (tcError)
+    return <ErrorMessage message="Failed to load test cases." onRetry={() => void tcRefetch()} />
 
   // Build flat option list for suite dropdown (respects parent→child order)
   const suiteOptions: { id: string; label: string; depth: number }[] = []
@@ -1762,11 +2143,16 @@ export default function TestCasesPage() {
             {suitesLoading && <option disabled>Loading…</option>}
             {suiteOptions.map(s => (
               <option key={s.id} value={s.id}>
-                {'  '.repeat(s.depth)}{s.depth > 0 ? '↳ ' : ''}{s.label}
+                {'  '.repeat(s.depth)}
+                {s.depth > 0 ? '↳ ' : ''}
+                {s.label}
               </option>
             ))}
           </select>
-          <ChevronDown size={13} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+          <ChevronDown
+            size={13}
+            className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400"
+          />
         </div>
 
         {/* Status filter */}
@@ -1782,12 +2168,18 @@ export default function TestCasesPage() {
             <option value="APPROVED">Approved</option>
             <option value="DEPRECATED">Deprecated</option>
           </select>
-          <ChevronDown size={13} className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+          <ChevronDown
+            size={13}
+            className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400"
+          />
         </div>
 
         {/* Search */}
         <div className="relative flex-1">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+          <Search
+            size={14}
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
+          />
           <input
             type="text"
             value={search}
@@ -1800,12 +2192,13 @@ export default function TestCasesPage() {
 
       {/* ── Main body: list + detail panel ── */}
       <div className="flex gap-4 min-h-0 flex-1 overflow-hidden">
-
         {/* List */}
-        <div className={cn(
-          'flex flex-col bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden transition-all',
-          selectedTc ? 'w-[420px] shrink-0' : 'flex-1'
-        )}>
+        <div
+          className={cn(
+            'flex flex-col bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden transition-all',
+            selectedTc ? 'w-[420px] shrink-0' : 'flex-1',
+          )}
+        >
           {tcLoading && (
             <div className="py-8 text-center text-sm text-slate-400 shrink-0">Loading…</div>
           )}
@@ -1813,7 +2206,9 @@ export default function TestCasesPage() {
             <div className="py-16 text-center flex-1 flex flex-col items-center justify-center">
               <Layers size={32} className="text-slate-300 mb-3" />
               <p className="text-sm text-slate-500">No test cases found.</p>
-              <p className="text-xs text-slate-400 mt-1">Create one manually or generate from AI.</p>
+              <p className="text-xs text-slate-400 mt-1">
+                Create one manually or generate from AI.
+              </p>
             </div>
           )}
           <div className="flex-1 overflow-y-auto divide-y divide-slate-50">
@@ -1826,12 +2221,17 @@ export default function TestCasesPage() {
                   onClick={() => setSelectedTcId(isSelected ? null : tc.id)}
                   className={cn(
                     'flex items-start gap-3 px-4 py-3 cursor-pointer transition-colors hover:bg-slate-50 group',
-                    isSelected ? 'bg-blue-50 border-l-2 border-blue-500' : 'border-l-2 border-transparent'
+                    isSelected
+                      ? 'bg-blue-50 border-l-2 border-blue-500'
+                      : 'border-l-2 border-transparent',
                   )}
                 >
                   {/* Priority badge */}
                   <div className="shrink-0 mt-0.5">
-                    <Badge label={tc.priority.slice(0, 1)} colorClass={priorityColor(tc.priority)} />
+                    <Badge
+                      label={tc.priority.slice(0, 1)}
+                      colorClass={priorityColor(tc.priority)}
+                    />
                   </div>
 
                   <div className="flex-1 min-w-0">
@@ -1853,10 +2253,12 @@ export default function TestCasesPage() {
                     )}
 
                     {/* Title */}
-                    <p className={cn(
-                      'text-sm font-medium text-slate-900 leading-snug',
-                      selectedTc ? 'line-clamp-2' : 'truncate'
-                    )}>
+                    <p
+                      className={cn(
+                        'text-sm font-medium text-slate-900 leading-snug',
+                        selectedTc ? 'line-clamp-2' : 'truncate',
+                      )}
+                    >
                       {tc.title}
                       {tc.createdBy === 'AGENT' && (
                         <Bot size={12} className="inline ml-1.5 text-purple-400 shrink-0" />
@@ -1865,20 +2267,29 @@ export default function TestCasesPage() {
 
                     {/* Status row */}
                     <div className="flex items-center gap-2 mt-1 flex-wrap">
-                      <Badge label={tc.status.replace('_', ' ')} colorClass={statusColor(tc.status)} />
+                      <Badge
+                        label={tc.status.replace('_', ' ')}
+                        colorClass={statusColor(tc.status)}
+                      />
                       {tc.automationStatus !== 'NOT_STARTED' && (
-                        <span className={cn(
-                          'inline-flex items-center gap-1 text-xs font-medium px-1.5 py-0.5 rounded-full',
-                          automationColor(tc.automationStatus)
-                        )}>
-                          {tc.automationStatus === 'GENERATING' && <Loader2 size={10} className="animate-spin" />}
+                        <span
+                          className={cn(
+                            'inline-flex items-center gap-1 text-xs font-medium px-1.5 py-0.5 rounded-full',
+                            automationColor(tc.automationStatus),
+                          )}
+                        >
+                          {tc.automationStatus === 'GENERATING' && (
+                            <Loader2 size={10} className="animate-spin" />
+                          )}
                           {tc.automationStatus.replace('_', ' ')}
                         </span>
                       )}
                       {tc.steps?.length > 0 && (
                         <span className="text-[11px] text-slate-400">{tc.steps.length} steps</span>
                       )}
-                      <span className="text-[11px] text-slate-400 ml-auto">{relativeTime(tc.updatedAt)}</span>
+                      <span className="text-[11px] text-slate-400 ml-auto">
+                        {relativeTime(tc.updatedAt)}
+                      </span>
                     </div>
                   </div>
 
@@ -1922,14 +2333,14 @@ export default function TestCasesPage() {
           projectId={projectId!}
           suites={allSuites}
           editing={editingTc}
-          onClose={() => { setShowNewModal(false); setEditingTc(null) }}
+          onClose={() => {
+            setShowNewModal(false)
+            setEditingTc(null)
+          }}
         />
       )}
       {showAIModal && (
-        <GenerateAIModal
-          projectId={projectId!}
-          onClose={() => setShowAIModal(false)}
-        />
+        <GenerateAIModal projectId={projectId!} onClose={() => setShowAIModal(false)} />
       )}
       {editSuite && (
         <SuiteFormModal
@@ -1940,10 +2351,7 @@ export default function TestCasesPage() {
         />
       )}
       {showImportModal && (
-        <ExcelImportModal
-          onClose={() => setShowImportModal(false)}
-          onImport={handleImport}
-        />
+        <ExcelImportModal onClose={() => setShowImportModal(false)} onImport={handleImport} />
       )}
     </div>
   )
@@ -1968,56 +2376,96 @@ function SuiteFormModal({
   const [active, setActive] = useState(suite.active)
   const [error, setError] = useState<string | null>(null)
 
-  const PLAN_TYPES = ['', 'SMOKE', 'REGRESSION', 'SANITY', 'FUNCTIONAL', 'INTEGRATION', 'ACCEPTANCE']
+  const PLAN_TYPES = [
+    '',
+    'SMOKE',
+    'REGRESSION',
+    'SANITY',
+    'FUNCTIONAL',
+    'INTEGRATION',
+    'ACCEPTANCE',
+  ]
 
   const save = useMutation({
-    mutationFn: () => api.updateTestSuite(projectId, suite.id, {
-      name: name.trim(),
-      description: description.trim() || undefined,
-      parentId: parentId || null,
-      planType: planType || undefined,
-      active,
-    }),
-    onSuccess: () => { void qc.invalidateQueries({ queryKey: ['testSuites', projectId] }); onClose() },
+    mutationFn: () =>
+      api.updateTestSuite(projectId, suite.id, {
+        name: name.trim(),
+        description: description.trim() || undefined,
+        parentId: parentId || null,
+        planType: planType || undefined,
+        active,
+      }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['testSuites', projectId] })
+      onClose()
+    },
     onError: (e: Error) => setError(e.message),
   })
 
-  const inputCls = 'w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500'
+  const inputCls =
+    'w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500'
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
       <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4">
         <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200">
           <h2 className="font-semibold text-slate-900">Edit Suite / Plan</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={18} /></button>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+            <X size={18} />
+          </button>
         </div>
         <div className="px-5 py-4 space-y-3">
           {error && <ErrorMessage message={error} />}
           <div>
             <label className="block text-xs font-medium text-slate-700 mb-1">Name *</label>
-            <input value={name} onChange={e => setName(e.target.value)} className={inputCls} autoFocus />
+            <input
+              value={name}
+              onChange={e => setName(e.target.value)}
+              className={inputCls}
+              autoFocus
+            />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="block text-xs font-medium text-slate-700 mb-1">Plan type</label>
-              <select value={planType} onChange={e => setPlanType(e.target.value)} className={inputCls}>
-                {PLAN_TYPES.map(t => <option key={t} value={t}>{t || '— None —'}</option>)}
+              <select
+                value={planType}
+                onChange={e => setPlanType(e.target.value)}
+                className={inputCls}
+              >
+                {PLAN_TYPES.map(t => (
+                  <option key={t} value={t}>
+                    {t || '— None —'}
+                  </option>
+                ))}
               </select>
             </div>
             <div>
               <label className="block text-xs font-medium text-slate-700 mb-1">Parent</label>
-              <select value={parentId} onChange={e => setParentId(e.target.value)} className={inputCls}>
+              <select
+                value={parentId}
+                onChange={e => setParentId(e.target.value)}
+                className={inputCls}
+              >
                 <option value="">— Root —</option>
-                {suites.filter(s => s.id !== suite.id).map(s => (
-                  <option key={s.id} value={s.id}>{s.name}</option>
-                ))}
+                {suites
+                  .filter(s => s.id !== suite.id)
+                  .map(s => (
+                    <option key={s.id} value={s.id}>
+                      {s.name}
+                    </option>
+                  ))}
               </select>
             </div>
           </div>
           <div>
             <label className="block text-xs font-medium text-slate-700 mb-1">Description</label>
-            <MarkdownEditor value={description} onChange={setDescription} rows={3}
-              placeholder="What this plan covers" />
+            <MarkdownEditor
+              value={description}
+              onChange={setDescription}
+              rows={3}
+              placeholder="What this plan covers"
+            />
           </div>
           <label className="flex items-center gap-2 text-sm text-slate-600">
             <input type="checkbox" checked={active} onChange={e => setActive(e.target.checked)} />
@@ -2025,12 +2473,17 @@ function SuiteFormModal({
           </label>
         </div>
         <div className="px-5 py-4 border-t border-slate-200 flex justify-end gap-2">
-          <button onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50">
+          <button
+            onClick={onClose}
+            className="px-4 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50"
+          >
             Cancel
           </button>
-          <button onClick={() => name.trim() && save.mutate()} disabled={!name.trim() || save.isPending}
-            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2">
+          <button
+            onClick={() => name.trim() && save.mutate()}
+            disabled={!name.trim() || save.isPending}
+            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+          >
             {save.isPending && <Loader2 size={14} className="animate-spin" />} Save
           </button>
         </div>

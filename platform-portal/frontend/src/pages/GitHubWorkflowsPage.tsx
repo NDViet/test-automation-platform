@@ -7,18 +7,28 @@ import { relativeTime } from '@/lib/utils'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import type { GitHubWorkflow, GitHubWorkflowRun } from '@/lib/types'
 import {
-  RefreshCw, Play, ExternalLink, ChevronDown, ChevronUp,
-  GitBranch, Zap, CheckCircle, XCircle, Clock, MinusCircle,
+  RefreshCw,
+  Play,
+  ExternalLink,
+  ChevronDown,
+  ChevronUp,
+  GitBranch,
+  Zap,
+  CheckCircle,
+  XCircle,
+  Clock,
+  MinusCircle,
   Settings,
 } from 'lucide-react'
 
 // ── Run status helpers ─────────────────────────────────────────────────────────
 
-
 function runIcon(run: GitHubWorkflowRun) {
-  if (run.status === 'in_progress') return <Clock size={13} className="text-yellow-500 animate-pulse" />
+  if (run.status === 'in_progress')
+    return <Clock size={13} className="text-yellow-500 animate-pulse" />
   if (run.conclusion === 'success') return <CheckCircle size={13} className="text-green-500" />
-  if (run.conclusion === 'failure' || run.conclusion === 'timed_out') return <XCircle size={13} className="text-red-500" />
+  if (run.conclusion === 'failure' || run.conclusion === 'timed_out')
+    return <XCircle size={13} className="text-red-500" />
   return <MinusCircle size={13} className="text-slate-400" />
 }
 
@@ -49,13 +59,14 @@ function TriggerModal({ projectId, workflow, onClose }: TriggerModalProps) {
   const [result, setResult] = useState<{ triggered: boolean; message: string } | null>(null)
 
   const mutation = useMutation({
-    mutationFn: () => api.triggerWorkflow(projectId, {
-      repoFullName: workflow.repoFullName,
-      workflowId: workflow.id,
-      ref,
-      inputs: extraKey.trim() ? { [extraKey.trim()]: extraVal } : undefined,
-    }),
-    onSuccess: (data) => {
+    mutationFn: () =>
+      api.triggerWorkflow(projectId, {
+        repoFullName: workflow.repoFullName,
+        workflowId: workflow.id,
+        ref,
+        inputs: extraKey.trim() ? { [extraKey.trim()]: extraVal } : undefined,
+      }),
+    onSuccess: data => {
       setResult(data)
       if (data.triggered) {
         setTimeout(() => {
@@ -76,7 +87,9 @@ function TriggerModal({ projectId, workflow, onClose }: TriggerModalProps) {
         </div>
 
         <div>
-          <label className="block text-xs font-medium text-slate-700 mb-1">Ref (branch / tag / SHA)</label>
+          <label className="block text-xs font-medium text-slate-700 mb-1">
+            Ref (branch / tag / SHA)
+          </label>
           <input
             type="text"
             value={ref}
@@ -105,16 +118,19 @@ function TriggerModal({ projectId, workflow, onClose }: TriggerModalProps) {
             />
           </div>
           <p className="text-[10px] text-slate-400 mt-1">
-            Passed as <span className="font-mono">inputs</span> to the workflow. Add more via the GitHub UI.
+            Passed as <span className="font-mono">inputs</span> to the workflow. Add more via the
+            GitHub UI.
           </p>
         </div>
 
         {result && (
-          <div className={`text-sm px-4 py-3 rounded-lg ${
-            result.triggered
-              ? 'bg-green-50 border border-green-200 text-green-800'
-              : 'bg-red-50 border border-red-200 text-red-800'
-          }`}>
+          <div
+            className={`text-sm px-4 py-3 rounded-lg ${
+              result.triggered
+                ? 'bg-green-50 border border-green-200 text-green-800'
+                : 'bg-red-50 border border-red-200 text-red-800'
+            }`}
+          >
             {result.message}
           </div>
         )}
@@ -159,7 +175,11 @@ function RunsPanel({ projectId, workflow }: RunsPanelProps) {
   })
 
   if (isLoading) {
-    return <div className="px-4 py-3"><LoadingSpinner message="Loading runs…" /></div>
+    return (
+      <div className="px-4 py-3">
+        <LoadingSpinner message="Loading runs…" />
+      </div>
+    )
   }
 
   if (runs.length === 0) {
@@ -173,13 +193,20 @@ function RunsPanel({ projectId, workflow }: RunsPanelProps) {
           <div className="shrink-0">{runIcon(run)}</div>
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
-              <span className="text-xs font-medium text-slate-800 truncate">{run.displayTitle || `Run #${run.id}`}</span>
-              <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${
-                run.status === 'in_progress' ? 'bg-yellow-100 text-yellow-700'
-                : run.conclusion === 'success' ? 'bg-green-100 text-green-700'
-                : run.conclusion === 'failure' ? 'bg-red-100 text-red-700'
-                : 'bg-slate-100 text-slate-600'
-              }`}>
+              <span className="text-xs font-medium text-slate-800 truncate">
+                {run.displayTitle || `Run #${run.id}`}
+              </span>
+              <span
+                className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ${
+                  run.status === 'in_progress'
+                    ? 'bg-yellow-100 text-yellow-700'
+                    : run.conclusion === 'success'
+                      ? 'bg-green-100 text-green-700'
+                      : run.conclusion === 'failure'
+                        ? 'bg-red-100 text-red-700'
+                        : 'bg-slate-100 text-slate-600'
+                }`}
+              >
                 {runLabel(run)}
               </span>
             </div>
@@ -229,9 +256,11 @@ function WorkflowCard({ projectId, workflow, onTrigger }: WorkflowCardProps) {
         onClick={() => setExpanded(e => !e)}
       >
         {/* State indicator */}
-        <div className={`w-2 h-2 rounded-full shrink-0 ${
-          workflow.state === 'active' ? 'bg-green-500' : 'bg-slate-300'
-        }`} />
+        <div
+          className={`w-2 h-2 rounded-full shrink-0 ${
+            workflow.state === 'active' ? 'bg-green-500' : 'bg-slate-300'
+          }`}
+        />
 
         <div className="flex-1 min-w-0">
           <p className="text-sm font-semibold text-slate-900 truncate">{workflow.name}</p>
@@ -239,16 +268,21 @@ function WorkflowCard({ projectId, workflow, onTrigger }: WorkflowCardProps) {
         </div>
 
         <div className="flex items-center gap-2 shrink-0">
-          <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full border ${
-            workflow.state === 'active'
-              ? 'bg-green-50 text-green-700 border-green-200'
-              : 'bg-slate-100 text-slate-500 border-slate-200'
-          }`}>
+          <span
+            className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full border ${
+              workflow.state === 'active'
+                ? 'bg-green-50 text-green-700 border-green-200'
+                : 'bg-slate-100 text-slate-500 border-slate-200'
+            }`}
+          >
             {workflow.state === 'active' ? 'active' : workflow.state.replace(/_/g, ' ')}
           </span>
 
           <button
-            onClick={e => { e.stopPropagation(); onTrigger(workflow) }}
+            onClick={e => {
+              e.stopPropagation()
+              onTrigger(workflow)
+            }}
             title="Trigger workflow"
             className="flex items-center gap-1 px-2.5 py-1 text-xs font-medium text-green-700 border border-green-200 rounded-lg hover:bg-green-50 transition-colors"
           >
@@ -266,7 +300,11 @@ function WorkflowCard({ projectId, workflow, onTrigger }: WorkflowCardProps) {
             <ExternalLink size={14} />
           </a>
 
-          {expanded ? <ChevronUp size={14} className="text-slate-400" /> : <ChevronDown size={14} className="text-slate-400" />}
+          {expanded ? (
+            <ChevronUp size={14} className="text-slate-400" />
+          ) : (
+            <ChevronDown size={14} className="text-slate-400" />
+          )}
         </div>
       </div>
 
@@ -314,7 +352,8 @@ export default function GitHubWorkflowsPage() {
             GitHub Workflows
           </h1>
           <p className="text-sm text-slate-500 mt-1">
-            GitHub Actions workflows from <span className="font-medium">Test Automation</span> repos assigned to this project.
+            GitHub Actions workflows from <span className="font-medium">Test Automation</span> repos
+            assigned to this project.
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -325,7 +364,10 @@ export default function GitHubWorkflowsPage() {
             <Settings size={13} /> Manage Repos
           </Link>
           <button
-            onClick={() => { void refetch(); void qc.invalidateQueries({ queryKey: ['workflow-runs', projectId] }) }}
+            onClick={() => {
+              void refetch()
+              void qc.invalidateQueries({ queryKey: ['workflow-runs', projectId] })
+            }}
             disabled={isFetching}
             className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-slate-700 border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-50 transition-colors"
           >
@@ -340,7 +382,9 @@ export default function GitHubWorkflowsPage() {
         <LoadingSpinner message="Loading workflows…" />
       ) : error ? (
         <div className="bg-red-50 border border-red-200 rounded-xl px-5 py-6 text-center">
-          <p className="text-sm text-red-700">Failed to load workflows — check your GitHub credential.</p>
+          <p className="text-sm text-red-700">
+            Failed to load workflows — check your GitHub credential.
+          </p>
         </div>
       ) : repos.length === 0 ? (
         <div className="bg-slate-50 border border-slate-200 rounded-xl px-5 py-12 text-center space-y-3">
@@ -348,7 +392,10 @@ export default function GitHubWorkflowsPage() {
           <p className="text-sm font-medium text-slate-700">No Test Automation repos configured</p>
           <p className="text-xs text-slate-500">
             Assign repos with the <span className="font-medium">Test Auto</span> role in{' '}
-            <Link to={`${base}/settings`} className="text-blue-600 hover:underline">Project Settings → GitHub</Link>.
+            <Link to={`${base}/settings`} className="text-blue-600 hover:underline">
+              Project Settings → GitHub
+            </Link>
+            .
           </p>
         </div>
       ) : (

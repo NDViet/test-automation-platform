@@ -14,54 +14,55 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 /**
  * Stateless API key security for platform-ingestion.
  *
- * <p>Authentication flow:</p>
+ * <p>Authentication flow:
+ *
  * <ol>
- *   <li>Client sends {@code X-API-Key: plat_...} header</li>
- *   <li>{@link ApiKeyAuthFilter} hashes the key and looks it up in the DB</li>
- *   <li>If valid and active, the request is authenticated with {@code ROLE_INGESTION}</li>
- *   <li>Otherwise, HTTP 401 is returned immediately</li>
+ *   <li>Client sends {@code X-API-Key: plat_...} header
+ *   <li>{@link ApiKeyAuthFilter} hashes the key and looks it up in the DB
+ *   <li>If valid and active, the request is authenticated with {@code ROLE_INGESTION}
+ *   <li>Otherwise, HTTP 401 is returned immediately
  * </ol>
  *
- * <p>Set {@code platform.security.api-key.enabled=false} to disable in local dev.</p>
+ * <p>Set {@code platform.security.api-key.enabled=false} to disable in local dev.
  */
 @Configuration
 @EnableWebSecurity
 public class SecurityConfig {
 
-    @Value("${platform.security.api-key.enabled:true}")
-    private boolean apiKeyEnabled;
+  @Value("${platform.security.api-key.enabled:true}")
+  private boolean apiKeyEnabled;
 
-    @Value("${platform.portal.service-key:}")
-    private String internalServiceKey;
+  @Value("${platform.portal.service-key:}")
+  private String internalServiceKey;
 
-    private final ApiKeyRepository keyRepo;
-    private final ApiKeyService keyService;
+  private final ApiKeyRepository keyRepo;
+  private final ApiKeyService keyService;
 
-    public SecurityConfig(ApiKeyRepository keyRepo, ApiKeyService keyService) {
-        this.keyRepo    = keyRepo;
-        this.keyService = keyService;
+  public SecurityConfig(ApiKeyRepository keyRepo, ApiKeyService keyService) {
+    this.keyRepo = keyRepo;
+    this.keyService = keyService;
+  }
+
+  @Bean
+  public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+    http.csrf(AbstractHttpConfigurer::disable)
+        .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
+
+    if (apiKeyEnabled) {
+      http.authorizeHttpRequests(
+              auth ->
+                  auth.requestMatchers("/actuator/health", "/actuator/health/**", "/actuator/info")
+                      .permitAll()
+                      .anyRequest()
+                      .authenticated())
+          .addFilterBefore(
+              new ApiKeyAuthFilter(keyRepo, keyService, internalServiceKey),
+              UsernamePasswordAuthenticationFilter.class);
+    } else {
+      // Auth disabled (local dev) — allow everything
+      http.authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
     }
 
-    @Bean
-    public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
-        http
-            .csrf(AbstractHttpConfigurer::disable)
-            .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
-
-        if (apiKeyEnabled) {
-            http
-                .authorizeHttpRequests(auth -> auth
-                    .requestMatchers("/actuator/health", "/actuator/health/**", "/actuator/info").permitAll()
-                    .anyRequest().authenticated()
-                )
-                .addFilterBefore(
-                    new ApiKeyAuthFilter(keyRepo, keyService, internalServiceKey),
-                    UsernamePasswordAuthenticationFilter.class);
-        } else {
-            // Auth disabled (local dev) — allow everything
-            http.authorizeHttpRequests(auth -> auth.anyRequest().permitAll());
-        }
-
-        return http.build();
-    }
+    return http.build();
+  }
 }

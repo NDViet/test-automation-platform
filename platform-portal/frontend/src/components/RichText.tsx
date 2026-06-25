@@ -9,10 +9,36 @@ import { useMemo } from 'react'
  */
 
 const ALLOWED_TAGS = new Set([
-  'A', 'B', 'STRONG', 'I', 'EM', 'U', 'S', 'P', 'BR', 'HR', 'SPAN', 'DIV',
-  'UL', 'OL', 'LI', 'BLOCKQUOTE', 'CODE', 'PRE',
-  'H1', 'H2', 'H3', 'H4', 'H5', 'H6',
-  'TABLE', 'THEAD', 'TBODY', 'TR', 'TH', 'TD',
+  'A',
+  'B',
+  'STRONG',
+  'I',
+  'EM',
+  'U',
+  'S',
+  'P',
+  'BR',
+  'HR',
+  'SPAN',
+  'DIV',
+  'UL',
+  'OL',
+  'LI',
+  'BLOCKQUOTE',
+  'CODE',
+  'PRE',
+  'H1',
+  'H2',
+  'H3',
+  'H4',
+  'H5',
+  'H6',
+  'TABLE',
+  'THEAD',
+  'TBODY',
+  'TR',
+  'TH',
+  'TD',
 ])
 const ALLOWED_ATTRS = new Set(['href', 'title', 'colspan', 'rowspan'])
 
@@ -34,7 +60,10 @@ function sanitize(html: string): string {
       // strip disallowed / dangerous attributes
       Array.from(child.attributes).forEach(attr => {
         const name = attr.name.toLowerCase()
-        if (!ALLOWED_ATTRS.has(name)) { child.removeAttribute(attr.name); return }
+        if (!ALLOWED_ATTRS.has(name)) {
+          child.removeAttribute(attr.name)
+          return
+        }
         if (name === 'href') {
           const v = attr.value.trim().toLowerCase()
           if (v.startsWith('javascript:') || v.startsWith('data:') || v.startsWith('vbscript:')) {
@@ -51,13 +80,20 @@ function sanitize(html: string): string {
   }
 
   // remove script/style/etc. entirely (textContent of these is not wanted)
-  doc.body.querySelectorAll('script,style,iframe,object,embed,link,meta,noscript')
-     .forEach(el => el.remove())
+  doc.body
+    .querySelectorAll('script,style,iframe,object,embed,link,meta,noscript')
+    .forEach(el => el.remove())
   walk(doc.body)
   return doc.body.innerHTML
 }
 
-export default function RichText({ children, className }: { children: string | null | undefined; className?: string }) {
+export default function RichText({
+  children,
+  className,
+}: {
+  children: string | null | undefined
+  className?: string
+}) {
   const rendered = useMemo(() => {
     if (!children) return null
     return looksLikeHtml(children) ? { html: sanitize(children) } : { text: children }
@@ -65,7 +101,11 @@ export default function RichText({ children, className }: { children: string | n
 
   if (!rendered) return null
   if ('text' in rendered) {
-    return <div className={`text-sm text-slate-700 whitespace-pre-wrap ${className ?? ''}`}>{rendered.text}</div>
+    return (
+      <div className={`text-sm text-slate-700 whitespace-pre-wrap ${className ?? ''}`}>
+        {rendered.text}
+      </div>
+    )
   }
   return (
     <div

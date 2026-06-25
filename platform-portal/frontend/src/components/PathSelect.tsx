@@ -2,7 +2,10 @@ import { useState, useRef, useEffect } from 'react'
 import { pathLeaf, cn } from '@/lib/utils'
 import { ChevronDown } from 'lucide-react'
 
-interface Opt { value: string; label: string }
+interface Opt {
+  value: string
+  label: string
+}
 
 /**
  * Dropdown for long backslash paths (Area / Iteration): the open list shows the FULL
@@ -10,12 +13,17 @@ interface Opt { value: string; label: string }
  * <select> can't do this (collapsed text === option text), hence a small custom control.
  */
 export default function PathSelect({
-  value, onChange, options, placeholder, leftIcon, className,
+  value,
+  onChange,
+  options,
+  placeholder,
+  leftIcon,
+  className,
 }: {
   value: string
   onChange: (v: string) => void
   options: Opt[]
-  placeholder: string          // shown for the empty ('') value
+  placeholder: string // shown for the empty ('') value
   leftIcon?: React.ReactNode
   className?: string
 }) {
@@ -54,19 +62,35 @@ export default function PathSelect({
       {open && (
         <ul className="absolute z-50 mt-1 max-h-72 w-max min-w-full max-w-[28rem] overflow-auto rounded-lg border border-slate-200 bg-white shadow-lg py-1 text-sm">
           <li>
-            <button type="button" ref={!value ? selectedRef : undefined}
-              onClick={() => { onChange(''); setOpen(false) }}
-              className={cn('block w-full text-left px-3 py-1.5 hover:bg-slate-50',
-                !value ? 'bg-blue-50 text-blue-700' : 'text-slate-700')}>
+            <button
+              type="button"
+              ref={!value ? selectedRef : undefined}
+              onClick={() => {
+                onChange('')
+                setOpen(false)
+              }}
+              className={cn(
+                'block w-full text-left px-3 py-1.5 hover:bg-slate-50',
+                !value ? 'bg-blue-50 text-blue-700' : 'text-slate-700',
+              )}
+            >
               {placeholder}
             </button>
           </li>
           {options.map(o => (
             <li key={o.value}>
-              <button type="button" ref={o.value === value ? selectedRef : undefined}
-                onClick={() => { onChange(o.value); setOpen(false) }}
-                className={cn('block w-full text-left px-3 py-1.5 hover:bg-slate-50 whitespace-nowrap',
-                  o.value === value ? 'bg-blue-50 text-blue-700' : 'text-slate-700')}>
+              <button
+                type="button"
+                ref={o.value === value ? selectedRef : undefined}
+                onClick={() => {
+                  onChange(o.value)
+                  setOpen(false)
+                }}
+                className={cn(
+                  'block w-full text-left px-3 py-1.5 hover:bg-slate-50 whitespace-nowrap',
+                  o.value === value ? 'bg-blue-50 text-blue-700' : 'text-slate-700',
+                )}
+              >
                 {o.label}
               </button>
             </li>

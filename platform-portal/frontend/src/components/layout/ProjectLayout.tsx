@@ -33,9 +33,9 @@ export function useProjectId(): string {
 // Persists across menu navigation within a project so every object list/dashboard can
 // honor the same scope. Area/Team apply to all objects; Iteration to those that carry it.
 export interface ProjectFilter {
-  area: string        // area_path ('' = all)
-  teamId: string      // ado_teams id ('' = all)
-  iteration: string   // iteration_path ('' = all)
+  area: string // area_path ('' = all)
+  teamId: string // ado_teams id ('' = all)
+  iteration: string // iteration_path ('' = all)
 }
 
 interface FilterCtx {
@@ -58,19 +58,38 @@ const EMPTY: ProjectFilter = { area: '', teamId: '', iteration: '' }
 
 function FilterBar({ projectId }: { projectId: string }) {
   const { filter, setFilter, clear, active } = useProjectFilter()
-  const { data: areas = [] } = useQuery({ queryKey: ['adoAreas', projectId], queryFn: () => api.adoAreas(projectId) })
-  const { data: teams = [] } = useQuery({ queryKey: ['adoTeams', projectId], queryFn: () => api.adoTeams(projectId) })
-  const { data: iterations = [] } = useQuery({ queryKey: ['adoIterations', projectId], queryFn: () => api.adoIterations(projectId) })
+  const { data: areas = [] } = useQuery({
+    queryKey: ['adoAreas', projectId],
+    queryFn: () => api.adoAreas(projectId),
+  })
+  const { data: teams = [] } = useQuery({
+    queryKey: ['adoTeams', projectId],
+    queryFn: () => api.adoTeams(projectId),
+  })
+  const { data: iterations = [] } = useQuery({
+    queryKey: ['adoIterations', projectId],
+    queryFn: () => api.adoIterations(projectId),
+  })
 
-  const sel = 'border border-slate-200 rounded-lg pl-7 pr-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 max-w-[15rem]'
+  const sel =
+    'border border-slate-200 rounded-lg pl-7 pr-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 max-w-[15rem]'
   return (
     <div className="sticky top-0 z-20 -mx-6 px-6 py-2.5 mb-4 bg-white/95 backdrop-blur border-b border-slate-200 flex items-center gap-3 flex-wrap">
       <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Scope</span>
       <div className="relative">
         <Users size={13} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" />
-        <select className={sel} value={filter.teamId} onChange={e => setFilter({ teamId: e.target.value })} title="Team">
+        <select
+          className={sel}
+          value={filter.teamId}
+          onChange={e => setFilter({ teamId: e.target.value })}
+          title="Team"
+        >
           <option value="">All teams</option>
-          {teams.map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+          {teams.map(t => (
+            <option key={t.id} value={t.id}>
+              {t.name}
+            </option>
+          ))}
         </select>
       </div>
       <PathSelect
@@ -90,7 +109,10 @@ function FilterBar({ projectId }: { projectId: string }) {
         options={iterations.map(it => ({ value: it.path, label: it.path }))}
       />
       {active && (
-        <button onClick={clear} className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700">
+        <button
+          onClick={clear}
+          className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700"
+        >
           <X size={13} /> Clear
         </button>
       )}
@@ -106,7 +128,11 @@ function FilterBar({ projectId }: { projectId: string }) {
 export default function ProjectLayout() {
   const { orgSlug, projectSlug } = useParams<{ orgSlug: string; projectSlug: string }>()
 
-  const { data: projects, isLoading, error } = useQuery({
+  const {
+    data: projects,
+    isLoading,
+    error,
+  } = useQuery({
     queryKey: ['projects'],
     queryFn: () => api.projects(),
   })
@@ -122,19 +148,29 @@ export default function ProjectLayout() {
     try {
       const raw = sessionStorage.getItem(storeKey)
       setFilterState(raw ? { ...EMPTY, ...JSON.parse(raw) } : EMPTY)
-    } catch { setFilterState(EMPTY) }
+    } catch {
+      setFilterState(EMPTY)
+    }
   }, [projectId, storeKey])
 
   function setFilter(patch: Partial<ProjectFilter>) {
     setFilterState(prev => {
       const next = { ...prev, ...patch }
-      try { sessionStorage.setItem(storeKey, JSON.stringify(next)) } catch { /* ignore */ }
+      try {
+        sessionStorage.setItem(storeKey, JSON.stringify(next))
+      } catch {
+        /* ignore */
+      }
       return next
     })
   }
   function clear() {
     setFilterState(EMPTY)
-    try { sessionStorage.removeItem(storeKey) } catch { /* ignore */ }
+    try {
+      sessionStorage.removeItem(storeKey)
+    } catch {
+      /* ignore */
+    }
   }
   const active = !!(filter.area || filter.teamId || filter.iteration)
 
@@ -172,7 +208,10 @@ export default function ProjectLayout() {
  */
 export function LegacyProjectRedirect() {
   const params = useParams<{ projectId: string; '*': string }>()
-  const { data: projects, isLoading } = useQuery({ queryKey: ['projects'], queryFn: () => api.projects() })
+  const { data: projects, isLoading } = useQuery({
+    queryKey: ['projects'],
+    queryFn: () => api.projects(),
+  })
 
   if (isLoading) return <LoadingSpinner message="Resolving project…" />
   const project = projects?.find(p => p.id === params.projectId)

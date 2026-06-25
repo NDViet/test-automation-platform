@@ -27,7 +27,9 @@ export default function MarkdownEditor({
             type="button"
             onClick={() => setTab(t)}
             className={`px-2 py-0.5 text-xs font-medium rounded ${
-              tab === t ? 'bg-white text-slate-900 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+              tab === t
+                ? 'bg-white text-slate-900 shadow-sm'
+                : 'text-slate-500 hover:text-slate-700'
             }`}
           >
             {t === 'write' ? 'Write' : 'Preview'}
@@ -45,9 +47,11 @@ export default function MarkdownEditor({
         />
       ) : (
         <div className="px-3 py-2 min-h-[5rem]">
-          {value.trim()
-            ? <Markdown>{value}</Markdown>
-            : <p className="text-xs text-slate-400">Nothing to preview.</p>}
+          {value.trim() ? (
+            <Markdown>{value}</Markdown>
+          ) : (
+            <p className="text-xs text-slate-400">Nothing to preview.</p>
+          )}
         </div>
       )}
     </div>

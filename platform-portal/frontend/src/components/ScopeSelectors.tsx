@@ -7,8 +7,14 @@ const selectCls =
 
 /** Organization picker — value/onChange carry the organization UUID. */
 export function OrganizationSelect({
-  value, onChange, className,
-}: { value: string; onChange: (id: string) => void; className?: string }) {
+  value,
+  onChange,
+  className,
+}: {
+  value: string
+  onChange: (id: string) => void
+  className?: string
+}) {
   const { data: orgs } = useQuery({ queryKey: ['organizations'], queryFn: api.organizations })
 
   useEffect(() => {
@@ -16,17 +22,31 @@ export function OrganizationSelect({
   }, [orgs, value, onChange])
 
   return (
-    <select value={value} onChange={e => onChange(e.target.value)} className={className ?? selectCls}>
+    <select
+      value={value}
+      onChange={e => onChange(e.target.value)}
+      className={className ?? selectCls}
+    >
       {(orgs ?? []).length === 0 && <option value="">No organizations</option>}
-      {(orgs ?? []).map(o => <option key={o.id} value={o.id}>{o.name}</option>)}
+      {(orgs ?? []).map(o => (
+        <option key={o.id} value={o.id}>
+          {o.name}
+        </option>
+      ))}
     </select>
   )
 }
 
 /** Project picker — value/onChange carry the project UUID. */
 export function ProjectSelect({
-  value, onChange, className,
-}: { value: string; onChange: (id: string) => void; className?: string }) {
+  value,
+  onChange,
+  className,
+}: {
+  value: string
+  onChange: (id: string) => void
+  className?: string
+}) {
   const { data: projects } = useQuery({ queryKey: ['projects'], queryFn: () => api.projects() })
 
   useEffect(() => {
@@ -34,17 +54,33 @@ export function ProjectSelect({
   }, [projects, value, onChange])
 
   return (
-    <select value={value} onChange={e => onChange(e.target.value)} className={className ?? selectCls}>
+    <select
+      value={value}
+      onChange={e => onChange(e.target.value)}
+      className={className ?? selectCls}
+    >
       {(projects ?? []).length === 0 && <option value="">No projects</option>}
-      {(projects ?? []).map(p => <option key={p.id} value={p.id}>{p.orgSlug} / {p.name}</option>)}
+      {(projects ?? []).map(p => (
+        <option key={p.id} value={p.id}>
+          {p.orgSlug} / {p.name}
+        </option>
+      ))}
     </select>
   )
 }
 
 /** Team picker scoped to a project — value/onChange carry the team UUID. */
 export function TeamSelect({
-  projectId, value, onChange, className,
-}: { projectId: string; value: string; onChange: (id: string) => void; className?: string }) {
+  projectId,
+  value,
+  onChange,
+  className,
+}: {
+  projectId: string
+  value: string
+  onChange: (id: string) => void
+  className?: string
+}) {
   const { data: teams } = useQuery({
     queryKey: ['teams', projectId],
     queryFn: () => api.teams(projectId),
@@ -56,9 +92,17 @@ export function TeamSelect({
   }, [teams, value, onChange])
 
   return (
-    <select value={value} onChange={e => onChange(e.target.value)} className={className ?? selectCls}>
+    <select
+      value={value}
+      onChange={e => onChange(e.target.value)}
+      className={className ?? selectCls}
+    >
       {(teams ?? []).length === 0 && <option value="">No teams in project</option>}
-      {(teams ?? []).map(t => <option key={t.id} value={t.id}>{t.name}</option>)}
+      {(teams ?? []).map(t => (
+        <option key={t.id} value={t.id}>
+          {t.name}
+        </option>
+      ))}
     </select>
   )
 }

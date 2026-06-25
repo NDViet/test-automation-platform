@@ -3,8 +3,8 @@ package com.platform.testframework.annotation;
 import java.lang.annotation.*;
 
 /**
- * Optional metadata attached to a test class or method.
- * Flows through to the platform as tags, enabling filtering and reporting.
+ * Optional metadata attached to a test class or method. Flows through to the platform as tags,
+ * enabling filtering and reporting.
  *
  * <pre>{@code
  * @TestMetadata(owner = "payments-team", severity = TestMetadata.Severity.CRITICAL,
@@ -17,17 +17,23 @@ import java.lang.annotation.*;
 @Documented
 public @interface TestMetadata {
 
-    /** Owning team or person. */
-    String owner() default "";
+  /** Owning team or person. */
+  String owner() default "";
 
-    /** Business feature being tested. */
-    String feature() default "";
+  /** Business feature being tested. */
+  String feature() default "";
 
-    /** Story / ticket reference (e.g. JIRA key). */
-    String story() default "";
+  /** Story / ticket reference (e.g. JIRA key). */
+  String story() default "";
 
-    /** Severity of the test in production context. */
-    Severity severity() default Severity.NORMAL;
+  /** Severity of the test in production context. */
+  Severity severity() default Severity.NORMAL;
 
-    enum Severity { BLOCKER, CRITICAL, NORMAL, MINOR, TRIVIAL }
+  enum Severity {
+    BLOCKER,
+    CRITICAL,
+    NORMAL,
+    MINOR,
+    TRIVIAL
+  }
 }

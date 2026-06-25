@@ -6,14 +6,22 @@ import { relativeTime, cn } from '@/lib/utils'
 import Badge from '@/components/Badge'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import ErrorMessage from '@/components/ErrorMessage'
-import { ChevronRight, ExternalLink, GitPullRequest, CheckCircle, XCircle, Clock, AlertCircle } from 'lucide-react'
+import {
+  ChevronRight,
+  ExternalLink,
+  GitPullRequest,
+  CheckCircle,
+  XCircle,
+  Clock,
+  AlertCircle,
+} from 'lucide-react'
 import type { PrAnalysis } from '@/lib/types'
 
 const STATUS_META: Record<string, { color: string; icon: React.ReactNode }> = {
-  COMPLETED:       { color: 'text-green-700 bg-green-100',  icon: <CheckCircle size={13} /> },
-  FAILED:          { color: 'text-red-700 bg-red-100',      icon: <XCircle size={13} /> },
-  RUNNING:         { color: 'text-blue-700 bg-blue-100',    icon: <Clock size={13} /> },
-  PENDING:         { color: 'text-slate-600 bg-slate-100',  icon: <Clock size={13} /> },
+  COMPLETED: { color: 'text-green-700 bg-green-100', icon: <CheckCircle size={13} /> },
+  FAILED: { color: 'text-red-700 bg-red-100', icon: <XCircle size={13} /> },
+  RUNNING: { color: 'text-blue-700 bg-blue-100', icon: <Clock size={13} /> },
+  PENDING: { color: 'text-slate-600 bg-slate-100', icon: <Clock size={13} /> },
   AWAITING_REVIEW: { color: 'text-yellow-700 bg-yellow-100', icon: <AlertCircle size={13} /> },
 }
 
@@ -41,25 +49,28 @@ export default function PRAnalysesPage() {
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['pr-analyses', projectId],
-    queryFn:  () => api.prAnalyses(projectId!, 30),
-    enabled:  !!projectId,
+    queryFn: () => api.prAnalyses(projectId!, 30),
+    enabled: !!projectId,
   })
 
   if (isLoading) return <LoadingSpinner message="Loading PR analyses…" />
-  if (error)     return <ErrorMessage  message="Failed to load PR analyses." onRetry={() => void refetch()} />
+  if (error)
+    return <ErrorMessage message="Failed to load PR analyses." onRetry={() => void refetch()} />
 
   const items: PrAnalysis[] = Array.isArray(data) ? data : []
 
   const completed = items.filter(i => i.status === 'COMPLETED').length
-  const failed    = items.filter(i => i.status === 'FAILED').length
-  const running   = items.filter(i => i.status === 'RUNNING' || i.status === 'PENDING').length
+  const failed = items.filter(i => i.status === 'FAILED').length
+  const running = items.filter(i => i.status === 'RUNNING' || i.status === 'PENDING').length
 
   return (
     <div className="space-y-6">
       {/* Breadcrumb */}
       <div>
         <div className="flex items-center gap-2 text-sm text-slate-500 mb-1">
-          <button onClick={() => navigate('/')} className="hover:text-blue-600">Overview</button>
+          <button onClick={() => navigate('/')} className="hover:text-blue-600">
+            Overview
+          </button>
           <ChevronRight size={14} />
           <button onClick={() => navigate(base)} className="hover:text-blue-600">
             {projectId}
@@ -72,7 +83,8 @@ export default function PRAnalysesPage() {
           <h1 className="text-2xl font-bold text-slate-900">PR Analyses</h1>
         </div>
         <p className="text-sm text-slate-500 mt-1">
-          GitHub pull requests analyzed by the AnalysisNode — coverage gaps, TIA risk, and test recommendations.
+          GitHub pull requests analyzed by the AnalysisNode — coverage gaps, TIA risk, and test
+          recommendations.
         </p>
       </div>
 
@@ -81,10 +93,13 @@ export default function PRAnalysesPage() {
         <div className="grid grid-cols-3 gap-4">
           {[
             { label: 'Completed', value: completed, color: 'text-green-600' },
-            { label: 'Failed',    value: failed,    color: 'text-red-600' },
-            { label: 'Running',   value: running,   color: 'text-blue-600' },
+            { label: 'Failed', value: failed, color: 'text-red-600' },
+            { label: 'Running', value: running, color: 'text-blue-600' },
           ].map(s => (
-            <div key={s.label} className="bg-white rounded-xl border border-slate-200 shadow-sm px-5 py-4">
+            <div
+              key={s.label}
+              className="bg-white rounded-xl border border-slate-200 shadow-sm px-5 py-4"
+            >
               <p className="text-xs text-slate-500">{s.label}</p>
               <p className={cn('text-2xl font-bold', s.color)}>{s.value}</p>
             </div>
@@ -100,7 +115,8 @@ export default function PRAnalysesPage() {
 
         {items.length === 0 ? (
           <p className="px-5 py-12 text-sm text-slate-500 text-center">
-            No PR analyses yet. Connect a GitHub integration and push a pull request to trigger the AnalysisNode.
+            No PR analyses yet. Connect a GitHub integration and push a pull request to trigger the
+            AnalysisNode.
           </p>
         ) : (
           <div className="divide-y divide-slate-50">
@@ -112,10 +128,7 @@ export default function PRAnalysesPage() {
                     {/* Left: PR link + summary */}
                     <div className="min-w-0 flex-1">
                       <div className="flex items-center gap-2 mb-1">
-                        <Badge
-                          label={a.status.replace('_', ' ')}
-                          colorClass={sc}
-                        />
+                        <Badge label={a.status.replace('_', ' ')} colorClass={sc} />
                         {a.refUrl ? (
                           <a
                             href={a.refUrl}
@@ -132,7 +145,9 @@ export default function PRAnalysesPage() {
                       </div>
 
                       {a.summary ? (
-                        <p className="text-xs text-slate-600 leading-relaxed line-clamp-3">{a.summary}</p>
+                        <p className="text-xs text-slate-600 leading-relaxed line-clamp-3">
+                          {a.summary}
+                        </p>
                       ) : (
                         <p className="text-xs text-slate-400 italic">No summary available.</p>
                       )}

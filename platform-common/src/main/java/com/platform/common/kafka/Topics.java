@@ -1,38 +1,41 @@
 package com.platform.common.kafka;
 
 /**
- * Central registry of all Kafka topic names used across the platform.
- * Import this class in producers and consumers — never hardcode topic strings.
+ * Central registry of all Kafka topic names used across the platform. Import this class in
+ * producers and consumers — never hardcode topic strings.
  */
 public final class Topics {
 
-    private Topics() {}
+  private Topics() {}
 
-    /** Raw normalized test results published by platform-ingestion after each CI run. */
-    public static final String TEST_RESULTS_RAW = "test.results.raw";
+  /** Raw normalized test results published by platform-ingestion after each CI run. */
+  public static final String TEST_RESULTS_RAW = "test.results.raw";
 
-    /** Enriched results after AI analysis — published by platform-ai. */
-    public static final String TEST_RESULTS_ANALYZED = "test.results.analyzed";
+  /** Enriched results after AI analysis — published by platform-ai. */
+  public static final String TEST_RESULTS_ANALYZED = "test.results.analyzed";
 
-    /** Flakiness score updated events — published by platform-analytics. */
-    public static final String FLAKINESS_EVENTS = "test.flakiness.events";
+  /** Flakiness score updated events — published by platform-analytics. */
+  public static final String FLAKINESS_EVENTS = "test.flakiness.events";
 
-    /** Commands to create/update/close issue tracker tickets. */
-    public static final String INTEGRATION_COMMANDS = "test.integration.commands";
+  /** Commands to create/update/close issue tracker tickets. */
+  public static final String INTEGRATION_COMMANDS = "test.integration.commands";
 
-    /** Alert events dispatched to Slack/email/webhooks. */
-    public static final String ALERT_EVENTS = "test.alert.events";
+  /** Alert events dispatched to Slack/email/webhooks. */
+  public static final String ALERT_EVENTS = "test.alert.events";
 
-    // -------------------------------------------------------------------------
-    // Agent workflow topics
-    // -------------------------------------------------------------------------
+  // -------------------------------------------------------------------------
+  // Agent workflow topics
+  // -------------------------------------------------------------------------
 
-    /** Lifecycle events for agent workflows: created, node_started, node_completed, awaiting_review, completed, failed. */
-    public static final String AGENT_WORKFLOW_EVENTS = "agent.workflow.events";
+  /**
+   * Lifecycle events for agent workflows: created, node_started, node_completed, awaiting_review,
+   * completed, failed.
+   */
+  public static final String AGENT_WORKFLOW_EVENTS = "agent.workflow.events";
 
-    /** Review requests published by ReviewGateway; consumed by Slack/portal/GitHub notifiers. */
-    public static final String AGENT_APPROVAL_REQUESTS = "agent.approval.requests";
+  /** Review requests published by ReviewGateway; consumed by Slack/portal/GitHub notifiers. */
+  public static final String AGENT_APPROVAL_REQUESTS = "agent.approval.requests";
 
-    /** Human decisions (APPROVED/REJECTED/EDIT) flowing back into the Hub from any review channel. */
-    public static final String AGENT_APPROVAL_DECISIONS = "agent.approval.decisions";
+  /** Human decisions (APPROVED/REJECTED/EDIT) flowing back into the Hub from any review channel. */
+  public static final String AGENT_APPROVAL_DECISIONS = "agent.approval.decisions";
 }

@@ -7,110 +7,113 @@ import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestClient;
 
 /**
- * BFF proxy for scoped integration credentials (the centralized Admin PAT +
- * Team/Project overrides). Proxies to platform-ingestion's
- * {@code /api/v1/credentials} API.
+ * BFF proxy for scoped integration credentials (the centralized Admin PAT + Team/Project
+ * overrides). Proxies to platform-ingestion's {@code /api/v1/credentials} API.
  */
 @RestController
 @RequestMapping("/api/portal/credentials")
 public class PortalCredentialController {
 
-    private final RestClient ingestionClient;
+  private final RestClient ingestionClient;
 
-    public PortalCredentialController(@Qualifier("ingestionClient") RestClient ingestionClient) {
-        this.ingestionClient = ingestionClient;
-    }
+  public PortalCredentialController(@Qualifier("ingestionClient") RestClient ingestionClient) {
+    this.ingestionClient = ingestionClient;
+  }
 
-    @GetMapping
-    public Object list(@RequestParam String scope,
-                       @RequestParam(required = false) String scopeId) {
-        StringBuilder uri = new StringBuilder("/api/v1/credentials?scope=").append(scope);
-        if (scopeId != null && !scopeId.isBlank()) uri.append("&scopeId=").append(scopeId);
-        return ingestionClient.get()
-                .uri(uri.toString())
-                .accept(MediaType.APPLICATION_JSON)
-                .retrieve()
-                .body(Object.class);
-    }
+  @GetMapping
+  public Object list(@RequestParam String scope, @RequestParam(required = false) String scopeId) {
+    StringBuilder uri = new StringBuilder("/api/v1/credentials?scope=").append(scope);
+    if (scopeId != null && !scopeId.isBlank()) uri.append("&scopeId=").append(scopeId);
+    return ingestionClient
+        .get()
+        .uri(uri.toString())
+        .accept(MediaType.APPLICATION_JSON)
+        .retrieve()
+        .body(Object.class);
+  }
 
-    @PostMapping
-    public Object save(@RequestBody Object body) {
-        return ingestionClient.post()
-                .uri("/api/v1/credentials")
-                .contentType(MediaType.APPLICATION_JSON)
-                .accept(MediaType.APPLICATION_JSON)
-                .body(body)
-                .retrieve()
-                .body(Object.class);
-    }
+  @PostMapping
+  public Object save(@RequestBody Object body) {
+    return ingestionClient
+        .post()
+        .uri("/api/v1/credentials")
+        .contentType(MediaType.APPLICATION_JSON)
+        .accept(MediaType.APPLICATION_JSON)
+        .body(body)
+        .retrieve()
+        .body(Object.class);
+  }
 
-    @DeleteMapping("/{id}")
-    public ResponseEntity<Void> delete(@PathVariable String id) {
-        ingestionClient.delete()
-                .uri("/api/v1/credentials/" + id)
-                .retrieve()
-                .toBodilessEntity();
-        return ResponseEntity.noContent().build();
-    }
+  @DeleteMapping("/{id}")
+  public ResponseEntity<Void> delete(@PathVariable String id) {
+    ingestionClient.delete().uri("/api/v1/credentials/" + id).retrieve().toBodilessEntity();
+    return ResponseEntity.noContent().build();
+  }
 
-    @PostMapping("/{id}/test")
-    public Object test(@PathVariable String id) {
-        return ingestionClient.post()
-                .uri("/api/v1/credentials/" + id + "/test")
-                .accept(MediaType.APPLICATION_JSON)
-                .retrieve()
-                .body(Object.class);
-    }
+  @PostMapping("/{id}/test")
+  public Object test(@PathVariable String id) {
+    return ingestionClient
+        .post()
+        .uri("/api/v1/credentials/" + id + "/test")
+        .accept(MediaType.APPLICATION_JSON)
+        .retrieve()
+        .body(Object.class);
+  }
 
-    /** GitHub: list repos the credential's PAT can access (each flagged if managed). */
-    @GetMapping("/{id}/github/repos")
-    public Object githubRepos(@PathVariable String id) {
-        return ingestionClient.get()
-                .uri("/api/v1/credentials/" + id + "/github/repos")
-                .accept(MediaType.APPLICATION_JSON)
-                .retrieve()
-                .body(Object.class);
-    }
+  /** GitHub: list repos the credential's PAT can access (each flagged if managed). */
+  @GetMapping("/{id}/github/repos")
+  public Object githubRepos(@PathVariable String id) {
+    return ingestionClient
+        .get()
+        .uri("/api/v1/credentials/" + id + "/github/repos")
+        .accept(MediaType.APPLICATION_JSON)
+        .retrieve()
+        .body(Object.class);
+  }
 
-    /** GitHub: set which discovered repos the platform manages. */
-    @PutMapping("/{id}/github/repos")
-    public Object setGithubRepos(@PathVariable String id, @RequestBody Object body) {
-        return ingestionClient.put()
-                .uri("/api/v1/credentials/" + id + "/github/repos")
-                .contentType(MediaType.APPLICATION_JSON)
-                .accept(MediaType.APPLICATION_JSON)
-                .body(body)
-                .retrieve()
-                .body(Object.class);
-    }
+  /** GitHub: set which discovered repos the platform manages. */
+  @PutMapping("/{id}/github/repos")
+  public Object setGithubRepos(@PathVariable String id, @RequestBody Object body) {
+    return ingestionClient
+        .put()
+        .uri("/api/v1/credentials/" + id + "/github/repos")
+        .contentType(MediaType.APPLICATION_JSON)
+        .accept(MediaType.APPLICATION_JSON)
+        .body(body)
+        .retrieve()
+        .body(Object.class);
+  }
 
-    /** GitHub: sync all accessible repos into the local cache (calls GitHub API). */
-    @PostMapping("/{id}/github/repos/sync")
-    public Object syncGithubRepos(@PathVariable String id) {
-        return ingestionClient.post()
-                .uri("/api/v1/credentials/" + id + "/github/repos/sync")
-                .accept(MediaType.APPLICATION_JSON)
-                .retrieve()
-                .body(Object.class);
-    }
+  /** GitHub: sync all accessible repos into the local cache (calls GitHub API). */
+  @PostMapping("/{id}/github/repos/sync")
+  public Object syncGithubRepos(@PathVariable String id) {
+    return ingestionClient
+        .post()
+        .uri("/api/v1/credentials/" + id + "/github/repos/sync")
+        .accept(MediaType.APPLICATION_JSON)
+        .retrieve()
+        .body(Object.class);
+  }
 
-    /** GitHub: return cached repos (no GitHub API call). */
-    @GetMapping("/{id}/github/repos/cached")
-    public Object cachedGithubRepos(@PathVariable String id) {
-        return ingestionClient.get()
-                .uri("/api/v1/credentials/" + id + "/github/repos/cached")
-                .accept(MediaType.APPLICATION_JSON)
-                .retrieve()
-                .body(Object.class);
-    }
+  /** GitHub: return cached repos (no GitHub API call). */
+  @GetMapping("/{id}/github/repos/cached")
+  public Object cachedGithubRepos(@PathVariable String id) {
+    return ingestionClient
+        .get()
+        .uri("/api/v1/credentials/" + id + "/github/repos/cached")
+        .accept(MediaType.APPLICATION_JSON)
+        .retrieve()
+        .body(Object.class);
+  }
 
-    /** Update the auto-sync interval for a GitHub credential. */
-    @PatchMapping("/{id}/sync-interval")
-    public Object updateSyncInterval(@PathVariable String id, @RequestParam int minutes) {
-        return ingestionClient.patch()
-                .uri("/api/v1/credentials/" + id + "/sync-interval?minutes=" + minutes)
-                .accept(MediaType.APPLICATION_JSON)
-                .retrieve()
-                .body(Object.class);
-    }
+  /** Update the auto-sync interval for a GitHub credential. */
+  @PatchMapping("/{id}/sync-interval")
+  public Object updateSyncInterval(@PathVariable String id, @RequestParam int minutes) {
+    return ingestionClient
+        .patch()
+        .uri("/api/v1/credentials/" + id + "/sync-interval?minutes=" + minutes)
+        .accept(MediaType.APPLICATION_JSON)
+        .retrieve()
+        .body(Object.class);
+  }
 }

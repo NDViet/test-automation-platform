@@ -8,20 +8,42 @@ import { AreaChart, Area, Tooltip as RCTooltip, ResponsiveContainer } from 'rech
 import Badge from '@/components/Badge'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import ErrorMessage from '@/components/ErrorMessage'
-import { Search, ExternalLink, ChevronRight, X, Play, GitBranch, FlaskConical, List, Calendar, ChevronDown, Camera, Video, Monitor, FileCode, Tag } from 'lucide-react'
+import {
+  Search,
+  ExternalLink,
+  ChevronRight,
+  X,
+  Play,
+  GitBranch,
+  FlaskConical,
+  List,
+  Calendar,
+  ChevronDown,
+  Camera,
+  Video,
+  Monitor,
+  FileCode,
+  Tag,
+} from 'lucide-react'
 
 // ── Date range ────────────────────────────────────────────────────────────────
 
 type DateRange = { from: Date; to: Date; label: string }
 
 function startOfDay(d: Date): Date {
-  const r = new Date(d); r.setHours(0, 0, 0, 0); return r
+  const r = new Date(d)
+  r.setHours(0, 0, 0, 0)
+  return r
 }
 function endOfDay(d: Date): Date {
-  const r = new Date(d); r.setHours(23, 59, 59, 999); return r
+  const r = new Date(d)
+  r.setHours(23, 59, 59, 999)
+  return r
 }
 function daysAgo(n: number): Date {
-  const d = new Date(); d.setDate(d.getDate() - n); return startOfDay(d)
+  const d = new Date()
+  d.setDate(d.getDate() - n)
+  return startOfDay(d)
 }
 function toLocalInput(d: Date): string {
   // datetime-local input value format: "YYYY-MM-DDTHH:mm"
@@ -35,8 +57,8 @@ function formatRangeLabel(from: Date, to: Date): string {
 }
 
 const PRESETS: { label: string; days: number }[] = [
-  { label: 'Today',    days: 0  },
-  { label: 'Last 7d',  days: 7  },
+  { label: 'Today', days: 0 },
+  { label: 'Last 7d', days: 7 },
   { label: 'Last 14d', days: 14 },
   { label: 'Last 30d', days: 30 },
   { label: 'Last 90d', days: 90 },
@@ -47,10 +69,16 @@ function makePreset(days: number, label: string): DateRange {
   return { from: daysAgo(days), to: endOfDay(now), label }
 }
 
-function DateRangePicker({ value, onChange }: { value: DateRange; onChange: (r: DateRange) => void }) {
-  const [open, setOpen]       = useState(false)
+function DateRangePicker({
+  value,
+  onChange,
+}: {
+  value: DateRange
+  onChange: (r: DateRange) => void
+}) {
+  const [open, setOpen] = useState(false)
   const [fromStr, setFromStr] = useState(toLocalInput(value.from))
-  const [toStr, setToStr]     = useState(toLocalInput(value.to))
+  const [toStr, setToStr] = useState(toLocalInput(value.to))
   const ref = useRef<HTMLDivElement>(null)
 
   // Close on outside click
@@ -72,7 +100,7 @@ function DateRangePicker({ value, onChange }: { value: DateRange; onChange: (r: 
 
   function applyCustom() {
     const from = new Date(fromStr)
-    const to   = new Date(toStr)
+    const to = new Date(toStr)
     if (isNaN(from.getTime()) || isNaN(to.getTime()) || from > to) return
     onChange({ from, to, label: formatRangeLabel(from, to) })
     setOpen(false)
@@ -86,13 +114,18 @@ function DateRangePicker({ value, onChange }: { value: DateRange; onChange: (r: 
       >
         <Calendar size={14} className="text-slate-400 shrink-0" />
         <span className="text-slate-700">{value.label}</span>
-        <ChevronDown size={13} className={cn('text-slate-400 transition-transform', open && 'rotate-180')} />
+        <ChevronDown
+          size={13}
+          className={cn('text-slate-400 transition-transform', open && 'rotate-180')}
+        />
       </button>
 
       {open && (
         <div className="absolute right-0 top-full mt-1.5 z-50 bg-white border border-slate-200 rounded-xl shadow-lg p-4 min-w-[300px]">
           {/* Preset chips */}
-          <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-2">Quick select</p>
+          <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-2">
+            Quick select
+          </p>
           <div className="flex flex-wrap gap-1.5 mb-4">
             {PRESETS.map(p => (
               <button
@@ -102,7 +135,7 @@ function DateRangePicker({ value, onChange }: { value: DateRange; onChange: (r: 
                   'px-3 py-1 text-xs font-medium rounded-full border transition-colors',
                   value.label === p.label
                     ? 'bg-blue-600 text-white border-blue-600'
-                    : 'bg-white text-slate-600 border-slate-200 hover:border-blue-400 hover:text-blue-600'
+                    : 'bg-white text-slate-600 border-slate-200 hover:border-blue-400 hover:text-blue-600',
                 )}
               >
                 {p.label}
@@ -114,7 +147,9 @@ function DateRangePicker({ value, onChange }: { value: DateRange; onChange: (r: 
           <div className="border-t border-slate-100 mb-4" />
 
           {/* Custom range */}
-          <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-2">Custom range</p>
+          <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-2">
+            Custom range
+          </p>
           <div className="space-y-2">
             <div>
               <label className="text-xs text-slate-500 block mb-1">From</label>
@@ -154,11 +189,15 @@ type ViewMode = 'tests' | 'runs'
 
 function lastStatusColor(status: string): string {
   switch (status) {
-    case 'PASSED':  return 'text-green-700 bg-green-100'
+    case 'PASSED':
+      return 'text-green-700 bg-green-100'
     case 'FAILED':
-    case 'BROKEN':  return 'text-red-700 bg-red-100'
-    case 'SKIPPED': return 'text-slate-600 bg-slate-100'
-    default:        return 'text-orange-700 bg-orange-100'
+    case 'BROKEN':
+      return 'text-red-700 bg-red-100'
+    case 'SKIPPED':
+      return 'text-slate-600 bg-slate-100'
+    default:
+      return 'text-orange-700 bg-orange-100'
   }
 }
 
@@ -217,48 +256,85 @@ function TrendChart({ data }: { data: TestTrendPoint[] }) {
         {[0, 0.5, 1].map(f => {
           const y = CHART_H * (1 - f)
           return (
-            <line key={f} x1={0} x2={totalW} y1={y} y2={y}
-              stroke="#e2e8f0" strokeWidth="1" strokeDasharray={f === 0 ? '' : '2 2'} />
+            <line
+              key={f}
+              x1={0}
+              x2={totalW}
+              y1={y}
+              y2={y}
+              stroke="#e2e8f0"
+              strokeWidth="1"
+              strokeDasharray={f === 0 ? '' : '2 2'}
+            />
           )
         })}
 
         {data.map((d, i) => {
           const x = i * (BAR_W + GAP)
-          const passH  = (d.passed  / maxTotal) * CHART_H
-          const failH  = (d.failed  / maxTotal) * CHART_H
-          const skipH  = (d.skipped / maxTotal) * CHART_H
-          const isHov  = hovered === i
+          const passH = (d.passed / maxTotal) * CHART_H
+          const failH = (d.failed / maxTotal) * CHART_H
+          const skipH = (d.skipped / maxTotal) * CHART_H
+          const isHov = hovered === i
 
           return (
-            <g key={d.date}
-               onMouseEnter={() => setHovered(i)}
-               onMouseLeave={() => setHovered(null)}
-               style={{ cursor: 'default' }}
+            <g
+              key={d.date}
+              onMouseEnter={() => setHovered(i)}
+              onMouseLeave={() => setHovered(null)}
+              style={{ cursor: 'default' }}
             >
               {/* Hover highlight */}
-              <rect x={x - 1} y={0} width={BAR_W + 2} height={CHART_H}
-                fill={isHov ? '#f1f5f9' : 'transparent'} />
+              <rect
+                x={x - 1}
+                y={0}
+                width={BAR_W + 2}
+                height={CHART_H}
+                fill={isHov ? '#f1f5f9' : 'transparent'}
+              />
 
               {/* Skipped (bottom) */}
               {skipH > 0 && (
-                <rect x={x} y={CHART_H - skipH} width={BAR_W} height={skipH}
-                  fill="#cbd5e1" rx="1" />
+                <rect
+                  x={x}
+                  y={CHART_H - skipH}
+                  width={BAR_W}
+                  height={skipH}
+                  fill="#cbd5e1"
+                  rx="1"
+                />
               )}
               {/* Failed (above skipped) */}
               {failH > 0 && (
-                <rect x={x} y={CHART_H - skipH - failH} width={BAR_W} height={failH}
-                  fill="#f87171" rx="1" />
+                <rect
+                  x={x}
+                  y={CHART_H - skipH - failH}
+                  width={BAR_W}
+                  height={failH}
+                  fill="#f87171"
+                  rx="1"
+                />
               )}
               {/* Passed (top) */}
               {passH > 0 && (
-                <rect x={x} y={CHART_H - skipH - failH - passH} width={BAR_W} height={passH}
-                  fill="#4ade80" rx="1" />
+                <rect
+                  x={x}
+                  y={CHART_H - skipH - failH - passH}
+                  width={BAR_W}
+                  height={passH}
+                  fill="#4ade80"
+                  rx="1"
+                />
               )}
 
               {/* Date label */}
               {i % showLabelEvery === 0 && (
-                <text x={x + BAR_W / 2} y={CHART_H + LABEL_H - 2}
-                  textAnchor="middle" fontSize="8" fill="#94a3b8">
+                <text
+                  x={x + BAR_W / 2}
+                  y={CHART_H + LABEL_H - 2}
+                  textAnchor="middle"
+                  fontSize="8"
+                  fill="#94a3b8"
+                >
                   {d.date.slice(5)}
                 </text>
               )}
@@ -294,10 +370,12 @@ function PassRateBar({ rate, total }: { rate: number; total: number }) {
           style={{ width: `${pct}%` }}
         />
       </div>
-      <span className={cn(
-        'text-xs font-medium tabular-nums w-9 text-right',
-        rate >= 0.9 ? 'text-green-700' : rate >= 0.7 ? 'text-yellow-700' : 'text-red-700'
-      )}>
+      <span
+        className={cn(
+          'text-xs font-medium tabular-nums w-9 text-right',
+          rate >= 0.9 ? 'text-green-700' : rate >= 0.7 ? 'text-yellow-700' : 'text-red-700',
+        )}
+      >
         {total === 0 ? '—' : `${pct}%`}
       </span>
     </div>
@@ -306,7 +384,10 @@ function PassRateBar({ rate, total }: { rate: number; total: number }) {
 
 // ── Trend sparklines ─────────────────────────────────────────────────────────
 
-interface SparkDatum { label: string; [key: string]: number | string }
+interface SparkDatum {
+  label: string
+  [key: string]: number | string
+}
 
 function SparkCard({
   title,
@@ -327,7 +408,9 @@ function SparkCard({
 }) {
   const half = Math.floor(data.length / 2)
   const avg = (slice: SparkDatum[]) =>
-    slice.length === 0 ? 0 : slice.reduce((s, d) => s + ((d[dataKey] as number) ?? 0), 0) / slice.length
+    slice.length === 0
+      ? 0
+      : slice.reduce((s, d) => s + ((d[dataKey] as number) ?? 0), 0) / slice.length
   const prev = avg(data.slice(0, half))
   const curr = avg(data.slice(half))
   const delta = prev === 0 ? 0 : ((curr - prev) / prev) * 100
@@ -341,10 +424,9 @@ function SparkCard({
       <div className="flex items-end justify-between mt-0.5">
         <p className="text-2xl font-bold text-slate-900">{value}</p>
         {data.length >= 4 && prev !== curr && (
-          <span className={cn(
-            'text-xs font-semibold mb-1',
-            up ? 'text-green-600' : 'text-red-500'
-          )}>
+          <span
+            className={cn('text-xs font-semibold mb-1', up ? 'text-green-600' : 'text-red-500')}
+          >
             {up ? '↑' : '↓'} {Math.abs(delta).toFixed(0)}%
           </span>
         )}
@@ -360,12 +442,26 @@ function SparkCard({
               </linearGradient>
             </defs>
             <RCTooltip
-              contentStyle={{ fontSize: 11, borderRadius: 8, border: '1px solid #e2e8f0', padding: '4px 8px' }}
-              formatter={(v) => [formatter ? formatter(v as number) : String(v), title]}
-              labelFormatter={(_, payload) => (payload?.[0]?.payload?.label as string | undefined) ?? ''}
+              contentStyle={{
+                fontSize: 11,
+                borderRadius: 8,
+                border: '1px solid #e2e8f0',
+                padding: '4px 8px',
+              }}
+              formatter={v => [formatter ? formatter(v as number) : String(v), title]}
+              labelFormatter={(_, payload) =>
+                (payload?.[0]?.payload?.label as string | undefined) ?? ''
+              }
             />
-            <Area type="monotone" dataKey={dataKey} stroke={color} strokeWidth={1.5}
-              fill={`url(#${gradId})`} dot={false} activeDot={{ r: 3 }} />
+            <Area
+              type="monotone"
+              dataKey={dataKey}
+              stroke={color}
+              strokeWidth={1.5}
+              fill={`url(#${gradId})`}
+              dot={false}
+              activeDot={{ r: 3 }}
+            />
           </AreaChart>
         </ResponsiveContainer>
       </div>
@@ -448,7 +544,10 @@ function DetailPanel({
 }) {
   const [detailRange, setDetailRange] = useState<DateRange>(makePreset(30, 'Last 30d'))
 
-  const detailDays = Math.max(1, Math.ceil((detailRange.to.getTime() - detailRange.from.getTime()) / 86_400_000))
+  const detailDays = Math.max(
+    1,
+    Math.ceil((detailRange.to.getTime() - detailRange.from.getTime()) / 86_400_000),
+  )
 
   const { data, isLoading } = useQuery({
     queryKey: ['automated-test-detail', projectId, test.testId, detailDays],
@@ -471,20 +570,32 @@ function DetailPanel({
               {test.specFile}
             </p>
           )}
-          {(test.tags.length > 0 || test.browsers.length > 0 || test.annotationTypes.length > 0) && (
+          {(test.tags.length > 0 ||
+            test.browsers.length > 0 ||
+            test.annotationTypes.length > 0) && (
             <div className="flex flex-wrap gap-1 mt-2">
               {test.tags.map(t => (
-                <span key={`tag:${t}`} className="text-xs bg-violet-50 text-violet-700 px-1.5 py-0.5 rounded font-mono">
+                <span
+                  key={`tag:${t}`}
+                  className="text-xs bg-violet-50 text-violet-700 px-1.5 py-0.5 rounded font-mono"
+                >
                   {t}
                 </span>
               ))}
               {test.browsers.map(b => (
-                <span key={`br:${b}`} className="inline-flex items-center gap-0.5 text-xs bg-sky-50 text-sky-700 px-1.5 py-0.5 rounded">
-                  <Monitor size={10} />{b}
+                <span
+                  key={`br:${b}`}
+                  className="inline-flex items-center gap-0.5 text-xs bg-sky-50 text-sky-700 px-1.5 py-0.5 rounded"
+                >
+                  <Monitor size={10} />
+                  {b}
                 </span>
               ))}
               {test.annotationTypes.map(a => (
-                <span key={`ann:${a}`} className="text-xs bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded">
+                <span
+                  key={`ann:${a}`}
+                  className="text-xs bg-amber-50 text-amber-700 px-1.5 py-0.5 rounded"
+                >
                   @{a}
                 </span>
               ))}
@@ -493,16 +604,22 @@ function DetailPanel({
           {(test.hasScreenshot || test.hasVideo) && (
             <div className="flex items-center gap-2 mt-1.5 text-xs text-slate-400">
               {test.hasScreenshot && (
-                <span className="flex items-center gap-1"><Camera size={11} /> Screenshots</span>
+                <span className="flex items-center gap-1">
+                  <Camera size={11} /> Screenshots
+                </span>
               )}
               {test.hasVideo && (
-                <span className="flex items-center gap-1"><Video size={11} /> Video</span>
+                <span className="flex items-center gap-1">
+                  <Video size={11} /> Video
+                </span>
               )}
             </div>
           )}
         </div>
-        <button onClick={onClose}
-          className="shrink-0 text-slate-400 hover:text-slate-600 transition-colors p-1 rounded">
+        <button
+          onClick={onClose}
+          className="shrink-0 text-slate-400 hover:text-slate-600 transition-colors p-1 rounded"
+        >
           <ChevronRight size={16} />
         </button>
       </div>
@@ -515,7 +632,16 @@ function DetailPanel({
         </div>
         <div>
           <p className="text-xs text-slate-500">Pass Rate</p>
-          <p className={cn('text-xl font-bold', test.passRate >= 0.9 ? 'text-green-700' : test.passRate >= 0.7 ? 'text-yellow-700' : 'text-red-700')}>
+          <p
+            className={cn(
+              'text-xl font-bold',
+              test.passRate >= 0.9
+                ? 'text-green-700'
+                : test.passRate >= 0.7
+                  ? 'text-yellow-700'
+                  : 'text-red-700',
+            )}
+          >
             {Math.round(test.passRate * 100)}%
           </p>
         </div>
@@ -534,10 +660,13 @@ function DetailPanel({
           <DateRangePicker value={detailRange} onChange={setDetailRange} />
         </div>
 
-        {isLoading
-          ? <div className="h-28 flex items-center justify-center"><LoadingSpinner message="" /></div>
-          : <TrendChart data={data?.trend ?? []} />
-        }
+        {isLoading ? (
+          <div className="h-28 flex items-center justify-center">
+            <LoadingSpinner message="" />
+          </div>
+        ) : (
+          <TrendChart data={data?.trend ?? []} />
+        )}
       </div>
 
       {/* Recent runs */}
@@ -551,8 +680,10 @@ function DetailPanel({
         )}
         <div className="space-y-1.5">
           {(data?.recentRuns ?? []).map((run: RecentRun, i: number) => (
-            <div key={i}
-              className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-50 transition-colors group">
+            <div
+              key={i}
+              className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-50 transition-colors group"
+            >
               <Badge label={run.status} colorClass={lastStatusColor(run.status)} />
               <div className="flex-1 min-w-0">
                 <div className="flex items-center gap-2 text-xs text-slate-600 flex-wrap">
@@ -570,14 +701,21 @@ function DetailPanel({
                     <span className="text-slate-400">{formatDuration(run.durationMs)}</span>
                   )}
                   {run.hasScreenshot && (
-                    <span title="Has screenshot"><Camera size={11} className="text-slate-400 shrink-0" /></span>
+                    <span title="Has screenshot">
+                      <Camera size={11} className="text-slate-400 shrink-0" />
+                    </span>
                   )}
                   {run.hasVideo && (
-                    <span title="Has video"><Video size={11} className="text-slate-400 shrink-0" /></span>
+                    <span title="Has video">
+                      <Video size={11} className="text-slate-400 shrink-0" />
+                    </span>
                   )}
                 </div>
                 {run.specFile && (
-                  <p className="text-[11px] text-slate-400 font-mono truncate mt-0.5" title={run.specFile}>
+                  <p
+                    className="text-[11px] text-slate-400 font-mono truncate mt-0.5"
+                    title={run.specFile}
+                  >
                     {run.specFile}
                   </p>
                 )}
@@ -676,24 +814,38 @@ function RunsView({
     )
   })
 
-  const totalRuns    = filtered.length
-  const avgPassRate  = totalRuns > 0 ? filtered.reduce((s, e) => s + e.passRate, 0) / totalRuns : 0
-  const failedRuns   = filtered.filter(e => e.failed > 0 || e.broken > 0).length
-  const totalTests   = filtered.reduce((s, e) => s + e.totalTests, 0)
+  const totalRuns = filtered.length
+  const avgPassRate = totalRuns > 0 ? filtered.reduce((s, e) => s + e.passRate, 0) / totalRuns : 0
+  const failedRuns = filtered.filter(e => e.failed > 0 || e.broken > 0).length
+  const totalTests = filtered.reduce((s, e) => s + e.totalTests, 0)
 
   return (
     <div className="space-y-4">
       {/* Run-level KPIs */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { label: 'Total Runs',      value: totalRuns.toString() },
-          { label: 'Avg Pass Rate',   value: totalRuns === 0 ? '—' : `${Math.round(avgPassRate * 100)}%`,
-            color: avgPassRate >= 0.9 ? 'text-green-700' : avgPassRate >= 0.7 ? 'text-yellow-700' : 'text-red-700' },
-          { label: 'Runs with Failures', value: failedRuns.toString(),
-            color: failedRuns > 0 ? 'text-red-700' : 'text-slate-900' },
+          { label: 'Total Runs', value: totalRuns.toString() },
+          {
+            label: 'Avg Pass Rate',
+            value: totalRuns === 0 ? '—' : `${Math.round(avgPassRate * 100)}%`,
+            color:
+              avgPassRate >= 0.9
+                ? 'text-green-700'
+                : avgPassRate >= 0.7
+                  ? 'text-yellow-700'
+                  : 'text-red-700',
+          },
+          {
+            label: 'Runs with Failures',
+            value: failedRuns.toString(),
+            color: failedRuns > 0 ? 'text-red-700' : 'text-slate-900',
+          },
           { label: 'Total Tests Run', value: totalTests.toLocaleString() },
         ].map(({ label, value, color }) => (
-          <div key={label} className="bg-white rounded-xl border border-slate-200 shadow-sm px-4 py-3">
+          <div
+            key={label}
+            className="bg-white rounded-xl border border-slate-200 shadow-sm px-4 py-3"
+          >
             <p className="text-xs text-slate-500">{label}</p>
             <p className={cn('text-2xl font-bold mt-0.5', color ?? 'text-slate-900')}>{value}</p>
           </div>
@@ -714,9 +866,11 @@ function RunsView({
 
       {/* Runs table */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="grid grid-cols-[1fr_110px_180px_80px_80px_40px] gap-3 px-4 py-2.5
+        <div
+          className="grid grid-cols-[1fr_110px_180px_80px_80px_40px] gap-3 px-4 py-2.5
                         text-xs font-semibold text-slate-500 uppercase tracking-wide
-                        border-b border-slate-100 bg-slate-50">
+                        border-b border-slate-100 bg-slate-50"
+        >
           <span>Run</span>
           <span>Pass Rate</span>
           <span>Results</span>
@@ -726,7 +880,7 @@ function RunsView({
         </div>
 
         {isLoading && <LoadingSpinner message="Loading runs…" />}
-        {error     && <ErrorMessage message="Failed to load execution runs." onRetry={onRetry} />}
+        {error && <ErrorMessage message="Failed to load execution runs." onRetry={onRetry} />}
 
         {!isLoading && !error && filtered.length === 0 && (
           <p className="px-4 py-12 text-center text-sm text-slate-400">
@@ -772,9 +926,7 @@ function RunsView({
                 {(exec.failed > 0 || exec.broken > 0) && (
                   <span className="text-red-600 font-medium">{exec.failed + exec.broken}✗</span>
                 )}
-                {exec.skipped > 0 && (
-                  <span className="text-slate-400">{exec.skipped} skip</span>
-                )}
+                {exec.skipped > 0 && <span className="text-slate-400">{exec.skipped} skip</span>}
                 <span className="text-slate-300">/ {exec.totalTests}</span>
               </div>
 
@@ -835,7 +987,7 @@ function FilterChipRow({
             'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border transition-colors',
             selected.includes(item)
               ? colorActive
-              : 'bg-white text-slate-600 border-slate-200 hover:border-slate-400'
+              : 'bg-white text-slate-600 border-slate-200 hover:border-slate-400',
           )}
         >
           {item}
@@ -850,20 +1002,25 @@ function FilterChipRow({
 
 export default function AutomatedTestsPage() {
   const { projectId, base } = useProject()
-  const [dateRange, setDateRange]               = useState<DateRange>(makePreset(7, 'Last 7d'))
-  const [viewMode, setViewMode]                 = useState<ViewMode>('tests')
-  const [search, setSearch]                     = useState('')
-  const [statusFilter, setStatusFilter]         = useState<StatusFilter>('ALL')
-  const [selectedTags, setSelectedTags]         = useState<string[]>([])
+  const [dateRange, setDateRange] = useState<DateRange>(makePreset(7, 'Last 7d'))
+  const [viewMode, setViewMode] = useState<ViewMode>('tests')
+  const [search, setSearch] = useState('')
+  const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL')
+  const [selectedTags, setSelectedTags] = useState<string[]>([])
   const [selectedBrowsers, setSelectedBrowsers] = useState<string[]>([])
   const [selectedAnnotations, setSelectedAnnotations] = useState<string[]>([])
-  const [labelKey, setLabelKey]                 = useState('')
-  const [labelValue, setLabelValue]             = useState('')
-  const [specFilePrefix, setSpecFilePrefix]     = useState('')
-  const [selected, setSelected]                 = useState<AutomatedTestSummary | null>(null)
+  const [labelKey, setLabelKey] = useState('')
+  const [labelValue, setLabelValue] = useState('')
+  const [specFilePrefix, setSpecFilePrefix] = useState('')
+  const [selected, setSelected] = useState<AutomatedTestSummary | null>(null)
 
   // Executions fetched once, shared by both tabs for consistent KPIs.
-  const { data: allExecutions, isLoading: execsLoading, error: execsError, refetch: execsRefetch } = useQuery({
+  const {
+    data: allExecutions,
+    isLoading: execsLoading,
+    error: execsError,
+    refetch: execsRefetch,
+  } = useQuery({
     queryKey: ['executions-full', projectId],
     queryFn: () => api.executions(projectId, 500),
   })
@@ -874,9 +1031,8 @@ export default function AutomatedTestsPage() {
   })
 
   const execRunCount = filteredExecs.length
-  const execPassRate = execRunCount > 0
-    ? filteredExecs.reduce((s, e) => s + e.passRate, 0) / execRunCount
-    : 0
+  const execPassRate =
+    execRunCount > 0 ? filteredExecs.reduce((s, e) => s + e.passRate, 0) / execRunCount : 0
 
   // Analytics backend uses days (always relative to now) — from-date drives lookback window.
   const days = Math.max(1, Math.ceil((Date.now() - dateRange.from.getTime()) / 86_400_000))
@@ -911,21 +1067,37 @@ export default function AutomatedTestsPage() {
     enabled: viewMode === 'tests' && labelKey !== '',
   })
 
-  const { data: tests, isLoading: testsLoading, error: testsError, refetch: testsRefetch } = useQuery({
-    queryKey: ['automated-tests', projectId, days, search, statusFilter,
-               selectedTags, selectedBrowsers, selectedAnnotations,
-               labelKey, labelValue, specFilePrefix],
-    queryFn: () => api.automatedTests(projectId, {
+  const {
+    data: tests,
+    isLoading: testsLoading,
+    error: testsError,
+    refetch: testsRefetch,
+  } = useQuery({
+    queryKey: [
+      'automated-tests',
+      projectId,
       days,
-      search:          search          || undefined,
-      status:          statusFilter,
-      tags:            selectedTags.length         > 0 ? selectedTags         : undefined,
-      browsers:        selectedBrowsers.length     > 0 ? selectedBrowsers     : undefined,
-      annotationTypes: selectedAnnotations.length  > 0 ? selectedAnnotations  : undefined,
-      labelKey:        labelKey        || undefined,
-      labelValue:      labelValue      || undefined,
-      specFile:        specFilePrefix  || undefined,
-    }),
+      search,
+      statusFilter,
+      selectedTags,
+      selectedBrowsers,
+      selectedAnnotations,
+      labelKey,
+      labelValue,
+      specFilePrefix,
+    ],
+    queryFn: () =>
+      api.automatedTests(projectId, {
+        days,
+        search: search || undefined,
+        status: statusFilter,
+        tags: selectedTags.length > 0 ? selectedTags : undefined,
+        browsers: selectedBrowsers.length > 0 ? selectedBrowsers : undefined,
+        annotationTypes: selectedAnnotations.length > 0 ? selectedAnnotations : undefined,
+        labelKey: labelKey || undefined,
+        labelValue: labelValue || undefined,
+        specFile: specFilePrefix || undefined,
+      }),
     enabled: viewMode === 'tests',
   })
 
@@ -933,8 +1105,12 @@ export default function AutomatedTestsPage() {
     setList(list.includes(item) ? list.filter(x => x !== item) : [...list, item])
   }
 
-  const hasActiveFilters = selectedTags.length > 0 || selectedBrowsers.length > 0 ||
-    selectedAnnotations.length > 0 || labelKey !== '' || specFilePrefix !== ''
+  const hasActiveFilters =
+    selectedTags.length > 0 ||
+    selectedBrowsers.length > 0 ||
+    selectedAnnotations.length > 0 ||
+    labelKey !== '' ||
+    specFilePrefix !== ''
 
   function clearAllFilters() {
     setSelectedTags([])
@@ -946,7 +1122,8 @@ export default function AutomatedTestsPage() {
   }
 
   const uniqueTests = tests?.length ?? 0
-  const failingNow  = tests?.filter(t => t.lastStatus === 'FAILED' || t.lastStatus === 'BROKEN').length ?? 0
+  const failingNow =
+    tests?.filter(t => t.lastStatus === 'FAILED' || t.lastStatus === 'BROKEN').length ?? 0
 
   return (
     <div className="space-y-5">
@@ -969,7 +1146,7 @@ export default function AutomatedTestsPage() {
             'flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors',
             viewMode === 'tests'
               ? 'border-blue-600 text-blue-600'
-              : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+              : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300',
           )}
         >
           <List size={14} />
@@ -981,7 +1158,7 @@ export default function AutomatedTestsPage() {
             'flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors',
             viewMode === 'runs'
               ? 'border-blue-600 text-blue-600'
-              : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300'
+              : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300',
           )}
         >
           <FlaskConical size={14} />
@@ -1001,273 +1178,330 @@ export default function AutomatedTestsPage() {
       )}
 
       {/* ── By Individual Test tab ── */}
-      {viewMode === 'tests' && (<>
-        {/* Trend sparklines — one data point per execution run */}
-        <TrendSparklines
-          filteredExecs={filteredExecs}
-          uniqueTests={uniqueTests}
-          execPassRate={execPassRate}
-          execRunCount={execRunCount}
-          failingNow={failingNow}
-        />
-
-        {/* Row 1: Search + status chips */}
-        <div className="flex items-center gap-3 flex-wrap">
-          <div className="relative flex-1 min-w-[200px] max-w-sm">
-            <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-            <input
-              type="text"
-              placeholder="Search by name, suite, or file…"
-              value={search}
-              onChange={e => setSearch(e.target.value)}
-              className="w-full pl-8 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
-          </div>
-          <div className="flex gap-1">
-            {(['ALL', 'PASSED', 'FAILED', 'FLAKY', 'SKIPPED'] as StatusFilter[]).map(f => (
-              <button key={f}
-                onClick={() => setStatusFilter(f)}
-                className={cn(
-                  'px-3 py-1.5 text-xs font-medium rounded-lg transition-colors',
-                  statusFilter === f
-                    ? 'bg-blue-600 text-white'
-                    : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
-                )}
-              >
-                {f}
-              </button>
-            ))}
-          </div>
-          {hasActiveFilters && (
-            <button onClick={clearAllFilters}
-              className="text-xs text-slate-400 hover:text-red-500 transition-colors flex items-center gap-1">
-              <X size={11} /> Clear filters
-            </button>
-          )}
-        </div>
-
-        {/* Row 2: Tag chips */}
-        {(availableTags ?? []).length > 0 && (
-          <FilterChipRow
-            icon={<Tag size={11} />}
-            label="Tags"
-            items={availableTags ?? []}
-            selected={selectedTags}
-            onToggle={item => toggle(selectedTags, setSelectedTags, item)}
-            colorActive="bg-violet-600 text-white border-violet-600"
+      {viewMode === 'tests' && (
+        <>
+          {/* Trend sparklines — one data point per execution run */}
+          <TrendSparklines
+            filteredExecs={filteredExecs}
+            uniqueTests={uniqueTests}
+            execPassRate={execPassRate}
+            execRunCount={execRunCount}
+            failingNow={failingNow}
           />
-        )}
 
-        {/* Row 3: Browser chips */}
-        {(availableBrowsers ?? []).length > 0 && (
-          <FilterChipRow
-            icon={<Monitor size={11} />}
-            label="Browser"
-            items={availableBrowsers ?? []}
-            selected={selectedBrowsers}
-            onToggle={item => toggle(selectedBrowsers, setSelectedBrowsers, item)}
-            colorActive="bg-sky-600 text-white border-sky-600"
-          />
-        )}
-
-        {/* Row 4: Annotation type chips */}
-        {(availableAnnotationTypes ?? []).length > 0 && (
-          <FilterChipRow
-            icon={<span className="text-[10px] font-bold">@</span>}
-            label="Annotations"
-            items={availableAnnotationTypes ?? []}
-            selected={selectedAnnotations}
-            onToggle={item => toggle(selectedAnnotations, setSelectedAnnotations, item)}
-            colorActive="bg-amber-500 text-white border-amber-500"
-          />
-        )}
-
-        {/* Row 5: Label key/value + spec file filter */}
-        {((availableLabelKeys ?? []).length > 0 || true) && (
+          {/* Row 1: Search + status chips */}
           <div className="flex items-center gap-3 flex-wrap">
-            {/* Spec file prefix filter */}
-            <div className="relative">
-              <FileCode size={13} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400" />
+            <div className="relative flex-1 min-w-[200px] max-w-sm">
+              <Search
+                size={14}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+              />
               <input
                 type="text"
-                placeholder="Spec file prefix…"
-                value={specFilePrefix}
-                onChange={e => setSpecFilePrefix(e.target.value)}
-                className="pl-7 pr-3 py-1.5 text-xs border border-slate-200 rounded-lg w-48 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                placeholder="Search by name, suite, or file…"
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                className="w-full pl-8 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               />
             </div>
-
-            {/* Label key select */}
-            {(availableLabelKeys ?? []).length > 0 && (
-              <div className="flex items-center gap-1.5">
-                <span className="text-xs text-slate-400">Label:</span>
-                <select
-                  value={labelKey}
-                  onChange={e => { setLabelKey(e.target.value); setLabelValue('') }}
-                  className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+            <div className="flex gap-1">
+              {(['ALL', 'PASSED', 'FAILED', 'FLAKY', 'SKIPPED'] as StatusFilter[]).map(f => (
+                <button
+                  key={f}
+                  onClick={() => setStatusFilter(f)}
+                  className={cn(
+                    'px-3 py-1.5 text-xs font-medium rounded-lg transition-colors',
+                    statusFilter === f
+                      ? 'bg-blue-600 text-white'
+                      : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50',
+                  )}
                 >
-                  <option value="">Any key</option>
-                  {(availableLabelKeys ?? []).map(k => (
-                    <option key={k} value={k}>{k}</option>
-                  ))}
-                </select>
-                {labelKey && (
+                  {f}
+                </button>
+              ))}
+            </div>
+            {hasActiveFilters && (
+              <button
+                onClick={clearAllFilters}
+                className="text-xs text-slate-400 hover:text-red-500 transition-colors flex items-center gap-1"
+              >
+                <X size={11} /> Clear filters
+              </button>
+            )}
+          </div>
+
+          {/* Row 2: Tag chips */}
+          {(availableTags ?? []).length > 0 && (
+            <FilterChipRow
+              icon={<Tag size={11} />}
+              label="Tags"
+              items={availableTags ?? []}
+              selected={selectedTags}
+              onToggle={item => toggle(selectedTags, setSelectedTags, item)}
+              colorActive="bg-violet-600 text-white border-violet-600"
+            />
+          )}
+
+          {/* Row 3: Browser chips */}
+          {(availableBrowsers ?? []).length > 0 && (
+            <FilterChipRow
+              icon={<Monitor size={11} />}
+              label="Browser"
+              items={availableBrowsers ?? []}
+              selected={selectedBrowsers}
+              onToggle={item => toggle(selectedBrowsers, setSelectedBrowsers, item)}
+              colorActive="bg-sky-600 text-white border-sky-600"
+            />
+          )}
+
+          {/* Row 4: Annotation type chips */}
+          {(availableAnnotationTypes ?? []).length > 0 && (
+            <FilterChipRow
+              icon={<span className="text-[10px] font-bold">@</span>}
+              label="Annotations"
+              items={availableAnnotationTypes ?? []}
+              selected={selectedAnnotations}
+              onToggle={item => toggle(selectedAnnotations, setSelectedAnnotations, item)}
+              colorActive="bg-amber-500 text-white border-amber-500"
+            />
+          )}
+
+          {/* Row 5: Label key/value + spec file filter */}
+          {((availableLabelKeys ?? []).length > 0 || true) && (
+            <div className="flex items-center gap-3 flex-wrap">
+              {/* Spec file prefix filter */}
+              <div className="relative">
+                <FileCode
+                  size={13}
+                  className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400"
+                />
+                <input
+                  type="text"
+                  placeholder="Spec file prefix…"
+                  value={specFilePrefix}
+                  onChange={e => setSpecFilePrefix(e.target.value)}
+                  className="pl-7 pr-3 py-1.5 text-xs border border-slate-200 rounded-lg w-48 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              {/* Label key select */}
+              {(availableLabelKeys ?? []).length > 0 && (
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs text-slate-400">Label:</span>
                   <select
-                    value={labelValue}
-                    onChange={e => setLabelValue(e.target.value)}
+                    value={labelKey}
+                    onChange={e => {
+                      setLabelKey(e.target.value)
+                      setLabelValue('')
+                    }}
                     className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
                   >
-                    <option value="">Any value</option>
-                    {(availableLabelValues ?? []).map(v => (
-                      <option key={v} value={v}>{v}</option>
+                    <option value="">Any key</option>
+                    {(availableLabelKeys ?? []).map(k => (
+                      <option key={k} value={k}>
+                        {k}
+                      </option>
                     ))}
                   </select>
-                )}
-                {labelKey && (
-                  <button onClick={() => { setLabelKey(''); setLabelValue('') }}
-                    className="text-slate-300 hover:text-slate-500 transition-colors">
-                    <X size={12} />
-                  </button>
-                )}
+                  {labelKey && (
+                    <select
+                      value={labelValue}
+                      onChange={e => setLabelValue(e.target.value)}
+                      className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                    >
+                      <option value="">Any value</option>
+                      {(availableLabelValues ?? []).map(v => (
+                        <option key={v} value={v}>
+                          {v}
+                        </option>
+                      ))}
+                    </select>
+                  )}
+                  {labelKey && (
+                    <button
+                      onClick={() => {
+                        setLabelKey('')
+                        setLabelValue('')
+                      }}
+                      className="text-slate-300 hover:text-slate-500 transition-colors"
+                    >
+                      <X size={12} />
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Main split layout */}
+          <div className={cn('flex gap-4', selected ? 'items-start' : '')}>
+            {/* Test list */}
+            <div
+              className={cn(
+                'bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden min-w-0',
+                selected ? 'flex-[3]' : 'flex-1',
+              )}
+            >
+              {/* Table header */}
+              <div
+                className="grid grid-cols-[1fr_120px_60px_80px_80px_70px] gap-3 px-4 py-2.5
+                            text-xs font-semibold text-slate-500 uppercase tracking-wide
+                            border-b border-slate-100 bg-slate-50"
+              >
+                <span>Test</span>
+                <span>Pass Rate</span>
+                <span className="text-right">Runs</span>
+                <span>Last Status</span>
+                <span>Last Run</span>
+                <span className="text-right">Avg</span>
+              </div>
+
+              {testsLoading && <LoadingSpinner message="Loading tests…" />}
+              {testsError && (
+                <ErrorMessage
+                  message="Failed to load automated tests."
+                  onRetry={() => void testsRefetch()}
+                />
+              )}
+
+              {!testsLoading && !testsError && (tests ?? []).length === 0 && (
+                <p className="px-4 py-12 text-center text-sm text-slate-400">
+                  No automated tests found. Run your Playwright suite and stream results to the
+                  platform.
+                </p>
+              )}
+
+              <div className="divide-y divide-slate-50">
+                {(tests ?? []).map(t => {
+                  const isActive = selected?.testId === t.testId
+                  return (
+                    <button
+                      key={t.testId}
+                      onClick={() => setSelected(isActive ? null : t)}
+                      className={cn(
+                        'w-full text-left grid grid-cols-[1fr_120px_60px_80px_80px_70px] gap-3 px-4 py-3',
+                        'transition-colors hover:bg-slate-50 items-center',
+                        isActive && 'bg-blue-50 hover:bg-blue-50',
+                      )}
+                    >
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <p className="text-sm font-medium text-slate-900 truncate">
+                            {t.displayName}
+                          </p>
+                          {t.hasScreenshot && (
+                            <span title="Has screenshot">
+                              <Camera size={11} className="shrink-0 text-slate-400" />
+                            </span>
+                          )}
+                          {t.hasVideo && (
+                            <span title="Has video">
+                              <Video size={11} className="shrink-0 text-slate-400" />
+                            </span>
+                          )}
+                        </div>
+                        {t.suiteName && (
+                          <p className="text-xs text-slate-400 truncate mt-0.5">{t.suiteName}</p>
+                        )}
+                        {t.specFile && (
+                          <p
+                            className="text-[11px] text-slate-400 font-mono truncate mt-0.5"
+                            title={t.specFile}
+                          >
+                            {t.specFile}
+                          </p>
+                        )}
+                        {(t.tags.length > 0 ||
+                          t.browsers.length > 0 ||
+                          t.annotationTypes.length > 0) && (
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {t.tags.map(tag => (
+                              <span
+                                key={`tag:${tag}`}
+                                onClick={e => {
+                                  e.stopPropagation()
+                                  toggle(selectedTags, setSelectedTags, tag)
+                                }}
+                                className={cn(
+                                  'inline-block px-1.5 py-0.5 rounded text-[10px] font-mono cursor-pointer transition-colors',
+                                  selectedTags.includes(tag)
+                                    ? 'bg-violet-100 text-violet-700 ring-1 ring-violet-300'
+                                    : 'bg-slate-100 text-slate-500 hover:bg-violet-100 hover:text-violet-700',
+                                )}
+                              >
+                                {tag}
+                              </span>
+                            ))}
+                            {t.browsers.map(b => (
+                              <span
+                                key={`br:${b}`}
+                                onClick={e => {
+                                  e.stopPropagation()
+                                  toggle(selectedBrowsers, setSelectedBrowsers, b)
+                                }}
+                                className={cn(
+                                  'inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] cursor-pointer transition-colors',
+                                  selectedBrowsers.includes(b)
+                                    ? 'bg-sky-100 text-sky-700 ring-1 ring-sky-300'
+                                    : 'bg-slate-100 text-slate-500 hover:bg-sky-100 hover:text-sky-700',
+                                )}
+                              >
+                                <Monitor size={9} />
+                                {b}
+                              </span>
+                            ))}
+                            {t.annotationTypes.map(a => (
+                              <span
+                                key={`ann:${a}`}
+                                onClick={e => {
+                                  e.stopPropagation()
+                                  toggle(selectedAnnotations, setSelectedAnnotations, a)
+                                }}
+                                className={cn(
+                                  'inline-block px-1.5 py-0.5 rounded text-[10px] cursor-pointer transition-colors',
+                                  selectedAnnotations.includes(a)
+                                    ? 'bg-amber-100 text-amber-700 ring-1 ring-amber-300'
+                                    : 'bg-slate-100 text-slate-500 hover:bg-amber-100 hover:text-amber-700',
+                                )}
+                              >
+                                @{a}
+                              </span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <PassRateBar rate={t.passRate} total={t.totalRuns} />
+                      <span className="text-sm text-slate-600 text-right tabular-nums">
+                        {t.totalRuns}
+                      </span>
+                      <Badge label={t.lastStatus} colorClass={lastStatusColor(t.lastStatus)} />
+                      <span className="text-xs text-slate-400">{relativeTime(t.lastRunAt)}</span>
+                      <span className="text-xs text-slate-400 text-right tabular-nums">
+                        {formatDuration(t.avgDurationMs)}
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
+            </div>
+
+            {/* Detail panel */}
+            {selected && (
+              <div
+                className="flex-[2] bg-white rounded-xl border border-slate-200 shadow-sm p-5 sticky top-4"
+                style={{ maxHeight: 'calc(100vh - 120px)', overflowY: 'auto' }}
+              >
+                <DetailPanel
+                  test={selected}
+                  projectId={projectId}
+                  base={base}
+                  onClose={() => setSelected(null)}
+                />
               </div>
             )}
           </div>
-        )}
-
-        {/* Main split layout */}
-        <div className={cn('flex gap-4', selected ? 'items-start' : '')}>
-          {/* Test list */}
-          <div className={cn('bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden min-w-0',
-            selected ? 'flex-[3]' : 'flex-1')}>
-
-            {/* Table header */}
-            <div className="grid grid-cols-[1fr_120px_60px_80px_80px_70px] gap-3 px-4 py-2.5
-                            text-xs font-semibold text-slate-500 uppercase tracking-wide
-                            border-b border-slate-100 bg-slate-50">
-              <span>Test</span>
-              <span>Pass Rate</span>
-              <span className="text-right">Runs</span>
-              <span>Last Status</span>
-              <span>Last Run</span>
-              <span className="text-right">Avg</span>
-            </div>
-
-            {testsLoading && <LoadingSpinner message="Loading tests…" />}
-            {testsError  && <ErrorMessage message="Failed to load automated tests." onRetry={() => void testsRefetch()} />}
-
-            {!testsLoading && !testsError && (tests ?? []).length === 0 && (
-              <p className="px-4 py-12 text-center text-sm text-slate-400">
-                No automated tests found. Run your Playwright suite and stream results to the platform.
-              </p>
-            )}
-
-            <div className="divide-y divide-slate-50">
-              {(tests ?? []).map(t => {
-                const isActive = selected?.testId === t.testId
-                return (
-                  <button
-                    key={t.testId}
-                    onClick={() => setSelected(isActive ? null : t)}
-                    className={cn(
-                      'w-full text-left grid grid-cols-[1fr_120px_60px_80px_80px_70px] gap-3 px-4 py-3',
-                      'transition-colors hover:bg-slate-50 items-center',
-                      isActive && 'bg-blue-50 hover:bg-blue-50',
-                    )}
-                  >
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <p className="text-sm font-medium text-slate-900 truncate">{t.displayName}</p>
-                        {t.hasScreenshot && (
-                          <span title="Has screenshot"><Camera size={11} className="shrink-0 text-slate-400" /></span>
-                        )}
-                        {t.hasVideo && (
-                          <span title="Has video"><Video size={11} className="shrink-0 text-slate-400" /></span>
-                        )}
-                      </div>
-                      {t.suiteName && (
-                        <p className="text-xs text-slate-400 truncate mt-0.5">{t.suiteName}</p>
-                      )}
-                      {t.specFile && (
-                        <p className="text-[11px] text-slate-400 font-mono truncate mt-0.5"
-                           title={t.specFile}>
-                          {t.specFile}
-                        </p>
-                      )}
-                      {(t.tags.length > 0 || t.browsers.length > 0 || t.annotationTypes.length > 0) && (
-                        <div className="flex flex-wrap gap-1 mt-1">
-                          {t.tags.map(tag => (
-                            <span
-                              key={`tag:${tag}`}
-                              onClick={e => { e.stopPropagation(); toggle(selectedTags, setSelectedTags, tag) }}
-                              className={cn(
-                                'inline-block px-1.5 py-0.5 rounded text-[10px] font-mono cursor-pointer transition-colors',
-                                selectedTags.includes(tag)
-                                  ? 'bg-violet-100 text-violet-700 ring-1 ring-violet-300'
-                                  : 'bg-slate-100 text-slate-500 hover:bg-violet-100 hover:text-violet-700'
-                              )}
-                            >
-                              {tag}
-                            </span>
-                          ))}
-                          {t.browsers.map(b => (
-                            <span
-                              key={`br:${b}`}
-                              onClick={e => { e.stopPropagation(); toggle(selectedBrowsers, setSelectedBrowsers, b) }}
-                              className={cn(
-                                'inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] cursor-pointer transition-colors',
-                                selectedBrowsers.includes(b)
-                                  ? 'bg-sky-100 text-sky-700 ring-1 ring-sky-300'
-                                  : 'bg-slate-100 text-slate-500 hover:bg-sky-100 hover:text-sky-700'
-                              )}
-                            >
-                              <Monitor size={9} />
-                              {b}
-                            </span>
-                          ))}
-                          {t.annotationTypes.map(a => (
-                            <span
-                              key={`ann:${a}`}
-                              onClick={e => { e.stopPropagation(); toggle(selectedAnnotations, setSelectedAnnotations, a) }}
-                              className={cn(
-                                'inline-block px-1.5 py-0.5 rounded text-[10px] cursor-pointer transition-colors',
-                                selectedAnnotations.includes(a)
-                                  ? 'bg-amber-100 text-amber-700 ring-1 ring-amber-300'
-                                  : 'bg-slate-100 text-slate-500 hover:bg-amber-100 hover:text-amber-700'
-                              )}
-                            >
-                              @{a}
-                            </span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                    <PassRateBar rate={t.passRate} total={t.totalRuns} />
-                    <span className="text-sm text-slate-600 text-right tabular-nums">{t.totalRuns}</span>
-                    <Badge label={t.lastStatus} colorClass={lastStatusColor(t.lastStatus)} />
-                    <span className="text-xs text-slate-400">{relativeTime(t.lastRunAt)}</span>
-                    <span className="text-xs text-slate-400 text-right tabular-nums">
-                      {formatDuration(t.avgDurationMs)}
-                    </span>
-                  </button>
-                )
-              })}
-            </div>
-          </div>
-
-          {/* Detail panel */}
-          {selected && (
-            <div className="flex-[2] bg-white rounded-xl border border-slate-200 shadow-sm p-5 sticky top-4"
-                 style={{ maxHeight: 'calc(100vh - 120px)', overflowY: 'auto' }}>
-              <DetailPanel
-                test={selected}
-                projectId={projectId}
-                base={base}
-                onClose={() => setSelected(null)}
-              />
-            </div>
-          )}
-        </div>
-      </>)}
+        </>
+      )}
     </div>
   )
 }

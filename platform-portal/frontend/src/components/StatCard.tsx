@@ -11,7 +11,12 @@ interface StatCardProps {
 }
 
 export default function StatCard({
-  title, value, subtitle, icon: Icon, colorClass = 'text-blue-600', trend,
+  title,
+  value,
+  subtitle,
+  icon: Icon,
+  colorClass = 'text-blue-600',
+  trend,
 }: StatCardProps) {
   return (
     <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
@@ -21,8 +26,12 @@ export default function StatCard({
           <p className={cn('text-3xl font-bold mt-1', colorClass)}>{value}</p>
           {subtitle && <p className="text-xs text-slate-500 mt-1">{subtitle}</p>}
           {trend && (
-            <span className={cn('text-xs font-medium mt-1 inline-block',
-              trend.positive ? 'text-green-600' : 'text-red-600')}>
+            <span
+              className={cn(
+                'text-xs font-medium mt-1 inline-block',
+                trend.positive ? 'text-green-600' : 'text-red-600',
+              )}
+            >
               {trend.positive ? '↑' : '↓'} {trend.value}
             </span>
           )}

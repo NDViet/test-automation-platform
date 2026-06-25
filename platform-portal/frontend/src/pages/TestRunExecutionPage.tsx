@@ -8,36 +8,58 @@ import type { TestCaseExecution, TestRun } from '@/lib/types'
 import Badge from '@/components/Badge'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import ErrorMessage from '@/components/ErrorMessage'
-import { CheckCircle, XCircle, MinusCircle, SkipForward, ChevronLeft, Loader2, AlertCircle } from 'lucide-react'
+import {
+  CheckCircle,
+  XCircle,
+  MinusCircle,
+  SkipForward,
+  ChevronLeft,
+  Loader2,
+  AlertCircle,
+} from 'lucide-react'
 
 // ── Color helpers ─────────────────────────────────────────────────────────────
 
 function execStatusColor(status: string): string {
   switch (status) {
-    case 'PASSED':  return 'text-green-700 bg-green-100'
-    case 'FAILED':  return 'text-red-700 bg-red-100'
-    case 'BLOCKED': return 'text-orange-700 bg-orange-100'
-    case 'SKIPPED': return 'text-slate-500 bg-slate-100'
-    case 'PENDING': return 'text-blue-600 bg-blue-50'
-    default:        return 'text-slate-600 bg-slate-100'
+    case 'PASSED':
+      return 'text-green-700 bg-green-100'
+    case 'FAILED':
+      return 'text-red-700 bg-red-100'
+    case 'BLOCKED':
+      return 'text-orange-700 bg-orange-100'
+    case 'SKIPPED':
+      return 'text-slate-500 bg-slate-100'
+    case 'PENDING':
+      return 'text-blue-600 bg-blue-50'
+    default:
+      return 'text-slate-600 bg-slate-100'
   }
 }
 
 function runStatusColor(status: string): string {
   switch (status) {
-    case 'IN_PROGRESS': return 'text-blue-700 bg-blue-100'
-    case 'COMPLETED':   return 'text-green-700 bg-green-100'
-    case 'ABORTED':     return 'text-red-700 bg-red-100'
-    default:            return 'text-slate-600 bg-slate-100'
+    case 'IN_PROGRESS':
+      return 'text-blue-700 bg-blue-100'
+    case 'COMPLETED':
+      return 'text-green-700 bg-green-100'
+    case 'ABORTED':
+      return 'text-red-700 bg-red-100'
+    default:
+      return 'text-slate-600 bg-slate-100'
   }
 }
 
 function envColor(env: string): string {
   switch (env?.toUpperCase()) {
-    case 'PROD':    return 'text-red-700 bg-red-100'
-    case 'STAGING': return 'text-orange-700 bg-orange-100'
-    case 'DEV':     return 'text-blue-700 bg-blue-100'
-    default:        return 'text-slate-600 bg-slate-100'
+    case 'PROD':
+      return 'text-red-700 bg-red-100'
+    case 'STAGING':
+      return 'text-orange-700 bg-orange-100'
+    case 'DEV':
+      return 'text-blue-700 bg-blue-100'
+    default:
+      return 'text-slate-600 bg-slate-100'
   }
 }
 
@@ -47,8 +69,8 @@ function ProgressSection({ run }: { run: TestRun }) {
   const { totalTests, passed, failed, blocked, skipped, pending } = run
 
   const segments = [
-    { label: 'Passed',  count: passed,  color: 'bg-green-500' },
-    { label: 'Failed',  count: failed,  color: 'bg-red-500' },
+    { label: 'Passed', count: passed, color: 'bg-green-500' },
+    { label: 'Failed', count: failed, color: 'bg-red-500' },
     { label: 'Blocked', count: blocked, color: 'bg-orange-400' },
     { label: 'Skipped', count: skipped, color: 'bg-slate-300' },
     { label: 'Pending', count: pending, color: 'bg-blue-200' },
@@ -67,22 +89,23 @@ function ProgressSection({ run }: { run: TestRun }) {
           </div>
         ))}
         {totalTests > 0 && (
-          <div className="ml-auto text-sm font-semibold text-slate-700">
-            {totalTests} total
-          </div>
+          <div className="ml-auto text-sm font-semibold text-slate-700">{totalTests} total</div>
         )}
       </div>
 
       {totalTests > 0 && (
         <div className="flex h-3 rounded-full overflow-hidden bg-slate-100">
-          {segments.map(seg => seg.count > 0 && (
-            <div
-              key={seg.label}
-              className={seg.color}
-              style={{ width: `${(seg.count / totalTests) * 100}%` }}
-              title={`${seg.label}: ${seg.count}`}
-            />
-          ))}
+          {segments.map(
+            seg =>
+              seg.count > 0 && (
+                <div
+                  key={seg.label}
+                  className={seg.color}
+                  style={{ width: `${(seg.count / totalTests) * 100}%` }}
+                  title={`${seg.label}: ${seg.count}`}
+                />
+              ),
+          )}
         </div>
       )}
     </div>
@@ -124,7 +147,7 @@ function ExecutionRow({
     else setShowActualResult(false)
     mutation.mutate({
       status,
-      actualResult: status === 'FAILED' ? (actualResult || undefined) : undefined,
+      actualResult: status === 'FAILED' ? actualResult || undefined : undefined,
     })
   }
 
@@ -135,18 +158,35 @@ function ExecutionRow({
   }
 
   const actionButtons = [
-    { status: 'PASSED',  icon: CheckCircle,  label: 'Pass',  className: 'text-green-600 hover:bg-green-50' },
-    { status: 'FAILED',  icon: XCircle,      label: 'Fail',  className: 'text-red-600 hover:bg-red-50' },
-    { status: 'BLOCKED', icon: MinusCircle,  label: 'Block', className: 'text-orange-500 hover:bg-orange-50' },
-    { status: 'SKIPPED', icon: SkipForward,  label: 'Skip',  className: 'text-slate-400 hover:bg-slate-50' },
+    {
+      status: 'PASSED',
+      icon: CheckCircle,
+      label: 'Pass',
+      className: 'text-green-600 hover:bg-green-50',
+    },
+    { status: 'FAILED', icon: XCircle, label: 'Fail', className: 'text-red-600 hover:bg-red-50' },
+    {
+      status: 'BLOCKED',
+      icon: MinusCircle,
+      label: 'Block',
+      className: 'text-orange-500 hover:bg-orange-50',
+    },
+    {
+      status: 'SKIPPED',
+      icon: SkipForward,
+      label: 'Skip',
+      className: 'text-slate-400 hover:bg-slate-50',
+    },
   ]
 
   return (
-    <div className={cn(
-      'px-5 py-3 transition-colors',
-      currentStatus === 'FAILED'  ? 'bg-red-50/30'    : '',
-      currentStatus === 'PASSED'  ? 'bg-green-50/30'  : '',
-    )}>
+    <div
+      className={cn(
+        'px-5 py-3 transition-colors',
+        currentStatus === 'FAILED' ? 'bg-red-50/30' : '',
+        currentStatus === 'PASSED' ? 'bg-green-50/30' : '',
+      )}
+    >
       <div className="flex items-center gap-3">
         {/* Status badge */}
         <div className="w-20 shrink-0">
@@ -158,9 +198,7 @@ function ExecutionRow({
 
         {/* Action buttons */}
         <div className="flex items-center gap-0.5 shrink-0">
-          {mutation.isPending && (
-            <Loader2 size={14} className="animate-spin text-slate-400 mr-1" />
-          )}
+          {mutation.isPending && <Loader2 size={14} className="animate-spin text-slate-400 mr-1" />}
           {actionButtons.map(btn => {
             const Icon = btn.icon
             const isActive = currentStatus === btn.status
@@ -173,7 +211,7 @@ function ExecutionRow({
                 className={cn(
                   'p-1.5 rounded-lg transition-colors disabled:opacity-40',
                   btn.className,
-                  isActive ? 'ring-2 ring-current ring-offset-1' : ''
+                  isActive ? 'ring-2 ring-current ring-offset-1' : '',
                 )}
               >
                 <Icon size={16} />
@@ -200,7 +238,8 @@ function ExecutionRow({
       {/* Executed by / at */}
       {exec.executedAt && (
         <div className="mt-1 ml-[92px] text-xs text-slate-400">
-          {exec.executedBy ? `${exec.executedBy} · ` : ''}{relativeTime(exec.executedAt)}
+          {exec.executedBy ? `${exec.executedBy} · ` : ''}
+          {relativeTime(exec.executedAt)}
         </div>
       )}
     </div>
@@ -218,13 +257,23 @@ export default function TestRunExecutionPage() {
   // Local optimistic state for executions list
   const [localExecutions, setLocalExecutions] = useState<TestCaseExecution[] | null>(null)
 
-  const { data: run, isLoading: runLoading, error: runError, refetch: runRefetch } = useQuery({
+  const {
+    data: run,
+    isLoading: runLoading,
+    error: runError,
+    refetch: runRefetch,
+  } = useQuery({
     queryKey: ['testRun', projectId, runId],
     queryFn: () => api.testRun(projectId!, runId!),
     enabled: !!projectId && !!runId,
   })
 
-  const { data: executions = [], isLoading: execLoading, error: execError, refetch: execRefetch } = useQuery({
+  const {
+    data: executions = [],
+    isLoading: execLoading,
+    error: execError,
+    refetch: execRefetch,
+  } = useQuery({
     queryKey: ['runExecutions', projectId, runId],
     queryFn: () => api.runExecutions(projectId!, runId!),
     enabled: !!projectId && !!runId,
@@ -243,15 +292,17 @@ export default function TestRunExecutionPage() {
   })
 
   if (runLoading || execLoading) return <LoadingSpinner message="Loading test run…" />
-  if (runError || !run)  return <ErrorMessage message="Failed to load test run." onRetry={() => void runRefetch()} />
-  if (execError) return <ErrorMessage message="Failed to load executions." onRetry={() => void execRefetch()} />
+  if (runError || !run)
+    return <ErrorMessage message="Failed to load test run." onRetry={() => void runRefetch()} />
+  if (execError)
+    return <ErrorMessage message="Failed to load executions." onRetry={() => void execRefetch()} />
 
   const displayExecutions = localExecutions ?? executions
   const pendingCount = displayExecutions.filter(e => e.status === 'PENDING').length
 
   function handleExecutionUpdated(updated: TestCaseExecution) {
     const base = localExecutions ?? executions
-    setLocalExecutions(base.map(e => e.id === updated.id ? updated : e))
+    setLocalExecutions(base.map(e => (e.id === updated.id ? updated : e)))
   }
 
   return (
@@ -313,7 +364,8 @@ export default function TestRunExecutionPage() {
       {pendingCount > 0 && run.status === 'IN_PROGRESS' && (
         <div className="flex items-center gap-2 px-4 py-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700">
           <AlertCircle size={15} className="shrink-0" />
-          {pendingCount} test {pendingCount === 1 ? 'case' : 'cases'} still pending — click Pass / Fail / Block / Skip to record results.
+          {pendingCount} test {pendingCount === 1 ? 'case' : 'cases'} still pending — click Pass /
+          Fail / Block / Skip to record results.
         </div>
       )}
 

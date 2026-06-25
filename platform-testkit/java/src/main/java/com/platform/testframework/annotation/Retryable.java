@@ -5,8 +5,8 @@ import java.lang.annotation.*;
 /**
  * Marks a test method for automatic retry on failure.
  *
- * <p>Processed by {@link com.platform.testframework.extension.RetryExtension}.
- * Each failed attempt is published to the platform with the attempt number recorded.</p>
+ * <p>Processed by {@link com.platform.testframework.extension.RetryExtension}. Each failed attempt
+ * is published to the platform with the attempt number recorded.
  *
  * <pre>{@code
  * @Test
@@ -18,6 +18,6 @@ import java.lang.annotation.*;
 @Retention(RetentionPolicy.RUNTIME)
 @Documented
 public @interface Retryable {
-    /** Maximum number of total attempts (including the first run). Default: 3. */
-    int maxAttempts() default 3;
+  /** Maximum number of total attempts (including the first run). Default: 3. */
+  int maxAttempts() default 3;
 }

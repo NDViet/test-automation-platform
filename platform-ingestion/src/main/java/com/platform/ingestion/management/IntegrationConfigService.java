@@ -9,95 +9,114 @@ import com.platform.core.repository.ProjectRepository;
 import com.platform.ingestion.management.dto.InheritedCredentialDto;
 import com.platform.ingestion.management.dto.IntegrationConfigDto;
 import com.platform.ingestion.management.dto.SaveIntegrationConfigRequest;
+import java.util.List;
+import java.util.Map;
+import java.util.UUID;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.util.List;
-import java.util.Map;
-import java.util.UUID;
-
 @Service
 @Transactional
 public class IntegrationConfigService {
 
-    private final ProjectIntegrationConfigRepository configRepo;
-    private final IntegrationCredentialRepository    credentialRepo;
-    private final ProjectRepository                  projectRepo;
+  private final ProjectIntegrationConfigRepository configRepo;
+  private final IntegrationCredentialRepository credentialRepo;
+  private final ProjectRepository projectRepo;
 
-    public IntegrationConfigService(ProjectIntegrationConfigRepository configRepo,
-                                    IntegrationCredentialRepository credentialRepo,
-                                    ProjectRepository projectRepo) {
-        this.configRepo     = configRepo;
-        this.credentialRepo = credentialRepo;
-        this.projectRepo    = projectRepo;
+  public IntegrationConfigService(
+      ProjectIntegrationConfigRepository configRepo,
+      IntegrationCredentialRepository credentialRepo,
+      ProjectRepository projectRepo) {
+    this.configRepo = configRepo;
+    this.credentialRepo = credentialRepo;
+    this.projectRepo = projectRepo;
+  }
+
+  @Transactional(readOnly = true)
+  public List<IntegrationConfigDto> list(UUID projectId) {
+    return configRepo.findByProjectId(projectId).stream().map(IntegrationConfigDto::from).toList();
+  }
+
+  /**
+   * Credentials this project inherits from its organization (ADO-first cascade Org → Project →
+   * Team). Read-only: a project automatically uses these unless it defines its own
+   * credential/params of the same type. Never returns secrets.
+   */
+  @Transactional(readOnly = true)
+  public List<InheritedCredentialDto> listInherited(UUID projectId) {
+    UUID orgId =
+        projectRepo
+            .findById(projectId)
+            .map(Project::getOrganization)
+            .map(o -> o.getId())
+            .orElse(null);
+    if (orgId == null) return List.of();
+    return credentialRepo
+        .findByScopeAndScopeId(IntegrationCredential.Scope.ORG.name(), orgId)
+        .stream()
+        .filter(IntegrationCredential::isEnabled)
+        .map(InheritedCredentialDto::from)
+        .toList();
+  }
+
+  public IntegrationConfigDto save(UUID projectId, SaveIntegrationConfigRequest req) {
+    ProjectIntegrationConfig config;
+    if (req.id() != null) {
+      config =
+          configRepo
+              .findById(req.id())
+              .orElseThrow(
+                  () ->
+                      new ResponseStatusException(
+                          HttpStatus.NOT_FOUND, "Integration config not found: " + req.id()));
+      if (!config.getProjectId().equals(projectId)) {
+        throw new ResponseStatusException(
+            HttpStatus.NOT_FOUND, "Integration config not found for project: " + projectId);
+      }
+    } else {
+      String displayName = req.displayName() != null ? req.displayName() : req.integrationType();
+      String syncDirection = req.syncDirection() != null ? req.syncDirection() : "INBOUND";
+      config =
+          new ProjectIntegrationConfig(
+              projectId, "DEFAULT", req.integrationType(), displayName, syncDirection);
     }
+    if (req.displayName() != null) config.setDisplayName(req.displayName());
+    if (req.syncDirection() != null) config.setSyncDirection(req.syncDirection());
+    if (req.repoType() != null) config.setRepoType(req.repoType());
 
-    @Transactional(readOnly = true)
-    public List<IntegrationConfigDto> list(UUID projectId) {
-        return configRepo.findByProjectId(projectId).stream()
-                .map(IntegrationConfigDto::from)
-                .toList();
-    }
-
-    /**
-     * Credentials this project inherits from its organization (ADO-first cascade
-     * Org → Project → Team). Read-only: a project automatically uses these unless
-     * it defines its own credential/params of the same type. Never returns secrets.
-     */
-    @Transactional(readOnly = true)
-    public List<InheritedCredentialDto> listInherited(UUID projectId) {
-        UUID orgId = projectRepo.findById(projectId)
-                .map(Project::getOrganization)
-                .map(o -> o.getId())
-                .orElse(null);
-        if (orgId == null) return List.of();
-        return credentialRepo.findByScopeAndScopeId(IntegrationCredential.Scope.ORG.name(), orgId).stream()
-                .filter(IntegrationCredential::isEnabled)
-                .map(InheritedCredentialDto::from)
-                .toList();
-    }
-
-    public IntegrationConfigDto save(UUID projectId, SaveIntegrationConfigRequest req) {
-        ProjectIntegrationConfig config;
-        if (req.id() != null) {
-            config = configRepo.findById(req.id())
-                    .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Integration config not found: " + req.id()));
-            if (!config.getProjectId().equals(projectId)) {
-                throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Integration config not found for project: " + projectId);
-            }
-        } else {
-            String displayName = req.displayName() != null ? req.displayName() : req.integrationType();
-            String syncDirection = req.syncDirection() != null ? req.syncDirection() : "INBOUND";
-            config = new ProjectIntegrationConfig(projectId, "DEFAULT", req.integrationType(), displayName, syncDirection);
-        }
-        if (req.displayName() != null)  config.setDisplayName(req.displayName());
-        if (req.syncDirection() != null) config.setSyncDirection(req.syncDirection());
-        if (req.repoType() != null)      config.setRepoType(req.repoType());
-
-        // Merge connection params: skip "***" values so the UI can display masked
-        // secrets without overwriting the real stored value on save.
-        Map<String, String> merged = new java.util.HashMap<>(
-                config.getConnectionParams() != null ? config.getConnectionParams() : Map.of());
-        if (req.connectionParams() != null) {
-            req.connectionParams().forEach((k, v) -> {
+    // Merge connection params: skip "***" values so the UI can display masked
+    // secrets without overwriting the real stored value on save.
+    Map<String, String> merged =
+        new java.util.HashMap<>(
+            config.getConnectionParams() != null ? config.getConnectionParams() : Map.of());
+    if (req.connectionParams() != null) {
+      req.connectionParams()
+          .forEach(
+              (k, v) -> {
                 if (!"***".equals(v)) merged.put(k, v);
-            });
-        }
-        config.setConnectionParams(merged);
-        config.setFieldMappings(req.fieldMappings() != null ? req.fieldMappings() : Map.of());
-        config.setFilterConfig(req.filterConfig() != null ? req.filterConfig() : Map.of());
-        config.setEnabled(req.enabled());
-        return IntegrationConfigDto.from(configRepo.save(config));
+              });
     }
+    config.setConnectionParams(merged);
+    config.setFieldMappings(req.fieldMappings() != null ? req.fieldMappings() : Map.of());
+    config.setFilterConfig(req.filterConfig() != null ? req.filterConfig() : Map.of());
+    config.setEnabled(req.enabled());
+    return IntegrationConfigDto.from(configRepo.save(config));
+  }
 
-    public void delete(UUID projectId, UUID configId) {
-        var config = configRepo.findById(configId)
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Integration config not found: " + configId));
-        if (!config.getProjectId().equals(projectId)) {
-            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Integration config not found for project: " + projectId);
-        }
-        configRepo.delete(config);
+  public void delete(UUID projectId, UUID configId) {
+    var config =
+        configRepo
+            .findById(configId)
+            .orElseThrow(
+                () ->
+                    new ResponseStatusException(
+                        HttpStatus.NOT_FOUND, "Integration config not found: " + configId));
+    if (!config.getProjectId().equals(projectId)) {
+      throw new ResponseStatusException(
+          HttpStatus.NOT_FOUND, "Integration config not found for project: " + projectId);
     }
+    configRepo.delete(config);
+  }
 }

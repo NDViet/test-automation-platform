@@ -2,11 +2,33 @@ import { useState, useEffect } from 'react'
 import { NavLink, useMatch, useNavigate } from 'react-router-dom'
 import { useQuery } from '@tanstack/react-query'
 import {
-  LayoutDashboard, FolderOpen, Bell, Key, Bot,
-  FlaskConical, BarChart3, FileText, GitBranch, Zap,
-  Inbox, Plug, ShieldCheck, Boxes, Users, ShieldAlert, Gauge,
-  Rocket, ClipboardCheck, Layers, MonitorCheck,
-  ChevronLeft, ChevronRight, Building2, Settings, ArrowLeftRight, GitMerge,
+  LayoutDashboard,
+  FolderOpen,
+  Bell,
+  Key,
+  Bot,
+  FlaskConical,
+  BarChart3,
+  FileText,
+  GitBranch,
+  Zap,
+  Inbox,
+  Plug,
+  ShieldCheck,
+  Boxes,
+  Users,
+  ShieldAlert,
+  Gauge,
+  Rocket,
+  ClipboardCheck,
+  Layers,
+  MonitorCheck,
+  ChevronLeft,
+  ChevronRight,
+  Building2,
+  Settings,
+  ArrowLeftRight,
+  GitMerge,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { api } from '@/lib/api'
@@ -29,12 +51,12 @@ type NavGroup = {
 const adminGroup: NavGroup = {
   label: 'Admin',
   items: [
-    { to: '/settings/organization',  label: 'Organization',  icon: Building2 },
-    { to: '/settings/integrations',  label: 'Integrations',  icon: Plug },
+    { to: '/settings/organization', label: 'Organization', icon: Building2 },
+    { to: '/settings/integrations', label: 'Integrations', icon: Plug },
     { to: '/settings/mapping-rules', label: 'Mapping Rules', icon: Boxes },
-    { to: '/settings/roles',         label: 'Roles',         icon: ShieldCheck },
-    { to: '/settings/api-keys',      label: 'API Keys',      icon: Key },
-    { to: '/settings/ai',            label: 'AI Settings',   icon: Bot },
+    { to: '/settings/roles', label: 'Roles', icon: ShieldCheck },
+    { to: '/settings/api-keys', label: 'API Keys', icon: Key },
+    { to: '/settings/ai', label: 'AI Settings', icon: Bot },
   ],
 }
 
@@ -43,48 +65,48 @@ function projectGroups(base: string): NavGroup[] {
     {
       label: 'Overview',
       items: [
-        { to: base,                      label: 'Dashboard',    icon: BarChart3,      end: true },
-        { to: `${base}/requirements`,    label: 'Requirements', icon: FileText },
-        { to: `${base}/teams`,           label: 'Teams',        icon: Users },
+        { to: base, label: 'Dashboard', icon: BarChart3, end: true },
+        { to: `${base}/requirements`, label: 'Requirements', icon: FileText },
+        { to: `${base}/teams`, label: 'Teams', icon: Users },
       ],
     },
     {
       label: 'Quality',
       items: [
-        { to: `${base}/quality`,         label: 'Quality',      icon: ShieldAlert },
-        { to: `${base}/productivity`,    label: 'Productivity', icon: Gauge },
-        { to: `${base}/coverage`,        label: 'Coverage',     icon: ShieldCheck },
-        { to: `${base}/mapping`,         label: 'Mapping',      icon: Boxes },
+        { to: `${base}/quality`, label: 'Quality', icon: ShieldAlert },
+        { to: `${base}/productivity`, label: 'Productivity', icon: Gauge },
+        { to: `${base}/coverage`, label: 'Coverage', icon: ShieldCheck },
+        { to: `${base}/mapping`, label: 'Mapping', icon: Boxes },
       ],
     },
     {
       label: 'Testing',
       items: [
-        { to: `${base}/test-cases`,       label: 'Test Cases',       icon: FlaskConical },
-        { to: `${base}/test-suites`,      label: 'Test Suites',      icon: Layers },
-        { to: `${base}/test-execution`,   label: 'Test Execution',   icon: ClipboardCheck },
-        { to: `${base}/automated-tests`,  label: 'Automated Tests',  icon: MonitorCheck },
-        { to: `${base}/github-workflows`, label: 'GitHub Workflows', icon: GitMerge},
-        { to: `${base}/flaky-tests`,      label: 'Flaky Tests',      icon: Zap },
-        { to: `${base}/review-queue`,     label: 'Review Queue',     icon: Inbox },
+        { to: `${base}/test-cases`, label: 'Test Cases', icon: FlaskConical },
+        { to: `${base}/test-suites`, label: 'Test Suites', icon: Layers },
+        { to: `${base}/test-execution`, label: 'Test Execution', icon: ClipboardCheck },
+        { to: `${base}/automated-tests`, label: 'Automated Tests', icon: MonitorCheck },
+        { to: `${base}/github-workflows`, label: 'GitHub Workflows', icon: GitMerge },
+        { to: `${base}/flaky-tests`, label: 'Flaky Tests', icon: Zap },
+        { to: `${base}/review-queue`, label: 'Review Queue', icon: Inbox },
       ],
     },
     {
       label: 'Releases',
       items: [
-        { to: `${base}/releases`,        label: 'Releases',        icon: Rocket },
+        { to: `${base}/releases`, label: 'Releases', icon: Rocket },
         { to: `${base}/impact-analyses`, label: 'Impact Analyses', icon: GitBranch },
       ],
     },
     {
       label: 'Settings',
       items: [
-        { to: `${base}/settings/general`,      label: 'General',      icon: Settings },
-        { to: `${base}/settings/teams`,        label: 'Teams',        icon: Users },
+        { to: `${base}/settings/general`, label: 'General', icon: Settings },
+        { to: `${base}/settings/teams`, label: 'Teams', icon: Users },
         { to: `${base}/settings/integrations`, label: 'Integrations', icon: Plug },
-        { to: `${base}/settings/mapping`,      label: 'Mapping',      icon: Boxes },
-        { to: `${base}/settings/ai`,           label: 'AI',           icon: Bot },
-        { to: `${base}/settings/github`,       label: 'GitHub',       icon: GitMerge},
+        { to: `${base}/settings/mapping`, label: 'Mapping', icon: Boxes },
+        { to: `${base}/settings/ai`, label: 'AI', icon: Bot },
+        { to: `${base}/settings/github`, label: 'GitHub', icon: GitMerge },
       ],
     },
   ]
@@ -95,7 +117,11 @@ function projectGroups(base: string): NavGroup[] {
 const RESERVED_SEGMENTS = new Set(['settings', 'alerts', 'runs', 'projects'])
 
 function orgInitials(name: string): string {
-  return name.split(/[\s-_]+/).slice(0, 2).map(w => w[0]?.toUpperCase() ?? '').join('')
+  return name
+    .split(/[\s-_]+/)
+    .slice(0, 2)
+    .map(w => w[0]?.toUpperCase() ?? '')
+    .join('')
 }
 function orgHue(name: string): number {
   let h = 0
@@ -150,36 +176,43 @@ function NavSection({ group, collapsed }: { group: NavGroup; collapsed: boolean 
 export default function Sidebar() {
   const navigate = useNavigate()
   const [collapsed, setCollapsed] = useState(() => {
-    try { return localStorage.getItem('sidebar-collapsed') === 'true' } catch { return false }
+    try {
+      return localStorage.getItem('sidebar-collapsed') === 'true'
+    } catch {
+      return false
+    }
   })
 
   useEffect(() => {
-    try { localStorage.setItem('sidebar-collapsed', String(collapsed)) } catch {}
+    try {
+      localStorage.setItem('sidebar-collapsed', String(collapsed))
+    } catch {}
   }, [collapsed])
 
   const projectMatch = useMatch('/:orgSlug/:projectSlug/*')
-  const orgMatch     = useMatch('/:orgSlug')
+  const orgMatch = useMatch('/:orgSlug')
 
-  const rawOrgSlug     = projectMatch?.params.orgSlug ?? orgMatch?.params.orgSlug
+  const rawOrgSlug = projectMatch?.params.orgSlug ?? orgMatch?.params.orgSlug
   const rawProjectSlug = projectMatch?.params.projectSlug
 
   // Filter out reserved static-segment paths that also match /:orgSlug
-  const orgSlug     = rawOrgSlug     && !RESERVED_SEGMENTS.has(rawOrgSlug)     ? rawOrgSlug     : undefined
-  const projectSlug = rawProjectSlug && !RESERVED_SEGMENTS.has(rawProjectSlug) ? rawProjectSlug : undefined
+  const orgSlug = rawOrgSlug && !RESERVED_SEGMENTS.has(rawOrgSlug) ? rawOrgSlug : undefined
+  const projectSlug =
+    rawProjectSlug && !RESERVED_SEGMENTS.has(rawProjectSlug) ? rawProjectSlug : undefined
   const projectBase = orgSlug && projectSlug ? `/${orgSlug}/${projectSlug}` : null
-  const orgBase     = orgSlug ? `/${orgSlug}` : null
+  const orgBase = orgSlug ? `/${orgSlug}` : null
 
   // Data
-  const { data: orgs }     = useQuery({ queryKey: ['organizations'], queryFn: api.organizations })
-  const { data: projects } = useQuery({ queryKey: ['projects'],      queryFn: () => api.projects() })
+  const { data: orgs } = useQuery({ queryKey: ['organizations'], queryFn: api.organizations })
+  const { data: projects } = useQuery({ queryKey: ['projects'], queryFn: () => api.projects() })
 
   const currentOrg = (() => {
     if (orgSlug) return orgs?.find(o => o.slug === orgSlug) ?? null
     return orgs?.[0] ?? null
   })()
 
-  const orgName    = currentOrg?.displayName ?? currentOrg?.name ?? 'Test Platform'
-  const hue        = orgHue(orgName)
+  const orgName = currentOrg?.displayName ?? currentOrg?.name ?? 'Test Platform'
+  const hue = orgHue(orgName)
   const orgProjects = orgSlug ? (projects ?? []).filter(p => p.orgSlug === orgSlug) : []
 
   // Workspace overview link: org home if we have an org, else org selector
@@ -195,10 +228,12 @@ export default function Sidebar() {
       {/* ── Platform Branding Header ─────────────────────────────── */}
       <div className="border-b border-slate-700/80">
         {/* Logo + name row */}
-        <div className={cn(
-          'flex items-center gap-3',
-          collapsed ? 'px-2 py-4 justify-center' : 'px-4 pt-4 pb-2',
-        )}>
+        <div
+          className={cn(
+            'flex items-center gap-3',
+            collapsed ? 'px-2 py-4 justify-center' : 'px-4 pt-4 pb-2',
+          )}
+        >
           {currentOrg?.logoUrl ? (
             <img
               src={currentOrg.logoUrl}
@@ -221,7 +256,9 @@ export default function Sidebar() {
               <p className="text-sm font-semibold text-white truncate leading-tight">{orgName}</p>
               <p className="text-[10px] text-slate-400 leading-tight">Test Platform</p>
               {orgSlug && (
-                <p className="text-[10px] text-slate-500 font-mono leading-tight truncate">@{orgSlug}</p>
+                <p className="text-[10px] text-slate-500 font-mono leading-tight truncate">
+                  @{orgSlug}
+                </p>
               )}
             </div>
           )}
@@ -243,7 +280,6 @@ export default function Sidebar() {
 
       {/* ── Nav ────────────────────────────────────────────────────── */}
       <nav className="flex-1 px-2 py-3 overflow-y-auto space-y-0 scrollbar-thin scrollbar-thumb-slate-700">
-
         {/* Workspace group (always visible) */}
         <div className="space-y-0.5">
           {!collapsed && (
@@ -281,9 +317,10 @@ export default function Sidebar() {
         )}
 
         {/* Per-project groups (only when inside a project) */}
-        {projectBase && projectGroups(projectBase).map(g => (
-          <NavSection key={g.label} group={g} collapsed={collapsed} />
-        ))}
+        {projectBase &&
+          projectGroups(projectBase).map(g => (
+            <NavSection key={g.label} group={g} collapsed={collapsed} />
+          ))}
 
         {/* Admin settings group */}
         <NavSection group={adminGroup} collapsed={collapsed} />
@@ -300,10 +337,14 @@ export default function Sidebar() {
             collapsed && 'justify-center px-2',
           )}
         >
-          {collapsed
-            ? <ChevronRight size={15} />
-            : <><ChevronLeft size={15} /><span>Collapse</span></>
-          }
+          {collapsed ? (
+            <ChevronRight size={15} />
+          ) : (
+            <>
+              <ChevronLeft size={15} />
+              <span>Collapse</span>
+            </>
+          )}
         </button>
       </div>
     </aside>

@@ -7,7 +7,16 @@ import Badge from '@/components/Badge'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import ErrorMessage from '@/components/ErrorMessage'
 import type { TestCase } from '@/lib/types'
-import { ChevronRight, ChevronDown, ExternalLink, Play, Download, Camera, Video, Globe } from 'lucide-react'
+import {
+  ChevronRight,
+  ChevronDown,
+  ExternalLink,
+  Play,
+  Download,
+  Camera,
+  Video,
+  Globe,
+} from 'lucide-react'
 
 type StatusFilter = 'ALL' | 'FAILED' | 'PASSED' | 'SKIPPED' | 'BROKEN'
 
@@ -18,8 +27,8 @@ export default function RunDetail() {
   const expandResultId = searchParams.get('expandResult')
 
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('ALL')
-  const [expanded, setExpanded] = useState<Set<string>>(
-    () => expandResultId ? new Set([expandResultId]) : new Set()
+  const [expanded, setExpanded] = useState<Set<string>>(() =>
+    expandResultId ? new Set([expandResultId]) : new Set(),
   )
   const didAutoReset = useRef(false)
 
@@ -48,14 +57,15 @@ export default function RunDetail() {
   }, [isLoading, expandResultId])
 
   if (isLoading) return <LoadingSpinner message="Loading run details…" />
-  if (error || !data) return <ErrorMessage message="Failed to load run details." onRetry={() => void refetch()} />
+  if (error || !data)
+    return <ErrorMessage message="Failed to load run details." onRetry={() => void refetch()} />
 
   const { summary: s, testCases } = data
   const proj = projects?.find(p => p.id === s.projectId)
   const projectHref = proj ? `/${proj.orgSlug}/${proj.slug}` : `/projects/${s.projectId}`
 
-  const filtered = (testCases ?? []).filter(tc =>
-    statusFilter === 'ALL' || tc.status === statusFilter,
+  const filtered = (testCases ?? []).filter(
+    tc => statusFilter === 'ALL' || tc.status === statusFilter,
   )
 
   const toggle = (id: string) => {
@@ -66,16 +76,21 @@ export default function RunDetail() {
     })
   }
 
-  const statusCounts = (testCases ?? []).reduce((acc, tc) => {
-    acc[tc.status] = (acc[tc.status] ?? 0) + 1
-    return acc
-  }, {} as Record<string, number>)
+  const statusCounts = (testCases ?? []).reduce(
+    (acc, tc) => {
+      acc[tc.status] = (acc[tc.status] ?? 0) + 1
+      return acc
+    },
+    {} as Record<string, number>,
+  )
 
   return (
     <div className="space-y-6">
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 text-sm text-slate-500">
-        <button onClick={() => navigate('/')} className="hover:text-blue-600">Overview</button>
+        <button onClick={() => navigate('/')} className="hover:text-blue-600">
+          Overview
+        </button>
         <ChevronRight size={14} />
         <button onClick={() => navigate(projectHref)} className="hover:text-blue-600">
           {s.projectName}
@@ -118,8 +133,12 @@ export default function RunDetail() {
           {s.ciRunUrl && (
             <div>
               <p className="text-xs text-slate-500 uppercase tracking-wide">CI Run</p>
-              <a href={s.ciRunUrl} target="_blank" rel="noreferrer"
-                 className="text-sm text-blue-600 hover:underline flex items-center gap-1 mt-0.5">
+              <a
+                href={s.ciRunUrl}
+                target="_blank"
+                rel="noreferrer"
+                className="text-sm text-blue-600 hover:underline flex items-center gap-1 mt-0.5"
+              >
                 View <ExternalLink size={12} />
               </a>
             </div>
@@ -128,12 +147,26 @@ export default function RunDetail() {
 
         {/* Result bar */}
         <div className="mt-4 flex items-center gap-1 h-2 rounded-full overflow-hidden">
-          {s.totalTests > 0 && <>
-            <div className="bg-green-500 h-full" style={{ width: `${s.passed / s.totalTests * 100}%` }} />
-            <div className="bg-red-500 h-full"   style={{ width: `${s.failed / s.totalTests * 100}%` }} />
-            <div className="bg-orange-400 h-full" style={{ width: `${s.broken / s.totalTests * 100}%` }} />
-            <div className="bg-slate-300 h-full"  style={{ width: `${s.skipped / s.totalTests * 100}%` }} />
-          </>}
+          {s.totalTests > 0 && (
+            <>
+              <div
+                className="bg-green-500 h-full"
+                style={{ width: `${(s.passed / s.totalTests) * 100}%` }}
+              />
+              <div
+                className="bg-red-500 h-full"
+                style={{ width: `${(s.failed / s.totalTests) * 100}%` }}
+              />
+              <div
+                className="bg-orange-400 h-full"
+                style={{ width: `${(s.broken / s.totalTests) * 100}%` }}
+              />
+              <div
+                className="bg-slate-300 h-full"
+                style={{ width: `${(s.skipped / s.totalTests) * 100}%` }}
+              />
+            </>
+          )}
         </div>
         <div className="mt-2 flex gap-4 text-xs text-slate-600">
           <span className="text-green-700">✓ {s.passed} passed</span>
@@ -147,13 +180,14 @@ export default function RunDetail() {
       {/* Filter tabs */}
       <div className="flex items-center gap-2">
         {(['ALL', 'FAILED', 'BROKEN', 'PASSED', 'SKIPPED'] as StatusFilter[]).map(f => (
-          <button key={f}
+          <button
+            key={f}
             onClick={() => setStatusFilter(f)}
             className={cn(
               'px-3 py-1.5 text-xs font-medium rounded-lg transition-colors',
               statusFilter === f
                 ? 'bg-blue-600 text-white'
-                : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50'
+                : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50',
             )}
           >
             {f} {f !== 'ALL' && statusCounts[f] ? `(${statusCounts[f]})` : ''}
@@ -164,7 +198,9 @@ export default function RunDetail() {
       {/* Test cases */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm divide-y divide-slate-50">
         {filtered.length === 0 && (
-          <p className="px-5 py-8 text-center text-sm text-slate-500">No tests match this filter.</p>
+          <p className="px-5 py-8 text-center text-sm text-slate-500">
+            No tests match this filter.
+          </p>
         )}
         {filtered.map((tc: TestCase) => {
           const isOpen = expanded.has(tc.id)
@@ -176,8 +212,11 @@ export default function RunDetail() {
           const traceViewerUrl = `${window.location.origin}/pw-trace/index.html?trace=${encodeURIComponent(`${window.location.origin}/api/portal/traces/${tc.id}`)}`
 
           return (
-            <div key={tc.id} id={`result-${tc.id}`}
-                 className={cn('group', isTarget && 'ring-2 ring-inset ring-blue-400 rounded-sm')}>
+            <div
+              key={tc.id}
+              id={`result-${tc.id}`}
+              className={cn('group', isTarget && 'ring-2 ring-inset ring-blue-400 rounded-sm')}
+            >
               {/* ── Row header ── */}
               <div
                 onClick={() => isExpandable && toggle(tc.id)}
@@ -189,12 +228,15 @@ export default function RunDetail() {
                 )}
               >
                 {/* Expand chevron */}
-                {isExpandable
-                  ? isOpen
-                    ? <ChevronDown size={14} className="text-slate-400 shrink-0" />
-                    : <ChevronRight size={14} className="text-slate-400 shrink-0" />
-                  : <div className="w-3.5 shrink-0" />
-                }
+                {isExpandable ? (
+                  isOpen ? (
+                    <ChevronDown size={14} className="text-slate-400 shrink-0" />
+                  ) : (
+                    <ChevronRight size={14} className="text-slate-400 shrink-0" />
+                  )
+                ) : (
+                  <div className="w-3.5 shrink-0" />
+                )}
 
                 <Badge label={tc.status} colorClass={statusColor(tc.status)} />
 
@@ -202,10 +244,14 @@ export default function RunDetail() {
                   <div className="flex items-center gap-2">
                     <p className="text-sm font-medium text-slate-900 truncate">{tc.displayName}</p>
                     {tc.hasScreenshot && (
-                      <span title="Has screenshot"><Camera size={12} className="text-slate-400 shrink-0" /></span>
+                      <span title="Has screenshot">
+                        <Camera size={12} className="text-slate-400 shrink-0" />
+                      </span>
                     )}
                     {tc.hasVideo && (
-                      <span title="Has video"><Video size={12} className="text-slate-400 shrink-0" /></span>
+                      <span title="Has video">
+                        <Video size={12} className="text-slate-400 shrink-0" />
+                      </span>
                     )}
                   </div>
                   <div className="flex items-center gap-2 mt-0.5">
@@ -223,12 +269,16 @@ export default function RunDetail() {
                   </div>
                 </div>
 
-                <span className="text-xs text-slate-400 shrink-0">{formatDuration(tc.durationMs)}</span>
+                <span className="text-xs text-slate-400 shrink-0">
+                  {formatDuration(tc.durationMs)}
+                </span>
 
                 {/* Trace / attachment quick-actions — visible on row hover */}
                 {hasTrace && (
-                  <div className="shrink-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
-                       onClick={e => e.stopPropagation()}>
+                  <div
+                    className="shrink-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity"
+                    onClick={e => e.stopPropagation()}
+                  >
                     <a
                       href={traceViewerUrl}
                       target="_blank"
@@ -258,7 +308,6 @@ export default function RunDetail() {
               {/* ── Expanded detail ── */}
               {isOpen && (
                 <div className="px-5 pb-5 space-y-3 border-t border-slate-50 pt-3">
-
                   {/* Trace viewer — shown prominently at the top of the expanded section */}
                   {hasTrace && (
                     <div className="flex items-center gap-2 p-3 bg-violet-50 border border-violet-200 rounded-lg">

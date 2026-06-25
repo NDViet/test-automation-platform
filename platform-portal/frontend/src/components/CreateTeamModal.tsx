@@ -15,8 +15,8 @@ interface Props {
 function toSlug(name: string): string {
   return name
     .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')  // any run of non-alphanumerics -> a single hyphen
-    .replace(/^-+|-+$/g, '')      // trim leading/trailing hyphens
+    .replace(/[^a-z0-9]+/g, '-') // any run of non-alphanumerics -> a single hyphen
+    .replace(/^-+|-+$/g, '') // trim leading/trailing hyphens
 }
 
 export default function CreateTeamModal({ open, projectId, onClose, onCreated }: Props) {
@@ -26,7 +26,7 @@ export default function CreateTeamModal({ open, projectId, onClose, onCreated }:
 
   const mutation = useMutation({
     mutationFn: () => api.createTeam(projectId, { name, slug }),
-    onSuccess: (team) => {
+    onSuccess: team => {
       onCreated(team)
       onClose()
       setName('')
@@ -80,7 +80,9 @@ export default function CreateTeamModal({ open, projectId, onClose, onCreated }:
               placeholder="platform-team"
               className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
             />
-            <p className="text-xs text-slate-400 mt-1">Lowercase letters, numbers and dashes only. Cannot be changed later.</p>
+            <p className="text-xs text-slate-400 mt-1">
+              Lowercase letters, numbers and dashes only. Cannot be changed later.
+            </p>
           </div>
         </div>
 

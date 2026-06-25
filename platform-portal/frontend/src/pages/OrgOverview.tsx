@@ -8,8 +8,14 @@ import LoadingSpinner from '@/components/LoadingSpinner'
 import Badge from '@/components/Badge'
 import CreateProjectModal from '@/components/CreateProjectModal'
 import {
-  Activity, AlertTriangle, FolderOpen, TrendingUp, Plus,
-  ArrowRight, CheckCircle, Zap,
+  Activity,
+  AlertTriangle,
+  FolderOpen,
+  TrendingUp,
+  Plus,
+  ArrowRight,
+  CheckCircle,
+  Zap,
 } from 'lucide-react'
 import type { Project, Alert } from '@/lib/types'
 
@@ -20,14 +26,17 @@ function rateColor(p: number): string {
 function PassBar({ pct }: { pct: number }) {
   return (
     <div className="h-1.5 rounded-full bg-slate-100 overflow-hidden w-20 shrink-0">
-      <div className="h-full rounded-full transition-all" style={{ width: `${Math.min(100, Math.max(0, pct))}%`, background: rateColor(pct) }} />
+      <div
+        className="h-full rounded-full transition-all"
+        style={{ width: `${Math.min(100, Math.max(0, pct))}%`, background: rateColor(pct) }}
+      />
     </div>
   )
 }
 
 function alertSeverityClass(s: string) {
   if (s === 'CRITICAL') return 'text-red-700 bg-red-100'
-  if (s === 'HIGH')     return 'text-orange-700 bg-orange-100'
+  if (s === 'HIGH') return 'text-orange-700 bg-orange-100'
   return 'text-yellow-700 bg-yellow-100'
 }
 
@@ -67,7 +76,7 @@ export default function OrgOverview() {
 
   // Backend returns projectId = slug and passRate as 0-1 fraction
   const projectSlugs = new Set(projects.map(p => p.slug))
-  const projectIds   = new Set(projects.map(p => p.id))
+  const projectIds = new Set(projects.map(p => p.id))
 
   // Org-scoped project summaries (matched by slug)
   const projectSummaries = (summary?.projects ?? []).filter(ps => projectSlugs.has(ps.projectId))
@@ -82,8 +91,8 @@ export default function OrgOverview() {
   const avgPassRate = projectSummaries.length
     ? pct(projectSummaries.reduce((s, p) => s + (p.passRate ?? 0), 0) / projectSummaries.length)
     : null
-  const totalRuns   = projectSummaries.reduce((s, p) => s + (p.totalRuns ?? 0), 0)
-  const flakyCount  = projectSummaries.reduce((s, p) => s + (p.flakyTests ?? 0), 0)
+  const totalRuns = projectSummaries.reduce((s, p) => s + (p.totalRuns ?? 0), 0)
+  const flakyCount = projectSummaries.reduce((s, p) => s + (p.flakyTests ?? 0), 0)
   const healthyCount = projectSummaries.filter(p => pct(p.passRate ?? 0) >= 80).length
 
   if (projectsLoading || overviewLoading) return <LoadingSpinner message="Loading…" />
@@ -162,31 +171,43 @@ export default function OrgOverview() {
                   >
                     <div className="flex items-center gap-3">
                       {/* Health dot */}
-                      <div className={`w-2 h-2 rounded-full shrink-0 ${healthy ? 'bg-green-500' : pr >= 50 ? 'bg-yellow-400' : 'bg-red-500'}`} />
+                      <div
+                        className={`w-2 h-2 rounded-full shrink-0 ${healthy ? 'bg-green-500' : pr >= 50 ? 'bg-yellow-400' : 'bg-red-500'}`}
+                      />
 
                       {/* Name + slug */}
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-slate-900 truncate group-hover:text-blue-700">{p.name}</p>
+                        <p className="text-sm font-medium text-slate-900 truncate group-hover:text-blue-700">
+                          {p.name}
+                        </p>
                         <p className="text-[11px] text-slate-400 font-mono">{p.slug}</p>
                       </div>
 
                       {/* Pass rate bar + value */}
                       <div className="flex items-center gap-2 shrink-0">
                         <PassBar pct={pr} />
-                        <span className="text-xs font-semibold tabular-nums w-12 text-right" style={{ color: rateColor(pr) }}>
+                        <span
+                          className="text-xs font-semibold tabular-nums w-12 text-right"
+                          style={{ color: rateColor(pr) }}
+                        >
                           {ps && ps.totalRuns > 0 ? formatPassRate(pr) : '—'}
                         </span>
                       </div>
 
                       {/* Runs */}
                       <div className="text-right shrink-0 w-14">
-                        <p className="text-xs text-slate-500 tabular-nums">{ps?.totalRuns ?? 0} runs</p>
+                        <p className="text-xs text-slate-500 tabular-nums">
+                          {ps?.totalRuns ?? 0} runs
+                        </p>
                         {(ps?.flakyTests ?? 0) > 0 && (
                           <p className="text-[10px] text-orange-500">{ps!.flakyTests} flaky</p>
                         )}
                       </div>
 
-                      <ArrowRight size={13} className="text-slate-300 group-hover:text-blue-400 shrink-0" />
+                      <ArrowRight
+                        size={13}
+                        className="text-slate-300 group-hover:text-blue-400 shrink-0"
+                      />
                     </div>
                   </button>
                 )
@@ -202,7 +223,9 @@ export default function OrgOverview() {
               <AlertTriangle size={14} className="text-slate-400" /> Recent Alerts
             </h2>
             {orgAlerts.length > 0 && (
-              <span className="text-xs text-slate-400">{orgAlerts.length} alert{orgAlerts.length !== 1 ? 's' : ''}</span>
+              <span className="text-xs text-slate-400">
+                {orgAlerts.length} alert{orgAlerts.length !== 1 ? 's' : ''}
+              </span>
             )}
           </div>
 
@@ -231,10 +254,7 @@ export default function OrgOverview() {
                         )}
                       </div>
                       <div className="flex flex-col items-end gap-1 shrink-0">
-                        <Badge
-                          label={a.severity}
-                          colorClass={alertSeverityClass(a.severity)}
-                        />
+                        <Badge label={a.severity} colorClass={alertSeverityClass(a.severity)} />
                         <p className="text-[10px] text-slate-400">{relativeTime(a.firedAt)}</p>
                       </div>
                     </div>

@@ -10,19 +10,19 @@ import org.springframework.context.annotation.Configuration;
 /**
  * Explicit Jackson configuration.
  *
- * Spring Boot 4.x decomposes spring-boot-autoconfigure into separate modules;
- * JacksonAutoConfiguration is not always reachable from this service's module path,
- * so the ObjectMapper bean is registered explicitly here.
- * @ConditionalOnMissingBean ensures this is skipped if auto-configuration runs first.
+ * <p>Spring Boot 4.x decomposes spring-boot-autoconfigure into separate modules;
+ * JacksonAutoConfiguration is not always reachable from this service's module path, so the
+ * ObjectMapper bean is registered explicitly here. @ConditionalOnMissingBean ensures this is
+ * skipped if auto-configuration runs first.
  */
 @Configuration
 public class JacksonConfig {
 
-    @Bean
-    @ConditionalOnMissingBean
-    public ObjectMapper objectMapper() {
-        return new ObjectMapper()
-                .registerModule(new JavaTimeModule())
-                .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
-    }
+  @Bean
+  @ConditionalOnMissingBean
+  public ObjectMapper objectMapper() {
+    return new ObjectMapper()
+        .registerModule(new JavaTimeModule())
+        .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+  }
 }

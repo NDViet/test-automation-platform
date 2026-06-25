@@ -9,8 +9,16 @@ import Badge from '@/components/Badge'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import ErrorMessage from '@/components/ErrorMessage'
 import {
-  Zap, RefreshCw, Sparkles, X, GitBranch, AlertTriangle,
-  Link2, ChevronRight, Loader2, CheckCircle,
+  Zap,
+  RefreshCw,
+  Sparkles,
+  X,
+  GitBranch,
+  AlertTriangle,
+  Link2,
+  ChevronRight,
+  Loader2,
+  CheckCircle,
 } from 'lucide-react'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -19,19 +27,27 @@ type Classification = FlakinessItem['classification']
 
 function classColor(c: Classification) {
   switch (c) {
-    case 'CRITICAL_FLAKY': return 'text-red-700 bg-red-100'
-    case 'FLAKY':          return 'text-orange-700 bg-orange-100'
-    case 'WATCH':          return 'text-yellow-700 bg-yellow-100'
-    default:               return 'text-slate-600 bg-slate-100'
+    case 'CRITICAL_FLAKY':
+      return 'text-red-700 bg-red-100'
+    case 'FLAKY':
+      return 'text-orange-700 bg-orange-100'
+    case 'WATCH':
+      return 'text-yellow-700 bg-yellow-100'
+    default:
+      return 'text-slate-600 bg-slate-100'
   }
 }
 
 function scoreBarColor(c: Classification) {
   switch (c) {
-    case 'CRITICAL_FLAKY': return 'bg-red-500'
-    case 'FLAKY':          return 'bg-orange-400'
-    case 'WATCH':          return 'bg-yellow-400'
-    default:               return 'bg-slate-300'
+    case 'CRITICAL_FLAKY':
+      return 'bg-red-500'
+    case 'FLAKY':
+      return 'bg-orange-400'
+    case 'WATCH':
+      return 'bg-yellow-400'
+    default:
+      return 'bg-slate-300'
   }
 }
 
@@ -51,12 +67,18 @@ function shortTestId(testId: string): { cls: string; method: string } {
 
 function categoryColor(category: string) {
   switch (category?.toUpperCase()) {
-    case 'FLAKY_TEST':        return 'text-orange-700 bg-orange-100'
-    case 'APPLICATION_BUG':   return 'text-red-700 bg-red-100'
-    case 'TEST_DEFECT':       return 'text-yellow-700 bg-yellow-100'
-    case 'INFRASTRUCTURE':    return 'text-purple-700 bg-purple-100'
-    case 'ENVIRONMENT':       return 'text-blue-700 bg-blue-100'
-    default:                  return 'text-slate-600 bg-slate-100'
+    case 'FLAKY_TEST':
+      return 'text-orange-700 bg-orange-100'
+    case 'APPLICATION_BUG':
+      return 'text-red-700 bg-red-100'
+    case 'TEST_DEFECT':
+      return 'text-yellow-700 bg-yellow-100'
+    case 'INFRASTRUCTURE':
+      return 'text-purple-700 bg-purple-100'
+    case 'ENVIRONMENT':
+      return 'text-blue-700 bg-blue-100'
+    default:
+      return 'text-slate-600 bg-slate-100'
   }
 }
 
@@ -77,11 +99,12 @@ function FixTargetModal({
   const { base } = useProject()
   const { data: integrations, isLoading } = useQuery({
     queryKey: ['integrations', projectId],
-    queryFn:  () => api.integrations(projectId),
+    queryFn: () => api.integrations(projectId),
   })
 
   const repos = (integrations ?? []).filter(
-    (c: IntegrationConfig) => c.integrationType === 'GITHUB' && c.repoType === 'TEST_AUTOMATION' && c.enabled
+    (c: IntegrationConfig) =>
+      c.integrationType === 'GITHUB' && c.repoType === 'TEST_AUTOMATION' && c.enabled,
   )
   const [selectedRepo, setSelectedRepo] = useState<string>(repos.length === 1 ? repos[0].id : '')
 
@@ -97,7 +120,9 @@ function FixTargetModal({
             <Sparkles size={16} className="text-orange-500" />
             <h2 className="text-sm font-semibold text-slate-900">Fix with AI</h2>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={16} /></button>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+            <X size={16} />
+          </button>
         </div>
 
         <div className="px-5 py-4 space-y-4">
@@ -106,7 +131,9 @@ function FixTargetModal({
           </div>
 
           {isLoading ? (
-            <div className="py-4 flex justify-center"><Loader2 size={18} className="animate-spin text-slate-400" /></div>
+            <div className="py-4 flex justify-center">
+              <Loader2 size={18} className="animate-spin text-slate-400" />
+            </div>
           ) : repos.length === 0 ? (
             <div className="space-y-3">
               <div className="flex gap-3 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-sm text-amber-800">
@@ -114,7 +141,8 @@ function FixTargetModal({
                 <div>
                   <p className="font-medium">No test automation repo linked</p>
                   <p className="text-xs mt-0.5">
-                    Link a GitHub repository with role <strong>Test Automation</strong> in Project Settings.
+                    Link a GitHub repository with role <strong>Test Automation</strong> in Project
+                    Settings.
                   </p>
                 </div>
               </div>
@@ -135,7 +163,9 @@ function FixTargetModal({
                 <div>
                   <p className="text-sm font-medium text-slate-900">{repoLabel(repos[0])}</p>
                   {repos[0].connectionParams?.repo && (
-                    <p className="text-xs text-slate-500 font-mono">{repos[0].connectionParams.repo}</p>
+                    <p className="text-xs text-slate-500 font-mono">
+                      {repos[0].connectionParams.repo}
+                    </p>
                   )}
                 </div>
               </div>
@@ -148,7 +178,9 @@ function FixTargetModal({
                   key={cfg.id}
                   className={cn(
                     'flex items-center gap-3 px-4 py-3 rounded-lg border cursor-pointer transition-colors',
-                    selectedRepo === cfg.id ? 'border-orange-400 bg-orange-50' : 'border-slate-200 hover:border-slate-300'
+                    selectedRepo === cfg.id
+                      ? 'border-orange-400 bg-orange-50'
+                      : 'border-slate-200 hover:border-slate-300',
                   )}
                 >
                   <input
@@ -162,7 +194,9 @@ function FixTargetModal({
                   <div className="min-w-0">
                     <p className="text-sm font-medium text-slate-900">{repoLabel(cfg)}</p>
                     {cfg.connectionParams?.repo && (
-                      <p className="text-xs text-slate-500 font-mono">{cfg.connectionParams.repo}</p>
+                      <p className="text-xs text-slate-500 font-mono">
+                        {cfg.connectionParams.repo}
+                      </p>
                     )}
                   </div>
                 </label>
@@ -180,7 +214,9 @@ function FixTargetModal({
               Cancel
             </button>
             <button
-              onClick={() => (selectedRepo || repos[0]?.id) && onConfirm(selectedRepo || repos[0]?.id)}
+              onClick={() =>
+                (selectedRepo || repos[0]?.id) && onConfirm(selectedRepo || repos[0]?.id)
+              }
               disabled={!selectedRepo && repos.length > 1}
               className="px-4 py-2 text-sm font-medium text-white bg-orange-500 rounded-lg hover:bg-orange-600 disabled:opacity-50 transition-colors flex items-center gap-2"
             >
@@ -208,7 +244,7 @@ function DetailPanel({
 }) {
   const queryClient = useQueryClient()
   const [showFixModal, setShowFixModal] = useState(false)
-  const [fixStarted, setFixStarted]     = useState(false)
+  const [fixStarted, setFixStarted] = useState(false)
 
   const fixMutation = useMutation({
     mutationFn: (githubConfigId: string) =>
@@ -226,25 +262,37 @@ function DetailPanel({
   return (
     <div className="w-96 shrink-0 border-l border-slate-200 bg-white flex flex-col h-full">
       <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
-        <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Detail</span>
-        <button onClick={onClose} className="text-slate-400 hover:text-slate-600"><X size={16} /></button>
+        <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+          Detail
+        </span>
+        <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+          <X size={16} />
+        </button>
       </div>
 
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5">
         {/* Test identity */}
         <div>
           <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Test</p>
-          <p className="text-sm font-medium text-slate-900">{cls}{method ? `#${method}` : ''}</p>
+          <p className="text-sm font-medium text-slate-900">
+            {cls}
+            {method ? `#${method}` : ''}
+          </p>
           <p className="text-xs text-slate-400 font-mono mt-0.5 break-all">{item.testId}</p>
         </div>
 
         {/* Score */}
         <div>
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">Flakiness Score</p>
+          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+            Flakiness Score
+          </p>
           <div className="flex items-center gap-3 mb-2">
             <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
               <div
-                className={cn('h-full rounded-full transition-all', scoreBarColor(item.classification))}
+                className={cn(
+                  'h-full rounded-full transition-all',
+                  scoreBarColor(item.classification),
+                )}
                 style={{ width: `${Math.min(item.score * 100, 100)}%` }}
               />
             </div>
@@ -252,16 +300,34 @@ function DetailPanel({
               {(item.score * 100).toFixed(0)}
             </span>
           </div>
-          <Badge label={item.classification.replace('_', ' ')} colorClass={classColor(item.classification)} />
+          <Badge
+            label={item.classification.replace('_', ' ')}
+            colorClass={classColor(item.classification)}
+          />
           <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-slate-600">
-            <span>Total runs</span>     <span className="font-medium text-slate-900">{item.totalRuns}</span>
-            <span>Failures</span>       <span className="font-medium text-slate-900">{item.failureCount}</span>
-            <span>Failure rate</span>   <span className="font-medium text-slate-900">{(item.failureRate * 100).toFixed(1)}%</span>
+            <span>Total runs</span>{' '}
+            <span className="font-medium text-slate-900">{item.totalRuns}</span>
+            <span>Failures</span>{' '}
+            <span className="font-medium text-slate-900">{item.failureCount}</span>
+            <span>Failure rate</span>{' '}
+            <span className="font-medium text-slate-900">
+              {(item.failureRate * 100).toFixed(1)}%
+            </span>
             {item.lastFailedAt && (
-              <><span>Last failed</span><span className="font-medium text-slate-900">{relativeTime(item.lastFailedAt)}</span></>
+              <>
+                <span>Last failed</span>
+                <span className="font-medium text-slate-900">
+                  {relativeTime(item.lastFailedAt)}
+                </span>
+              </>
             )}
             {item.lastPassedAt && (
-              <><span>Last passed</span><span className="font-medium text-slate-900">{relativeTime(item.lastPassedAt)}</span></>
+              <>
+                <span>Last passed</span>
+                <span className="font-medium text-slate-900">
+                  {relativeTime(item.lastPassedAt)}
+                </span>
+              </>
             )}
           </div>
         </div>
@@ -269,9 +335,14 @@ function DetailPanel({
         {/* AI Analysis */}
         {analysis ? (
           <div className="space-y-3">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">AI Analysis</p>
+            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+              AI Analysis
+            </p>
             <div className="flex items-center gap-2 flex-wrap">
-              <Badge label={analysis.category.replace('_', ' ')} colorClass={categoryColor(analysis.category)} />
+              <Badge
+                label={analysis.category.replace('_', ' ')}
+                colorClass={categoryColor(analysis.category)}
+              />
               <span className="text-xs text-slate-500">
                 {(analysis.confidence * 100).toFixed(0)}% confidence
               </span>
@@ -285,11 +356,15 @@ function DetailPanel({
             </div>
             <div>
               <p className="text-xs font-semibold text-slate-500 mb-1">Analysis</p>
-              <p className="text-sm text-slate-700 leading-snug whitespace-pre-wrap">{analysis.detailedAnalysis}</p>
+              <p className="text-sm text-slate-700 leading-snug whitespace-pre-wrap">
+                {analysis.detailedAnalysis}
+              </p>
             </div>
             <div>
               <p className="text-xs font-semibold text-slate-500 mb-1">Suggested Fix</p>
-              <p className="text-sm text-slate-700 leading-snug whitespace-pre-wrap">{analysis.suggestedFix}</p>
+              <p className="text-sm text-slate-700 leading-snug whitespace-pre-wrap">
+                {analysis.suggestedFix}
+              </p>
             </div>
             <p className="text-xs text-slate-400">Analysed {relativeTime(analysis.analysedAt)}</p>
           </div>
@@ -313,7 +388,11 @@ function DetailPanel({
             disabled={fixMutation.isPending}
             className="w-full py-2 text-sm font-medium text-white bg-orange-500 rounded-lg hover:bg-orange-600 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
           >
-            {fixMutation.isPending ? <Loader2 size={14} className="animate-spin" /> : <Sparkles size={14} />}
+            {fixMutation.isPending ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : (
+              <Sparkles size={14} />
+            )}
             {fixMutation.isPending ? 'Starting…' : 'Fix with AI'}
           </button>
         ) : (
@@ -330,7 +409,7 @@ function DetailPanel({
         <FixTargetModal
           projectId={projectId}
           item={item}
-          onConfirm={(cfgId) => fixMutation.mutate(cfgId)}
+          onConfirm={cfgId => fixMutation.mutate(cfgId)}
           onClose={() => setShowFixModal(false)}
         />
       )}
@@ -359,37 +438,42 @@ function ScoreBar({ score, classification }: { score: number; classification: Cl
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
 const TABS: { label: string; value: Classification | '' }[] = [
-  { label: 'All',            value: '' },
-  { label: 'Critical',       value: 'CRITICAL_FLAKY' },
-  { label: 'Flaky',          value: 'FLAKY' },
-  { label: 'Watch',          value: 'WATCH' },
-  { label: 'Stable',         value: 'STABLE' },
+  { label: 'All', value: '' },
+  { label: 'Critical', value: 'CRITICAL_FLAKY' },
+  { label: 'Flaky', value: 'FLAKY' },
+  { label: 'Watch', value: 'WATCH' },
+  { label: 'Stable', value: 'STABLE' },
 ]
 
 export default function FlakyTestsPage() {
   const { projectId } = useProject()
   const qc = useQueryClient()
 
-  const [tab, setTab]               = useState<Classification | ''>('')
-  const [hidePermanent, setHideP]   = useState(true)
-  const [search, setSearch]         = useState('')
-  const [selected, setSelected]     = useState<FlakinessItem | null>(null)
-  const [recomputeDone, setRDone]   = useState(false)
+  const [tab, setTab] = useState<Classification | ''>('')
+  const [hidePermanent, setHideP] = useState(true)
+  const [search, setSearch] = useState('')
+  const [selected, setSelected] = useState<FlakinessItem | null>(null)
+  const [recomputeDone, setRDone] = useState(false)
 
-  const { data: flakyList, isLoading: flakyLoading, error: flakyError, refetch: flakyRefetch } = useQuery({
+  const {
+    data: flakyList,
+    isLoading: flakyLoading,
+    error: flakyError,
+    refetch: flakyRefetch,
+  } = useQuery({
     queryKey: ['flakiness', projectId],
-    queryFn:  () => api.flakiness(projectId!, 100),
-    enabled:  !!projectId,
+    queryFn: () => api.flakiness(projectId!, 100),
+    enabled: !!projectId,
   })
 
   const { data: analyses } = useQuery({
     queryKey: ['analyses', projectId],
-    queryFn:  () => api.analyses(projectId!),
-    enabled:  !!projectId,
+    queryFn: () => api.analyses(projectId!),
+    enabled: !!projectId,
   })
 
   const analysisMap = new Map<string, FailureAnalysis>(
-    (analyses ?? []).map((a: FailureAnalysis) => [a.testId, a])
+    (analyses ?? []).map((a: FailureAnalysis) => [a.testId, a]),
   )
 
   const recomputeMutation = useMutation({
@@ -408,7 +492,8 @@ export default function FlakyTestsPage() {
     if (tab && item.classification !== tab) return false
     if (hidePermanent) {
       const a = analysisMap.get(item.testId)
-      if (a && a.category === 'APPLICATION_BUG' && a.confidence >= 0.8 && !a.flakyCandidate) return false
+      if (a && a.category === 'APPLICATION_BUG' && a.confidence >= 0.8 && !a.flakyCandidate)
+        return false
     }
     if (search) {
       return item.testId.toLowerCase().includes(search.toLowerCase())
@@ -417,10 +502,15 @@ export default function FlakyTestsPage() {
   })
 
   const counts: Record<string, number> = {}
-  items.forEach(i => { counts[i.classification] = (counts[i.classification] ?? 0) + 1 })
+  items.forEach(i => {
+    counts[i.classification] = (counts[i.classification] ?? 0) + 1
+  })
 
   if (flakyLoading) return <LoadingSpinner message="Loading flaky tests…" />
-  if (flakyError)   return <ErrorMessage message="Failed to load flakiness data." onRetry={() => void flakyRefetch()} />
+  if (flakyError)
+    return (
+      <ErrorMessage message="Failed to load flakiness data." onRetry={() => void flakyRefetch()} />
+    )
 
   return (
     <div className="flex-1 flex flex-col h-full min-h-0 overflow-hidden">
@@ -433,7 +523,8 @@ export default function FlakyTestsPage() {
               Flaky Tests
             </h1>
             <p className="text-sm text-slate-500 mt-0.5">
-              {items.length} tests tracked · {(counts['CRITICAL_FLAKY'] ?? 0) + (counts['FLAKY'] ?? 0)} actionable
+              {items.length} tests tracked ·{' '}
+              {(counts['CRITICAL_FLAKY'] ?? 0) + (counts['FLAKY'] ?? 0)} actionable
             </p>
           </div>
           <div className="flex items-center gap-3">
@@ -443,13 +534,18 @@ export default function FlakyTestsPage() {
               </span>
             )}
             <button
-              onClick={() => { void recomputeMutation.mutate(); void api.analyseNow(48) }}
+              onClick={() => {
+                void recomputeMutation.mutate()
+                void api.analyseNow(48)
+              }}
               disabled={recomputeMutation.isPending}
               className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-slate-800 text-white rounded-lg hover:bg-slate-700 disabled:opacity-50 transition-colors"
             >
-              {recomputeMutation.isPending
-                ? <Loader2 size={14} className="animate-spin" />
-                : <RefreshCw size={14} />}
+              {recomputeMutation.isPending ? (
+                <Loader2 size={14} className="animate-spin" />
+              ) : (
+                <RefreshCw size={14} />
+              )}
               {recomputeMutation.isPending ? 'Analysing…' : 'Trigger Analysis'}
             </button>
           </div>
@@ -463,17 +559,17 @@ export default function FlakyTestsPage() {
               onClick={() => setTab(t.value)}
               className={cn(
                 'px-3 py-1.5 text-sm font-medium rounded-lg transition-colors',
-                tab === t.value
-                  ? 'bg-slate-800 text-white'
-                  : 'text-slate-600 hover:bg-slate-100'
+                tab === t.value ? 'bg-slate-800 text-white' : 'text-slate-600 hover:bg-slate-100',
               )}
             >
               {t.label}
               {t.value && counts[t.value] != null && (
-                <span className={cn(
-                  'ml-1.5 text-xs px-1.5 py-0.5 rounded-full',
-                  tab === t.value ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-600'
-                )}>
+                <span
+                  className={cn(
+                    'ml-1.5 text-xs px-1.5 py-0.5 rounded-full',
+                    tab === t.value ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-600',
+                  )}
+                >
                   {counts[t.value]}
                 </span>
               )}
@@ -489,13 +585,15 @@ export default function FlakyTestsPage() {
                 onClick={() => setHideP(v => !v)}
                 className={cn(
                   'relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors',
-                  hidePermanent ? 'bg-slate-700' : 'bg-slate-200'
+                  hidePermanent ? 'bg-slate-700' : 'bg-slate-200',
                 )}
               >
-                <span className={cn(
-                  'inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform',
-                  hidePermanent ? 'translate-x-4' : 'translate-x-0'
-                )} />
+                <span
+                  className={cn(
+                    'inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform',
+                    hidePermanent ? 'translate-x-4' : 'translate-x-0',
+                  )}
+                />
               </button>
               Hide permanent failures
             </label>
@@ -543,7 +641,8 @@ export default function FlakyTestsPage() {
                   const analysis = analysisMap.get(item.testId)
                   const { cls, method } = shortTestId(item.testId)
                   const isSelected = selected?.id === item.id
-                  const canFix = item.classification === 'FLAKY' || item.classification === 'CRITICAL_FLAKY'
+                  const canFix =
+                    item.classification === 'FLAKY' || item.classification === 'CRITICAL_FLAKY'
 
                   return (
                     <tr
@@ -551,26 +650,39 @@ export default function FlakyTestsPage() {
                       onClick={() => setSelected(isSelected ? null : item)}
                       className={cn(
                         'cursor-pointer hover:bg-slate-50 transition-colors',
-                        isSelected && 'bg-orange-50 hover:bg-orange-50'
+                        isSelected && 'bg-orange-50 hover:bg-orange-50',
                       )}
                     >
                       <td className="px-5 py-3">
                         <p className="font-medium text-slate-900 truncate max-w-xs">{cls}</p>
-                        {method && <p className="text-xs text-slate-400 font-mono truncate max-w-xs">#{method}</p>}
+                        {method && (
+                          <p className="text-xs text-slate-400 font-mono truncate max-w-xs">
+                            #{method}
+                          </p>
+                        )}
                       </td>
                       <td className="px-4 py-3">
                         <ScoreBar score={item.score} classification={item.classification} />
                       </td>
                       <td className="px-4 py-3">
-                        <Badge label={item.classification.replace('_', ' ')} colorClass={classColor(item.classification)} />
+                        <Badge
+                          label={item.classification.replace('_', ' ')}
+                          colorClass={classColor(item.classification)}
+                        />
                       </td>
                       <td className="px-4 py-3 text-right text-slate-700">{item.failureCount}</td>
-                      <td className="px-4 py-3 text-right text-slate-700">{(item.failureRate * 100).toFixed(1)}%</td>
+                      <td className="px-4 py-3 text-right text-slate-700">
+                        {(item.failureRate * 100).toFixed(1)}%
+                      </td>
                       <td className="px-4 py-3">
-                        {analysis
-                          ? <Badge label={analysis.category.replace('_', ' ')} colorClass={categoryColor(analysis.category)} />
-                          : <span className="text-xs text-slate-300">—</span>
-                        }
+                        {analysis ? (
+                          <Badge
+                            label={analysis.category.replace('_', ' ')}
+                            colorClass={categoryColor(analysis.category)}
+                          />
+                        ) : (
+                          <span className="text-xs text-slate-300">—</span>
+                        )}
                       </td>
                       <td className="px-4 py-3 text-slate-500 text-xs whitespace-nowrap">
                         {item.lastFailedAt ? relativeTime(item.lastFailedAt) : '—'}
@@ -578,7 +690,10 @@ export default function FlakyTestsPage() {
                       <td className="px-4 py-3">
                         {canFix && (
                           <button
-                            onClick={e => { e.stopPropagation(); setSelected(item) }}
+                            onClick={e => {
+                              e.stopPropagation()
+                              setSelected(item)
+                            }}
                             className="flex items-center gap-1 text-xs text-orange-600 hover:text-orange-800 font-medium whitespace-nowrap"
                           >
                             <Sparkles size={12} /> Fix

@@ -9,11 +9,30 @@ interface Props {
   projectId: string
 }
 
-const RISK_CONFIG: Record<TestImpactResult['riskLevel'], { label: string; color: string; icon: typeof CheckCircle }> = {
-  LOW:      { label: 'Low Risk',      color: 'text-green-700 bg-green-100 border-green-200',  icon: CheckCircle },
-  MEDIUM:   { label: 'Medium Risk',   color: 'text-yellow-700 bg-yellow-100 border-yellow-200', icon: AlertTriangle },
-  HIGH:     { label: 'High Risk',     color: 'text-orange-700 bg-orange-100 border-orange-200', icon: AlertTriangle },
-  CRITICAL: { label: 'Critical Risk', color: 'text-red-700 bg-red-100 border-red-200',        icon: AlertTriangle },
+const RISK_CONFIG: Record<
+  TestImpactResult['riskLevel'],
+  { label: string; color: string; icon: typeof CheckCircle }
+> = {
+  LOW: {
+    label: 'Low Risk',
+    color: 'text-green-700 bg-green-100 border-green-200',
+    icon: CheckCircle,
+  },
+  MEDIUM: {
+    label: 'Medium Risk',
+    color: 'text-yellow-700 bg-yellow-100 border-yellow-200',
+    icon: AlertTriangle,
+  },
+  HIGH: {
+    label: 'High Risk',
+    color: 'text-orange-700 bg-orange-100 border-orange-200',
+    icon: AlertTriangle,
+  },
+  CRITICAL: {
+    label: 'Critical Risk',
+    color: 'text-red-700 bg-red-100 border-red-200',
+    icon: AlertTriangle,
+  },
 }
 
 export default function TestImpactPanel({ projectId }: Props) {
@@ -24,13 +43,13 @@ export default function TestImpactPanel({ projectId }: Props) {
 
   const { data: summary } = useQuery({
     queryKey: ['impactSummary', projectId],
-    queryFn:  () => api.impactSummary(projectId),
+    queryFn: () => api.impactSummary(projectId),
   })
 
   const { data: impact, isLoading } = useQuery({
     queryKey: ['impact', projectId, submitted],
-    queryFn:  () => api.testImpact(projectId, submitted),
-    enabled:  submitted.length > 0,
+    queryFn: () => api.testImpact(projectId, submitted),
+    enabled: submitted.length > 0,
   })
 
   const handleAnalyse = () => {
@@ -57,9 +76,10 @@ export default function TestImpactPanel({ projectId }: Props) {
         </div>
         <p className="text-sm text-slate-500">
           No coverage mappings yet. Add{' '}
-          <code className="bg-slate-100 px-1 rounded text-xs">@AffectedBy</code> annotations
-          to your Java tests or use <code className="bg-slate-100 px-1 rounded text-xs">coveredModules</code> in
-          the Playwright reporter to enable smart test selection.
+          <code className="bg-slate-100 px-1 rounded text-xs">@AffectedBy</code> annotations to your
+          Java tests or use{' '}
+          <code className="bg-slate-100 px-1 rounded text-xs">coveredModules</code> in the
+          Playwright reporter to enable smart test selection.
         </p>
       </div>
     )
@@ -105,10 +125,12 @@ export default function TestImpactPanel({ projectId }: Props) {
           <div className="space-y-3">
             {/* Summary row */}
             <div className="flex items-center gap-3 flex-wrap">
-              <div className={cn(
-                'flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium',
-                RISK_CONFIG[impact.riskLevel].color
-              )}>
+              <div
+                className={cn(
+                  'flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium',
+                  RISK_CONFIG[impact.riskLevel].color,
+                )}
+              >
                 {(() => {
                   const Icon = RISK_CONFIG[impact.riskLevel].icon
                   return <Icon size={13} />
@@ -120,7 +142,9 @@ export default function TestImpactPanel({ projectId }: Props) {
                   <span className="font-semibold text-blue-600">{impact.selectedTests}</span>
                   <span className="text-slate-500"> / {impact.totalTests} tests</span>
                 </span>
-                <span className="font-semibold text-green-600">{impact.estimatedReduction} reduction</span>
+                <span className="font-semibold text-green-600">
+                  {impact.estimatedReduction} reduction
+                </span>
               </div>
             </div>
 
@@ -128,11 +152,14 @@ export default function TestImpactPanel({ projectId }: Props) {
             {impact.uncoveredChangedClasses.length > 0 && (
               <div className="bg-amber-50 border border-amber-200 rounded-lg p-3">
                 <p className="text-xs font-medium text-amber-800 mb-1">
-                  {impact.uncoveredChangedClasses.length} changed class(es) have no coverage mapping — consider running full suite:
+                  {impact.uncoveredChangedClasses.length} changed class(es) have no coverage mapping
+                  — consider running full suite:
                 </p>
                 <ul className="space-y-0.5">
                   {impact.uncoveredChangedClasses.map(cls => (
-                    <li key={cls} className="text-xs font-mono text-amber-700">• {cls}</li>
+                    <li key={cls} className="text-xs font-mono text-amber-700">
+                      • {cls}
+                    </li>
                   ))}
                 </ul>
               </div>
@@ -154,9 +181,11 @@ export default function TestImpactPanel({ projectId }: Props) {
                         onClick={() => copyToClipboard(cmd, key)}
                         className="shrink-0 text-slate-400 hover:text-white transition-colors"
                       >
-                        {copiedFilter === key
-                          ? <CheckCircle size={13} className="text-green-400" />
-                          : <Copy size={13} />}
+                        {copiedFilter === key ? (
+                          <CheckCircle size={13} className="text-green-400" />
+                        ) : (
+                          <Copy size={13} />
+                        )}
                       </button>
                     </div>
                   </div>
@@ -177,7 +206,11 @@ export default function TestImpactPanel({ projectId }: Props) {
                 {showTests && (
                   <div className="mt-2 max-h-48 overflow-y-auto rounded-lg border border-slate-100 divide-y divide-slate-50">
                     {impact.recommendedTests.map(t => (
-                      <div key={t} className="px-3 py-2 text-xs font-mono text-slate-700 truncate" title={t}>
+                      <div
+                        key={t}
+                        className="px-3 py-2 text-xs font-mono text-slate-700 truncate"
+                        title={t}
+                      >
                         {t.split('.').pop() ?? t}
                       </div>
                     ))}
