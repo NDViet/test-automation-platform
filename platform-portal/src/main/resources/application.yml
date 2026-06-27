@@ -1,6 +1,11 @@
 spring:
   application:
     name: platform-portal
+  servlet:
+    multipart:
+      # Evidence uploads pass through the portal to ingestion (cap is 30 MB/file there).
+      max-file-size: 50MB
+      max-request-size: 100MB
 
 server:
   port: ${SERVER_PORT:8085}

@@ -211,6 +211,8 @@ services:
   # Idempotent — safe to run on every `docker compose up`.
   # First-time users get the full schema without needing to start the Spring Boot services.
   db-migrate:
+    # Must match the apps' bundled flyway-core (pinned to 12.9.0 in pom.xml) so the migration job
+    # and the app-side validators compute the same checksum for V1.
     image: flyway/flyway:12.9
     command: migrate
     environment:

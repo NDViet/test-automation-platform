@@ -12,7 +12,11 @@ public record TestCaseExecutionDto(
     String notes,
     String executedBy,
     String executedAt,
-    String createdAt) {
+    String createdAt,
+    String defectId,
+    String defectUrl,
+    String defectTitle,
+    String defectState) {
   public static TestCaseExecutionDto from(TestCaseExecution exec, String testCaseTitle) {
     return new TestCaseExecutionDto(
         exec.getId() != null ? exec.getId().toString() : null,
@@ -24,6 +28,10 @@ public record TestCaseExecutionDto(
         exec.getNotes(),
         exec.getExecutedBy(),
         exec.getExecutedAt() != null ? exec.getExecutedAt().toString() : null,
-        exec.getCreatedAt() != null ? exec.getCreatedAt().toString() : null);
+        exec.getCreatedAt() != null ? exec.getCreatedAt().toString() : null,
+        exec.getDefectExternalId(),
+        exec.getDefectUrl(),
+        exec.getDefectTitle(),
+        exec.getDefectState());
   }
 }

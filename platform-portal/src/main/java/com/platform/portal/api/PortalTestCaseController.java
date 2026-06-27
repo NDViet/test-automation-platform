@@ -2,11 +2,19 @@ package com.platform.portal.api;
 
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletResponse;
+import java.io.IOException;
 import org.springframework.beans.factory.annotation.Qualifier;
+import org.springframework.core.io.ByteArrayResource;
+import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.multipart.MultipartFile;
 
 /**
  * Portal BFF — Test Case Management (TCM): suites, managed test cases, test runs, executions. All
@@ -443,6 +451,47 @@ public class PortalTestCaseController {
         .body(Object.class);
   }
 
+  @PutMapping("/test-runs/{runId}")
+  @Operation(summary = "Edit an in-progress run's scope and environment")
+  public Object updateTestRun(
+      @PathVariable String projectId, @PathVariable String runId, @RequestBody Object body) {
+    return ingestionClient
+        .put()
+        .uri("/api/v1/projects/" + projectId + "/test-runs/" + runId)
+        .contentType(MediaType.APPLICATION_JSON)
+        .accept(MediaType.APPLICATION_JSON)
+        .body(body)
+        .retrieve()
+        .body(Object.class);
+  }
+
+  @PostMapping("/test-runs/{runId}/reopen")
+  @Operation(summary = "Reopen a completed test run for further editing")
+  public Object reopenTestRun(@PathVariable String projectId, @PathVariable String runId) {
+    return ingestionClient
+        .post()
+        .uri("/api/v1/projects/" + projectId + "/test-runs/" + runId + "/reopen")
+        .contentType(MediaType.APPLICATION_JSON)
+        .accept(MediaType.APPLICATION_JSON)
+        .body("{}")
+        .retrieve()
+        .body(Object.class);
+  }
+
+  @PostMapping("/test-runs/{runId}/cases")
+  @Operation(summary = "Add existing approved cases to a live test run")
+  public Object addTestRunCases(
+      @PathVariable String projectId, @PathVariable String runId, @RequestBody Object body) {
+    return ingestionClient
+        .post()
+        .uri("/api/v1/projects/" + projectId + "/test-runs/" + runId + "/cases")
+        .contentType(MediaType.APPLICATION_JSON)
+        .accept(MediaType.APPLICATION_JSON)
+        .body(body)
+        .retrieve()
+        .body(Object.class);
+  }
+
   @GetMapping("/test-runs/{runId}/executions")
   @Operation(summary = "List test case executions for a test run")
   public Object listRunExecutions(@PathVariable String projectId, @PathVariable String runId) {
@@ -469,6 +518,168 @@ public class PortalTestCaseController {
         .body(body)
         .retrieve()
         .body(Object.class);
+  }
+
+  @PostMapping("/test-runs/{runId}/executions/{execId}/defect")
+  @Operation(summary = "Link an existing ADO work item (defect) to a case execution")
+  public Object linkDefect(
+      @PathVariable String projectId,
+      @PathVariable String runId,
+      @PathVariable String execId,
+      @RequestBody Object body) {
+    return ingestionClient
+        .post()
+        .uri(
+            "/api/v1/projects/"
+                + projectId
+                + "/test-runs/"
+                + runId
+                + "/executions/"
+                + execId
+                + "/defect")
+        .contentType(MediaType.APPLICATION_JSON)
+        .accept(MediaType.APPLICATION_JSON)
+        .body(body)
+        .retrieve()
+        .body(Object.class);
+  }
+
+  @DeleteMapping("/test-runs/{runId}/executions/{execId}/defect")
+  @Operation(summary = "Unlink the ADO defect from a case execution")
+  public Object unlinkDefect(
+      @PathVariable String projectId, @PathVariable String runId, @PathVariable String execId) {
+    return ingestionClient
+        .delete()
+        .uri(
+            "/api/v1/projects/"
+                + projectId
+                + "/test-runs/"
+                + runId
+                + "/executions/"
+                + execId
+                + "/defect")
+        .accept(MediaType.APPLICATION_JSON)
+        .retrieve()
+        .body(Object.class);
+  }
+
+  // ── Evidence attachments ───────────────────────────────────────────────────
+
+  @GetMapping("/test-runs/{runId}/executions/{execId}/attachments")
+  @Operation(summary = "List evidence attachments for a case execution")
+  public Object listAttachments(
+      @PathVariable String projectId, @PathVariable String runId, @PathVariable String execId) {
+    return ingestionClient
+        .get()
+        .uri(
+            "/api/v1/projects/"
+                + projectId
+                + "/test-runs/"
+                + runId
+                + "/executions/"
+                + execId
+                + "/attachments")
+        .accept(MediaType.APPLICATION_JSON)
+        .retrieve()
+        .body(Object.class);
+  }
+
+  @PostMapping(
+      value = "/test-runs/{runId}/executions/{execId}/attachments",
+      consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+  @Operation(summary = "Upload an evidence file to a case execution")
+  public Object uploadAttachment(
+      @PathVariable String projectId,
+      @PathVariable String runId,
+      @PathVariable String execId,
+      @RequestParam("file") MultipartFile file,
+      @RequestHeader(value = "X-Actor", required = false) String actor)
+      throws IOException {
+    HttpHeaders partHeaders = new HttpHeaders();
+    if (file.getContentType() != null) {
+      partHeaders.setContentType(MediaType.parseMediaType(file.getContentType()));
+    }
+    ByteArrayResource bytes =
+        new ByteArrayResource(file.getBytes()) {
+          @Override
+          public String getFilename() {
+            return file.getOriginalFilename();
+          }
+        };
+    MultiValueMap<String, Object> form = new LinkedMultiValueMap<>();
+    form.add("file", new HttpEntity<>(bytes, partHeaders));
+
+    return ingestionClient
+        .post()
+        .uri(
+            "/api/v1/projects/"
+                + projectId
+                + "/test-runs/"
+                + runId
+                + "/executions/"
+                + execId
+                + "/attachments")
+        .contentType(MediaType.MULTIPART_FORM_DATA)
+        .headers(
+            h -> {
+              if (actor != null) h.set("X-Actor", actor);
+            })
+        .body(form)
+        .retrieve()
+        .body(Object.class);
+  }
+
+  @GetMapping("/test-runs/{runId}/attachments/{attachmentId}/download")
+  @Operation(summary = "Download an evidence attachment")
+  public void downloadAttachment(
+      @PathVariable String projectId,
+      @PathVariable String runId,
+      @PathVariable String attachmentId,
+      HttpServletResponse response)
+      throws IOException {
+    ResponseEntity<byte[]> upstream =
+        ingestionClient
+            .get()
+            .uri(
+                "/api/v1/projects/"
+                    + projectId
+                    + "/test-runs/"
+                    + runId
+                    + "/attachments/"
+                    + attachmentId
+                    + "/download")
+            .retrieve()
+            .toEntity(byte[].class);
+    byte[] body = upstream.getBody();
+    if (body == null) {
+      response.setStatus(HttpServletResponse.SC_NOT_FOUND);
+      return;
+    }
+    MediaType ct = upstream.getHeaders().getContentType();
+    response.setContentType(ct != null ? ct.toString() : "application/octet-stream");
+    String disp = upstream.getHeaders().getFirst(HttpHeaders.CONTENT_DISPOSITION);
+    if (disp != null) response.setHeader(HttpHeaders.CONTENT_DISPOSITION, disp);
+    response.getOutputStream().write(body);
+  }
+
+  @DeleteMapping("/test-runs/{runId}/attachments/{attachmentId}")
+  @Operation(summary = "Delete an evidence attachment")
+  public ResponseEntity<Void> deleteAttachment(
+      @PathVariable String projectId,
+      @PathVariable String runId,
+      @PathVariable String attachmentId) {
+    ingestionClient
+        .delete()
+        .uri(
+            "/api/v1/projects/"
+                + projectId
+                + "/test-runs/"
+                + runId
+                + "/attachments/"
+                + attachmentId)
+        .retrieve()
+        .toBodilessEntity();
+    return ResponseEntity.noContent().build();
   }
 
   // ── Test Case Tags ───────────────────────────────────────────────────────────

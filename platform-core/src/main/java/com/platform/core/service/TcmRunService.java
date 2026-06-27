@@ -97,22 +97,7 @@ public class TcmRunService {
     }
 
     // ── Confirmed gate ────────────────────────────────────────────────────
-    List<PlatformTestCase> cases = new ArrayList<>();
-    List<String> rejected = new ArrayList<>();
-    for (UUID caseId : caseIds) {
-      Optional<PlatformTestCase> tc = testCaseRepo.findById(caseId);
-      if (tc.isEmpty() || !projectId.equals(tc.get().getProjectId())) {
-        rejected.add(caseId + " (not found in project)");
-      } else if (!APPROVED.equals(tc.get().getStatus())) {
-        rejected.add(caseId + " (status=" + tc.get().getStatus() + ", must be APPROVED)");
-      } else {
-        cases.add(tc.get());
-      }
-    }
-    if (!rejected.isEmpty()) {
-      throw new IllegalArgumentException(
-          "Cannot create run — these cases are not eligible: " + String.join("; ", rejected));
-    }
+    List<PlatformTestCase> cases = requireApproved(projectId, caseIds);
 
     // ── Environment ───────────────────────────────────────────────────────
     String envName = "STAGING";
@@ -136,24 +121,7 @@ public class TcmRunService {
 
     // ── Expand each case into executions ───────────────────────────────────
     int total = 0;
-    for (PlatformTestCase tc : cases) {
-      LinkedHashMap<String, List<String>> axes = loadAxes(tc.getId());
-      List<LinkedHashMap<String, String>> combos = matrixService.expand(axes, matrixType);
-
-      if (combos.isEmpty()) {
-        executionRepo.save(new TestCaseExecution(run.getId(), tc.getId()));
-        total++;
-      } else {
-        for (LinkedHashMap<String, String> combo : combos) {
-          String comboKey = PropertyMatrixService.serialize(combo);
-          TestCaseExecution exec =
-              executionRepo.save(new TestCaseExecution(run.getId(), tc.getId(), comboKey));
-          combo.forEach(
-              (k, v) -> executionPropertyRepo.save(new TestExecutionProperty(exec.getId(), k, v)));
-          total++;
-        }
-      }
-    }
+    for (PlatformTestCase tc : cases) total += expandCase(run.getId(), tc, matrixType);
 
     log.info(
         "[TCM] Created run {} for project {} — {} case(s) → {} execution(s) ({})",
@@ -163,6 +131,79 @@ public class TcmRunService {
         total,
         matrixType);
     return run;
+  }
+
+  /**
+   * Adds more approved cases to an existing run, expanding each case's property matrix into new
+   * executions. Cases that already have any execution in the run are skipped (idempotent). Returns
+   * the number of cases actually added.
+   *
+   * @throws IllegalArgumentException if any requested case is missing, cross-project, or not {@code
+   *     APPROVED}.
+   */
+  @Transactional
+  public int addCases(UUID projectId, TestRun run, List<UUID> caseIds, MatrixType matrixType) {
+    if (caseIds == null || caseIds.isEmpty()) return 0;
+    Set<UUID> alreadyInRun = new HashSet<>();
+    for (TestCaseExecution e : executionRepo.findByTestRunId(run.getId())) {
+      alreadyInRun.add(e.getTestCaseId());
+    }
+    List<UUID> fresh =
+        caseIds.stream().filter(id -> !alreadyInRun.contains(id)).distinct().toList();
+    if (fresh.isEmpty()) return 0;
+
+    List<PlatformTestCase> cases = requireApproved(projectId, fresh);
+    int added = 0;
+    for (PlatformTestCase tc : cases) {
+      expandCase(run.getId(), tc, matrixType);
+      added++;
+    }
+    log.info("[TCM] Added {} case(s) to run {} ({})", added, run.getId(), matrixType);
+    return added;
+  }
+
+  /**
+   * Confirmed gate: returns the resolved cases, or throws if any is missing/cross-project/not
+   * APPROVED.
+   */
+  private List<PlatformTestCase> requireApproved(UUID projectId, List<UUID> caseIds) {
+    List<PlatformTestCase> cases = new ArrayList<>();
+    List<String> rejected = new ArrayList<>();
+    for (UUID caseId : caseIds) {
+      Optional<PlatformTestCase> tc = testCaseRepo.findById(caseId);
+      if (tc.isEmpty() || !projectId.equals(tc.get().getProjectId())) {
+        rejected.add(caseId + " (not found in project)");
+      } else if (!APPROVED.equals(tc.get().getStatus())) {
+        rejected.add(caseId + " (status=" + tc.get().getStatus() + ", must be APPROVED)");
+      } else {
+        cases.add(tc.get());
+      }
+    }
+    if (!rejected.isEmpty()) {
+      throw new IllegalArgumentException(
+          "These cases are not eligible: " + String.join("; ", rejected));
+    }
+    return cases;
+  }
+
+  /** Expands one case's property matrix into executions under a run; returns executions created. */
+  private int expandCase(UUID runId, PlatformTestCase tc, MatrixType matrixType) {
+    LinkedHashMap<String, List<String>> axes = loadAxes(tc.getId());
+    List<LinkedHashMap<String, String>> combos = matrixService.expand(axes, matrixType);
+    if (combos.isEmpty()) {
+      executionRepo.save(new TestCaseExecution(runId, tc.getId()));
+      return 1;
+    }
+    int n = 0;
+    for (LinkedHashMap<String, String> combo : combos) {
+      String comboKey = PropertyMatrixService.serialize(combo);
+      TestCaseExecution exec =
+          executionRepo.save(new TestCaseExecution(runId, tc.getId(), comboKey));
+      combo.forEach(
+          (k, v) -> executionPropertyRepo.save(new TestExecutionProperty(exec.getId(), k, v)));
+      n++;
+    }
+    return n;
   }
 
   /** Groups a case's properties into name → ordered distinct values. */

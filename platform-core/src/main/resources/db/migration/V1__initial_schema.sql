@@ -827,6 +827,11 @@ CREATE TABLE test_case_executions (
     executed_by    VARCHAR(200),
     executed_at    TIMESTAMPTZ,
     property_combo VARCHAR(500),
+    -- Linked ADO work item (defect) — read-only reference; the platform never writes to ADO.
+    defect_external_id VARCHAR(64),
+    defect_url         VARCHAR(500),
+    defect_title       VARCHAR(500),
+    defect_state       VARCHAR(60),
     created_at     TIMESTAMPTZ NOT NULL DEFAULT now(),
     updated_at     TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -842,6 +847,22 @@ CREATE TABLE test_execution_properties (
     value                  VARCHAR(500) NOT NULL
 );
 CREATE INDEX idx_tep_exec ON test_execution_properties(test_case_execution_id);
+
+-- Evidence files attached to a single test-case execution. Bytes live in the platform BlobStore
+-- (content-addressed); this row carries the metadata + serialized BlobRef. Deleting a row never
+-- removes the shared blob.
+CREATE TABLE execution_attachments (
+    id            UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    execution_id  UUID         NOT NULL REFERENCES test_case_executions(id) ON DELETE CASCADE,
+    test_run_id   UUID         NOT NULL,
+    file_name     VARCHAR(300) NOT NULL,
+    content_type  VARCHAR(150),
+    size_bytes    BIGINT       NOT NULL,
+    blob_ref      VARCHAR(500) NOT NULL,
+    uploaded_by   VARCHAR(200),
+    uploaded_at   TIMESTAMPTZ  NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_exec_attach_exec ON execution_attachments(execution_id);
 
 CREATE TABLE sot_release_requirements (
     release_id     UUID NOT NULL REFERENCES sot_releases(id) ON DELETE CASCADE,

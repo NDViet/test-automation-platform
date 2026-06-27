@@ -311,11 +311,6 @@ function ExecutionRow({
                 <span className="text-slate-500">{item.releaseName}</span>
               </>
             )}
-            {item.releaseVersion && (
-              <span className="font-mono text-[10px] bg-slate-100 px-1 rounded">
-                {item.releaseVersion}
-              </span>
-            )}
             {/* Automated: branch / sha */}
             {!isManual && item.branch && (
               <span className="flex items-center gap-1">
@@ -566,7 +561,6 @@ function NewManualRunModal({
 }) {
   const queryClient = useQueryClient()
   const [name, setName] = useState('')
-  const [releaseVersion, setReleaseVersion] = useState('')
   const [environment, setEnvironment] = useState('DEV')
   const [triggeredBy, setTriggeredBy] = useState('')
   const [selectedTcIds, setSelectedTcIds] = useState<Set<string>>(new Set())
@@ -693,7 +687,6 @@ function NewManualRunModal({
     }
     mutation.mutate({
       name: name.trim(),
-      releaseVersion: releaseVersion.trim() || undefined,
       environment,
       environmentId: environmentId || undefined,
       matrixType,
@@ -736,17 +729,7 @@ function NewManualRunModal({
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className={lbl}>Release Version</label>
-              <input
-                type="text"
-                value={releaseVersion}
-                onChange={e => setReleaseVersion(e.target.value)}
-                className={inp}
-                placeholder="e.g. v2.4.0"
-              />
-            </div>
+          <div>
             <div>
               <label className={lbl}>Environment</label>
               {environments.length > 0 ? (

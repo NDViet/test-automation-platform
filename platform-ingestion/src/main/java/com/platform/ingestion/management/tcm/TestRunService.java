@@ -1,5 +1,6 @@
 package com.platform.ingestion.management.tcm;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.platform.core.domain.AdoTeam;
 import com.platform.core.domain.PlatformTestCase;
 import com.platform.core.domain.SotRelease;
@@ -12,6 +13,7 @@ import com.platform.core.repository.TestCaseExecutionRepository;
 import com.platform.core.repository.TestRunRepository;
 import com.platform.core.service.MatrixType;
 import com.platform.core.service.TcmRunService;
+import com.platform.core.service.ado.AzureBoardsPollClient;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
@@ -34,6 +36,7 @@ public class TestRunService {
   private final AdoTeamRepository teamRepo;
   private final SuiteResolverService suiteResolver;
   private final com.platform.core.repository.TestSuiteRepository suiteRepo;
+  private final AzureBoardsPollClient adoClient;
 
   public TestRunService(
       TestRunRepository runRepo,
@@ -43,7 +46,8 @@ public class TestRunService {
       SotReleaseRepository releaseRepo,
       AdoTeamRepository teamRepo,
       SuiteResolverService suiteResolver,
-      com.platform.core.repository.TestSuiteRepository suiteRepo) {
+      com.platform.core.repository.TestSuiteRepository suiteRepo,
+      AzureBoardsPollClient adoClient) {
     this.runRepo = runRepo;
     this.execRepo = execRepo;
     this.testCaseRepo = testCaseRepo;
@@ -52,6 +56,7 @@ public class TestRunService {
     this.teamRepo = teamRepo;
     this.suiteResolver = suiteResolver;
     this.suiteRepo = suiteRepo;
+    this.adoClient = adoClient;
   }
 
   @Transactional(readOnly = true)
@@ -185,6 +190,67 @@ public class TestRunService {
     return toDto(run);
   }
 
+  /**
+   * Add existing APPROVED cases (and/or cases resolved from suites) to a live run. Cases already in
+   * the run are skipped (idempotent). Only permitted while the run is IN_PROGRESS.
+   */
+  public TestRunDto addCases(UUID projectId, UUID runId, AddCasesRequest req) {
+    TestRun run = loadAndVerify(projectId, runId);
+    requireEditable(run);
+    List<UUID> caseIds = effectiveCaseIds(projectId, req.testCaseIds(), req.suiteIds());
+    if (!caseIds.isEmpty()) {
+      try {
+        tcmRunService.addCases(projectId, run, caseIds, parseMatrix(req.matrixType()));
+      } catch (IllegalArgumentException e) {
+        throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
+      }
+    }
+    return toDto(run);
+  }
+
+  /**
+   * Edit an in-progress run's scope (release / sprint / area / team) and environment. When a
+   * release is chosen, any dimension left blank is inherited from the release's mapping (same as
+   * create). Only permitted while the run is IN_PROGRESS.
+   */
+  public TestRunDto updateRun(UUID projectId, UUID runId, UpdateRunRequest req) {
+    TestRun run = loadAndVerify(projectId, runId);
+    requireEditable(run);
+
+    if (!isBlank(req.name())) run.setName(req.name().trim());
+    if (!isBlank(req.environment())) run.setEnvironment(req.environment().trim());
+    run.setEnvironmentId(parseUuid(req.environmentId()));
+
+    UUID releaseId = parseUuid(req.releaseId());
+    UUID teamId = parseUuid(req.teamId());
+    String iterationPath = req.iterationPath();
+    String areaPath = req.areaPath();
+    if (releaseId != null) {
+      SotRelease rel =
+          releaseRepo
+              .findById(releaseId)
+              .filter(r -> projectId.equals(r.getProjectId()))
+              .orElseThrow(
+                  () ->
+                      new ResponseStatusException(
+                          HttpStatus.BAD_REQUEST, "Release not found in project: " + releaseId));
+      if (isBlank(iterationPath)) iterationPath = rel.getMapIterationPath();
+      if (isBlank(areaPath)) areaPath = rel.getMapAreaPath();
+      if (teamId == null) teamId = rel.getMapTeamId();
+    }
+    run.setDimensions(releaseId, iterationPath, areaPath, teamId);
+    run = runRepo.save(run);
+    return toDto(run);
+  }
+
+  /** Reopen a completed run so it can be edited again (COMPLETED → IN_PROGRESS). */
+  public TestRunDto reopen(UUID projectId, UUID runId) {
+    TestRun run = loadAndVerify(projectId, runId);
+    run.reopen();
+    run = runRepo.save(run);
+    return toDto(run);
+  }
+
   public void delete(UUID projectId, UUID runId) {
     TestRun run = loadAndVerify(projectId, runId);
     List<TestCaseExecution> executions = execRepo.findByTestRunId(runId);
@@ -207,7 +273,71 @@ public class TestRunService {
 
   public TestCaseExecutionDto updateExecution(
       UUID projectId, UUID runId, UUID execId, UpdateExecutionRequest req) {
-    loadAndVerify(projectId, runId);
+    requireEditable(loadAndVerify(projectId, runId));
+    TestCaseExecution exec = loadExec(runId, execId);
+    exec.record(req.status(), req.actualResult(), req.notes(), req.executedBy());
+    exec = execRepo.save(exec);
+    return toExecDto(exec);
+  }
+
+  /**
+   * Link an <b>existing</b> ADO work item (validated via the read API) to a case execution. The
+   * platform never writes to ADO — it only reads the work item to confirm it exists and cache its
+   * title/state.
+   */
+  public TestCaseExecutionDto linkDefect(
+      UUID projectId, UUID runId, UUID execId, LinkDefectRequest req) {
+    requireEditable(loadAndVerify(projectId, runId));
+    TestCaseExecution exec = loadExec(runId, execId);
+
+    String workItemId = req == null || req.workItemId() == null ? null : req.workItemId().trim();
+    if (workItemId == null || workItemId.isBlank()) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "workItemId is required");
+    }
+
+    AzureBoardsPollClient.Ado ado = adoClient.connect(projectId);
+    if (ado == null) {
+      throw new ResponseStatusException(
+          HttpStatus.BAD_REQUEST, "No Azure DevOps credential configured for this project");
+    }
+    List<JsonNode> items;
+    try {
+      items = adoClient.getWorkItems(ado, List.of(workItemId)); // READ only
+    } catch (RuntimeException e) {
+      throw new ResponseStatusException(
+          HttpStatus.BAD_GATEWAY, "Azure DevOps lookup failed: " + e.getMessage());
+    }
+    if (items.isEmpty()) {
+      throw new ResponseStatusException(
+          HttpStatus.BAD_REQUEST, "Work item " + workItemId + " not found in Azure DevOps");
+    }
+    JsonNode fields = items.get(0).path("fields");
+    String title = textOrNull(fields.path("System.Title"));
+    String state = textOrNull(fields.path("System.State"));
+    String url = ado.root() + "/_workitems/edit/" + workItemId;
+
+    exec.linkDefect(workItemId, url, title, state);
+    exec = execRepo.save(exec);
+    return toExecDto(exec);
+  }
+
+  /** Remove the linked ADO defect from a case execution. */
+  public TestCaseExecutionDto unlinkDefect(UUID projectId, UUID runId, UUID execId) {
+    requireEditable(loadAndVerify(projectId, runId));
+    TestCaseExecution exec = loadExec(runId, execId);
+    exec.clearDefect();
+    exec = execRepo.save(exec);
+    return toExecDto(exec);
+  }
+
+  // --- helpers ---
+
+  private static String textOrNull(JsonNode n) {
+    String v = n == null ? null : n.asText(null);
+    return (v == null || v.isBlank()) ? null : v;
+  }
+
+  private TestCaseExecution loadExec(UUID runId, UUID execId) {
     TestCaseExecution exec =
         execRepo
             .findById(execId)
@@ -219,14 +349,22 @@ public class TestRunService {
       throw new ResponseStatusException(
           HttpStatus.NOT_FOUND, "Execution not found for run: " + runId);
     }
-    exec.record(req.status(), req.actualResult(), req.notes(), req.executedBy());
-    exec = execRepo.save(exec);
+    return exec;
+  }
+
+  private TestCaseExecutionDto toExecDto(TestCaseExecution exec) {
     String title =
         testCaseRepo.findById(exec.getTestCaseId()).map(PlatformTestCase::getTitle).orElse(null);
     return TestCaseExecutionDto.from(exec, title);
   }
 
-  // --- helpers ---
+  /** A run may only be mutated while IN_PROGRESS; a COMPLETED run must be reopened first. */
+  private void requireEditable(TestRun run) {
+    if (!run.isEditable()) {
+      throw new ResponseStatusException(
+          HttpStatus.CONFLICT, "Run is " + run.getStatus() + "; reopen it before editing.");
+    }
+  }
 
   private TestRun loadAndVerify(UUID projectId, UUID runId) {
     TestRun run =

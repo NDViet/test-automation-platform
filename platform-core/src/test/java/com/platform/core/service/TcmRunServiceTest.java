@@ -115,4 +115,52 @@ class TcmRunServiceTest {
                     projectId, "Run", null, null, List.of(), MatrixType.FULL, "tester"))
         .isInstanceOf(IllegalArgumentException.class);
   }
+
+  @Test
+  void addCases_appendsApprovedAndSkipsExisting() {
+    TestRun run = new TestRun(projectId, "Run", null, "STAGING", "tester");
+    UUID existingCase = UUID.randomUUID();
+    UUID newCase = UUID.randomUUID();
+    // run already has an execution for existingCase
+    PlatformTestCase approved = tc(newCase, "APPROVED");
+    when(executionRepo.findByTestRunId(run.getId()))
+        .thenReturn(List.of(new TestCaseExecution(run.getId(), existingCase)));
+    when(testCaseRepo.findById(newCase)).thenReturn(java.util.Optional.of(approved));
+    when(casePropertyRepo.findByTestCaseId(newCase)).thenReturn(List.of());
+
+    int added = service.addCases(projectId, run, List.of(existingCase, newCase), MatrixType.FULL);
+
+    assertThat(added).isEqualTo(1); // existing skipped, only newCase added
+    // a fresh execution row was created for the new case
+    verify(executionRepo).save(argThat(e -> newCase.equals(e.getTestCaseId())));
+    // never re-created the already-present case
+    verify(executionRepo, never()).save(argThat(e -> existingCase.equals(e.getTestCaseId())));
+  }
+
+  @Test
+  void addCases_rejectsNonApproved() {
+    TestRun run = new TestRun(projectId, "Run", null, "STAGING", "tester");
+    UUID draftCase = UUID.randomUUID();
+    PlatformTestCase draft = tc(draftCase, "DRAFT");
+    when(executionRepo.findByTestRunId(run.getId())).thenReturn(List.of());
+    when(testCaseRepo.findById(draftCase)).thenReturn(java.util.Optional.of(draft));
+
+    assertThatThrownBy(() -> service.addCases(projectId, run, List.of(draftCase), MatrixType.FULL))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("must be APPROVED");
+  }
+
+  @Test
+  void addCases_allAlreadyPresent_isNoOp() {
+    TestRun run = new TestRun(projectId, "Run", null, "STAGING", "tester");
+    UUID existingCase = UUID.randomUUID();
+    when(executionRepo.findByTestRunId(run.getId()))
+        .thenReturn(List.of(new TestCaseExecution(run.getId(), existingCase)));
+
+    int added = service.addCases(projectId, run, List.of(existingCase), MatrixType.FULL);
+
+    assertThat(added).isZero();
+    verify(executionRepo, never()).save(any());
+    verify(testCaseRepo, never()).findById(any()); // short-circuits before the gate
+  }
 }

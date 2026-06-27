@@ -643,6 +643,20 @@ export interface TestCaseExecution {
   executedBy: string | null
   executedAt: string | null
   createdAt: string
+  defectId: string | null
+  defectUrl: string | null
+  defectTitle: string | null
+  defectState: string | null
+}
+
+export interface ExecutionAttachment {
+  id: string
+  executionId: string
+  fileName: string
+  contentType: string | null
+  sizeBytes: number
+  uploadedBy: string | null
+  uploadedAt: string
 }
 
 export interface SelectableTestCase {

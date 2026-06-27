@@ -42,6 +42,19 @@ public class TestCaseExecution {
   @Column(name = "executed_at")
   private Instant executedAt;
 
+  // ── Linked ADO work item (defect) — read-only reference; platform never writes to ADO ──
+  @Column(name = "defect_external_id", length = 64)
+  private String defectExternalId;
+
+  @Column(name = "defect_url", length = 500)
+  private String defectUrl;
+
+  @Column(name = "defect_title", length = 500)
+  private String defectTitle;
+
+  @Column(name = "defect_state", length = 60)
+  private String defectState;
+
   @Column(name = "created_at", nullable = false, updatable = false)
   private Instant createdAt = Instant.now();
 
@@ -66,6 +79,23 @@ public class TestCaseExecution {
     this.notes = notes;
     this.executedBy = executedBy;
     this.executedAt = Instant.now();
+    this.updatedAt = Instant.now();
+  }
+
+  /** Link an existing ADO work item (validated upstream); never triggers an ADO write. */
+  public void linkDefect(String externalId, String url, String title, String state) {
+    this.defectExternalId = externalId;
+    this.defectUrl = url;
+    this.defectTitle = title;
+    this.defectState = state;
+    this.updatedAt = Instant.now();
+  }
+
+  public void clearDefect() {
+    this.defectExternalId = null;
+    this.defectUrl = null;
+    this.defectTitle = null;
+    this.defectState = null;
     this.updatedAt = Instant.now();
   }
 
@@ -103,6 +133,22 @@ public class TestCaseExecution {
 
   public Instant getExecutedAt() {
     return executedAt;
+  }
+
+  public String getDefectExternalId() {
+    return defectExternalId;
+  }
+
+  public String getDefectUrl() {
+    return defectUrl;
+  }
+
+  public String getDefectTitle() {
+    return defectTitle;
+  }
+
+  public String getDefectState() {
+    return defectState;
   }
 
   public Instant getCreatedAt() {

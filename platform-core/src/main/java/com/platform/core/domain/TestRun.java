@@ -88,6 +88,18 @@ public class TestRun {
     this.updatedAt = Instant.now();
   }
 
+  /** Reopen a completed run back to IN_PROGRESS so it can be edited again. */
+  public void reopen() {
+    this.status = "IN_PROGRESS";
+    this.completedAt = null;
+    this.updatedAt = Instant.now();
+  }
+
+  /** True when the run may still be edited (status updates, added cases, defects, evidence). */
+  public boolean isEditable() {
+    return "IN_PROGRESS".equals(status);
+  }
+
   public UUID getId() {
     return id;
   }

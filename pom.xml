@@ -52,7 +52,10 @@
 
         <!-- Dependency versions -->
         <spring-kafka.version>4.0.6</spring-kafka.version>
-        <flyway.version>11.8.2</flyway.version>
+        <!-- Pinned to match the db-migrate container image (flyway/flyway:12.9) so the migration
+             job and the app-side flyway-core compute the same V1 checksum. Overrides the Spring
+             Boot 4.0.6 BOM default (11.8.2). -->
+        <flyway.version>12.9.0</flyway.version>
         <springdoc.version>2.8.8</springdoc.version>
         <testcontainers.version>1.21.1</testcontainers.version>
         <wiremock.version>3.13.0</wiremock.version>

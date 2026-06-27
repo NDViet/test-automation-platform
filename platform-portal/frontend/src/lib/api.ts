@@ -576,6 +576,26 @@ export const api = {
     del(`/projects/${projectId}/test-runs/${runId}`),
   completeTestRun: (projectId: string, runId: string) =>
     post<import('./types').TestRun>(`/projects/${projectId}/test-runs/${runId}/complete`, {}),
+  reopenTestRun: (projectId: string, runId: string) =>
+    post<import('./types').TestRun>(`/projects/${projectId}/test-runs/${runId}/reopen`, {}),
+  updateTestRun: (
+    projectId: string,
+    runId: string,
+    body: {
+      name?: string
+      environment?: string
+      environmentId?: string
+      releaseId?: string
+      iterationPath?: string
+      areaPath?: string
+      teamId?: string
+    },
+  ) => put<import('./types').TestRun>(`/projects/${projectId}/test-runs/${runId}`, body),
+  addTestRunCases: (
+    projectId: string,
+    runId: string,
+    body: { testCaseIds?: string[]; suiteIds?: string[]; matrixType?: string },
+  ) => post<import('./types').TestRun>(`/projects/${projectId}/test-runs/${runId}/cases`, body),
   runExecutions: (projectId: string, runId: string) =>
     get<import('./types').TestCaseExecution[]>(
       `/projects/${projectId}/test-runs/${runId}/executions`,
@@ -590,6 +610,46 @@ export const api = {
       `/projects/${projectId}/test-runs/${runId}/executions/${execId}`,
       body,
     ),
+  linkExecutionDefect: (projectId: string, runId: string, execId: string, workItemId: string) =>
+    postMsg<import('./types').TestCaseExecution>(
+      `/projects/${projectId}/test-runs/${runId}/executions/${execId}/defect`,
+      { workItemId },
+    ),
+  unlinkExecutionDefect: (projectId: string, runId: string, execId: string) =>
+    del(`/projects/${projectId}/test-runs/${runId}/executions/${execId}/defect`),
+  listExecutionAttachments: (projectId: string, runId: string, execId: string) =>
+    get<import('./types').ExecutionAttachment[]>(
+      `/projects/${projectId}/test-runs/${runId}/executions/${execId}/attachments`,
+    ),
+  uploadExecutionAttachment: async (
+    projectId: string,
+    runId: string,
+    execId: string,
+    file: File,
+  ) => {
+    const fd = new FormData()
+    fd.append('file', file)
+    const actor = localStorage.getItem('platform.actor') ?? ''
+    const res = await fetch(
+      `${BASE}/projects/${projectId}/test-runs/${runId}/executions/${execId}/attachments`,
+      { method: 'POST', body: fd, headers: actor ? { 'X-Actor': actor } : undefined },
+    )
+    if (!res.ok) {
+      let msg = `Upload failed → ${res.status}`
+      try {
+        const e = (await res.json()) as { message?: string; detail?: string }
+        msg = e?.message || e?.detail || msg
+      } catch {
+        /* ignore */
+      }
+      throw new Error(msg)
+    }
+    return res.json() as Promise<import('./types').ExecutionAttachment>
+  },
+  attachmentDownloadUrl: (projectId: string, runId: string, attachmentId: string) =>
+    `${BASE}/projects/${projectId}/test-runs/${runId}/attachments/${attachmentId}/download`,
+  deleteExecutionAttachment: (projectId: string, runId: string, attachmentId: string) =>
+    del(`/projects/${projectId}/test-runs/${runId}/attachments/${attachmentId}`),
 
   // Releases
   releases: (projectId: string) =>

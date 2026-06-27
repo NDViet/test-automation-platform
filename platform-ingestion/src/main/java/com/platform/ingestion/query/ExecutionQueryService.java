@@ -170,11 +170,11 @@ public class ExecutionQueryService {
               passRate,
               0L,
               uuidStr(run.getTeamId()),
-              teamNames.get(run.getTeamId()),
+              lookup(teamNames, run.getTeamId()),
               run.getAreaPath(),
               run.getIterationPath(),
               uuidStr(run.getReleaseId()),
-              releaseNames.get(run.getReleaseId()),
+              lookup(releaseNames, run.getReleaseId()),
               run.getReleaseVersion(),
               run.getTriggeredBy(),
               null,
@@ -291,6 +291,11 @@ public class ExecutionQueryService {
 
   private static String uuidStr(UUID id) {
     return id != null ? id.toString() : null;
+  }
+
+  /** Null-safe lookup — immutable maps (Map.of) throw on get(null), so guard the key. */
+  private static <K> String lookup(java.util.Map<K, String> map, K key) {
+    return key == null ? null : map.get(key);
   }
 
   private static String buildAutoName(String branch, String sha) {

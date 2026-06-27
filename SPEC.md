@@ -1,256 +1,233 @@
-# SPEC — LiteLLM as the unified LLM gateway (`/settings/ai`)
+# SPEC — Manual Test Execution (release/sprint/team/area scoped)
 
-> Status: DRAFT — awaiting confirmation before implementation.
-> Owner: platform team · Scope: `platform-ai`, `platform-agent`, `platform-portal`, `platform-core`
+> Status: CONFIRMED — ready for planning/implementation.
+> Scope: `platform-core`, `platform-ingestion`, `platform-portal` (+ frontend).
+> Prior spec (LiteLLM gateway, implemented) archived at `spec/archive/litellm-spec.md`.
 
 ## 1. Objective
 
-Make **LiteLLM the single LLM gateway** for the entire platform. Every model call —
-failure analysis (`platform-ai`) and agentic workflows (`platform-agent`) — goes through
-one OpenAI-compatible LiteLLM endpoint instead of talking to Anthropic/OpenAI directly.
+Let a QA engineer run a **manual test execution** against a defined scope, work through it
+case‑by‑case over multiple sittings, and close it out with evidence and defect links.
 
-The AI settings page (`http://localhost:8085/settings/ai`) becomes a LiteLLM configuration
-screen that uses the **same configuration shape developers already know** from OpenCode,
-Claude Code Router, and VS Code chat (base URL + API key + a named model list), and can
-**export ready-to-paste config** for those three tools so the platform and a developer's
-local tooling point at the same gateway and models.
+Most of the foundation already exists (`test_runs`, `test_case_executions`, scope dimensions,
+suite/case pickers, the release board, `BlobStore`, ADO read client). This spec fills the gaps:
+**resume/reopen, mid‑run case addition, linking an existing ADO work item as a defect, and
+per‑case evidence attachments.**
 
-### Target users
-- **Platform admins / QA leads** — configure which models back analysis and agents, per Org/Team/Project.
-- **Developers** — reuse the platform's LiteLLM gateway in their own tools (OpenCode, Claude Code Router, VS Code chat) via exported config.
+**Target users:** QA engineers / SDETs executing manual test passes for a release; QA leads
+reviewing execution status on the release board.
 
-### Non-goals (this iteration)
-- Running/hosting a LiteLLM proxy container (we connect to an **external** endpoint).
-- Cost dashboards, usage quotas, or rate-limit management (LiteLLM owns these).
-- Removing the Anthropic Java SDK path entirely (kept only as an optional, env-gated fallback).
+### Confirmed product decisions (from clarification)
+- **Defect = link an *existing* ADO work item** by id. Validate via the **read** API and store
+  `id + URL`. **No ADO writes** — the ADO integration stays read‑only/inbound.
+- **Evidence = per test‑case result**, stored in the platform **BlobStore** (MinIO/S3,
+  content‑addressed), downloaded via presigned URL.
+- **Mid‑run add = existing APPROVED cases** via the same scope‑filtered picker + suites; appended
+  as `PENDING`; idempotent (no duplicate executions).
+- **Lifecycle = persist + resume + reopen.** `IN_PROGRESS` survives sessions; the user explicitly
+  completes (confirm if cases remain pending); a `COMPLETED` run can be reopened to `IN_PROGRESS`.
 
-## 2. Background — current state
+## 2. Scope
 
-- `AiClient` (interface) → `AiClientRouter` (`@Primary`) selects `ClaudeApiClient` (Anthropic SDK)
-  or `OpenAiClient` (OpenAI REST) from the `ai.provider` setting, with an Org→Team→Project
-  cascade via `SettingResolver`.
-- `OpenAiClient` hardcodes `https://api.openai.com/v1/chat/completions`. LiteLLM is
-  OpenAI-compatible, so this client is the reuse seam — it needs a **configurable base URL**.
-- `platform-agent` selects models by `LlmTier` (`STANDARD`→claude-sonnet, `COMPLEX`→claude-opus),
-  hardcoded to Claude.
-- Settings persist in `platform_settings` under `ai.*` keys; surfaced by `AiSettingsController`
-  (`/api/v1/ai/settings`) + `ScopedAiSettingsController`; UI at `platform-portal/frontend/src/pages/AiSettingsPage.tsx`.
+### In scope
+1. Create a manual execution scoped to **release / sprint (iteration) / team / area** (exists;
+   verify scope inheritance from a selected release).
+2. Execute: per‑case status (`PENDING → PASSED | FAILED | BLOCKED | SKIPPED`) with actual result /
+   notes (exists; extend with defect + evidence).
+3. **Link an existing ADO work item** (defect) to a case execution; show id + clickable URL; unlink.
+4. **Attach evidence** (screenshots, logs, files) to a case execution; list + download + delete.
+5. **Resume** an `IN_PROGRESS` run across sessions; **reopen** a `COMPLETED` run.
+6. **Add missing test cases** (existing, approved, scope‑filtered, incl. suites) to a live run.
+7. Complete the run on explicit user action (confirm when pending > 0).
 
-## 3. Decisions (from clarification)
+### Out of scope
+- Creating/writing ADO work items (Bugs) from the platform.
+- Authoring brand‑new test cases inline during a run.
+- Uploading evidence directly to ADO.
+- Automated‑run changes; analytics/trends for manual runs (separate effort).
+- Real‑time multi‑user collaboration on one run.
 
-| Topic | Decision |
-|---|---|
-| Deployment | **External LiteLLM endpoint only** — user provides base URL + key. No new container. |
-| Config standard | **OpenAI-compatible shape** (baseURL + apiKey + named model list) **+ export snippets** for OpenCode, Claude Code Router, VS Code chat. |
-| Agent routing | **Agents route through LiteLLM**; tier (STANDARD/COMPLEX) → configurable LiteLLM model names. |
-| Provider model | **LiteLLM is the single gateway.** UI provider switch (anthropic/openai) is removed; those become routes *inside* LiteLLM. |
-| Client | **One client** for the whole platform: a single OpenAI-compatible `LiteLlmClient`. The model id (or LiteLLM alias) selects Claude/GPT/Gemini/etc.; LiteLLM does the translation. `ClaudeApiClient`, `OpenAiClient`, and `AiClientRouter` are removed. |
-| Module org | New shared module **`platform-llm`** (depends on `platform-core`) hosts the LiteLLM-backed LangChain4j chat model (`LlmChatModelProvider`) + settings resolution (`LlmSettings`). `AiClient`/`AiAnalysisResponse` stay in **`platform-ai`** (analysis domain). **`platform-ai`** (failure analysis) and **`platform-agent`** (agentic workflows) both depend on `platform-llm`. Anthropic Java SDK dependency removed from both. |
-| Agent SDK | **LangChain4j** is the agent layer (Spring Boot 4-safe; plain library, no spring-boot-starter). `platform-llm` exposes a LangChain4j `ChatModel`/`StreamingChatModel` configured against the LiteLLM **OpenAI-compatible** endpoint. `platform-agent` uses LangChain4j `AiServices` (tool-use loop, structured output, memory); the custom `ClaudeAgentOrchestrator` loop is replaced. `platform-ai` uses LangChain4j structured output for classification. |
-| Default | **LiteLLM is the default** provider. |
-| Fallback | Optional, env-gated **direct-Anthropic fallback** (default OFF), implemented inside `platform-llm`. |
+## 3. Functional requirements & acceptance criteria
 
-## 4. Core features & acceptance criteria
+### F1 — Create manual execution scoped to release/sprint/team/area
+- **Given** the New Manual Run modal, the user sets name, environment, optional release, and
+  sprint/team/area, and picks cases and/or suites.
+- Selecting a **release** prefills blank scope dimensions from the release mapping
+  (`map_iteration_path`, `map_area_path`, `map_team_id`); the user may override.
+- **Accept:** the run persists with `release_id / iteration_path / area_path / team_id` set; one
+  `test_case_executions` row per selected (and matrix‑expanded) case at `PENDING`; lands on the
+  run detail page.
 
-### F1 — Single LiteLLM chat model in shared `platform-llm` module
-> AS-BUILT note: to keep the dependency direction sound, `platform-llm` holds only the **generic**
-> LLM access — `LlmChatModelProvider` (LangChain4j `ChatModel` → LiteLLM) + `LlmSettings`. The
-> analysis-specific `AiClient`/`AiAnalysisResponse` **stay in `platform-ai`** (they wrap
-> `ClaudeAnalysisResult`); `platform-ai` adds `LiteLlmAnalysisClient` over the shared model, and
-> `platform-agent` uses `LangChainAgentRunner`. There is one LLM client path, via LiteLLM.
-- New module `platform-llm` (depends on `platform-core`) provides the LangChain4j `ChatModel` pointed
-  at the LiteLLM OpenAI-compatible endpoint + settings resolution.
-- "OpenAI-compatible" is just the wire format LiteLLM exposes — no per-provider clients. The model
-  id (or LiteLLM alias) routes to Claude/GPT/Gemini/etc. inside LiteLLM.
-- `ClaudeApiClient`, `OpenAiClient`, `AiClientRouter`, `ClaudeAgentOrchestrator` deleted; Anthropic SDK removed from both service poms.
-- **AC1.1** With a valid LiteLLM base URL + key + model, `analyse()` returns a parsed
-  `AiAnalysisResponse` with token usage; on error returns the UNKNOWN/zero-token response (existing contract).
-- **AC1.2** `providerName()` returns `litellm/<model>`.
-- **AC1.3** Both `platform-ai` and `platform-agent` inject the same `LiteLlmClient` from `platform-llm`.
+### F2 — Execute a case (status + result)
+- Per case: set status; `actual_result` required when `FAILED`; `notes` optional any status.
+- **Accept:** `PUT …/executions/{execId}` persists status, `executed_by`, `executed_at`; run
+  counters (passed/failed/blocked/skipped/pending) recompute; optimistic UI reflects immediately.
 
-### F2 — LiteLLM as the routed default
-- `AiClientRouter` resolves `ai.provider=litellm` (new default) and routes to `LiteLlmClient`.
-- Org→Team→Project cascade still applies to base URL, key, and model.
-- **AC2.1** Fresh install defaults to `litellm`. **AC2.2** Changing model/base URL/key in the
-  Portal takes effect without a service restart (matches current live-reload behaviour).
+### F3 — Link an existing ADO defect to a case execution
+- From a case (typically `FAILED`), the user enters an ADO work‑item **id**.
+- Backend resolves the project's ADO credential and **validates the id via the read API**
+  (`AzureBoardsPollClient`/read client); rejects unknown ids with a clear message.
+- Store `defect_external_id` + `defect_url` (+ optional cached `defect_title`, `defect_state`) on
+  the execution. Support **unlink**.
+- **Accept:** a valid id shows as a chip with title/state and a link to `…/_workitems/edit/{id}`;
+  an invalid id returns 400 with a readable message and stores nothing; unlink clears the fields.
+- **Never** call any ADO write/PATCH endpoint.
 
-### F3 — Multiple models + per-tier agent routing
-- Settings hold a **model list** (id + optional label) plus role→model mappings:
-  - `ai.litellm.model.analysis` (failure classification)
-  - `ai.litellm.model.standard` (agent STANDARD tier)
-  - `ai.litellm.model.complex` (agent COMPLEX tier)
-- `platform-agent` model selection reads these instead of hardcoded Claude names; `LlmTier.NONE` unchanged.
-- **AC3.1** An agent run logs and uses the configured LiteLLM model for its tier.
-- **AC3.2** Multiple models can be saved and selected per role from the model list.
+### F4 — Attach evidence to a case execution
+- Upload one or more files to a case execution (multipart). Stored via `BlobStore` (content‑
+  addressed); an `execution_attachments` row links blob → execution with filename, content type,
+  size, `uploaded_by`, `uploaded_at`.
+- List attachments per case; download via **presigned URL**; delete an attachment (removes the row;
+  blob is content‑addressed/shared so it is not hard‑deleted).
+- **Accept:** uploaded files appear under the case; download fetches the original bytes. **Any file
+  extension is accepted**; only the per‑file size cap (30 MB) is enforced, returning a clear error
+  when exceeded. No per‑execution file‑count limit.
 
-### F4 — Settings page redesign (OpenAI-compatible shape)
-- `/settings/ai` exposes: **Base URL**, **API key** (masked, set/replace pattern as today),
-  **Model list** (add/remove), **role→model** selectors (analysis / standard / complex),
-  Enable + Real-time toggles (unchanged), **Test Connection**.
-- Provider radio (anthropic/openai) is **removed**.
-- **AC4.1** Test Connection hits `{baseUrl}/models` (or a cheap completion) and reports success/failure.
-- **AC4.2** Empty/error/loading states use the shared `EmptyState`/`ErrorMessage` (with retry) components.
+### F5 — Resume an in‑progress run
+- An `IN_PROGRESS` run is reachable from the executions list and the release board and opens with
+  prior per‑case statuses, defect links, and attachments intact.
+- **Accept:** navigating away and back (or re‑login) preserves all execution state; no data loss.
 
-### F5 — Export config for external tools
-- A "Use this gateway in your tools" panel generates copy-to-clipboard config for:
-  - **OpenCode** — `opencode.json` provider block (`@ai-sdk/openai-compatible`, `options.baseURL`, `apiKey`, `models`).
-  - **Claude Code Router** — `~/.claude-code-router/config.json` `Providers[]` (`api_base_url`, `api_key`, `models`) + `Router.default`.
-  - **VS Code chat** — OpenAI-compatible / BYOK model entry (baseURL + model id; key entered by the user).
-- API keys are **never** embedded in exported snippets — show a `${LITELLM_API_KEY}` placeholder.
-- **AC5.1** Each snippet is valid for its tool and uses the configured base URL + model list.
-- **AC5.2** Exact field names verified against each tool's current docs at implementation time.
+### F6 — Add missing cases mid‑run
+- On the run detail page, an **Add cases** action opens the same scope‑filtered, APPROVED‑only
+  picker (and suites) used at creation.
+- Selected cases are appended as new `PENDING` executions; cases already in the run are skipped
+  (idempotent). Matrix expansion applies as on create.
+- **Accept:** only `APPROVED` cases are selectable; re‑adding an existing case creates no duplicate;
+  totals/pending update; allowed only while the run is `IN_PROGRESS`.
 
-### F7 — LangChain4j agent layer (capability preservation)
-The current `ClaudeAgentOrchestrator` is already a tool-use loop (≤25 iterations, `node.tools()` =
-Anthropic `Tool` objects, prompt caching via `CacheControlEphemeral`, cache-aware token/cost accounting).
-LangChain4j replaces the loop while preserving power.
-- `platform-llm` exposes a LangChain4j `ChatModel` (langchain4j-open-ai) pointed at LiteLLM base URL + key.
-- `platform-agent` defines tools as LangChain4j tools (`@Tool` / `ToolSpecification`); the existing tool
-  *implementations* (`PlatformQueryTools`, `PlatformInsightTools`, `GitHubApiClient`) are reused.
-- Per-node flows (TestCaseGeneration, AutomationCodeGeneration, Healing, Analysis…) use `AiServices`
-  with their tools + a **verify loop** (generate → run → observe → fix) where applicable.
-- **Capability checklist — must survive the migration (T3 spike gates these):**
-  1. **Tool calling** through LiteLLM (incl. multi-/parallel-tool turns) — primary.
-  2. **Prompt caching** of the large system prompt (today `CacheControlEphemeral`). Verify LangChain4j +
-     LiteLLM passes Anthropic `cache_control`; if not, accept higher cost OR use Option B for cached flows.
-  3. **Cache-aware token accounting** (input / cacheWrite / cacheRead / output → cost). Preserve or
-     document the approximation; this feeds existing cost reporting.
-  4. **Max tool iterations** safety cap (≤25) and `maxTokens` retained.
-  5. **Structured/typed output** for generated artifacts (TestCase, automation file) instead of regex.
-- **AC7.1** One real flow (automation-code-generation) runs through LangChain4j→LiteLLM with tools and
-  completes. **AC7.2** Token usage is still recorded. **AC7.3** `LlmTier` still selects the model id.
+### F7 — Complete & reopen
+- **Complete** is a user action; if pending > 0, the UI confirms ("N cases still pending — complete
+  anyway?"). On complete: `status = COMPLETED`, `completed_at` set.
+- **Reopen** a `COMPLETED` run → `status = IN_PROGRESS`, `completed_at` cleared; re‑enables editing,
+  adding cases, defect linking, and evidence.
+- **Accept:** completing with pending requires confirmation and succeeds; a completed run is
+  read‑only until reopened; reopen restores full editability.
 
-### ADR-001 — Agent SDK: LangChain4j (accepted)
-- **Context:** need an agent loop + tool-use + structured output on a Spring Boot 4 / Java stack, routed
-  through the single LiteLLM gateway.
-- **Options:** Spring AI (idiomatic but Spring Boot 4 support lags), LangChain4j (framework-agnostic,
-  OpenAI-compatible, Spring Boot-version-independent), keep custom (most maintenance).
-- **Decision:** **LangChain4j**, used as a plain library (no spring-boot-starter) to avoid Spring Boot 4
-  coupling, configured against LiteLLM's OpenAI-compatible endpoint.
-- **Consequences:** custom orchestrator retired; tool definitions migrate to LangChain4j; prompt-caching
-  and cache-token accounting must be re-validated (see checklist). Option B (Anthropic SDK → LiteLLM
-  Anthropic endpoint) remains the documented fallback for any flow where caching can't pass through.
+## 4. Data model changes (Postgres / Flyway)
 
-### F6 — Migration & backward compatibility
-- Flyway migration / setting-resolver default: introduce `ai.provider=litellm` default; keep reading
-  legacy `ai.anthropic.api-key` / `ai.openai.api-key` for the optional fallback only.
-- **AC6.1** Existing installs with `ai.provider=anthropic|openai` keep working until an admin migrates
-  (router still recognizes legacy values), with a one-time UI notice to move to LiteLLM.
+Pre‑release ⇒ migrations are consolidated into a single `V1__initial_schema.sql`
+(`platform-core/src/main/resources/db/migration/`). **Fold these changes into `V1`** (a fresh DB is
+assumed); do **not** add a `V2` unless a deployed DB must be preserved.
 
-## 5. Settings keys (platform_settings, cascade-aware)
+- `test_case_executions` — add: `defect_external_id VARCHAR(64)`, `defect_url VARCHAR(500)`,
+  `defect_title VARCHAR(500)`, `defect_state VARCHAR(60)` (all nullable).
+- New table `execution_attachments`:
+  - `id UUID PK`, `execution_id UUID NOT NULL REFERENCES test_case_executions(id) ON DELETE CASCADE`,
+    `test_run_id UUID NOT NULL`, `file_name VARCHAR(300) NOT NULL`, `content_type VARCHAR(150)`,
+    `size_bytes BIGINT NOT NULL`, `blob_ref VARCHAR(500) NOT NULL`, `uploaded_by VARCHAR(200)`,
+    `uploaded_at TIMESTAMPTZ NOT NULL DEFAULT now()`.
+  - Index `idx_exec_attach_exec (execution_id)`.
+- `test_runs.status` already supports `IN_PROGRESS | COMPLETED | ABANDONED`; reopen reuses
+  `IN_PROGRESS` (no schema change). Add a `TestRun.reopen()` domain method.
 
-| Key | Meaning | Default |
+## 5. API surface
+
+All new backend endpoints live in **platform-ingestion** under
+`/api/v1/projects/{projectId}/test-runs/{runId}/…`, proxied by **platform-portal** under
+`/api/portal/…`, and surfaced in `platform-portal/frontend/src/lib/api.ts`.
+
+| Method | Path | Purpose |
 |---|---|---|
-| `ai.enabled` | master enable | `false` |
-| `ai.realtime.enabled` | realtime analysis | `false` |
-| `ai.provider` | `litellm` (new default; legacy `anthropic`/`openai` still read) | `litellm` |
-| `ai.litellm.base-url` | LiteLLM OpenAI-compatible base URL | — |
-| `ai.litellm.api-key` | LiteLLM master/virtual key (encrypted at rest) | — |
-| `ai.litellm.models` | JSON array of `{id,label}` | `[]` |
-| `ai.litellm.model.analysis` | model id for failure analysis | first model |
-| `ai.litellm.model.standard` | model id for agent STANDARD tier | first model |
-| `ai.litellm.model.complex` | model id for agent COMPLEX tier | first model |
-| `ai.fallback.anthropic.enabled` | env-gated direct-Claude fallback | `false` |
+| POST | `…/test-runs/{runId}/cases` | Add cases mid‑run `{ testCaseIds[], suiteIds[], matrixType? }` → new executions (F6) |
+| POST | `…/test-runs/{runId}/reopen` | Reopen a completed run (F7) |
+| POST | `…/test-runs/{runId}/executions/{execId}/defect` | Validate + link ADO work item `{ workItemId }` (F3) |
+| DELETE | `…/test-runs/{runId}/executions/{execId}/defect` | Unlink defect (F3) |
+| GET | `…/test-runs/{runId}/executions/{execId}/attachments` | List attachments (F4) |
+| POST | `…/test-runs/{runId}/executions/{execId}/attachments` | Multipart upload (F4) |
+| GET | `…/attachments/{attachmentId}/download` | Presigned URL or streamed bytes (F4) |
+| DELETE | `…/attachments/{attachmentId}` | Delete attachment row (F4) |
 
-API keys follow the existing **encrypted-credential** handling and are never returned by GET (only `*KeySet` booleans).
+Reuse existing endpoints for create/list/get/complete/update‑execution and the selectable‑cases /
+suites pickers. Portal proxies forward upstream status + message (existing pattern); the portal must
+support **multipart passthrough** for the upload endpoint.
 
 ## 6. Commands
 
 ```bash
-# Backend (build/test the affected modules)
-mvn -q -pl platform-ai,platform-agent,platform-core -am -DskipTests install
-mvn -q -pl platform-ai,platform-agent test
+# Java toolchain — REQUIRED before any mvn (default shell JDK is 17 and fails)
+export JAVA_HOME="$(/usr/libexec/java_home -v 21)"
 
-# Frontend (portal)
-cd platform-portal/frontend
-npm run format && npx tsc -b && npx vite build
+# Build + test the touched backend modules (always use -am so platform-core is rebuilt in-reactor)
+mvn -pl platform-ingestion,platform-portal -am test
 
-# Format everything (Java + frontend)
-mvn -Pformat process-sources
+# Run a single test class
+mvn -pl platform-ingestion -am test -Dtest=TestRunServiceTest -Dsurefire.failIfNoSpecifiedTests=false
 
-# Security re-scan after any dependency change
-docker run --rm -v "$PWD":/src:ro -v "$HOME/.m2":/root/.m2:ro -v trivy-cache:/root/.cache/ \
-  aquasec/trivy:latest fs --scanners vuln --offline-scan --severity HIGH,CRITICAL /src
+# Format (Java = Spotless/google-java-format, Frontend = Prettier)
+mvn -q -Pformat process-sources -pl platform-core,platform-ingestion,platform-portal
+cd platform-portal/frontend && npm run format
 
-# Run locally (point at an external LiteLLM)
-docker compose --profile services up -d --build platform-ai platform-agent platform-portal
+# Frontend typecheck + build (the portal jar bundles these static assets)
+cd platform-portal/frontend && npx tsc -b && npx vite build
+
+# Bring the local stack up reliably (creates volume_data dirs, warms Docker path cache)
+./scripts/dev-up.sh
 ```
 
-## 7. Project structure (add / change)
+## 7. Project structure (where things go)
 
-```
-platform-llm/                     # NEW MODULE (depends on platform-core)
-  pom.xml                         # deps: langchain4j, langchain4j-open-ai (plain libs, no spring-boot-starter)
-  src/main/java/com/platform/llm/
-    # (AiClient/AiAnalysisResponse stay in platform-ai — they wrap the analysis domain)
-    LlmChatModelProvider.java     # NEW — builds LangChain4j ChatModel (langchain4j-open-ai) → LiteLLM base URL/key
-    LiteLlmClient.java            # NEW — AiClient impl over the ChatModel (analysis/structured output)
-    LlmSettings.java              # NEW — resolve base-url/key/model.* via SettingResolver (cascade)
-    AnthropicFallbackClient.java  # NEW (optional, env-gated, default off)
-
-platform-ai/src/main/java/com/platform/ai/
-  client/ClaudeApiClient.java, openai/OpenAiClient.java, client/AiClientRouter.java  # DELETE
-  api/AiSettingsController.java       # CHANGE — base-url/models/role-model fields; /models test
-  api/ScopedAiSettingsController.java # CHANGE — same fields, scoped
-  pom.xml                            # CHANGE — add platform-llm; remove Anthropic SDK
-
-platform-agent/src/main/java/com/platform/agent/
-  node/impl/ClaudeAgentOrchestrator.java  # REPLACE — LangChain4j AiServices tool-use loop (rename → AgentRunner)
-  node/AgentNode.java                      # CHANGE — tools() returns LangChain4j tools (was Anthropic Tool)
-  node/tools/*.java                        # KEEP impls; ADD LangChain4j @Tool bindings
-  node/impl/StepSummarizerImpl.java        # CHANGE — model id from settings (was CLAUDE_HAIKU_4_5)
-  api/ImpactAnalysisService.java           # CHANGE — model id from settings
-  pom.xml                                  # CHANGE — add platform-llm + langchain4j; remove Anthropic SDK
-
-platform-portal/frontend/src/
-  pages/AiSettingsPage.tsx        # CHANGE — LiteLLM shape, model list, role mapping, exports
-  components/LiteLlmExport.tsx    # NEW — OpenCode / Claude Router / VS Code snippet generator
-  lib/types.ts, lib/api.ts        # CHANGE — new AiSettings shape + endpoints
-
-pom.xml                           # CHANGE — register platform-llm module
-docs/system-architecture-current.md, README.md  # CHANGE — document LiteLLM gateway + module map
-```
+- **Domain + repo + migration:** `platform-core/src/main/java/com/platform/core/domain/`,
+  `…/repository/`, `…/resources/db/migration/V1__initial_schema.sql`.
+- **Service + controller + DTOs:** `platform-ingestion/src/main/java/com/platform/ingestion/management/tcm/`
+  (`TestRunService`, `TestRunController`, request/response records).
+- **ADO read validation:** reuse `com.platform.core.service.ado.AzureBoardsPollClient` (read only) +
+  `CredentialResolver`; no new write client.
+- **Blob storage:** `platform-common`/`platform-storage` `BlobStore` (`storeBytes`, `presignUrl`).
+- **Portal BFF proxies:** `platform-portal/src/main/java/com/platform/portal/api/` (e.g.
+  `PortalExecutionController` / the test‑run proxy controller).
+- **Frontend:** page `platform-portal/frontend/src/pages/TestRunExecutionPage.tsx` (execute, defect,
+  evidence, add‑cases, reopen); list `TestExecutionPage.tsx`; API in `lib/api.ts`; types in
+  `lib/types.ts`.
 
 ## 8. Code style
 
-- Match surrounding code: Java formatted by **Spotless/google-java-format** (`mvn -Pformat`);
-  frontend by **Prettier** (no semicolons, single quotes, `arrowParens: avoid`, printWidth 100).
-- Reuse existing seams — **do not** add a second HTTP/JSON stack; extend `OpenAiClient`'s path.
-- Secrets: reuse the platform credential encryption; never log keys; GET never returns key values.
-- Frontend: keep the four-state pattern (loading/error/empty/data) and shared `ErrorMessage`/`EmptyState`.
-- New settings keys go through `SettingResolver` so the Org→Team→Project cascade is preserved.
+- **Java:** Java 21, Spring Boot 4; constructor injection; `ResponseStatusException` for 4xx with a
+  human‑readable reason; google‑java‑format (Spotless). Match the existing TCM service idioms
+  (JdbcTemplate/JPA as already used in the module). Never log or echo secrets/PATs.
+- **Frontend:** React + TS + Vite, TanStack Query for data, Tailwind; match existing page idioms
+  (loading/empty/error via `LoadingSpinner`/`ErrorMessage`, optimistic mutations, `postMsg`‑style
+  error surfacing). Prettier‑formatted. Files must pass `tsc -b` (strict).
+- **Identity:** any user attribution (`executed_by`, `uploaded_by`) follows the platform's existing
+  actor convention (e.g. `X-Actor`); reuse it, don't invent a new one.
 
 ## 9. Testing strategy
 
-- **Unit (platform-ai):** `LiteLlmClient.analyse()` happy path + error path (mock HTTP);
-  `AiClientRouter` selects litellm by default and honours the cascade; legacy provider values still route.
-- **Unit (platform-agent):** tier→model resolution reads the configured LiteLLM model ids; `NONE` unchanged.
-- **Contract:** `AiSettingsController` GET masks keys; PUT persists base-url/models/role maps; `/test` reports success/failure.
-- **Frontend:** type-check (`tsc -b`) + build; manual verify of settings round-trip and that each exported snippet parses as valid JSON for its tool.
-- **Regression:** existing failure-analysis flow still produces `AiAnalysisResponse`; Trivy HIGH/CRITICAL stays at 0 after any dep change.
-- Verify end-to-end against a real external LiteLLM endpoint before merge.
+- **Per task: TDD (RED→GREEN), one commit per task**, message prefixed with the task id and ending
+  with the required `Co-Authored-By` trailer.
+- **Backend unit tests** (Mockito/JUnit5/AssertJ) for: add‑cases idempotency + APPROVED‑only +
+  matrix expansion; reopen state transition; defect link validation (valid id stores id/URL, invalid
+  id → 400, never calls a write method); attachment metadata persistence; complete‑with‑pending
+  confirmation path.
+- **Schema:** validate the combined `V1` applies cleanly on an empty DB (the established check).
+- **Frontend:** `tsc -b` + `vite build` must pass; manual verification of the execute → link defect
+  → attach evidence → add case → complete → reopen flow.
+- **Full regression:** `mvn -pl platform-ingestion,platform-portal -am test` green before "done".
 
 ## 10. Boundaries
 
 **Always**
-- Keep LiteLLM as the single configured gateway in the UI; route all model calls through `AiClient`.
-- Preserve the Org→Team→Project settings cascade and encrypted-key handling.
-- Keep backward-compat reads for legacy `ai.provider`/keys; provide a migration default.
-- Run `mvn -Pformat` and `tsc -b`/`vite build` before declaring done.
+- Keep the ADO integration **read‑only**: validate/link work items via read APIs only.
+- Encrypt PATs at rest; resolve credentials via `CredentialResolver`; never log/return secrets.
+- Make mutations idempotent (mid‑run add creates no duplicate executions; re‑linking the same defect
+  is a no‑op).
+- Recompute run counters from executions after every change; keep `IN_PROGRESS` durable across
+  sessions.
+- Format (Spotless + Prettier) and pass tests before marking a task done.
 
 **Ask first**
-- Adding a LiteLLM **container** to docker-compose (currently out of scope — external only).
-- Removing the Anthropic Java SDK dependency entirely (kept for optional fallback).
-- Any change to the `AiClient` public contract or `AiAnalysisResponse` shape.
-- Schema changes beyond additive settings keys.
+- Any change that would make the platform **write** to Azure DevOps (creating/updating work items).
+- Adding virus/content scanning, or introducing a file‑type allowlist/blocklist (currently all
+  extensions are accepted).
+- Changing the run state machine beyond `IN_PROGRESS ↔ COMPLETED` (e.g. `ABANDONED` semantics).
+- Adding a new auth/identity mechanism for attribution.
 
 **Never**
-- Embed real API keys in exported snippets, logs, or GET responses.
-- Hardcode model names or base URLs in `platform-agent` (must come from settings).
-- Break the existing failure-analysis API or the nightly batch job behaviour.
-- Send platform data to any endpoint other than the configured LiteLLM gateway.
+- Call ADO write/PATCH/POST work‑item endpoints.
+- Hard‑delete shared content‑addressed blobs on attachment delete (remove the row only).
+- Store secrets or full PATs in `test_runs`/executions/attachments or logs.
+- Allow editing a `COMPLETED` run without an explicit reopen.
 
-## 11. Open items to confirm during implementation
-- Exact current config field names for OpenCode / Claude Code Router / VS Code chat (verify against their docs).
-- Whether the optional direct-Anthropic fallback should be per-project or global-only (proposed: global env flag).
-- Whether `/settings/ai` model list should be free-text or fetched live from `{baseUrl}/models`.
+### Evidence limits (confirmed)
+- Max **30 MB per file**. **No limit** on the number of files per execution. **All file
+  extensions accepted** (no type allowlist/blocklist).
