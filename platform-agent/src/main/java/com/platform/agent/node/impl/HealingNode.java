@@ -1,7 +1,5 @@
 package com.platform.agent.node.impl;
 
-import com.anthropic.core.JsonValue;
-import com.anthropic.models.messages.Tool;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.platform.agent.node.AgentNode;
@@ -9,10 +7,11 @@ import com.platform.agent.node.AgentOrchestrator;
 import com.platform.agent.node.tools.GitHubApiClient;
 import com.platform.common.agent.*;
 import com.platform.common.integration.IntegrationType;
+import dev.langchain4j.agent.tool.ToolSpecification;
+import dev.langchain4j.model.chat.request.json.JsonObjectSchema;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.List;
-import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -65,165 +64,61 @@ public class HealingNode implements AgentNode {
   }
 
   @Override
-  public List<Tool> tools() {
+  public List<ToolSpecification> toolSpecs() {
     return List.of(
-        Tool.builder()
+        ToolSpecification.builder()
             .name("github_read_file")
             .description(
-                "Read a file from a GitHub repository. Returns the decoded source code "
-                    + "prefixed with its blob SHA (needed if you later update the file).")
-            .inputSchema(
-                Tool.InputSchema.builder()
-                    .type(JsonValue.from("object"))
-                    .putAdditionalProperty(
-                        "properties",
-                        JsonValue.from(
-                            Map.of(
-                                "owner",
-                                    Map.of(
-                                        "type",
-                                        "string",
-                                        "description",
-                                        "Repository owner (org or user)"),
-                                "repo", Map.of("type", "string", "description", "Repository name"),
-                                "path",
-                                    Map.of(
-                                        "type",
-                                        "string",
-                                        "description",
-                                        "File path within the repo (e.g."
-                                            + " src/test/java/com/example/FooTest.java)"),
-                                "ref",
-                                    Map.of(
-                                        "type",
-                                        "string",
-                                        "description",
-                                        "Branch name or commit SHA; omit to use the default"
-                                            + " branch"))))
-                    .addRequired("owner")
-                    .addRequired("repo")
-                    .addRequired("path")
+                "Read a file from a GitHub repository; returns the decoded source prefixed with its"
+                    + " blob SHA.")
+            .parameters(
+                JsonObjectSchema.builder()
+                    .addStringProperty("owner", "Repository owner (org or user)")
+                    .addStringProperty("repo", "Repository name")
+                    .addStringProperty("path", "File path within the repo")
+                    .addStringProperty("ref", "Branch name or commit SHA; omit for default branch")
+                    .required("owner", "repo", "path")
                     .build())
             .build(),
-        Tool.builder()
+        ToolSpecification.builder()
             .name("github_commit_file")
             .description(
-                "Commit a file to a branch on GitHub. The content should be the complete fixed file"
-                    + " as plain text (not Base64). The sha must be the blob SHA returned by"
-                    + " github_read_file — omit for new files.")
-            .inputSchema(
-                Tool.InputSchema.builder()
-                    .type(JsonValue.from("object"))
-                    .putAdditionalProperty(
-                        "properties",
-                        JsonValue.from(
-                            Map.of(
-                                "owner",
-                                    Map.of("type", "string", "description", "Repository owner"),
-                                "repo", Map.of("type", "string", "description", "Repository name"),
-                                "path",
-                                    Map.of(
-                                        "type",
-                                        "string",
-                                        "description",
-                                        "File path within the repo"),
-                                "message",
-                                    Map.of("type", "string", "description", "Commit message"),
-                                "content",
-                                    Map.of(
-                                        "type",
-                                        "string",
-                                        "description",
-                                        "Complete new file content as plain text"),
-                                "sha",
-                                    Map.of(
-                                        "type",
-                                        "string",
-                                        "description",
-                                        "Blob SHA of the existing file (from github_read_file);"
-                                            + " omit when creating a new file"),
-                                "branch",
-                                    Map.of(
-                                        "type",
-                                        "string",
-                                        "description",
-                                        "Branch to commit to; must exist"))))
-                    .addRequired("owner")
-                    .addRequired("repo")
-                    .addRequired("path")
-                    .addRequired("message")
-                    .addRequired("content")
-                    .addRequired("branch")
+                "Commit a file to a branch. content is the complete file as plain text; sha is the"
+                    + " blob SHA from github_read_file (omit for new files).")
+            .parameters(
+                JsonObjectSchema.builder()
+                    .addStringProperty("owner", "Repository owner")
+                    .addStringProperty("repo", "Repository name")
+                    .addStringProperty("path", "File path within the repo")
+                    .addStringProperty("message", "Commit message")
+                    .addStringProperty("content", "Complete new file content as plain text")
+                    .addStringProperty("sha", "Blob SHA of the existing file; omit when creating")
+                    .addStringProperty("branch", "Branch to commit to; must exist")
+                    .required("owner", "repo", "path", "message", "content", "branch")
                     .build())
             .build(),
-        Tool.builder()
+        ToolSpecification.builder()
             .name("github_create_pr")
-            .description(
-                "Open a draft pull request on GitHub. Always creates as draft — "
-                    + "the PR is un-drafted only after human approval.")
-            .inputSchema(
-                Tool.InputSchema.builder()
-                    .type(JsonValue.from("object"))
-                    .putAdditionalProperty(
-                        "properties",
-                        JsonValue.from(
-                            Map.of(
-                                "owner",
-                                    Map.of("type", "string", "description", "Repository owner"),
-                                "repo", Map.of("type", "string", "description", "Repository name"),
-                                "title", Map.of("type", "string", "description", "PR title"),
-                                "head",
-                                    Map.of(
-                                        "type",
-                                        "string",
-                                        "description",
-                                        "Source branch containing the fix"),
-                                "base",
-                                    Map.of(
-                                        "type",
-                                        "string",
-                                        "description",
-                                        "Target branch (usually 'main' or 'master')"),
-                                "body",
-                                    Map.of(
-                                        "type",
-                                        "string",
-                                        "description",
-                                        "PR description explaining the fix and failure context"))))
-                    .addRequired("owner")
-                    .addRequired("repo")
-                    .addRequired("title")
-                    .addRequired("head")
-                    .addRequired("base")
-                    .addRequired("body")
+            .description("Open a draft pull request. Always creates as draft until human approval.")
+            .parameters(
+                JsonObjectSchema.builder()
+                    .addStringProperty("owner", "Repository owner")
+                    .addStringProperty("repo", "Repository name")
+                    .addStringProperty("title", "PR title")
+                    .addStringProperty("head", "Source branch containing the fix")
+                    .addStringProperty("base", "Target branch (usually 'main')")
+                    .addStringProperty("body", "PR description explaining the fix")
+                    .required("owner", "repo", "title", "head", "base", "body")
                     .build())
             .build(),
-        Tool.builder()
+        ToolSpecification.builder()
             .name("request_review")
-            .description(
-                "Pause execution and send the proposed fix to a human reviewer. "
-                    + "Call this after creating the draft PR, with a summary and the PR URL.")
-            .inputSchema(
-                Tool.InputSchema.builder()
-                    .type(JsonValue.from("object"))
-                    .putAdditionalProperty(
-                        "properties",
-                        JsonValue.from(
-                            Map.of(
-                                "summary",
-                                    Map.of(
-                                        "type",
-                                        "string",
-                                        "description",
-                                        "Brief description of the fix and confidence level"),
-                                "payload",
-                                    Map.of(
-                                        "type",
-                                        "string",
-                                        "description",
-                                        "PR URL and key details for the reviewer"))))
-                    .addRequired("summary")
-                    .addRequired("payload")
+            .description("Pause execution and request human review.")
+            .parameters(
+                JsonObjectSchema.builder()
+                    .addStringProperty("summary", "Brief description of what is being reviewed")
+                    .addStringProperty("payload", "Full details for the reviewer")
+                    .required("summary", "payload")
                     .build())
             .build());
   }

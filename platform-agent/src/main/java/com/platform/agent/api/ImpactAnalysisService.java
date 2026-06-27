@@ -1,8 +1,5 @@
 package com.platform.agent.api;
 
-import com.anthropic.client.AnthropicClient;
-import com.anthropic.client.okhttp.AnthropicOkHttpClient;
-import com.anthropic.models.messages.*;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -11,9 +8,15 @@ import com.platform.core.domain.ImpactAnalysis;
 import com.platform.core.domain.PlatformTestCase;
 import com.platform.core.domain.ProjectIntegrationConfig;
 import com.platform.core.repository.ImpactAnalysisRepository;
-import com.platform.core.repository.PlatformSettingRepository;
 import com.platform.core.repository.PlatformTestCaseRepository;
 import com.platform.core.repository.ProjectIntegrationConfigRepository;
+import com.platform.llm.LlmChatModelProvider;
+import com.platform.llm.LlmSettings;
+import dev.langchain4j.data.message.SystemMessage;
+import dev.langchain4j.data.message.UserMessage;
+import dev.langchain4j.model.chat.ChatModel;
+import dev.langchain4j.model.chat.request.ChatRequest;
+import dev.langchain4j.model.chat.response.ChatResponse;
 import java.util.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -33,8 +36,8 @@ public class ImpactAnalysisService {
 
   private static final Logger log = LoggerFactory.getLogger(ImpactAnalysisService.class);
 
-  private static final String DB_KEY_ANTHROPIC = "ai.anthropic.api-key";
-  private static final String DB_KEY_LEGACY = "ai.api-key";
+  private static final String KEY_MODEL = "ai.litellm.model.standard";
+  private static final String DEFAULT_MODEL = "claude-sonnet-4-6";
 
   private static final String SYSTEM_PROMPT =
       "You are an Impact Analysis AI. Given PR diffs, requirements, and existing test cases, you"
@@ -62,30 +65,26 @@ public class ImpactAnalysisService {
   private final ProjectIntegrationConfigRepository configRepo;
   private final PlatformTestCaseRepository testCaseRepo;
   private final GitHubApiClient gitHubApiClient;
-  private final PlatformSettingRepository settingRepo;
+  private final LlmChatModelProvider chatModelProvider;
+  private final LlmSettings llmSettings;
   private final ObjectMapper mapper;
   private final RestClient ingestionClient;
-
-  @Value("${anthropic.api-key:}")
-  private String envApiKey;
-
-  // Cached client — rebuilt only when the resolved key changes
-  private volatile String cachedKey = null;
-  private volatile AnthropicClient client;
 
   public ImpactAnalysisService(
       ImpactAnalysisRepository impactRepo,
       ProjectIntegrationConfigRepository configRepo,
       PlatformTestCaseRepository testCaseRepo,
       GitHubApiClient gitHubApiClient,
-      PlatformSettingRepository settingRepo,
+      LlmChatModelProvider chatModelProvider,
+      LlmSettings llmSettings,
       ObjectMapper mapper,
       @Value("${portal.services.ingestion:http://localhost:8083}") String ingestionUrl) {
     this.impactRepo = impactRepo;
     this.configRepo = configRepo;
     this.testCaseRepo = testCaseRepo;
     this.gitHubApiClient = gitHubApiClient;
-    this.settingRepo = settingRepo;
+    this.chatModelProvider = chatModelProvider;
+    this.llmSettings = llmSettings;
     this.mapper = mapper;
     this.ingestionClient = RestClient.builder().baseUrl(ingestionUrl).build();
   }
@@ -153,27 +152,18 @@ public class ImpactAnalysisService {
       // ── 4. Build Claude prompt ────────────────────────────────────────────
       String userMessage = buildUserMessage(prDiffs, requirements, existingTestCases);
 
-      // ── 4. Call Claude API ────────────────────────────────────────────────
-      AnthropicClient claude = getClient();
-      if (claude == null) {
-        throw new IllegalStateException("Anthropic API key not configured");
+      // ── 4. Call the LiteLLM gateway ───────────────────────────────────────
+      ChatModel model = chatModelProvider.chatModel(llmSettings.model(KEY_MODEL, DEFAULT_MODEL));
+      if (model == null) {
+        throw new IllegalStateException("LiteLLM is not configured");
       }
 
-      MessageCreateParams params =
-          MessageCreateParams.builder()
-              .model(Model.CLAUDE_SONNET_4_6)
-              .maxTokens(4096)
-              .system(SYSTEM_PROMPT)
-              .addUserMessage(userMessage)
-              .build();
-
-      Message response = claude.messages().create(params);
-      String text =
-          response.content().stream()
-              .filter(ContentBlock::isText)
-              .map(b -> b.asText().text())
-              .findFirst()
-              .orElse("");
+      ChatResponse response =
+          model.chat(
+              ChatRequest.builder()
+                  .messages(SystemMessage.from(SYSTEM_PROMPT), UserMessage.from(userMessage))
+                  .build());
+      String text = response.aiMessage() != null ? response.aiMessage().text() : "";
 
       // ── 5. Parse response ─────────────────────────────────────────────────
       String jsonText = extractJson(text);
@@ -375,40 +365,6 @@ public class ImpactAnalysisService {
       return text.substring(brace).trim();
     }
     return text.trim();
-  }
-
-  private String resolveApiKey() {
-    String dbKey =
-        settingRepo
-            .findById(DB_KEY_ANTHROPIC)
-            .map(s -> s.getValue())
-            .filter(v -> v != null && !v.isBlank())
-            .orElse(null);
-    if (dbKey != null) return dbKey;
-
-    String legacyKey =
-        settingRepo
-            .findById(DB_KEY_LEGACY)
-            .map(s -> s.getValue())
-            .filter(v -> v != null && !v.isBlank())
-            .orElse(null);
-    if (legacyKey != null) return legacyKey;
-
-    if (envApiKey != null && !envApiKey.isBlank()) return envApiKey;
-    return null;
-  }
-
-  private synchronized AnthropicClient getClient() {
-    String key = resolveApiKey();
-    if (key == null || key.isBlank()) {
-      return null;
-    }
-    if (!key.equals(cachedKey)) {
-      log.info("[ImpactAnalysis] Anthropic API key changed — rebuilding client");
-      cachedKey = key;
-      client = AnthropicOkHttpClient.builder().apiKey(key).build();
-    }
-    return client;
   }
 
   private static String asString(Object o) {

@@ -1,4 +1,4 @@
-package com.platform.agent.hub.polling;
+package com.platform.core.service.ado;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -173,7 +173,9 @@ public class AzureBoardsPollClient {
    * providerDisplayName} and {@code subjectDescriptor} of the PAT owner.
    */
   public JsonNode getAuthenticatedUser(Ado ado) {
-    return send("GET", "/_apis/connectionData", null, ado).path("authenticatedUser");
+    // connectionData is preview-only; "api-version=7.1" is rejected ("must supply -preview").
+    return send("GET", "/_apis/connectionData?api-version=7.1-preview", null, ado)
+        .path("authenticatedUser");
   }
 
   // ── http ─────────────────────────────────────────────────────────────────────

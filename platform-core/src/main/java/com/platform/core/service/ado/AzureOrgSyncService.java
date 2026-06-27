@@ -1,7 +1,6 @@
-package com.platform.agent.hub.sync;
+package com.platform.core.service.ado;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.platform.agent.hub.polling.AzureBoardsPollClient;
 import com.platform.common.integration.IntegrationType;
 import com.platform.core.domain.AdoArea;
 import com.platform.core.domain.AdoIteration;
@@ -153,10 +152,12 @@ public class AzureOrgSyncService {
           if (display == null) continue;
           mc++;
           String unique = blankToNull(id.path("uniqueName").asText(""));
-          String key = unique != null ? unique : display;
+          String email = normalizeEmail(unique);
+          // Identity key: email (canonical, unique) when available, else uniqueName, else display.
+          String key = email != null ? email : (unique != null ? unique : display);
           AdoUser u = memberUsers.computeIfAbsent(key, k -> new AdoUser(projectId, k, display));
           u.setDisplayName(display);
-          if (unique != null && unique.contains("@")) u.setEmail(unique);
+          if (email != null) u.setEmail(email);
           u.setDescriptor(blankToNull(id.path("descriptor").asText("")));
           u.setTeamMember(true);
         }
@@ -250,24 +251,37 @@ public class AzureOrgSyncService {
 
   private int syncUsers(
       UUID projectId, AzureBoardsPollClient.Ado ado, Map<String, AdoUser> memberUsers) {
-    // 0) Always include the PAT owner — may be an org/project admin not on any team
+    // 0) Always include the PAT owner — may be an org/project admin not on any team. connectionData
+    //    carries the owner's email (properties.Account), so key them by email like everyone else.
     try {
       JsonNode me = client.getAuthenticatedUser(ado);
       String display = me.path("providerDisplayName").asText(null);
+      String email =
+          normalizeEmail(me.path("properties").path("Account").path("$value").asText(null));
       if (display != null && !display.isBlank()) {
         String descriptor = blankToNull(me.path("subjectDescriptor").asText(""));
         boolean alreadyPresent =
             memberUsers.values().stream()
                 .anyMatch(
                     u ->
-                        display.equals(u.getDisplayName())
+                        (email != null && email.equalsIgnoreCase(u.getEmail()))
+                            || display.equals(u.getDisplayName())
                             || (descriptor != null && descriptor.equals(u.getDescriptor())));
         if (!alreadyPresent) {
-          AdoUser u = new AdoUser(projectId, display, display);
+          String key = email != null ? email : display;
+          AdoUser u = new AdoUser(projectId, key, display);
+          if (email != null) {
+            u.setEmail(email);
+            // Drop a stale name-only row for the same person (older syncs keyed by display name).
+            userRepo
+                .findByProjectIdAndUniqueName(projectId, display)
+                .filter(old -> old.getEmail() == null || old.getEmail().isBlank())
+                .ifPresent(userRepo::delete);
+          }
           u.setDescriptor(descriptor);
           u.setTeamMember(true);
-          memberUsers.put(display, u);
-          log.debug("Added PAT owner '{}' to user sync (not a member of any team)", display);
+          memberUsers.put(key, u);
+          log.debug("Added PAT owner '{}' <{}> to user sync", display, email);
         }
       }
     } catch (Exception e) {
@@ -286,21 +300,29 @@ public class AzureOrgSyncService {
       u.setSyncedAt(Instant.now());
       userRepo.save(u);
     }
-    // 2) derive people referenced on work items (display names only)
+    // 2) derive people referenced on work items — key by email (uniqueName) when available, so a
+    //    work-item assignee maps to the same identity as their membership/RBAC records. Names alone
+    //    collide ("Nguyen, Viet" vs "Viet Nguyen") and are never used to merge distinct people.
+    Set<String> memberEmails = new HashSet<>();
     Set<String> memberDisplayNames = new HashSet<>();
-    memberUsers
-        .values()
-        .forEach(
-            m -> {
-              if (m.getDisplayName() != null) memberDisplayNames.add(m.getDisplayName());
-            });
-    for (String person : requirementRepo.findDistinctPeople(projectId)) {
-      if (person == null || person.isBlank()) continue;
-      if (memberDisplayNames.contains(person)) continue; // already a member
+    for (AdoUser m : memberUsers.values()) {
+      if (m.getEmail() != null) memberEmails.add(m.getEmail());
+      if (m.getDisplayName() != null) memberDisplayNames.add(m.getDisplayName());
+    }
+    for (Object[] row : requirementRepo.findWorkItemPeople(projectId)) {
+      String display = (String) row[0];
+      String email = normalizeEmail((String) row[1]);
+      if (display == null || display.isBlank()) continue;
+      if (email != null && memberEmails.contains(email)) continue; // already a member (by email)
+      if (email == null && memberDisplayNames.contains(display)) continue; // member (name fallback)
+
+      String key = email != null ? email : display;
       AdoUser u =
           userRepo
-              .findByProjectIdAndUniqueName(projectId, person)
-              .orElseGet(() -> new AdoUser(projectId, person, person));
+              .findByProjectIdAndUniqueName(projectId, key)
+              .orElseGet(() -> new AdoUser(projectId, key, display));
+      u.setDisplayName(display);
+      if (email != null) u.setEmail(email);
       u.setSeenOnWorkItems(true);
       u.setSyncedAt(Instant.now());
       userRepo.save(u);
@@ -354,6 +376,16 @@ public class AzureOrgSyncService {
 
   private static String blankToNull(String s) {
     return (s == null || s.isBlank()) ? null : s;
+  }
+
+  /**
+   * Canonicalizes an email for use as a stable identity key: trimmed + lowercased, or {@code null}
+   * if blank or not an email (no {@code @}). Names collide; emails don't — so emails are the key.
+   */
+  private static String normalizeEmail(String s) {
+    if (s == null) return null;
+    String t = s.trim().toLowerCase();
+    return (t.isEmpty() || !t.contains("@")) ? null : t;
   }
 
   private static String firstNonBlank(String a, String b) {

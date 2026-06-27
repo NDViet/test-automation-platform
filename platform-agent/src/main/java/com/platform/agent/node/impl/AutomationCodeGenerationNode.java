@@ -1,7 +1,5 @@
 package com.platform.agent.node.impl;
 
-import com.anthropic.core.JsonValue;
-import com.anthropic.models.messages.Tool;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.platform.agent.node.AgentNode;
@@ -16,6 +14,8 @@ import com.platform.core.repository.PlatformRequirementRepository;
 import com.platform.core.repository.PlatformTestCaseRepository;
 import com.platform.core.repository.ProjectIntegrationConfigRepository;
 import com.platform.core.repository.TestCaseStepRepository;
+import dev.langchain4j.agent.tool.ToolSpecification;
+import dev.langchain4j.model.chat.request.json.JsonObjectSchema;
 import java.util.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -207,89 +207,36 @@ public class AutomationCodeGenerationNode implements AgentNode {
   // -------------------------------------------------------------------------
 
   @Override
-  public List<Tool> tools() {
+  public List<ToolSpecification> toolSpecs() {
     return List.of(
-        Tool.builder()
+        ToolSpecification.builder()
             .name("github_create_file")
             .description(
-                "Creates a new file in the GitHub repository on the specified branch. "
-                    + "Content must be Base64-encoded. Creates the branch if it does not exist.")
-            .inputSchema(
-                Tool.InputSchema.builder()
-                    .type(JsonValue.from("object"))
-                    .putAdditionalProperty(
-                        "properties",
-                        JsonValue.from(
-                            Map.of(
-                                "owner",
-                                    Map.of(
-                                        "type", "string", "description", "GitHub repository owner"),
-                                "repo",
-                                    Map.of(
-                                        "type", "string", "description", "GitHub repository name"),
-                                "path",
-                                    Map.of(
-                                        "type",
-                                        "string",
-                                        "description",
-                                        "File path within the repo"),
-                                "content",
-                                    Map.of(
-                                        "type",
-                                        "string",
-                                        "description",
-                                        "File content encoded as Base64"),
-                                "message",
-                                    Map.of("type", "string", "description", "Commit message"),
-                                "branch",
-                                    Map.of(
-                                        "type", "string", "description", "Branch to commit to"))))
-                    .addRequired("owner")
-                    .addRequired("repo")
-                    .addRequired("path")
-                    .addRequired("content")
-                    .addRequired("message")
-                    .addRequired("branch")
+                "Creates a new file in the GitHub repository on the specified branch. Content must"
+                    + " be Base64-encoded.")
+            .parameters(
+                JsonObjectSchema.builder()
+                    .addStringProperty("owner", "GitHub repository owner")
+                    .addStringProperty("repo", "GitHub repository name")
+                    .addStringProperty("path", "File path within the repo")
+                    .addStringProperty("content", "File content encoded as Base64")
+                    .addStringProperty("message", "Commit message")
+                    .addStringProperty("branch", "Branch to commit to")
+                    .required("owner", "repo", "path", "content", "message", "branch")
                     .build())
             .build(),
-        Tool.builder()
+        ToolSpecification.builder()
             .name("github_create_pr")
             .description("Creates a draft pull request in the GitHub repository.")
-            .inputSchema(
-                Tool.InputSchema.builder()
-                    .type(JsonValue.from("object"))
-                    .putAdditionalProperty(
-                        "properties",
-                        JsonValue.from(
-                            Map.of(
-                                "owner",
-                                    Map.of(
-                                        "type", "string", "description", "GitHub repository owner"),
-                                "repo",
-                                    Map.of(
-                                        "type", "string", "description", "GitHub repository name"),
-                                "title", Map.of("type", "string", "description", "PR title"),
-                                "head",
-                                    Map.of(
-                                        "type",
-                                        "string",
-                                        "description",
-                                        "Source branch (the branch with changes)"),
-                                "base",
-                                    Map.of(
-                                        "type",
-                                        "string",
-                                        "description",
-                                        "Target branch (e.g. 'main')"),
-                                "body",
-                                    Map.of(
-                                        "type", "string", "description", "PR body in markdown"))))
-                    .addRequired("owner")
-                    .addRequired("repo")
-                    .addRequired("title")
-                    .addRequired("head")
-                    .addRequired("base")
-                    .addRequired("body")
+            .parameters(
+                JsonObjectSchema.builder()
+                    .addStringProperty("owner", "GitHub repository owner")
+                    .addStringProperty("repo", "GitHub repository name")
+                    .addStringProperty("title", "PR title")
+                    .addStringProperty("head", "Source branch (the branch with changes)")
+                    .addStringProperty("base", "Target branch (e.g. 'main')")
+                    .addStringProperty("body", "PR body in markdown")
+                    .required("owner", "repo", "title", "head", "base", "body")
                     .build())
             .build());
   }
@@ -553,8 +500,8 @@ public class AutomationCodeGenerationNode implements AgentNode {
     }
 
     @Override
-    public List<Tool> tools() {
-      return parent.tools();
+    public List<ToolSpecification> toolSpecs() {
+      return parent.toolSpecs();
     }
 
     @Override

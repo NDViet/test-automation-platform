@@ -226,6 +226,31 @@ services:
         condition: service_healthy
     restart: "no"
 
+  # LiteLLM proxy — the single OpenAI-compatible gateway the platform talks to.
+  # Backed by the Anthropic (Claude) API here so you can test end-to-end with a real
+  # model; add more model_name routes (gpt-4o, gemini, …) in infrastructure/litellm/config.yaml.
+  # Requires ANTHROPIC_API_KEY in the environment (e.g. in .env).
+  litellm:
+    image: ghcr.io/berriai/litellm:main-stable
+    container_name: platform-litellm
+    command: ["--config", "/etc/litellm/config.yaml", "--port", "4000", "--num_workers", "1"]
+    ports:
+      - "4000:4000"   # OpenAI-compatible API — http://localhost:4000/v1
+    environment:
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:-sk-platform-local}
+    volumes:
+      - ./infrastructure/litellm/config.yaml:/etc/litellm/config.yaml:ro
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:4000/health/liveliness').status==200 else 1)\""
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    profiles:
+      - services
+
   # Platform services
   platform-analytics:
     image: ghcr.io/ndviet/platform-analytics:main
@@ -292,10 +317,11 @@ services:
       DATASOURCE_USERNAME: platform
       DATASOURCE_PASSWORD: platform
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
-      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o}
-      AI_PROVIDER: ${AI_PROVIDER:-claude}
+      # LiteLLM gateway — single OpenAI-compatible endpoint for every model.
+      # Defaults to the bundled litellm container; override to use an external LiteLLM.
+      # Also configurable per Org/Team/Project in the Portal (/settings/ai).
+      LITELLM_BASE_URL: ${LITELLM_BASE_URL:-http://litellm:4000/v1}
+      LITELLM_API_KEY: ${LITELLM_API_KEY:-${LITELLM_MASTER_KEY:-sk-platform-local}}
       PLATFORM_STORAGE_TYPE: minio
       PLATFORM_STORAGE_ENDPOINT: http://minio:9000
       PLATFORM_STORAGE_ACCESS_KEY: platform
@@ -308,6 +334,8 @@ services:
         condition: service_healthy
       minio-init:
         condition: service_completed_successfully
+      litellm:
+        condition: service_healthy
     profiles:
       - services
 
@@ -385,7 +413,10 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       REDIS_HOST: redis
       REDIS_PORT: "6379"
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      # LiteLLM gateway — agents route all tiers (standard/complex/summarizer) through this.
+      # Defaults to the bundled litellm container; override to use an external LiteLLM.
+      LITELLM_BASE_URL: ${LITELLM_BASE_URL:-http://litellm:4000/v1}
+      LITELLM_API_KEY: ${LITELLM_API_KEY:-${LITELLM_MASTER_KEY:-sk-platform-local}}
       PLATFORM_CRED_KEY: ${PLATFORM_CRED_KEY:-}
       PLATFORM_STORAGE_TYPE: minio
       PLATFORM_STORAGE_ENDPOINT: http://minio:9000
@@ -401,6 +432,8 @@ services:
         condition: service_healthy
       minio-init:
         condition: service_completed_successfully
+      litellm:
+        condition: service_healthy
     profiles:
       - services
 

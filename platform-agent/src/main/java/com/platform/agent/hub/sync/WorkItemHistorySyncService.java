@@ -1,7 +1,6 @@
 package com.platform.agent.hub.sync;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.platform.agent.hub.polling.AzureBoardsPollClient;
 import com.platform.common.integration.IntegrationType;
 import com.platform.core.domain.PlatformRequirement;
 import com.platform.core.domain.ProjectIntegrationConfig;
@@ -12,6 +11,7 @@ import com.platform.core.mapping.MappingRulesProvider;
 import com.platform.core.repository.PlatformRequirementRepository;
 import com.platform.core.repository.ProjectIntegrationConfigRepository;
 import com.platform.core.repository.WorkItemEventRepository;
+import com.platform.core.service.ado.AzureBoardsPollClient;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;

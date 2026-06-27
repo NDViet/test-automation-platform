@@ -19,9 +19,18 @@ import org.springframework.web.bind.annotation.*;
 @RequestMapping("/api/v1/ai/settings/scoped")
 public class ScopedAiSettingsController {
 
-  /** AI keys exposed for per-scope override. */
+  /**
+   * AI keys exposed for per-scope override. LiteLLM base URL + per-role model ids are overridable;
+   * the API key is deliberately excluded so it is never returned by the effective endpoint.
+   */
   private static final String[] AI_KEYS = {
-    "ai.enabled", "ai.realtime.enabled", "ai.provider", "ai.model"
+    "ai.enabled",
+    "ai.realtime.enabled",
+    "ai.litellm.base-url",
+    "ai.litellm.model.analysis",
+    "ai.litellm.model.standard",
+    "ai.litellm.model.complex",
+    "ai.litellm.model.summarizer"
   };
 
   private final SettingResolver settingResolver;

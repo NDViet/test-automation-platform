@@ -1,0 +1,44 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+         https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <parent>
+        <groupId>org.ndviet</groupId>
+        <artifactId>test-automation-platform</artifactId>
+        <version>1.0.0-SNAPSHOT</version>
+    </parent>
+
+    <artifactId>platform-llm</artifactId>
+    <name>Platform LLM</name>
+    <description>Shared LLM gateway: LangChain4j ChatModel routed through LiteLLM (OpenAI-compatible)</description>
+
+    <dependencies>
+        <!-- Settings cascade (PlatformSettingRepository) + transitive Spring context -->
+        <dependency>
+            <groupId>org.ndviet</groupId>
+            <artifactId>platform-core</artifactId>
+        </dependency>
+
+        <!-- LangChain4j OpenAI-compatible client (pointed at the LiteLLM base URL).
+             Used as a plain library (no spring-boot-starter) to stay Spring Boot-version agnostic. -->
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j-open-ai</artifactId>
+        </dependency>
+
+        <!-- Test -->
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-test</artifactId>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-core</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+</project>

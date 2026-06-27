@@ -3,6 +3,7 @@ package com.platform.core.service;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.util.Base64;
+import java.util.concurrent.atomic.AtomicReference;
 import javax.crypto.Cipher;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
@@ -31,44 +32,71 @@ public class CredentialCipher {
   private static final int TAG_LENGTH = 128; // bits
   private static final int KEY_BYTES = 32; // AES-256
 
-  private final SecretKeySpec key;
+  /**
+   * The active key. May be set at startup from the env var, or applied at runtime by {@link
+   * #applyKey(byte[])} after a passphrase-based unlock. Volatile via {@link AtomicReference} since
+   * unlock can happen on a request thread while others read it.
+   */
+  private final AtomicReference<SecretKeySpec> activeKey = new AtomicReference<>();
+
+  /**
+   * True when the key came from the environment (env always wins; passphrase unlock is disabled).
+   */
+  private final boolean envProvided;
+
   private final SecureRandom random = new SecureRandom();
 
   public CredentialCipher(@Value("${platform.cred.key:}") String base64Key) {
     if (base64Key == null || base64Key.isBlank()) {
-      this.key = null;
+      this.envProvided = false;
       log.warn(
-          "[CredentialCipher] platform.cred.key (PLATFORM_CRED_KEY) is not set. Encrypting or"
-              + " decrypting integration credentials will fail until it is configured.");
+          "[CredentialCipher] platform.cred.key (PLATFORM_CRED_KEY) is not set. Credentials are"
+              + " locked until a passphrase is supplied (POST /api/v1/security/cred-key/init or"
+              + " /unlock) or the env var is configured.");
     } else {
-      byte[] raw;
-      try {
-        raw = Base64.getDecoder().decode(base64Key.trim());
-      } catch (IllegalArgumentException e) {
-        throw new IllegalStateException(
-            "platform.cred.key must be base64-encoded; failed to decode it", e);
-      }
-      if (raw.length != KEY_BYTES) {
-        throw new IllegalStateException(
-            "platform.cred.key must decode to exactly "
-                + KEY_BYTES
-                + " bytes (AES-256); got "
-                + raw.length
-                + " bytes");
-      }
-      this.key = new SecretKeySpec(raw, "AES");
+      this.activeKey.set(new SecretKeySpec(parseBase64Key(base64Key), "AES"));
+      this.envProvided = true;
     }
   }
 
-  /** True when a usable key is configured. */
+  /** True when a usable key is currently loaded (from env or a passphrase unlock). */
   public boolean isConfigured() {
-    return key != null;
+    return activeKey.get() != null;
   }
 
-  /** Encrypts UTF-8 plaintext, returning a {@code v1:}-prefixed token. */
+  /** True when the key was provided via the environment, so passphrase init/unlock is disabled. */
+  public boolean isEnvProvided() {
+    return envProvided;
+  }
+
+  /**
+   * Loads a runtime key (AES-256, 32 raw bytes) derived from a passphrase. Ignored when the env key
+   * is set — the environment always wins.
+   */
+  public void applyKey(byte[] raw) {
+    if (envProvided) return;
+    if (raw == null || raw.length != KEY_BYTES) {
+      throw new IllegalArgumentException("credential key must be exactly " + KEY_BYTES + " bytes");
+    }
+    activeKey.set(new SecretKeySpec(raw, "AES"));
+  }
+
+  /** Encrypts UTF-8 plaintext with the active key, returning a {@code v1:}-prefixed token. */
   public String encrypt(String plaintext) {
+    return encryptWithKey(requireKey(), plaintext);
+  }
+
+  /** Decrypts a token produced by {@link #encrypt(String)} with the active key. */
+  public String decrypt(String token) {
+    return decryptWithKey(requireKey(), token);
+  }
+
+  /**
+   * Encrypts with a caller-supplied key (used to build a passphrase verifier before the key is made
+   * active). GCM authentication means decryption with the wrong key fails — that is the verifier.
+   */
+  public String encryptWithKey(SecretKeySpec key, String plaintext) {
     if (plaintext == null) return null;
-    requireKey();
     try {
       byte[] iv = new byte[IV_LENGTH];
       random.nextBytes(iv);
@@ -86,10 +114,9 @@ public class CredentialCipher {
     }
   }
 
-  /** Decrypts a token produced by {@link #encrypt(String)}. */
-  public String decrypt(String token) {
+  /** Decrypts a {@code v1:} token with a caller-supplied key. */
+  public String decryptWithKey(SecretKeySpec key, String token) {
     if (token == null) return null;
-    requireKey();
     if (!token.startsWith(VERSION_PREFIX)) {
       throw new IllegalStateException(
           "Unrecognized credential ciphertext format (missing version prefix)");
@@ -113,11 +140,33 @@ public class CredentialCipher {
     return value != null && value.startsWith(VERSION_PREFIX);
   }
 
-  private void requireKey() {
-    if (key == null) {
+  private static byte[] parseBase64Key(String base64Key) {
+    byte[] raw;
+    try {
+      raw = Base64.getDecoder().decode(base64Key.trim());
+    } catch (IllegalArgumentException e) {
+      throw new IllegalStateException(
+          "platform.cred.key must be base64-encoded; failed to decode it", e);
+    }
+    if (raw.length != KEY_BYTES) {
+      throw new IllegalStateException(
+          "platform.cred.key must decode to exactly "
+              + KEY_BYTES
+              + " bytes (AES-256); got "
+              + raw.length
+              + " bytes");
+    }
+    return raw;
+  }
+
+  private SecretKeySpec requireKey() {
+    SecretKeySpec k = activeKey.get();
+    if (k == null) {
       throw new IllegalStateException(
           "No credential encryption key configured. Set PLATFORM_CRED_KEY "
-              + "(base64 of 32 random bytes) before using integration credentials.");
+              + "(base64 of 32 random bytes), or unlock with a passphrase, before using "
+              + "integration credentials.");
     }
+    return k;
   }
 }

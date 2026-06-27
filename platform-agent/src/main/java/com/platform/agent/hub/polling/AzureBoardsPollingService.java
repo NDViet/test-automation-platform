@@ -11,6 +11,7 @@ import com.platform.core.domain.ProjectIntegrationConfig;
 import com.platform.core.repository.PlatformRequirementRepository;
 import com.platform.core.repository.PlatformTraceabilityEdgeRepository;
 import com.platform.core.repository.ProjectIntegrationConfigRepository;
+import com.platform.core.service.ado.AzureBoardsPollClient;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
@@ -305,6 +306,14 @@ public class AzureBoardsPollingService {
             fn -> {
               String v = text(fields, fn, null);
               if (v != null) out.put(fn, v);
+              // Identity fields (AssignedTo/CreatedBy/ChangedBy/...) collapse to displayName above,
+              // but names collide — preserve the email (uniqueName) under a companion key so the
+              // user directory can key people by their unique email, not their ambiguous name.
+              JsonNode n = fields.path(fn);
+              if (n.isObject() && n.hasNonNull("uniqueName")) {
+                String email = n.path("uniqueName").asText("");
+                if (email.contains("@")) out.put(fn + ".uniqueName", email.toLowerCase());
+              }
             });
     return out;
   }

@@ -1,0 +1,30 @@
+# LiteLLM proxy config — local test gateway backed by the Anthropic (Claude) API.
+#
+# The platform sends model ids from /settings/ai (defaults: claude-sonnet-4-6 [analysis/standard],
+# claude-opus-4-6 [complex], claude-haiku-4-5 [summarizer]). Each model_name below must match an id
+# the platform requests; map it to a real provider model. Add gpt-4o / gemini / etc. with their own
+# api_key entries to route those through the same gateway.
+model_list:
+  - model_name: claude-sonnet-4-6
+    litellm_params:
+      model: anthropic/claude-sonnet-4-6
+      api_key: os.environ/ANTHROPIC_API_KEY
+
+  # The platform's COMPLEX tier defaults to "claude-opus-4-6"; map it to a current Opus model.
+  - model_name: claude-opus-4-6
+    litellm_params:
+      model: anthropic/claude-opus-4-8
+      api_key: os.environ/ANTHROPIC_API_KEY
+
+  - model_name: claude-haiku-4-5
+    litellm_params:
+      model: anthropic/claude-haiku-4-5
+      api_key: os.environ/ANTHROPIC_API_KEY
+
+general_settings:
+  # Clients (platform-ai / platform-agent) authenticate with this key as LITELLM_API_KEY.
+  master_key: os.environ/LITELLM_MASTER_KEY
+
+litellm_settings:
+  # Silently drop OpenAI-only params that a given provider doesn't support.
+  drop_params: true

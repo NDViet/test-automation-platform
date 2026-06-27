@@ -9,7 +9,8 @@ import org.springframework.kafka.annotation.EnableKafka;
 import org.springframework.scheduling.annotation.EnableAsync;
 import org.springframework.scheduling.annotation.EnableScheduling;
 
-@SpringBootApplication(scanBasePackages = {"com.platform.agent", "com.platform.storage"})
+@SpringBootApplication(
+    scanBasePackages = {"com.platform.agent", "com.platform.storage", "com.platform.llm"})
 @EntityScan(basePackages = "com.platform.core.domain")
 @Import(CoreConfiguration.class)
 @EnableKafka

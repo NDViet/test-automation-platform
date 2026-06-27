@@ -67,7 +67,7 @@ Commit `b4640398780f0f339bb3a9bf5e83b271ab4e1b01` initializes the v2.0 platform 
 | `platform-analytics` | 8082 | Flakiness, trends, quality gates, release reports, Test Impact Analysis, alerting, log search |
 | `platform-integration` | 8083 | Jira ticket lifecycle for repeated failures and flaky tests |
 | `platform-integration-config` | - | Project-scoped integration adapter registry and adapter contracts |
-| `platform-ai` | 8084 | Failure classification, batch analysis, Claude/OpenAI provider routing, AI settings |
+| `platform-ai` | 8084 | Failure classification, batch analysis, AI settings (all models via the LiteLLM gateway) |
 | `platform-portal` | 8085 | Spring Boot BFF plus embedded React SPA |
 | `platform-agent` | 8086 | Agent Hub, node registry, workflows, webhooks, review gateway, impact/test-generation/healing flows |
 | `platform-testkit` | - | Rich Java instrumentation for JUnit 5, TestNG, Cucumber, Playwright-assisted tests |
@@ -120,11 +120,19 @@ docker compose --profile services down -v
 Create a `.env` file in the project root when you need non-default settings. Docker Compose reads it automatically.
 
 ```bash
-# AI providers
+# LiteLLM gateway — single OpenAI-compatible endpoint for all models
+# (Claude/GPT/Gemini/etc. are routed by model id inside LiteLLM).
+#
+# Easiest path: the bundled `litellm` container proxies to the Claude API — just
+# provide your Anthropic key (and optionally a proxy key). platform-ai/agent then
+# default to LITELLM_BASE_URL=http://litellm:4000/v1 with this master key.
 ANTHROPIC_API_KEY=sk-ant-...
-AI_PROVIDER=claude
-OPENAI_API_KEY=sk-...
-OPENAI_MODEL=gpt-4o
+LITELLM_MASTER_KEY=sk-platform-local
+#
+# Or point at an external LiteLLM instead (overrides the bundled container):
+# LITELLM_BASE_URL=https://your-litellm/v1
+# LITELLM_API_KEY=sk-...
+# Models are also configurable per Org/Team/Project in the Portal at /settings/ai.
 
 # Ingestion auth, disabled by default for local development
 API_KEY_AUTH_ENABLED=false
@@ -377,7 +385,7 @@ The React portal is served by `platform-portal` and backed by `/api/portal/**`.
 | `/runs/:runId` | Ingested run detail |
 | `/alerts` | Alert history |
 | `/settings/api-keys` | Ingestion API key management |
-| `/settings/ai` | Claude/OpenAI settings and connectivity test |
+| `/settings/ai` | LiteLLM gateway settings (base URL, key, models), test, and tool-config export |
 
 ## Observability
 

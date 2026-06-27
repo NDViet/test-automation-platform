@@ -80,6 +80,28 @@ public class QualityDashboardService {
       List<LabelValue> byArea,
       List<IterationStat> byIteration) {}
 
+  // ── Identity keying ──────────────────────────────────────────────────────────
+  // A person is matched by email (unique) AND display name, because names collide and ADO stores
+  // them in different formats ("Viet Nguyen" for membership/connectionData vs "Nguyen, Viet" on
+  // work items). Each predicate binds two params in order: (email, name). The email is matched
+  // against the stable column (event actor_unique / the *.uniqueName companion captured at
+  // ingestion); the name keeps legacy rows working until a re-poll backfills the email. Pass an
+  // empty string for a missing email so it simply matches nothing.
+  private static String em(String email) {
+    return email == null ? "" : email.trim().toLowerCase();
+  }
+
+  /** Matches a work_item_events row to this person (bind: email, name). */
+  private static final String EVENT_ACTOR_PRED = "(actor_unique = ? OR actor_name = ?)";
+
+  /** Matches a platform_requirements row's creator (bind: email, name). */
+  private static final String CREATED_BY_PRED =
+      "(raw_upstream->>'System.CreatedBy.uniqueName' = ? OR raw_upstream->>'System.CreatedBy' = ?)";
+
+  /** Matches a platform_requirements row's current assignee (bind: email, name). */
+  private static final String ASSIGNED_PRED =
+      "(raw_upstream->>'System.AssignedTo.uniqueName' = ? OR assigned_to = ?)";
+
   public Overview overview(UUID projectId) {
     long total = countDefects(projectId, null);
     long open = countDefects(projectId, OPEN_PRED);
@@ -185,20 +207,20 @@ public class QualityDashboardService {
   }
 
   /** Recent change events made by a QE (state transitions / assignments) — activity timeline. */
-  public List<ActivityEvent> activity(UUID projectId, String person, int limit) {
+  public List<ActivityEvent> activity(UUID projectId, String person, String email, int limit) {
     int safe = Math.min(Math.max(limit, 1), 200);
     String base = adoWorkItemBase(projectId);
     return jdbc.query(
-        """
-        SELECT e.external_id, e.event_type, e.from_value, e.to_value, e.to_category,
-               CASE WHEN e.revised_at > now() THEN NULL ELSE e.revised_at END AS revised_at,
-               r.title, r.issue_type
-        FROM work_item_events e
-        LEFT JOIN platform_requirements r
-               ON r.project_id = e.project_id AND r.external_id = e.external_id
-        WHERE e.project_id = ? AND e.actor_name = ?
-        ORDER BY (CASE WHEN e.revised_at > now() THEN NULL ELSE e.revised_at END) DESC NULLS LAST
-        """
+        "SELECT e.external_id, e.event_type, e.from_value, e.to_value, e.to_category,"
+            + " CASE WHEN e.revised_at > now() THEN NULL ELSE e.revised_at END AS revised_at,"
+            + " r.title, r.issue_type"
+            + " FROM work_item_events e"
+            + " LEFT JOIN platform_requirements r"
+            + "   ON r.project_id = e.project_id AND r.external_id = e.external_id"
+            + " WHERE e.project_id = ? AND "
+            + EVENT_ACTOR_PRED
+            + " ORDER BY (CASE WHEN e.revised_at > now() THEN NULL ELSE e.revised_at END) DESC"
+            + " NULLS LAST"
             + " LIMIT "
             + safe,
         (rs, i) ->
@@ -215,6 +237,7 @@ public class QualityDashboardService {
                     : rs.getTimestamp("revised_at").toInstant().toString(),
                 sourceUrl(base, rs.getString("external_id"))),
         projectId,
+        em(email),
         person);
   }
 
@@ -222,16 +245,21 @@ public class QualityDashboardService {
    * Distinct work items behind a history involvement metric: kind = resolved | participated |
    * reopened.
    */
-  public List<WorkItemRef> involvementItems(UUID projectId, String person, String kind) {
+  public List<WorkItemRef> involvementItems(
+      UUID projectId, String person, String email, String kind) {
     String pred;
     switch (kind == null ? "" : kind.toLowerCase()) {
       case "resolved" ->
-          pred = "event_type = 'STATE_CHANGE' AND to_category = 'DONE' AND actor_name = ?";
+          pred = "event_type = 'STATE_CHANGE' AND to_category = 'DONE' AND " + EVENT_ACTOR_PRED;
       case "reopened" ->
           pred =
               "event_type = 'STATE_CHANGE' AND from_category = 'DONE' "
-                  + "AND to_category IS NOT NULL AND to_category <> 'DONE' AND actor_name = ?";
-      default -> pred = "(actor_name = ? OR (event_type = 'ASSIGNMENT' AND to_value = ?))";
+                  + "AND to_category IS NOT NULL AND to_category <> 'DONE' AND "
+                  + EVENT_ACTOR_PRED;
+      // "participated": any event by the person; ASSIGNMENT to_value is a display name (name
+      // match).
+      default ->
+          pred = "(" + EVENT_ACTOR_PRED + " OR (event_type = 'ASSIGNMENT' AND to_value = ?))";
     }
     boolean participated = !"resolved".equalsIgnoreCase(kind) && !"reopened".equalsIgnoreCase(kind);
     String sql =
@@ -244,7 +272,9 @@ public class QualityDashboardService {
             + " ORDER BY r.external_id";
     String base = adoWorkItemBase(projectId);
     Object[] args =
-        participated ? new Object[] {projectId, person, person} : new Object[] {projectId, person};
+        participated
+            ? new Object[] {projectId, em(email), person, person}
+            : new Object[] {projectId, em(email), person};
     return jdbc.query(
         sql,
         (rs, i) -> {
@@ -274,48 +304,61 @@ public class QualityDashboardService {
     List<EngineerStat> out = new java.util.ArrayList<>();
     for (var qe : qes) {
       String name = (String) qe.get("display_name");
+      String email = em((String) qe.get("email")); // "" when absent → matches nothing
       // Defects the QE authored (created), regardless of who it's assigned to now.
-      long created =
-          count(projectId, "issue_type = 'DEFECT' AND raw_upstream->>'System.CreatedBy' = ?", name);
+      long created = count(projectId, "issue_type = 'DEFECT' AND " + CREATED_BY_PRED, email, name);
       // Status split of those created defects (e.g. Done = fixed, Open = still pending).
       List<LabelValue> createdByStatus =
           jdbc.query(
               "SELECT status AS label, count(*) AS value FROM platform_requirements "
-                  + "WHERE project_id = ? AND issue_type = 'DEFECT' "
-                  + "AND raw_upstream->>'System.CreatedBy' = ? GROUP BY status ORDER BY value DESC",
+                  + "WHERE project_id = ? AND issue_type = 'DEFECT' AND "
+                  + CREATED_BY_PRED
+                  + " GROUP BY status ORDER BY value DESC",
               (rs, i) -> new LabelValue(rs.getString("label"), rs.getLong("value")),
               projectId,
+              email,
               name);
       // Defects done with the QE as the last/current assignee.
-      long resolved = countAssigned(projectId, name, "issue_type = 'DEFECT' AND status = 'DONE'");
-      long openDef = countAssigned(projectId, name, "issue_type = 'DEFECT' AND " + OPEN_PRED);
-      long other = countAssigned(projectId, name, "issue_type <> 'DEFECT'");
+      long resolved =
+          countAssigned(projectId, "issue_type = 'DEFECT' AND status = 'DONE'", email, name);
+      long openDef =
+          countAssigned(projectId, "issue_type = 'DEFECT' AND " + OPEN_PRED, email, name);
+      long other = countAssigned(projectId, "issue_type <> 'DEFECT'", email, name);
       // Status breakdown of their non-defect work.
       List<LabelValue> otherByStatus =
           jdbc.query(
               "SELECT status AS label, count(*) AS value FROM platform_requirements "
-                  + "WHERE project_id = ? AND assigned_to = ? AND issue_type <> 'DEFECT' "
+                  + "WHERE project_id = ? AND "
+                  + ASSIGNED_PRED
+                  + " AND issue_type <> 'DEFECT' "
                   + "GROUP BY status ORDER BY value DESC",
               (rs, i) -> new LabelValue(rs.getString("label"), rs.getLong("value")),
               projectId,
+              email,
               name);
       // History-derived involvement (0 until work-item history is synced).
       long resolvedActual =
           orZero(
               jdbc.queryForObject(
                   "SELECT count(DISTINCT external_id) FROM work_item_events WHERE project_id = ?"
-                      + " AND event_type = 'STATE_CHANGE' AND to_category = 'DONE' AND actor_name ="
-                      + " ?",
+                      + " AND event_type = 'STATE_CHANGE' AND to_category = 'DONE' AND "
+                      + EVENT_ACTOR_PRED,
                   Long.class,
                   projectId,
+                  email,
                   name));
+      // "participated": any event by the person; ASSIGNMENT to_value is a display name (name
+      // match).
       long participated =
           orZero(
               jdbc.queryForObject(
                   "SELECT count(DISTINCT external_id) FROM work_item_events WHERE project_id = ?"
-                      + " AND (actor_name = ? OR (event_type = 'ASSIGNMENT' AND to_value = ?))",
+                      + " AND ("
+                      + EVENT_ACTOR_PRED
+                      + " OR (event_type = 'ASSIGNMENT' AND to_value = ?))",
                   Long.class,
                   projectId,
+                  email,
                   name,
                   name));
       long reopened =
@@ -323,9 +366,11 @@ public class QualityDashboardService {
               jdbc.queryForObject(
                   "SELECT count(DISTINCT external_id) FROM work_item_events WHERE project_id = ?"
                       + " AND event_type = 'STATE_CHANGE' AND from_category = 'DONE' AND"
-                      + " to_category IS NOT NULL AND to_category <> 'DONE' AND actor_name = ?",
+                      + " to_category IS NOT NULL AND to_category <> 'DONE' AND "
+                      + EVENT_ACTOR_PRED,
                   Long.class,
                   projectId,
+                  email,
                   name));
 
       out.add(
@@ -351,23 +396,27 @@ public class QualityDashboardService {
     return out;
   }
 
-  private long count(UUID projectId, String pred, Object param) {
+  /** {@code pred} embeds {@link #CREATED_BY_PRED} (binds email, name). */
+  private long count(UUID projectId, String pred, String email, String name) {
     return orZero(
         jdbc.queryForObject(
             "SELECT count(*) FROM platform_requirements WHERE project_id = ? AND " + pred,
             Long.class,
             projectId,
-            param));
+            email,
+            name));
   }
 
-  private long countAssigned(UUID projectId, String name, String pred) {
+  private long countAssigned(UUID projectId, String pred, String email, String name) {
     return orZero(
         jdbc.queryForObject(
-            "SELECT count(*) FROM platform_requirements WHERE project_id = ? AND assigned_to = ?"
+            "SELECT count(*) FROM platform_requirements WHERE project_id = ? AND "
+                + ASSIGNED_PRED
                 + " AND "
                 + pred,
             Long.class,
             projectId,
+            email,
             name));
   }
 
@@ -381,7 +430,7 @@ public class QualityDashboardService {
    *     else any status
    */
   public List<WorkItemRef> workItems(
-      UUID projectId, String person, String attribution, String type, String status) {
+      UUID projectId, String person, String email, String attribution, String type, String status) {
     StringBuilder sql =
         new StringBuilder(
             "SELECT id, external_id, title, issue_type, status, priority, area_path, iteration_path"
@@ -389,11 +438,8 @@ public class QualityDashboardService {
     List<Object> args = new java.util.ArrayList<>();
     args.add(projectId);
 
-    if ("creator".equalsIgnoreCase(attribution)) {
-      sql.append("raw_upstream->>'System.CreatedBy' = ?");
-    } else {
-      sql.append("assigned_to = ?");
-    }
+    sql.append("creator".equalsIgnoreCase(attribution) ? CREATED_BY_PRED : ASSIGNED_PRED);
+    args.add(em(email));
     args.add(person);
 
     if ("defect".equalsIgnoreCase(type)) sql.append(" AND issue_type = 'DEFECT'");

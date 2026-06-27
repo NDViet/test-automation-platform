@@ -1,14 +1,15 @@
 package com.platform.agent.node.impl;
 
-import com.anthropic.core.JsonValue;
-import com.anthropic.models.messages.Tool;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.platform.agent.node.AgentNode;
 import com.platform.agent.node.AgentOrchestrator;
 import com.platform.common.agent.*;
+import dev.langchain4j.agent.tool.ToolSpecification;
+import dev.langchain4j.model.chat.request.json.JsonArraySchema;
+import dev.langchain4j.model.chat.request.json.JsonEnumSchema;
+import dev.langchain4j.model.chat.request.json.JsonObjectSchema;
 import java.util.List;
-import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -47,69 +48,42 @@ public class ExtractAcceptanceCriteriaNode implements AgentNode {
   }
 
   @Override
-  public List<Tool> tools() {
+  public List<ToolSpecification> toolSpecs() {
     return List.of(
-        Tool.builder()
+        ToolSpecification.builder()
             .name("store_acceptance_criteria")
             .description(
-                "Store the extracted acceptance criteria for the requirement. "
-                    + "Call this once you have identified all ACs from the description.")
-            .inputSchema(
-                Tool.InputSchema.builder()
-                    .type(JsonValue.from("object"))
-                    .putAdditionalProperty(
-                        "properties",
-                        JsonValue.from(
-                            Map.of(
-                                "criteria",
-                                Map.of(
-                                    "type", "array",
-                                    "description", "List of acceptance criteria as Given/When/Then",
-                                    "items",
-                                        Map.of(
-                                            "type",
-                                            "object",
-                                            "properties",
-                                            Map.of(
-                                                "id", Map.of("type", "string"),
-                                                "given", Map.of("type", "string"),
-                                                "when", Map.of("type", "string"),
-                                                "then", Map.of("type", "string"),
-                                                "priority",
-                                                    Map.of(
-                                                        "type",
-                                                        "string",
-                                                        "enum",
-                                                        List.of("MUST", "SHOULD", "COULD"))))))))
-                    .addRequired("criteria")
+                "Store the extracted acceptance criteria for the requirement, as Given/When/Then.")
+            .parameters(
+                JsonObjectSchema.builder()
+                    .addProperty(
+                        "criteria",
+                        JsonArraySchema.builder()
+                            .description("List of acceptance criteria as Given/When/Then")
+                            .items(
+                                JsonObjectSchema.builder()
+                                    .addStringProperty("id")
+                                    .addStringProperty("given")
+                                    .addStringProperty("when")
+                                    .addStringProperty("then")
+                                    .addProperty(
+                                        "priority",
+                                        JsonEnumSchema.builder()
+                                            .enumValues("MUST", "SHOULD", "COULD")
+                                            .build())
+                                    .build())
+                            .build())
+                    .required("criteria")
                     .build())
             .build(),
-        Tool.builder()
+        ToolSpecification.builder()
             .name("request_review")
-            .description(
-                "Pause execution and send the AC draft to a human reviewer "
-                    + "when you need QA engineer validation before proceeding.")
-            .inputSchema(
-                Tool.InputSchema.builder()
-                    .type(JsonValue.from("object"))
-                    .putAdditionalProperty(
-                        "properties",
-                        JsonValue.from(
-                            Map.of(
-                                "summary",
-                                    Map.of(
-                                        "type",
-                                        "string",
-                                        "description",
-                                        "Brief description of what is being reviewed"),
-                                "payload",
-                                    Map.of(
-                                        "type",
-                                        "string",
-                                        "description",
-                                        "The full draft content for review"))))
-                    .addRequired("summary")
-                    .addRequired("payload")
+            .description("Pause execution and request human review.")
+            .parameters(
+                JsonObjectSchema.builder()
+                    .addStringProperty("summary", "Brief description of what is being reviewed")
+                    .addStringProperty("payload", "Full details for the reviewer")
+                    .required("summary", "payload")
                     .build())
             .build());
   }

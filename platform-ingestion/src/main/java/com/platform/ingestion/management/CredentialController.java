@@ -21,10 +21,15 @@ public class CredentialController {
 
   private final CredentialService service;
   private final GitHubRepoService gitHubRepoService;
+  private final AzureOrgService azureOrgService;
 
-  public CredentialController(CredentialService service, GitHubRepoService gitHubRepoService) {
+  public CredentialController(
+      CredentialService service,
+      GitHubRepoService gitHubRepoService,
+      AzureOrgService azureOrgService) {
     this.service = service;
     this.gitHubRepoService = gitHubRepoService;
+    this.azureOrgService = azureOrgService;
   }
 
   /** List credentials at a scope. ORG: no scopeId; TEAM/PROJECT: scopeId required. */
@@ -80,6 +85,23 @@ public class CredentialController {
   @GetMapping("/{id}/github/repos/cached")
   public GitHubRepoService.CachedResult cachedGithubRepos(@PathVariable UUID id) {
     return gitHubRepoService.listCached(id);
+  }
+
+  // ── Azure DevOps Boards: discover accessible orgs + select which to manage ────
+
+  /** All Azure orgs the credential's PAT can access, each flagged if already managed. */
+  @GetMapping("/{id}/azure/orgs")
+  public List<AzureOrgService.OrgDto> azureOrgs(@PathVariable UUID id) {
+    return azureOrgService.listAccessible(id);
+  }
+
+  public record SetOrgsRequest(List<AzureOrgService.OrgDto> orgs) {}
+
+  /** Replace the set of Azure orgs managed under this credential. */
+  @PutMapping("/{id}/azure/orgs")
+  public List<AzureOrgService.OrgDto> setAzureOrgs(
+      @PathVariable UUID id, @RequestBody SetOrgsRequest req) {
+    return azureOrgService.setManaged(id, req.orgs());
   }
 
   /** Update the auto-sync interval (minutes; 0 = manual only). */

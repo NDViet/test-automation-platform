@@ -23,6 +23,7 @@
         <module>platform-common</module>
         <module>platform-storage</module>
         <module>platform-core</module>
+        <module>platform-llm</module>
         <module>platform-ingestion</module>
         <module>platform-adapters</module>
         <module>platform-analytics</module>
@@ -61,6 +62,7 @@
         <aspectj.version>1.9.22.1</aspectj.version>
         <allure.version>2.29.1</allure.version>
         <aws-sdk.version>2.30.0</aws-sdk.version>
+        <langchain4j.version>1.0.0</langchain4j.version>
     </properties>
 
     <dependencyManagement>
@@ -74,6 +76,11 @@
             <dependency>
                 <groupId>org.ndviet</groupId>
                 <artifactId>platform-core</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>org.ndviet</groupId>
+                <artifactId>platform-llm</artifactId>
                 <version>${project.version}</version>
             </dependency>
             <dependency>
@@ -108,6 +115,16 @@
                 <groupId>software.amazon.awssdk</groupId>
                 <artifactId>bom</artifactId>
                 <version>${aws-sdk.version}</version>
+                <type>pom</type>
+                <scope>import</scope>
+            </dependency>
+
+            <!-- LangChain4j BOM — agent layer + OpenAI-compatible client (used against LiteLLM).
+                 Imported by platform-llm; aligns all langchain4j artifact versions. -->
+            <dependency>
+                <groupId>dev.langchain4j</groupId>
+                <artifactId>langchain4j-bom</artifactId>
+                <version>${langchain4j.version}</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>

@@ -1,91 +1,75 @@
 package com.platform.agent.node.impl;
 
-import com.anthropic.client.AnthropicClient;
-import com.anthropic.client.okhttp.AnthropicOkHttpClient;
-import com.anthropic.models.messages.*;
 import com.platform.agent.node.StepSummarizer;
-import java.util.List;
+import com.platform.llm.LlmChatModelProvider;
+import com.platform.llm.LlmSettings;
+import dev.langchain4j.data.message.SystemMessage;
+import dev.langchain4j.data.message.UserMessage;
+import dev.langchain4j.model.chat.ChatModel;
+import dev.langchain4j.model.chat.request.ChatRequest;
+import dev.langchain4j.model.chat.response.ChatResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
 /**
- * Compresses large tool results using claude-haiku-4-5 before they are sent back to the main
- * orchestration model. This reduces prompt token usage significantly when tools return verbose JSON
- * payloads or long text responses.
+ * Compresses large tool results before they are sent back to the main orchestration model, cutting
+ * prompt token usage when tools return verbose payloads. Routed through the LiteLLM gateway using
+ * the configured summarizer model ({@code ai.litellm.model.summarizer}); falls back to truncation
+ * when LiteLLM is not configured.
  */
 @Component
 public class StepSummarizerImpl implements StepSummarizer {
 
   private static final Logger log = LoggerFactory.getLogger(StepSummarizerImpl.class);
 
+  private static final String KEY_MODEL_SUMMARIZER = "ai.litellm.model.summarizer";
+  private static final String DEFAULT_SUMMARIZER = "claude-haiku-4-5";
+  private static final int COMPRESS_THRESHOLD = 800;
+
   private static final String SYSTEM_PROMPT =
       "You are a concise technical summarizer. Compress the tool result to a dense "
           + "1-3 sentence summary preserving all key facts, numbers, and identifiers. No preamble.";
 
-  private final String apiKey;
-  private final int maxSummaryTokens;
+  private final LlmChatModelProvider provider;
+  private final LlmSettings settings;
 
-  private volatile AnthropicClient client;
-
-  public StepSummarizerImpl(
-      @Value("${anthropic.api-key:}") String apiKey,
-      @Value("${platform.agent.summarizer.max-tokens:200}") int maxSummaryTokens) {
-    this.apiKey = apiKey;
-    this.maxSummaryTokens = maxSummaryTokens;
+  public StepSummarizerImpl(LlmChatModelProvider provider, LlmSettings settings) {
+    this.provider = provider;
+    this.settings = settings;
   }
 
   @Override
   public String summarize(String toolName, String rawResult) {
-    // Short results are not worth compressing
-    if (rawResult.length() < 800) {
+    if (rawResult.length() < COMPRESS_THRESHOLD) {
       return rawResult;
     }
 
-    // No API key configured — fall back to truncation
-    if (apiKey == null || apiKey.isBlank()) {
-      return rawResult.substring(0, Math.min(500, rawResult.length())) + "... [truncated]";
+    ChatModel model = provider.chatModel(settings.model(KEY_MODEL_SUMMARIZER, DEFAULT_SUMMARIZER));
+    if (model == null) {
+      return truncate(rawResult);
     }
 
     try {
-      AnthropicClient claude = getClient();
       String userContent =
           "Tool: "
               + toolName
               + "\nResult:\n"
               + rawResult.substring(0, Math.min(8000, rawResult.length()));
-
-      MessageCreateParams params =
-          MessageCreateParams.builder()
-              .model(Model.CLAUDE_HAIKU_4_5)
-              .maxTokens(maxSummaryTokens)
-              .system(SYSTEM_PROMPT)
-              .messages(
-                  List.of(
-                      MessageParam.builder()
-                          .role(MessageParam.Role.USER)
-                          .content(userContent)
-                          .build()))
-              .build();
-
-      Message response = claude.messages().create(params);
-      return response.content().stream()
-          .filter(ContentBlock::isText)
-          .map(b -> b.asText().text())
-          .findFirst()
-          .orElse(rawResult.substring(0, Math.min(500, rawResult.length())) + "... [truncated]");
-
+      ChatResponse response =
+          model.chat(
+              ChatRequest.builder()
+                  .messages(SystemMessage.from(SYSTEM_PROMPT), UserMessage.from(userContent))
+                  .build());
+      String text = response.aiMessage() != null ? response.aiMessage().text() : null;
+      return text != null && !text.isBlank() ? text : truncate(rawResult);
     } catch (Exception e) {
       log.warn("step summarizer failed for tool '{}': {}", toolName, e.getMessage());
-      return rawResult.substring(0, Math.min(500, rawResult.length())) + " [truncated]";
+      return truncate(rawResult);
     }
   }
 
-  private synchronized AnthropicClient getClient() {
-    if (client == null) {
-      client = AnthropicOkHttpClient.builder().apiKey(apiKey).build();
-    }
-    return client;
+  private static String truncate(String raw) {
+    return raw.substring(0, Math.min(500, raw.length())) + "... [truncated]";
   }
 }

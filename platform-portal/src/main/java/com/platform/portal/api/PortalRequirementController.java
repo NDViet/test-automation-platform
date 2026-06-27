@@ -139,6 +139,7 @@ public class PortalRequirementController {
   public Object qualityActivity(
       @PathVariable String projectId,
       @RequestParam String person,
+      @RequestParam(required = false) String email,
       @RequestParam(defaultValue = "50") int limit) {
     return ingestionClient
         .get()
@@ -146,6 +147,7 @@ public class PortalRequirementController {
             b ->
                 b.path("/api/v1/projects/" + projectId + "/quality/activity")
                     .queryParam("person", person)
+                    .queryParamIfPresent("email", java.util.Optional.ofNullable(email))
                     .queryParam("limit", limit)
                     .build())
         .accept(MediaType.APPLICATION_JSON)
@@ -155,13 +157,17 @@ public class PortalRequirementController {
 
   @GetMapping("/quality/involvement-items")
   public Object qualityInvolvementItems(
-      @PathVariable String projectId, @RequestParam String person, @RequestParam String kind) {
+      @PathVariable String projectId,
+      @RequestParam String person,
+      @RequestParam(required = false) String email,
+      @RequestParam String kind) {
     return ingestionClient
         .get()
         .uri(
             b ->
                 b.path("/api/v1/projects/" + projectId + "/quality/involvement-items")
                     .queryParam("person", person)
+                    .queryParamIfPresent("email", java.util.Optional.ofNullable(email))
                     .queryParam("kind", kind)
                     .build())
         .accept(MediaType.APPLICATION_JSON)
@@ -201,6 +207,7 @@ public class PortalRequirementController {
   public Object qualityWorkItems(
       @PathVariable String projectId,
       @RequestParam String person,
+      @RequestParam(required = false) String email,
       @RequestParam(defaultValue = "assignee") String attribution,
       @RequestParam(defaultValue = "any") String type,
       @RequestParam(defaultValue = "any") String status) {
@@ -210,6 +217,7 @@ public class PortalRequirementController {
             b ->
                 b.path("/api/v1/projects/" + projectId + "/quality/work-items")
                     .queryParam("person", person)
+                    .queryParamIfPresent("email", java.util.Optional.ofNullable(email))
                     .queryParam("attribution", attribution)
                     .queryParam("type", type)
                     .queryParam("status", status)

@@ -30,10 +30,11 @@ public class QualityDashboardController {
   public List<QualityDashboardService.WorkItemRef> workItems(
       @PathVariable UUID projectId,
       @RequestParam String person,
+      @RequestParam(required = false) String email,
       @RequestParam(defaultValue = "assignee") String attribution,
       @RequestParam(defaultValue = "any") String type,
       @RequestParam(defaultValue = "any") String status) {
-    return service.workItems(projectId, person, attribution, type, status);
+    return service.workItems(projectId, person, email, attribution, type, status);
   }
 
   /** Activity timeline: a QE's recent history events. */
@@ -41,14 +42,18 @@ public class QualityDashboardController {
   public List<QualityDashboardService.ActivityEvent> activity(
       @PathVariable UUID projectId,
       @RequestParam String person,
+      @RequestParam(required = false) String email,
       @RequestParam(defaultValue = "50") int limit) {
-    return service.activity(projectId, person, limit);
+    return service.activity(projectId, person, email, limit);
   }
 
   /** Drill-down for history involvement metrics: kind = resolved | participated | reopened. */
   @GetMapping("/involvement-items")
   public List<QualityDashboardService.WorkItemRef> involvementItems(
-      @PathVariable UUID projectId, @RequestParam String person, @RequestParam String kind) {
-    return service.involvementItems(projectId, person, kind);
+      @PathVariable UUID projectId,
+      @RequestParam String person,
+      @RequestParam(required = false) String email,
+      @RequestParam String kind) {
+    return service.involvementItems(projectId, person, email, kind);
   }
 }

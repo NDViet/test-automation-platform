@@ -472,24 +472,24 @@ It owns:
 - guards against duplicate successful analysis for the same `test_case_result_id`
 - fetches recent failure history
 - builds a token-conscious prompt using `PromptBuilder`
-- calls the active AI provider through `AiClient`
+- calls the LiteLLM gateway through `AiClient` (`LiteLlmAnalysisClient`)
 - persists a `FailureAnalysis`
-- stores token usage and provider metadata
-- records `ERROR` analyses when provider calls fail
+- stores token usage and model metadata
+- records `ERROR` analyses when the gateway call fails
 
-### 7.4 Provider Abstraction
+### 7.4 LiteLLM Gateway
 
-Implemented provider components:
+The platform reaches every model through a single LiteLLM (OpenAI-compatible) gateway. The shared
+`platform-llm` module provides a LangChain4j `ChatModel` (`LlmChatModelProvider`) + settings
+resolution (`LlmSettings`); both `platform-ai` (analysis) and `platform-agent` (workflows) use it.
 
-- `ClaudeApiClient`
-- `OpenAiClient`
-- `AiClientRouter`
-
-Current runtime behavior:
-
-- default path routes to Claude unless the active provider setting is `openai`
-- API keys can be sourced from environment variables or `platform_settings`
-- model selection is runtime-configurable
+- `platform-ai`: `LiteLlmAnalysisClient` (the single `AiClient`) classifies failures.
+- `platform-agent`: `LangChainAgentRunner` drives the node tool-use loop; tier (`STANDARD`/`COMPLEX`/
+  summarizer) maps to configurable model ids.
+- The model id (or a LiteLLM alias) selects Claude/GPT/Gemini/etc. inside LiteLLM — no per-provider
+  clients. Base URL, key, and model ids come from `platform_settings` (Org→Team→Project cascade) or env.
+- The former `ClaudeApiClient`, `OpenAiClient`, `AiClientRouter`, `ClaudeAgentOrchestrator`, and the
+  Anthropic Java SDK have been removed.
 
 ### 7.5 Background Execution Modes
 

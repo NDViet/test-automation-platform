@@ -2,8 +2,10 @@ import { useState } from 'react'
 import { useNavigate, Navigate } from 'react-router-dom'
 import { useQuery, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
-import { ArrowRight, Plus } from 'lucide-react'
+import { ArrowRight, Lock, Plus, ShieldAlert } from 'lucide-react'
 import CreateOrganizationModal from '@/components/CreateOrganizationModal'
+import AdoOnboardWizard from '@/components/AdoOnboardWizard'
+import CredKeySetupModal from '@/components/CredKeySetupModal'
 import LoadingSpinner from '@/components/LoadingSpinner'
 
 function orgInitials(name: string): string {
@@ -23,11 +25,27 @@ export default function OrgSelectPage() {
   const navigate = useNavigate()
   const qc = useQueryClient()
   const [showCreate, setShowCreate] = useState(false)
+  const [showAdo, setShowAdo] = useState(false)
+  const [showKey, setShowKey] = useState(false)
 
   const { data: orgs = [], isLoading } = useQuery({
     queryKey: ['organizations'],
     queryFn: api.organizations,
   })
+
+  const { data: keyStatus } = useQuery({
+    queryKey: ['cred-key-status'],
+    queryFn: api.credKeyStatus,
+    retry: false,
+  })
+
+  // Credentials can only be stored when a key is loaded. Optimistic when status is unknown so a
+  // status-endpoint hiccup never blocks org selection.
+  const keyReady = keyStatus ? keyStatus.unlocked : true
+  const keyLocked = !!keyStatus && !keyStatus.unlocked
+
+  // Onboarding needs credential encryption — route through key setup first when it isn't ready.
+  const startOnboard = () => (keyReady ? setShowAdo(true) : setShowKey(true))
 
   if (isLoading) return <LoadingSpinner message="Loading organizations…" />
 
@@ -43,12 +61,48 @@ export default function OrgSelectPage() {
           <p className="text-slate-500 text-sm">Select an organization to continue</p>
         </div>
 
+        {/* Credential encryption key gate (only when PLATFORM_CRED_KEY env is unset) */}
+        {keyLocked && (
+          <button
+            onClick={() => setShowKey(true)}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl border border-amber-200 bg-amber-50 text-left hover:bg-amber-100 transition-colors"
+          >
+            {keyStatus?.initialized ? (
+              <Lock size={18} className="text-amber-600 shrink-0" />
+            ) : (
+              <ShieldAlert size={18} className="text-amber-600 shrink-0" />
+            )}
+            <div className="min-w-0">
+              <p className="text-sm font-semibold text-amber-900">
+                {keyStatus?.initialized
+                  ? 'Credential encryption is locked'
+                  : 'Set up credential encryption'}
+              </p>
+              <p className="text-xs text-amber-700">
+                {keyStatus?.initialized
+                  ? 'Unlock with your passphrase to use integration credentials.'
+                  : 'Choose a passphrase before connecting integrations.'}
+              </p>
+            </div>
+            <ArrowRight size={15} className="text-amber-400 ml-auto shrink-0" />
+          </button>
+        )}
+
         {/* Org list */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
           {orgs.length === 0 && (
-            <p className="px-6 py-10 text-sm text-slate-500 text-center">
-              No organizations yet — create one to get started.
-            </p>
+            <div className="px-6 py-10 text-center space-y-4">
+              <p className="text-sm text-slate-500">
+                No organizations yet. Connect Azure DevOps to import your projects, teams and
+                members — or create an empty organization.
+              </p>
+              <button
+                onClick={startOnboard}
+                className="inline-flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-xl hover:bg-blue-700 transition-colors"
+              >
+                Connect Azure DevOps <ArrowRight size={14} />
+              </button>
+            </div>
           )}
           {orgs.map(org => (
             <button
@@ -87,7 +141,13 @@ export default function OrgSelectPage() {
         </div>
 
         {/* Actions */}
-        <div className="flex justify-center">
+        <div className="flex justify-center gap-3">
+          <button
+            onClick={startOnboard}
+            className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 text-sm font-medium rounded-xl hover:bg-slate-50 transition-colors"
+          >
+            Connect Azure DevOps
+          </button>
           <button
             onClick={() => setShowCreate(true)}
             className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-xl hover:bg-blue-700 transition-colors"
@@ -101,6 +161,26 @@ export default function OrgSelectPage() {
         open={showCreate}
         onClose={() => setShowCreate(false)}
         onCreated={() => void qc.invalidateQueries({ queryKey: ['organizations'] })}
+      />
+
+      <AdoOnboardWizard
+        open={showAdo}
+        onClose={() => setShowAdo(false)}
+        onDone={slug => {
+          setShowAdo(false)
+          void qc.invalidateQueries({ queryKey: ['organizations'] })
+          navigate(`/${slug}`)
+        }}
+      />
+
+      <CredKeySetupModal
+        open={showKey}
+        status={keyStatus}
+        onClose={() => setShowKey(false)}
+        onReady={() => {
+          setShowKey(false)
+          void qc.invalidateQueries({ queryKey: ['cred-key-status'] })
+        }}
       />
     </div>
   )

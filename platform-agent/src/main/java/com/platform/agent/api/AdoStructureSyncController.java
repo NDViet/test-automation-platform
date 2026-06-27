@@ -1,7 +1,7 @@
 package com.platform.agent.api;
 
-import com.platform.agent.hub.sync.AzureOrgSyncService;
 import com.platform.agent.hub.sync.WorkItemHistorySyncService;
+import com.platform.core.service.ado.AzureOrgSyncService;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;

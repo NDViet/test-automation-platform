@@ -67,7 +67,7 @@ function projectGroups(base: string): NavGroup[] {
       items: [
         { to: base, label: 'Dashboard', icon: BarChart3, end: true },
         { to: `${base}/requirements`, label: 'Requirements', icon: FileText },
-        { to: `${base}/teams`, label: 'Teams', icon: Users },
+        { to: `${base}/teams`, label: 'Teams & Structure', icon: Users },
       ],
     },
     {

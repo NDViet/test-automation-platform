@@ -1,13 +1,13 @@
 package com.platform.agent.node.impl;
 
-import com.anthropic.core.JsonValue;
-import com.anthropic.models.messages.Tool;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.platform.agent.node.AgentNode;
 import com.platform.agent.node.AgentOrchestrator;
 import com.platform.agent.node.tools.PlatformInsightTools;
 import com.platform.common.agent.*;
+import dev.langchain4j.agent.tool.ToolSpecification;
+import dev.langchain4j.model.chat.request.json.JsonObjectSchema;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -67,77 +67,45 @@ public class InsightNode implements AgentNode {
   }
 
   @Override
-  public List<Tool> tools() {
+  public List<ToolSpecification> toolSpecs() {
     return List.of(
-        Tool.builder()
+        ToolSpecification.builder()
             .name("platform_get_trends")
             .description("Retrieve 7-day pass-rate trends for a project from platform-analytics.")
-            .inputSchema(
-                Tool.InputSchema.builder()
-                    .type(JsonValue.from("object"))
-                    .putAdditionalProperty(
-                        "properties",
-                        JsonValue.from(
-                            Map.of(
-                                "project_id",
-                                    Map.of("type", "string", "description", "Project UUID"),
-                                "days", Map.of("type", "integer", "default", 7))))
-                    .addRequired("project_id")
+            .parameters(
+                JsonObjectSchema.builder()
+                    .addStringProperty("project_id", "Project UUID")
+                    .addIntegerProperty("days", "Window in days (default 7)")
+                    .required("project_id")
                     .build())
             .build(),
-        Tool.builder()
+        ToolSpecification.builder()
             .name("platform_get_flakiness_leaderboard")
             .description("Get the top flaky tests for a project, sorted by flakiness score.")
-            .inputSchema(
-                Tool.InputSchema.builder()
-                    .type(JsonValue.from("object"))
-                    .putAdditionalProperty(
-                        "properties",
-                        JsonValue.from(
-                            Map.of(
-                                "project_id", Map.of("type", "string"),
-                                "limit", Map.of("type", "integer", "default", 10))))
-                    .addRequired("project_id")
+            .parameters(
+                JsonObjectSchema.builder()
+                    .addStringProperty("project_id")
+                    .addIntegerProperty("limit", "Max rows (default 10)")
+                    .required("project_id")
                     .build())
             .build(),
-        Tool.builder()
+        ToolSpecification.builder()
             .name("platform_get_quality_gate")
-            .description("Get the current quality gate status (pass/fail) for a project.")
-            .inputSchema(
-                Tool.InputSchema.builder()
-                    .type(JsonValue.from("object"))
-                    .putAdditionalProperty(
-                        "properties",
-                        JsonValue.from(Map.of("project_id", Map.of("type", "string"))))
-                    .addRequired("project_id")
+            .description("Get the current quality gate status for a project.")
+            .parameters(
+                JsonObjectSchema.builder()
+                    .addStringProperty("project_id")
+                    .required("project_id")
                     .build())
             .build(),
-        Tool.builder()
+        ToolSpecification.builder()
             .name("slack_post_message")
-            .description(
-                "Post the completed digest to a Slack channel. "
-                    + "Call this as the final step after composing the digest.")
-            .inputSchema(
-                Tool.InputSchema.builder()
-                    .type(JsonValue.from("object"))
-                    .putAdditionalProperty(
-                        "properties",
-                        JsonValue.from(
-                            Map.of(
-                                "channel",
-                                    Map.of(
-                                        "type",
-                                        "string",
-                                        "description",
-                                        "Slack channel ID or name, e.g. #qa-digest"),
-                                "text",
-                                    Map.of(
-                                        "type",
-                                        "string",
-                                        "description",
-                                        "The digest message text (Slack mrkdwn format)"))))
-                    .addRequired("channel")
-                    .addRequired("text")
+            .description("Post the completed digest to a Slack channel.")
+            .parameters(
+                JsonObjectSchema.builder()
+                    .addStringProperty("channel", "Slack channel ID or name, e.g. #qa-digest")
+                    .addStringProperty("text", "The digest message text (Slack mrkdwn format)")
+                    .required("channel", "text")
                     .build())
             .build());
   }

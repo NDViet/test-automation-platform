@@ -132,6 +132,30 @@ public interface PlatformRequirementRepository extends JpaRepository<PlatformReq
           """)
   List<String> findDistinctPeople(@Param("pid") UUID projectId);
 
+  /**
+   * Distinct people on a project's work items as {@code [displayName, email]} pairs. The email
+   * comes from the identity's {@code uniqueName} companion key (captured at ingestion); it is
+   * {@code null} for items synced before that, or for non-AAD identities. Email is the stable
+   * identity key.
+   */
+  @Query(
+      nativeQuery = true,
+      value =
+          """
+          SELECT DISTINCT person, email FROM (
+              SELECT raw_upstream->>'System.AssignedTo' AS person,
+                     raw_upstream->>'System.AssignedTo.uniqueName' AS email
+                FROM platform_requirements WHERE project_id = :pid
+              UNION SELECT raw_upstream->>'System.CreatedBy',
+                     raw_upstream->>'System.CreatedBy.uniqueName'
+                FROM platform_requirements WHERE project_id = :pid
+              UNION SELECT raw_upstream->>'System.ChangedBy',
+                     raw_upstream->>'System.ChangedBy.uniqueName'
+                FROM platform_requirements WHERE project_id = :pid
+          ) s WHERE person IS NOT NULL AND person <> ''
+          """)
+  List<Object[]> findWorkItemPeople(@Param("pid") UUID projectId);
+
   @Modifying
   @Query(
       "UPDATE PlatformRequirement r SET r.parentId = :parentId, r.depth = :depth, r.updatedAt ="

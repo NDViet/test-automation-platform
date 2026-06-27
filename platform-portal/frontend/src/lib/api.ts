@@ -62,6 +62,26 @@ async function putActor<T>(path: string, body: unknown, actor: string): Promise<
   return res.json() as Promise<T>
 }
 
+/** POST that surfaces the server's error message body (for user-facing flows like onboarding). */
+async function postMsg<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(BASE + path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    let msg = `POST ${path} → ${res.status}`
+    try {
+      const e = (await res.json()) as { message?: string; detail?: string; title?: string }
+      msg = e?.message || e?.detail || e?.title || msg
+    } catch {
+      /* ignore */
+    }
+    throw new Error(msg)
+  }
+  return res.json() as Promise<T>
+}
+
 export const api = {
   overview: (days = 7) =>
     get<{ summary: import('./types').OrgSummary; recentAlerts: import('./types').Alert[] }>(
@@ -106,7 +126,7 @@ export const api = {
   aiSettings: () => get<import('./types').AiSettings>('/ai/settings'),
   updateAiSettings: (body: import('./types').AiSettingsUpdate) =>
     put<import('./types').AiSettings>('/ai/settings', body),
-  testAiConnection: (body: { provider?: string; model?: string; apiKey?: string }) =>
+  testAiConnection: (body: { liteLlmBaseUrl?: string; liteLlmApiKey?: string }) =>
     post<import('./types').TestConnectionResult>('/ai/settings/test', body),
   scopedAiEffective: (projectId: string) =>
     get<Record<string, string | null>>(`/ai/settings/scoped/effective?projectId=${projectId}`),
@@ -209,9 +229,16 @@ export const api = {
     get<import('./types').EngineerStat[]>(`/projects/${projectId}/quality/engineers`),
   qualityWorkItems: (
     projectId: string,
-    params: { person: string; attribution?: string; type?: string; status?: string },
+    params: {
+      person: string
+      email?: string
+      attribution?: string
+      type?: string
+      status?: string
+    },
   ) => {
     const q = new URLSearchParams({ person: params.person })
+    if (params.email) q.set('email', params.email)
     if (params.attribution) q.set('attribution', params.attribution)
     if (params.type) q.set('type', params.type)
     if (params.status) q.set('status', params.status)
@@ -219,14 +246,20 @@ export const api = {
       `/projects/${projectId}/quality/work-items?${q.toString()}`,
     )
   },
-  qualityInvolvementItems: (projectId: string, person: string, kind: string) =>
-    get<import('./types').QualityWorkItem[]>(
-      `/projects/${projectId}/quality/involvement-items?person=${encodeURIComponent(person)}&kind=${kind}`,
-    ),
-  qualityActivity: (projectId: string, person: string, limit = 50) =>
-    get<import('./types').ActivityEvent[]>(
-      `/projects/${projectId}/quality/activity?person=${encodeURIComponent(person)}&limit=${limit}`,
-    ),
+  qualityInvolvementItems: (projectId: string, person: string, kind: string, email?: string) => {
+    const q = new URLSearchParams({ person, kind })
+    if (email) q.set('email', email)
+    return get<import('./types').QualityWorkItem[]>(
+      `/projects/${projectId}/quality/involvement-items?${q.toString()}`,
+    )
+  },
+  qualityActivity: (projectId: string, person: string, limit = 50, email?: string) => {
+    const q = new URLSearchParams({ person, limit: String(limit) })
+    if (email) q.set('email', email)
+    return get<import('./types').ActivityEvent[]>(
+      `/projects/${projectId}/quality/activity?${q.toString()}`,
+    )
+  },
   syncQualityHistory: (projectId: string) =>
     post<{
       success: boolean
@@ -728,6 +761,31 @@ export const api = {
     get<import('./types').GithubRepo[]>(`/credentials/${credId}/github/repos`),
   setGithubRepos: (credId: string, repos: import('./types').GithubRepo[]) =>
     put<import('./types').GithubRepo[]>(`/credentials/${credId}/github/repos`, { repos }),
+  azureOrgs: (credId: string) =>
+    get<import('./types').AzureOrg[]>(`/credentials/${credId}/azure/orgs`),
+  setAzureOrgs: (credId: string, orgs: import('./types').AzureOrg[]) =>
+    put<import('./types').AzureOrg[]>(`/credentials/${credId}/azure/orgs`, { orgs }),
+
+  // Credential encryption key (passphrase-derived when PLATFORM_CRED_KEY env is unset)
+  credKeyStatus: () => get<import('./types').CredKeyStatus>('/security/cred-key/status'),
+  credKeyInit: (passphrase: string) =>
+    postMsg<import('./types').CredKeyStatus>('/security/cred-key/init', { passphrase }),
+  credKeyUnlock: (passphrase: string) =>
+    postMsg<import('./types').CredKeyStatus>('/security/cred-key/unlock', { passphrase }),
+
+  // First-run Azure DevOps onboarding (blank platform, no org yet)
+  adoOnboardDiscover: (pat: string) =>
+    postMsg<import('./types').AzureOrg[]>('/ado/onboard/discover', { pat }),
+  adoOnboardOrg: (body: { pat: string; adoAccount: string; displayName?: string }) =>
+    postMsg<import('./types').AdoOnboardResult>('/ado/onboard/org', body),
+  adoResync: (body: { organizationId: string; credentialId: string }) =>
+    postMsg<import('./types').AdoResyncResult>('/ado/onboard/resync', body),
+  adoMe: (credentialId: string) =>
+    get<import('./types').AdoOwnerProfile>(
+      `/ado/onboard/me?credentialId=${encodeURIComponent(credentialId)}`,
+    ),
+  adoClaimAdmin: (credentialId: string) =>
+    postMsg<import('./types').AdoClaimAdminResult>('/ado/onboard/claim-admin', { credentialId }),
 
   // GitHub repo cache (avoids live API calls for large orgs)
   syncGitHubRepos: (credId: string) =>

@@ -39,8 +39,12 @@ public interface AgentNode {
     return "Tool '" + toolName + "' acknowledged. Input: " + inputJson;
   }
 
-  /** Tool definitions advertised to Claude for this node. */
-  default java.util.List<com.anthropic.models.messages.Tool> tools() {
+  /**
+   * Tool definitions advertised to the LiteLLM-routed LangChain4j loop ({@code
+   * LangChainAgentRunner}). Defaults to empty. Tool execution still flows through {@link
+   * #dispatchToolCall}.
+   */
+  default java.util.List<dev.langchain4j.agent.tool.ToolSpecification> toolSpecs() {
     return java.util.List.of();
   }
 }

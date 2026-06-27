@@ -38,6 +38,7 @@ import type { LabelValue, EngineerStat, QualityWorkItem, ActivityEvent } from '@
 
 type Drill = {
   person: string
+  email?: string
   attribution: string
   type: string
   status: string
@@ -76,7 +77,7 @@ export default function QualityDashboardPage() {
   const { projectId, base } = useProject()
   const qc = useQueryClient()
   const [drill, setDrill] = useState<Drill | null>(null)
-  const [activityFor, setActivityFor] = useState<string | null>(null)
+  const [activityFor, setActivityFor] = useState<{ name: string; email?: string } | null>(null)
   const [syncErr, setSyncErr] = useState<string | null>(null)
   const [syncing, setSyncing] = useState(false)
   const overviewQ = useQuery({
@@ -319,160 +320,172 @@ export default function QualityDashboardPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-50">
-                {engineers.map((e: EngineerStat) => (
-                  <tr key={e.name} className="hover:bg-slate-50 align-top">
-                    <td className="px-5 py-2.5">
-                      <button
-                        onClick={() => setActivityFor(e.name)}
-                        title="View activity timeline"
-                        className="text-slate-800 hover:text-blue-600 hover:underline decoration-dotted underline-offset-2 text-left flex items-center gap-1"
-                      >
-                        {e.name} <Activity size={11} className="text-slate-300" />
-                      </button>
-                      {e.email && <div className="text-xs text-slate-400">{e.email}</div>}
-                    </td>
-                    <td className="px-3 py-2.5">
-                      <Badge label={e.role} colorClass={roleColor(e.role)} />
-                    </td>
-                    <td className="px-3 py-2.5">
-                      {e.defectsCreated === 0 ? (
-                        <span className="text-slate-300">0</span>
-                      ) : (
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <button
-                            onClick={() =>
-                              setDrill({
-                                person: e.name,
-                                attribution: 'creator',
-                                type: 'defect',
-                                status: 'any',
-                                title: `Defects created · ${e.name}`,
-                              })
-                            }
-                            className="text-sm font-medium text-slate-700 hover:underline decoration-dotted underline-offset-2"
-                          >
-                            {e.defectsCreated}
-                          </button>
-                          {e.createdByStatus.map(s => (
+                {engineers.map((e: EngineerStat) => {
+                  return (
+                    <tr key={e.name} className="hover:bg-slate-50 align-top">
+                      <td className="px-5 py-2.5">
+                        <button
+                          onClick={() =>
+                            setActivityFor({ name: e.name, email: e.email ?? undefined })
+                          }
+                          title="View activity timeline"
+                          className="text-slate-800 hover:text-blue-600 hover:underline decoration-dotted underline-offset-2 text-left flex items-center gap-1"
+                        >
+                          {e.name} <Activity size={11} className="text-slate-300" />
+                        </button>
+                        {e.email && <div className="text-xs text-slate-400">{e.email}</div>}
+                      </td>
+                      <td className="px-3 py-2.5">
+                        <Badge label={e.role} colorClass={roleColor(e.role)} />
+                      </td>
+                      <td className="px-3 py-2.5">
+                        {e.defectsCreated === 0 ? (
+                          <span className="text-slate-300">0</span>
+                        ) : (
+                          <div className="flex items-center gap-1.5 flex-wrap">
                             <button
-                              key={s.label}
                               onClick={() =>
                                 setDrill({
                                   person: e.name,
+                                  email: e.email ?? undefined,
                                   attribution: 'creator',
                                   type: 'defect',
-                                  status: s.label,
-                                  title: `Created defects · ${s.label} · ${e.name}`,
+                                  status: 'any',
+                                  title: `Defects created · ${e.name}`,
                                 })
                               }
+                              className="text-sm font-medium text-slate-700 hover:underline decoration-dotted underline-offset-2"
                             >
-                              <Badge
-                                label={`${s.label} ${s.value}`}
-                                colorClass={statusBadge(s.label)}
-                              />
+                              {e.defectsCreated}
                             </button>
-                          ))}
-                        </div>
-                      )}
-                    </td>
-                    <DrillCell
-                      value={e.defectsResolved}
-                      onClick={() =>
-                        setDrill({
-                          person: e.name,
-                          attribution: 'assignee',
-                          type: 'defect',
-                          status: 'done',
-                          title: `Resolved defects (assignee) · ${e.name}`,
-                        })
-                      }
-                      accent
-                    />
-                    <td className="px-3 py-2.5">
-                      {e.otherTotal === 0 ? (
-                        <span className="text-slate-300">0</span>
-                      ) : (
-                        <div className="flex items-center gap-1.5 flex-wrap">
-                          <button
-                            onClick={() =>
-                              setDrill({
-                                person: e.name,
-                                attribution: 'assignee',
-                                type: 'other',
-                                status: 'any',
-                                title: `Other work · ${e.name}`,
-                              })
-                            }
-                            className="text-sm font-medium text-slate-700 hover:underline decoration-dotted underline-offset-2"
-                          >
-                            {e.otherTotal}
-                          </button>
-                          {e.otherByStatus.map(s => (
+                            {e.createdByStatus.map(s => (
+                              <button
+                                key={s.label}
+                                onClick={() =>
+                                  setDrill({
+                                    person: e.name,
+                                    email: e.email ?? undefined,
+                                    attribution: 'creator',
+                                    type: 'defect',
+                                    status: s.label,
+                                    title: `Created defects · ${s.label} · ${e.name}`,
+                                  })
+                                }
+                              >
+                                <Badge
+                                  label={`${s.label} ${s.value}`}
+                                  colorClass={statusBadge(s.label)}
+                                />
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </td>
+                      <DrillCell
+                        value={e.defectsResolved}
+                        onClick={() =>
+                          setDrill({
+                            person: e.name,
+                            email: e.email ?? undefined,
+                            attribution: 'assignee',
+                            type: 'defect',
+                            status: 'done',
+                            title: `Resolved defects (assignee) · ${e.name}`,
+                          })
+                        }
+                        accent
+                      />
+                      <td className="px-3 py-2.5">
+                        {e.otherTotal === 0 ? (
+                          <span className="text-slate-300">0</span>
+                        ) : (
+                          <div className="flex items-center gap-1.5 flex-wrap">
                             <button
-                              key={s.label}
                               onClick={() =>
                                 setDrill({
                                   person: e.name,
+                                  email: e.email ?? undefined,
                                   attribution: 'assignee',
                                   type: 'other',
-                                  status: s.label,
-                                  title: `Other work · ${s.label} · ${e.name}`,
+                                  status: 'any',
+                                  title: `Other work · ${e.name}`,
                                 })
                               }
-                              className="text-xs"
+                              className="text-sm font-medium text-slate-700 hover:underline decoration-dotted underline-offset-2"
                             >
-                              <Badge
-                                label={`${s.label} ${s.value}`}
-                                colorClass={statusBadge(s.label)}
-                              />
+                              {e.otherTotal}
                             </button>
-                          ))}
-                        </div>
-                      )}
-                    </td>
-                    <DrillCell
-                      value={e.resolvedActual}
-                      accent
-                      onClick={() =>
-                        setDrill({
-                          person: e.name,
-                          attribution: '',
-                          type: '',
-                          status: '',
-                          involvementKind: 'resolved',
-                          title: `Resolved (actual) · ${e.name}`,
-                        })
-                      }
-                    />
-                    <DrillCell
-                      value={e.participated}
-                      onClick={() =>
-                        setDrill({
-                          person: e.name,
-                          attribution: '',
-                          type: '',
-                          status: '',
-                          involvementKind: 'participated',
-                          title: `Participated · ${e.name}`,
-                        })
-                      }
-                    />
-                    <DrillCell
-                      value={e.reopened}
-                      danger
-                      onClick={() =>
-                        setDrill({
-                          person: e.name,
-                          attribution: '',
-                          type: '',
-                          status: '',
-                          involvementKind: 'reopened',
-                          title: `Reopened · ${e.name}`,
-                        })
-                      }
-                    />
-                  </tr>
-                ))}
+                            {e.otherByStatus.map(s => (
+                              <button
+                                key={s.label}
+                                onClick={() =>
+                                  setDrill({
+                                    person: e.name,
+                                    email: e.email ?? undefined,
+                                    attribution: 'assignee',
+                                    type: 'other',
+                                    status: s.label,
+                                    title: `Other work · ${s.label} · ${e.name}`,
+                                  })
+                                }
+                                className="text-xs"
+                              >
+                                <Badge
+                                  label={`${s.label} ${s.value}`}
+                                  colorClass={statusBadge(s.label)}
+                                />
+                              </button>
+                            ))}
+                          </div>
+                        )}
+                      </td>
+                      <DrillCell
+                        value={e.resolvedActual}
+                        accent
+                        onClick={() =>
+                          setDrill({
+                            person: e.name,
+                            email: e.email ?? undefined,
+                            attribution: '',
+                            type: '',
+                            status: '',
+                            involvementKind: 'resolved',
+                            title: `Resolved (actual) · ${e.name}`,
+                          })
+                        }
+                      />
+                      <DrillCell
+                        value={e.participated}
+                        onClick={() =>
+                          setDrill({
+                            person: e.name,
+                            email: e.email ?? undefined,
+                            attribution: '',
+                            type: '',
+                            status: '',
+                            involvementKind: 'participated',
+                            title: `Participated · ${e.name}`,
+                          })
+                        }
+                      />
+                      <DrillCell
+                        value={e.reopened}
+                        danger
+                        onClick={() =>
+                          setDrill({
+                            person: e.name,
+                            email: e.email ?? undefined,
+                            attribution: '',
+                            type: '',
+                            status: '',
+                            involvementKind: 'reopened',
+                            title: `Reopened · ${e.name}`,
+                          })
+                        }
+                      />
+                    </tr>
+                  )
+                })}
               </tbody>
             </table>
           </div>
@@ -483,7 +496,9 @@ export default function QualityDashboardPage() {
       {activityFor && (
         <ActivityModal
           projectId={projectId}
-          person={activityFor}
+          person={activityFor.name}
+          email={activityFor.email}
+          label={activityFor.name}
           onClose={() => setActivityFor(null)}
         />
       )}
@@ -494,15 +509,19 @@ export default function QualityDashboardPage() {
 function ActivityModal({
   projectId,
   person,
+  email,
+  label,
   onClose,
 }: {
   projectId: string
   person: string
+  email?: string
+  label: string
   onClose: () => void
 }) {
   const { data, isLoading, error, refetch } = useQuery({
-    queryKey: ['quality-activity', projectId, person],
-    queryFn: () => api.qualityActivity(projectId, person, 80),
+    queryKey: ['quality-activity', projectId, person, email],
+    queryFn: () => api.qualityActivity(projectId, person, 80, email),
   })
   const events = data ?? []
   return (
@@ -516,7 +535,7 @@ function ActivityModal({
       >
         <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-200">
           <h2 className="text-sm font-semibold text-slate-800 flex items-center gap-2">
-            <Activity size={15} /> Activity · {person}
+            <Activity size={15} /> Activity · {label}
           </h2>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
             <X size={18} />
@@ -629,9 +648,10 @@ function DrillModal({
     ],
     queryFn: () =>
       drill.involvementKind
-        ? api.qualityInvolvementItems(projectId, drill.person, drill.involvementKind)
+        ? api.qualityInvolvementItems(projectId, drill.person, drill.involvementKind, drill.email)
         : api.qualityWorkItems(projectId, {
             person: drill.person,
+            email: drill.email,
             attribution: drill.attribution,
             type: drill.type,
             status: drill.status,

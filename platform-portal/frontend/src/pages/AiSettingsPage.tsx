@@ -3,60 +3,96 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import ErrorMessage from '@/components/ErrorMessage'
-import { Save, FlaskConical, Eye, EyeOff, CheckCircle, XCircle, Play, Info } from 'lucide-react'
-import type { AiSettingsUpdate } from '@/lib/types'
+import {
+  Save,
+  FlaskConical,
+  Eye,
+  EyeOff,
+  CheckCircle,
+  XCircle,
+  Play,
+  Info,
+  Plus,
+  Trash2,
+} from 'lucide-react'
+import LiteLlmExport from '@/components/LiteLlmExport'
+import type { AiSettingsUpdate, LiteLlmModel } from '@/lib/types'
 
-function KeyField({
+function Toggle({
+  checked,
+  disabled,
+  onChange,
+}: {
+  checked: boolean
+  disabled?: boolean
+  onChange: () => void
+}) {
+  return (
+    <button
+      role="switch"
+      aria-checked={checked}
+      disabled={disabled}
+      onClick={onChange}
+      className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors focus:outline-none disabled:opacity-40 ${
+        checked ? 'bg-blue-600' : 'bg-slate-200'
+      }`}
+    >
+      <span
+        className={`inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform ${
+          checked ? 'translate-x-5' : 'translate-x-0'
+        }`}
+      />
+    </button>
+  )
+}
+
+/** A model picker backed by the configured model list, falling back to free text when empty. */
+function ModelSelect({
   label,
   hint,
-  isSet,
   value,
+  models,
   onChange,
-  show,
-  onToggleShow,
 }: {
   label: string
   hint: string
-  isSet: boolean
   value: string
+  models: LiteLlmModel[]
   onChange: (v: string) => void
-  show: boolean
-  onToggleShow: () => void
 }) {
+  const ids = models.map(m => m.id)
+  const known = value === '' || ids.includes(value)
   return (
     <div>
-      <label className="block text-sm font-medium text-slate-700 mb-1">
-        {label}
-        {isSet && (
-          <span className="ml-2 text-xs font-normal text-green-600">
-            (configured — enter new value to replace)
-          </span>
-        )}
-        {!isSet && <span className="ml-2 text-xs font-normal text-slate-400">(not set)</span>}
-      </label>
-      <div className="relative">
-        <input
-          type={show ? 'text' : 'password'}
+      <label className="block text-sm font-medium text-slate-700 mb-1">{label}</label>
+      {models.length > 0 && known ? (
+        <select
           value={value}
           onChange={e => onChange(e.target.value)}
-          placeholder={isSet ? '••••••••  (leave blank to keep current)' : hint}
-          className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 pr-10 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
-        />
-        <button
-          type="button"
-          onClick={onToggleShow}
-          className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+          className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
-          {show ? <EyeOff size={16} /> : <Eye size={16} />}
-        </button>
-      </div>
+          {models.map(m => (
+            <option key={m.id} value={m.id}>
+              {m.label ? `${m.label} (${m.id})` : m.id}
+            </option>
+          ))}
+        </select>
+      ) : (
+        <input
+          type="text"
+          value={value}
+          onChange={e => onChange(e.target.value)}
+          placeholder={hint}
+          className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+        />
+      )}
+      <p className="text-xs text-slate-400 mt-1">{hint}</p>
     </div>
   )
 }
 
 export default function AiSettingsPage() {
   const qc = useQueryClient()
-
   const {
     data: settings,
     isLoading,
@@ -69,12 +105,14 @@ export default function AiSettingsPage() {
 
   const [enabled, setEnabled] = useState(false)
   const [realtimeEnabled, setRealtime] = useState(false)
-  const [provider, setProvider] = useState<'anthropic' | 'openai'>('anthropic')
-  const [model, setModel] = useState('')
-  const [anthropicKey, setAnthropicKey] = useState('')
-  const [openaiKey, setOpenaiKey] = useState('')
-  const [showAnthropicKey, setShowAnthr] = useState(false)
-  const [showOpenaiKey, setShowOpenai] = useState(false)
+  const [baseUrl, setBaseUrl] = useState('')
+  const [apiKey, setApiKey] = useState('')
+  const [showKey, setShowKey] = useState(false)
+  const [models, setModels] = useState<LiteLlmModel[]>([])
+  const [modelAnalysis, setModelAnalysis] = useState('')
+  const [modelStandard, setModelStandard] = useState('')
+  const [modelComplex, setModelComplex] = useState('')
+  const [modelSummarizer, setModelSummarizer] = useState('')
   const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null)
   const [analyseResult, setAnalyseResult] = useState<{ queued: number } | null>(null)
 
@@ -82,30 +120,45 @@ export default function AiSettingsPage() {
     if (settings) {
       setEnabled(settings.enabled)
       setRealtime(settings.realtimeEnabled)
-      setProvider(settings.provider)
-      setModel(settings.model)
+      setBaseUrl(settings.liteLlmBaseUrl)
+      setModels(settings.models ?? [])
+      setModelAnalysis(settings.modelAnalysis)
+      setModelStandard(settings.modelStandard)
+      setModelComplex(settings.modelComplex)
+      setModelSummarizer(settings.modelSummarizer)
     }
   }, [settings])
-
-  const defaultModel = provider === 'openai' ? 'gpt-4o' : 'claude-sonnet-4-6'
 
   const saveMutation = useMutation({
     mutationFn: () => {
       const body: AiSettingsUpdate = {
         enabled,
         realtimeEnabled,
-        provider,
-        model: model || defaultModel,
+        liteLlmBaseUrl: baseUrl.trim(),
+        models: models.filter(m => m.id.trim() !== ''),
+        modelAnalysis,
+        modelStandard,
+        modelComplex,
+        modelSummarizer,
       }
-      if (anthropicKey.trim()) body.anthropicApiKey = anthropicKey.trim()
-      if (openaiKey.trim()) body.openaiApiKey = openaiKey.trim()
+      if (apiKey.trim()) body.liteLlmApiKey = apiKey.trim()
       return api.updateAiSettings(body)
     },
     onSuccess: () => {
-      setAnthropicKey('')
-      setOpenaiKey('')
+      setApiKey('')
       void qc.invalidateQueries({ queryKey: ['ai-settings'] })
     },
+  })
+
+  const testMutation = useMutation({
+    mutationFn: () =>
+      api.testAiConnection({
+        liteLlmBaseUrl: baseUrl.trim() || undefined,
+        ...(apiKey.trim() ? { liteLlmApiKey: apiKey.trim() } : {}),
+      }),
+    onSuccess: result => setTestResult(result),
+    onError: () =>
+      setTestResult({ success: false, message: 'Request failed — check console for details' }),
   })
 
   const analyseNowMutation = useMutation({
@@ -114,46 +167,34 @@ export default function AiSettingsPage() {
     onError: () => setAnalyseResult({ queued: -1 }),
   })
 
-  const testMutation = useMutation({
-    mutationFn: () => {
-      const testKey =
-        provider === 'anthropic' ? anthropicKey.trim() || undefined : openaiKey.trim() || undefined
-      return api.testAiConnection({
-        provider,
-        model: model || defaultModel,
-        ...(testKey ? { apiKey: testKey } : {}),
-      })
-    },
-    onSuccess: result => setTestResult(result),
-    onError: () =>
-      setTestResult({ success: false, message: 'Request failed — check console for details' }),
-  })
-
   if (isLoading) return <LoadingSpinner message="Loading AI settings…" />
   if (error)
     return <ErrorMessage message="Failed to load AI settings." onRetry={() => void refetch()} />
 
+  const updateModel = (i: number, patch: Partial<LiteLlmModel>) =>
+    setModels(ms => ms.map((m, idx) => (idx === i ? { ...m, ...patch } : m)))
+
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="space-y-6 max-w-2xl h-full min-h-0 overflow-y-auto pr-1">
       <div>
         <h1 className="text-2xl font-bold text-slate-900">AI Settings</h1>
         <p className="text-sm text-slate-500 mt-1">
-          Configure AI providers for failure analysis and agentic workflows
+          The platform reaches every model through a single LiteLLM gateway. Point it at your
+          LiteLLM endpoint and map the models used for analysis and agent workflows.
         </p>
       </div>
 
-      {/* Callout: Anthropic is required for agent features */}
       <div className="flex gap-3 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-sm text-blue-800">
         <Info size={16} className="shrink-0 mt-0.5" />
         <div>
-          <span className="font-semibold">Anthropic (Claude) key is required</span> for all agent
-          features: test case generation, automation code generation, and PR analysis. OpenAI is
-          only used for failure classification when selected as the active provider.
+          LiteLLM is OpenAI-compatible — the same base URL + key + model list you use in OpenCode,
+          Claude Code Router, or VS Code chat. Models route to Claude / GPT / Gemini / etc. inside
+          LiteLLM by their id.
         </div>
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm divide-y divide-slate-100">
-        {/* Enable / Disable */}
+        {/* Enable / Realtime */}
         <div className="px-5 py-4 flex items-center justify-between">
           <div>
             <p className="text-sm font-medium text-slate-900">AI Analysis</p>
@@ -161,119 +202,147 @@ export default function AiSettingsPage() {
               When enabled, failures are automatically analysed and classified
             </p>
           </div>
-          <button
-            role="switch"
-            aria-checked={enabled}
-            onClick={() => setEnabled(v => !v)}
-            className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors focus:outline-none ${
-              enabled ? 'bg-blue-600' : 'bg-slate-200'
-            }`}
-          >
-            <span
-              className={`inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition-transform ${
-                enabled ? 'translate-x-5' : 'translate-x-0'
-              }`}
-            />
-          </button>
+          <Toggle checked={enabled} onChange={() => setEnabled(v => !v)} />
         </div>
-
-        {/* Real-time analysis */}
         <div className="px-5 py-4 flex items-center justify-between">
           <div>
             <p className="text-sm font-medium text-slate-900">Real-time Analysis</p>
             <p className="text-xs text-slate-500 mt-0.5">
-              Classify failures immediately on ingestion. When off, failures are analysed by the
-              nightly batch job (02:00 UTC).
+              Classify failures immediately on ingestion. When off, the nightly batch (02:00 UTC)
+              handles them.
             </p>
           </div>
-          <button
-            role="switch"
-            aria-checked={realtimeEnabled}
-            onClick={() => setRealtime(v => !v)}
+          <Toggle
+            checked={realtimeEnabled && enabled}
             disabled={!enabled}
-            className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors focus:outline-none disabled:opacity-40 ${
-              realtimeEnabled && enabled ? 'bg-blue-600' : 'bg-slate-200'
-            }`}
-          >
-            <span
-              className={`inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition-transform ${
-                realtimeEnabled && enabled ? 'translate-x-5' : 'translate-x-0'
-              }`}
-            />
-          </button>
+            onChange={() => setRealtime(v => !v)}
+          />
         </div>
 
-        {/* Active provider for failure classification */}
-        <div className="px-5 py-4">
-          <label className="block text-sm font-medium text-slate-700 mb-2">
-            Failure Classification Provider
-          </label>
-          <p className="text-xs text-slate-500 mb-3">
-            Which AI provider to use for automated failure classification
-          </p>
-          <div className="flex gap-3">
-            {(['anthropic', 'openai'] as const).map(p => (
+        {/* Gateway connection */}
+        <div className="px-5 py-4 space-y-4">
+          <p className="text-sm font-medium text-slate-700">LiteLLM Gateway</p>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Base URL</label>
+            <input
+              type="text"
+              value={baseUrl}
+              onChange={e => setBaseUrl(e.target.value)}
+              placeholder="http://litellm:4000/v1"
+              className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+            />
+            <p className="text-xs text-slate-400 mt-1">
+              OpenAI-compatible endpoint of your LiteLLM proxy
+            </p>
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">
+              API Key
+              {settings?.liteLlmKeySet ? (
+                <span className="ml-2 text-xs font-normal text-green-600">
+                  (configured — enter new value to replace)
+                </span>
+              ) : (
+                <span className="ml-2 text-xs font-normal text-slate-400">(not set)</span>
+              )}
+            </label>
+            <div className="relative">
+              <input
+                type={showKey ? 'text' : 'password'}
+                value={apiKey}
+                onChange={e => setApiKey(e.target.value)}
+                placeholder={
+                  settings?.liteLlmKeySet ? '••••••••  (leave blank to keep current)' : 'sk-…'
+                }
+                className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 pr-10 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+              />
               <button
-                key={p}
-                onClick={() => {
-                  setProvider(p)
-                  setModel('')
-                }}
-                className={`px-4 py-2 rounded-lg text-sm font-medium border transition-colors ${
-                  provider === p
-                    ? 'bg-blue-600 text-white border-blue-600'
-                    : 'bg-white text-slate-700 border-slate-200 hover:border-blue-300'
-                }`}
+                type="button"
+                onClick={() => setShowKey(v => !v)}
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
               >
-                {p === 'anthropic' ? 'Anthropic (Claude)' : 'OpenAI'}
+                {showKey ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>
-            ))}
+            </div>
           </div>
         </div>
 
-        {/* Model */}
-        <div className="px-5 py-4">
-          <label className="block text-sm font-medium text-slate-700 mb-2">Model</label>
-          <input
-            type="text"
-            value={model}
-            onChange={e => setModel(e.target.value)}
-            placeholder={defaultModel}
-            className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          />
-          <p className="text-xs text-slate-400 mt-1">
-            {provider === 'anthropic'
-              ? 'e.g. claude-sonnet-4-6, claude-opus-4-6'
-              : 'e.g. gpt-4o, gpt-4o-mini'}
-          </p>
+        {/* Model list */}
+        <div className="px-5 py-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium text-slate-700">Models</p>
+            <button
+              onClick={() => setModels(ms => [...ms, { id: '', label: '' }])}
+              className="flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-700"
+            >
+              <Plus size={14} /> Add model
+            </button>
+          </div>
+          {models.length === 0 && (
+            <p className="text-xs text-slate-400">
+              No models yet — add the model ids exposed by your LiteLLM proxy (e.g.
+              claude-sonnet-4-6, gpt-4o).
+            </p>
+          )}
+          {models.map((m, i) => (
+            <div key={i} className="flex items-center gap-2">
+              <input
+                type="text"
+                value={m.id}
+                onChange={e => updateModel(i, { id: e.target.value })}
+                placeholder="model id (e.g. gpt-4o)"
+                className="flex-1 text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+              />
+              <input
+                type="text"
+                value={m.label ?? ''}
+                onChange={e => updateModel(i, { label: e.target.value })}
+                placeholder="label (optional)"
+                className="flex-1 text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
+              <button
+                onClick={() => setModels(ms => ms.filter((_, idx) => idx !== i))}
+                className="text-slate-400 hover:text-red-600"
+                aria-label="Remove model"
+              >
+                <Trash2 size={16} />
+              </button>
+            </div>
+          ))}
         </div>
 
-        {/* API Keys — separate fields */}
-        <div className="px-5 py-4 space-y-4">
-          <p className="text-sm font-medium text-slate-700">API Keys</p>
-
-          <KeyField
-            label="Anthropic API Key"
-            hint="sk-ant-..."
-            isSet={settings?.anthropicKeySet ?? false}
-            value={anthropicKey}
-            onChange={setAnthropicKey}
-            show={showAnthropicKey}
-            onToggleShow={() => setShowAnthr(v => !v)}
+        {/* Role → model mapping */}
+        <div className="px-5 py-4 grid grid-cols-1 sm:grid-cols-2 gap-4">
+          <ModelSelect
+            label="Failure analysis"
+            hint="Classifies test failures"
+            value={modelAnalysis}
+            models={models}
+            onChange={setModelAnalysis}
           />
-
-          <KeyField
-            label="OpenAI API Key"
-            hint="sk-..."
-            isSet={settings?.openaiKeySet ?? false}
-            value={openaiKey}
-            onChange={setOpenaiKey}
-            show={showOpenaiKey}
-            onToggleShow={() => setShowOpenai(v => !v)}
+          <ModelSelect
+            label="Agent — standard"
+            hint="Fast tier for structured agent steps"
+            value={modelStandard}
+            models={models}
+            onChange={setModelStandard}
+          />
+          <ModelSelect
+            label="Agent — complex"
+            hint="Deep reasoning: test/code generation, healing"
+            value={modelComplex}
+            models={models}
+            onChange={setModelComplex}
+          />
+          <ModelSelect
+            label="Agent — summarizer"
+            hint="Cheap tier for step summaries"
+            value={modelSummarizer}
+            models={models}
+            onChange={setModelSummarizer}
           />
         </div>
 
-        {/* Test connection result */}
         {testResult && (
           <div
             className={`px-5 py-3 flex items-center gap-2 text-sm ${
@@ -289,7 +358,6 @@ export default function AiSettingsPage() {
           </div>
         )}
 
-        {/* Actions */}
         <div className="px-5 py-4 flex items-center gap-3">
           <button
             onClick={() => {
@@ -321,6 +389,9 @@ export default function AiSettingsPage() {
         </div>
       </div>
 
+      {/* Export gateway config for external tools */}
+      <LiteLlmExport baseUrl={baseUrl} models={models} />
+
       {/* On-Demand Analysis */}
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm divide-y divide-slate-100">
         <div className="px-5 py-4">
@@ -330,7 +401,6 @@ export default function AiSettingsPage() {
             the nightly batch.
           </p>
         </div>
-
         <div className="px-5 py-4 flex items-center gap-4">
           <button
             onClick={() => {
@@ -343,7 +413,6 @@ export default function AiSettingsPage() {
             <Play size={14} />
             {analyseNowMutation.isPending ? 'Queuing…' : 'Analyze Now'}
           </button>
-
           {analyseResult !== null &&
             (analyseResult.queued >= 0 ? (
               <span className="text-sm text-green-700 flex items-center gap-1.5">

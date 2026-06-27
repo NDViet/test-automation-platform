@@ -244,7 +244,7 @@ class TestGenNodeTest {
 
   @Test
   void tools_declaresAllExpectedTools() {
-    List<String> toolNames = node.tools().stream().map(t -> t.name()).toList();
+    List<String> toolNames = node.toolSpecs().stream().map(t -> t.name()).toList();
     assertThat(toolNames)
         .containsExactlyInAnyOrder(
             "save_test_cases", "update_test_case", "link_test_cases", "request_review");

@@ -5,7 +5,7 @@ import { relativeTime } from '@/lib/utils'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import ErrorMessage from '@/components/ErrorMessage'
 import { ProjectSelect, TeamSelect } from '@/components/ScopeSelectors'
-import { ShieldCheck, Trash2, UserPlus } from 'lucide-react'
+import { ShieldCheck, Trash2, UserPlus, Search } from 'lucide-react'
 import type { PlatformRole, CredentialScope } from '@/lib/types'
 
 const ORG_ROLES: PlatformRole[] = ['ORG_ADMIN', 'VIEWER']
@@ -33,6 +33,7 @@ export default function RolesPage() {
   const [userId, setUserId] = useState('')
   const [role, setRole] = useState<PlatformRole>('VIEWER')
   const [err, setErr] = useState<string | null>(null)
+  const [search, setSearch] = useState('')
 
   // ORG scope is global (scopeId = null/undefined); TEAM scope targets a sub-team.
   const effectiveScopeId = scope === 'ORG' ? undefined : teamId || undefined
@@ -85,8 +86,13 @@ export default function RolesPage() {
 
   const roleOptions = scope === 'ORG' ? ORG_ROLES : TEAM_ROLES
 
+  const q = search.trim().toLowerCase()
+  const filtered = (members ?? []).filter(
+    m => !q || m.userId.toLowerCase().includes(q) || m.role.toLowerCase().includes(q),
+  )
+
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-6 h-full min-h-0">
       <div>
         <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
           <ShieldCheck size={22} /> Roles & Access
@@ -177,34 +183,63 @@ export default function RolesPage() {
       {isLoading && <LoadingSpinner message="Loading members…" />}
       {error && <ErrorMessage message="Failed to load members." onRetry={() => void refetch()} />}
       {!isLoading && !error && (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm divide-y divide-slate-50">
-          {(!members || members.length === 0) && (
-            <p className="px-5 py-8 text-center text-sm text-slate-500">
-              No role assignments at this scope.
-            </p>
-          )}
-          {(members ?? []).map(m => (
-            <div key={m.id} className="px-5 py-3 flex items-center justify-between gap-4">
-              <div className="flex items-center gap-3">
-                <span className="text-sm font-medium text-slate-900">{m.userId}</span>
-                <span className={`text-xs px-1.5 py-0.5 rounded ${roleColor(m.role)}`}>
-                  {m.role}
-                </span>
-                <span className="text-xs text-slate-400">
-                  {m.grantedBy && `by ${m.grantedBy} · `}
-                  {relativeTime(m.grantedAt)}
-                </span>
-              </div>
-              <button
-                onClick={() => revokeMutation.mutate(m.id)}
-                disabled={revokeMutation.isPending}
-                className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
-                title="Revoke"
-              >
-                <Trash2 size={16} />
-              </button>
+        <div className="bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col flex-1 min-h-0">
+          {/* Search header */}
+          <div className="flex items-center gap-3 px-5 py-3 border-b border-slate-100">
+            <div className="relative flex-1">
+              <Search
+                size={15}
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+              />
+              <input
+                value={search}
+                onChange={e => setSearch(e.target.value)}
+                placeholder="Search by user or role…"
+                className="w-full text-sm border border-slate-200 rounded-lg pl-9 pr-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              />
             </div>
-          ))}
+            <span className="text-xs text-slate-400 shrink-0">
+              {q ? `${filtered.length} of ${members?.length ?? 0}` : `${members?.length ?? 0}`}{' '}
+              member
+              {(members?.length ?? 0) === 1 ? '' : 's'}
+            </span>
+          </div>
+
+          {/* Scrollable body */}
+          <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-slate-50">
+            {(!members || members.length === 0) && (
+              <p className="px-5 py-8 text-center text-sm text-slate-500">
+                No role assignments at this scope.
+              </p>
+            )}
+            {members && members.length > 0 && filtered.length === 0 && (
+              <p className="px-5 py-8 text-center text-sm text-slate-500">
+                No members match “{search}”.
+              </p>
+            )}
+            {filtered.map(m => (
+              <div key={m.id} className="px-5 py-3 flex items-center justify-between gap-4">
+                <div className="flex items-center gap-3 min-w-0">
+                  <span className="text-sm font-medium text-slate-900 truncate">{m.userId}</span>
+                  <span className={`text-xs px-1.5 py-0.5 rounded shrink-0 ${roleColor(m.role)}`}>
+                    {m.role}
+                  </span>
+                  <span className="text-xs text-slate-400 shrink-0">
+                    {m.grantedBy && `by ${m.grantedBy} · `}
+                    {relativeTime(m.grantedAt)}
+                  </span>
+                </div>
+                <button
+                  onClick={() => revokeMutation.mutate(m.id)}
+                  disabled={revokeMutation.isPending}
+                  className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg shrink-0"
+                  title="Revoke"
+                >
+                  <Trash2 size={16} />
+                </button>
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>

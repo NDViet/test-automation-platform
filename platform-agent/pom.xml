@@ -38,10 +38,15 @@
             <artifactId>platform-integration-config</artifactId>
             <version>${project.version}</version>
         </dependency>
+        <!-- LLM gateway + agent layer: LangChain4j ChatModel routed through LiteLLM
+             (replaces the former Anthropic Java SDK). -->
         <dependency>
-            <groupId>com.anthropic</groupId>
-            <artifactId>anthropic-java</artifactId>
-            <version>2.43.0</version>
+            <groupId>org.ndviet</groupId>
+            <artifactId>platform-llm</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>dev.langchain4j</groupId>
+            <artifactId>langchain4j-open-ai</artifactId>
         </dependency>
 
         <dependency>

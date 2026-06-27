@@ -1,7 +1,5 @@
 package com.platform.agent.node.impl;
 
-import com.anthropic.core.JsonValue;
-import com.anthropic.models.messages.Tool;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.platform.agent.node.AgentNode;
@@ -10,9 +8,12 @@ import com.platform.agent.node.tools.GitHubApiClient;
 import com.platform.agent.node.tools.PlatformQueryTools;
 import com.platform.common.agent.*;
 import com.platform.common.integration.IntegrationType;
+import dev.langchain4j.agent.tool.ToolSpecification;
+import dev.langchain4j.model.chat.request.json.JsonArraySchema;
+import dev.langchain4j.model.chat.request.json.JsonObjectSchema;
+import dev.langchain4j.model.chat.request.json.JsonStringSchema;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -152,79 +153,47 @@ public class AnalysisNode implements AgentNode {
   }
 
   @Override
-  public List<Tool> tools() {
+  public List<ToolSpecification> toolSpecs() {
     return List.of(
-        Tool.builder()
+        ToolSpecification.builder()
             .name("github_get_pr_files")
             .description(
-                "Gets the list of changed files in a GitHub pull request. Returns a JSON array of"
-                    + " file objects with filename, status, additions, deletions.")
-            .inputSchema(
-                Tool.InputSchema.builder()
-                    .type(JsonValue.from("object"))
-                    .putAdditionalProperty(
-                        "properties",
-                        JsonValue.from(
-                            Map.of(
-                                "owner",
-                                    Map.of(
-                                        "type", "string", "description", "GitHub repository owner"),
-                                "repo",
-                                    Map.of(
-                                        "type", "string", "description", "GitHub repository name"),
-                                "pr_number",
-                                    Map.of(
-                                        "type", "integer", "description", "Pull request number"))))
-                    .addRequired("owner")
-                    .addRequired("repo")
-                    .addRequired("pr_number")
+                "Gets the list of changed files in a GitHub pull request (filename, status,"
+                    + " additions, deletions).")
+            .parameters(
+                JsonObjectSchema.builder()
+                    .addStringProperty("owner", "GitHub repository owner")
+                    .addStringProperty("repo", "GitHub repository name")
+                    .addIntegerProperty("pr_number", "Pull request number")
+                    .required("owner", "repo", "pr_number")
                     .build())
             .build(),
-        Tool.builder()
+        ToolSpecification.builder()
             .name("platform_get_tia_impact")
             .description(
-                "Gets test impact analysis from the platform for a list of changed files. Returns"
-                    + " risk level, recommended tests to run, and estimated reduction percentage.")
-            .inputSchema(
-                Tool.InputSchema.builder()
-                    .type(JsonValue.from("object"))
-                    .putAdditionalProperty(
-                        "properties",
-                        JsonValue.from(
-                            Map.of(
-                                "changed_files",
-                                Map.of(
-                                    "type", "array",
-                                    "items", Map.of("type", "string"),
-                                    "description", "List of changed file paths from the PR"))))
-                    .addRequired("changed_files")
+                "Gets test impact analysis for a list of changed files: risk level, recommended"
+                    + " tests, estimated reduction.")
+            .parameters(
+                JsonObjectSchema.builder()
+                    .addProperty(
+                        "changed_files",
+                        JsonArraySchema.builder()
+                            .description("List of changed file paths from the PR")
+                            .items(JsonStringSchema.builder().build())
+                            .build())
+                    .required("changed_files")
                     .build())
             .build(),
-        Tool.builder()
+        ToolSpecification.builder()
             .name("github_post_pr_comment")
             .description("Posts a markdown comment on a GitHub pull request.")
-            .inputSchema(
-                Tool.InputSchema.builder()
-                    .type(JsonValue.from("object"))
-                    .putAdditionalProperty(
-                        "properties",
-                        JsonValue.from(
-                            Map.of(
-                                "owner",
-                                    Map.of(
-                                        "type", "string", "description", "GitHub repository owner"),
-                                "repo",
-                                    Map.of(
-                                        "type", "string", "description", "GitHub repository name"),
-                                "pr_number",
-                                    Map.of("type", "integer", "description", "Pull request number"),
-                                "body",
-                                    Map.of(
-                                        "type", "string", "description", "Markdown comment body"))))
-                    .addRequired("owner")
-                    .addRequired("repo")
-                    .addRequired("pr_number")
-                    .addRequired("body")
+            .parameters(
+                JsonObjectSchema.builder()
+                    .addStringProperty("owner", "GitHub repository owner")
+                    .addStringProperty("repo", "GitHub repository name")
+                    .addIntegerProperty("pr_number", "Pull request number")
+                    .addStringProperty("body", "Markdown comment body")
+                    .required("owner", "repo", "pr_number", "body")
                     .build())
             .build());
   }

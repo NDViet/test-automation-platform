@@ -11,6 +11,7 @@ import com.platform.core.domain.TestCaseStep;
 import com.platform.core.repository.PlatformRequirementRepository;
 import com.platform.core.repository.PlatformTestCaseRepository;
 import com.platform.core.repository.TestCaseStepRepository;
+import dev.langchain4j.agent.tool.ToolSpecification;
 import java.util.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -461,8 +462,8 @@ public class TestCaseGenerationNode implements AgentNode {
     }
 
     @Override
-    public List<com.anthropic.models.messages.Tool> tools() {
-      return List.of(); // no tools — Claude responds with pure JSON text
+    public List<ToolSpecification> toolSpecs() {
+      return List.of();
     }
 
     @Override

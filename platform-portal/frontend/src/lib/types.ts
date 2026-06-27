@@ -188,22 +188,33 @@ export interface FailureAnalysis {
   analysedAt: string
 }
 
+export interface LiteLlmModel {
+  id: string
+  label?: string
+}
+
 export interface AiSettings {
   enabled: boolean
   realtimeEnabled: boolean
-  provider: 'anthropic' | 'openai'
-  model: string
-  anthropicKeySet: boolean
-  openaiKeySet: boolean
+  liteLlmBaseUrl: string
+  liteLlmKeySet: boolean
+  models: LiteLlmModel[]
+  modelAnalysis: string
+  modelStandard: string
+  modelComplex: string
+  modelSummarizer: string
 }
 
 export interface AiSettingsUpdate {
   enabled?: boolean
   realtimeEnabled?: boolean
-  provider?: string
-  model?: string
-  anthropicApiKey?: string
-  openaiApiKey?: string
+  liteLlmBaseUrl?: string
+  liteLlmApiKey?: string
+  models?: LiteLlmModel[]
+  modelAnalysis?: string
+  modelStandard?: string
+  modelComplex?: string
+  modelSummarizer?: string
 }
 
 export interface TestConnectionResult {
@@ -1010,6 +1021,58 @@ export interface GithubRepo {
   defaultBranch: string | null
   htmlUrl: string | null
   managed: boolean
+}
+
+export interface AzureOrg {
+  accountName: string
+  accountId: string | null
+  accountUri: string | null
+  managed: boolean
+}
+
+/** Credential encryption key lifecycle status. */
+export interface CredKeyStatus {
+  /** Key came from the PLATFORM_CRED_KEY env var (passphrase flow disabled). */
+  envProvided: boolean
+  /** A passphrase has been set up (a settings row exists). */
+  initialized: boolean
+  /** A usable key is currently loaded — credentials can be saved/used. */
+  unlocked: boolean
+}
+
+/** Result of the first-run ADO bootstrap (POST /ado/onboard/org). */
+export interface AdoOnboardResult {
+  org: {
+    organizationId: string
+    slug: string
+    credentialId: string
+    orgCreated: boolean
+  }
+  projects: { created: number; total: number }
+  structure: { projectsSynced: number; teamsCreated: number; failures: string[] }
+  members: { grantsCreated: number; membersSeen: number; ownerEmail: string | null }
+}
+
+/** Result of an on-demand ADO re-sync (POST /ado/onboard/resync). */
+export interface AdoResyncResult {
+  projects: { created: number; total: number }
+  structure: { projectsSynced: number; teamsCreated: number; failures: string[] }
+  members: { grantsCreated: number; membersSeen: number; ownerEmail: string | null }
+}
+
+/** The PAT owner's identity resolved from Azure DevOps (GET /ado/onboard/me). */
+export interface AdoOwnerProfile {
+  email: string | null
+  displayName: string | null
+  id: string | null
+}
+
+/** Result of claiming org admin from the PAT owner (POST /ado/onboard/claim-admin). */
+export interface AdoClaimAdminResult {
+  email: string
+  displayName: string | null
+  granted: boolean
+  alreadyAdmin: boolean
 }
 
 export interface Credential {

@@ -1,7 +1,5 @@
 package com.platform.agent.node.impl;
 
-import com.anthropic.core.JsonValue;
-import com.anthropic.models.messages.Tool;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.platform.agent.node.AgentNode;
@@ -11,8 +9,11 @@ import com.platform.core.domain.PlatformTestCase;
 import com.platform.core.domain.PlatformTraceabilityEdge;
 import com.platform.core.repository.PlatformTestCaseRepository;
 import com.platform.core.repository.PlatformTraceabilityEdgeRepository;
+import dev.langchain4j.agent.tool.ToolSpecification;
+import dev.langchain4j.model.chat.request.json.JsonArraySchema;
+import dev.langchain4j.model.chat.request.json.JsonObjectSchema;
+import dev.langchain4j.model.chat.request.json.JsonStringSchema;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -65,114 +66,73 @@ public class TestGenNode implements AgentNode {
   }
 
   @Override
-  public List<Tool> tools() {
+  public List<ToolSpecification> toolSpecs() {
     return List.of(
-        Tool.builder()
+        ToolSpecification.builder()
             .name("save_test_cases")
             .description(
-                "Persist new test cases for a requirement. "
-                    + "Use for CREATE_ALL and CREATE_FOR_NEW_ACS modes.")
-            .inputSchema(
-                Tool.InputSchema.builder()
-                    .type(JsonValue.from("object"))
-                    .putAdditionalProperty(
-                        "properties",
-                        JsonValue.from(
-                            Map.of(
-                                "requirement_id",
-                                    Map.of(
-                                        "type",
-                                        "string",
-                                        "description",
-                                        "UUID of the requirement these TCs cover"),
-                                "test_cases",
-                                    Map.of(
-                                        "type", "array",
-                                        "description", "List of test cases to create",
-                                        "items",
-                                            Map.of(
-                                                "type", "object",
-                                                "properties",
-                                                    Map.of(
-                                                        "title", Map.of("type", "string"),
-                                                        "ac_refs",
-                                                            Map.of(
-                                                                "type",
-                                                                "array",
-                                                                "items",
-                                                                Map.of("type", "string")),
-                                                        "has_automation",
-                                                            Map.of("type", "boolean")),
-                                                "required", List.of("title"))))))
-                    .addRequired("requirement_id")
-                    .addRequired("test_cases")
+                "Persist new test cases for a requirement (CREATE_ALL and CREATE_FOR_NEW_ACS"
+                    + " modes).")
+            .parameters(
+                JsonObjectSchema.builder()
+                    .addStringProperty("requirement_id", "UUID of the requirement these TCs cover")
+                    .addProperty(
+                        "test_cases",
+                        JsonArraySchema.builder()
+                            .description("List of test cases to create")
+                            .items(
+                                JsonObjectSchema.builder()
+                                    .addStringProperty("title")
+                                    .addProperty(
+                                        "ac_refs",
+                                        JsonArraySchema.builder()
+                                            .items(JsonStringSchema.builder().build())
+                                            .build())
+                                    .addBooleanProperty("has_automation")
+                                    .required("title")
+                                    .build())
+                            .build())
+                    .required("requirement_id", "test_cases")
                     .build())
             .build(),
-        Tool.builder()
+        ToolSpecification.builder()
             .name("update_test_case")
-            .description(
-                "Update an existing test case that is NEEDS_UPDATE. "
-                    + "Use for UPDATE_CHANGED mode.")
-            .inputSchema(
-                Tool.InputSchema.builder()
-                    .type(JsonValue.from("object"))
-                    .putAdditionalProperty(
-                        "properties",
-                        JsonValue.from(
-                            Map.of(
-                                "test_case_id",
-                                    Map.of(
-                                        "type",
-                                        "string",
-                                        "description",
-                                        "UUID of the test case to update"),
-                                "new_title", Map.of("type", "string"),
-                                "new_ac_refs",
-                                    Map.of("type", "array", "items", Map.of("type", "string")))))
-                    .addRequired("test_case_id")
+            .description("Update an existing test case that is NEEDS_UPDATE (UPDATE_CHANGED mode).")
+            .parameters(
+                JsonObjectSchema.builder()
+                    .addStringProperty("test_case_id", "UUID of the test case to update")
+                    .addStringProperty("new_title")
+                    .addProperty(
+                        "new_ac_refs",
+                        JsonArraySchema.builder().items(JsonStringSchema.builder().build()).build())
+                    .required("test_case_id")
                     .build())
             .build(),
-        Tool.builder()
+        ToolSpecification.builder()
             .name("link_test_cases")
             .description(
-                "Link existing test cases to a requirement via COVERED_BY edges. "
-                    + "Use for REUSE_FROM_RELATED mode.")
-            .inputSchema(
-                Tool.InputSchema.builder()
-                    .type(JsonValue.from("object"))
-                    .putAdditionalProperty(
-                        "properties",
-                        JsonValue.from(
-                            Map.of(
-                                "requirement_id", Map.of("type", "string"),
-                                "test_case_ids",
-                                    Map.of(
-                                        "type",
-                                        "array",
-                                        "items",
-                                        Map.of("type", "string"),
-                                        "description",
-                                        "UUIDs of existing test cases to link"))))
-                    .addRequired("requirement_id")
-                    .addRequired("test_case_ids")
+                "Link existing test cases to a requirement via COVERED_BY edges (REUSE_FROM_RELATED"
+                    + " mode).")
+            .parameters(
+                JsonObjectSchema.builder()
+                    .addStringProperty("requirement_id")
+                    .addProperty(
+                        "test_case_ids",
+                        JsonArraySchema.builder()
+                            .description("UUIDs of existing test cases to link")
+                            .items(JsonStringSchema.builder().build())
+                            .build())
+                    .required("requirement_id", "test_case_ids")
                     .build())
             .build(),
-        Tool.builder()
+        ToolSpecification.builder()
             .name("request_review")
-            .description(
-                "Pause and request human review of the proposed test cases "
-                    + "before they are saved.")
-            .inputSchema(
-                Tool.InputSchema.builder()
-                    .type(JsonValue.from("object"))
-                    .putAdditionalProperty(
-                        "properties",
-                        JsonValue.from(
-                            Map.of(
-                                "summary", Map.of("type", "string"),
-                                "payload", Map.of("type", "string"))))
-                    .addRequired("summary")
-                    .addRequired("payload")
+            .description("Pause execution and request human review.")
+            .parameters(
+                JsonObjectSchema.builder()
+                    .addStringProperty("summary", "Brief description of what is being reviewed")
+                    .addStringProperty("payload", "Full details for the reviewer")
+                    .required("summary", "payload")
                     .build())
             .build());
   }

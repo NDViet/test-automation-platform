@@ -1055,3 +1055,31 @@ LEFT JOIN platform_traceability_edges e
       AND e.edge_type = 'COVERED_BY'
 GROUP BY rr.release_id, r.project_id, r.id, r.external_id, r.title, r.issue_type
 HAVING COUNT(e.id) = 0;
+
+-- ── Azure DevOps managed organizations ─────────────────────────────────────────
+-- A single PAT can access many orgs; this stores the subset the user chose to manage
+-- (mirrors github_managed_repos).
+CREATE TABLE azure_managed_orgs (
+    id            UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    credential_id UUID NOT NULL REFERENCES integration_credentials(id) ON DELETE CASCADE,
+    account_name  VARCHAR(200) NOT NULL,
+    account_id    VARCHAR(64),
+    account_uri   VARCHAR(500),
+    added_at      TIMESTAMPTZ NOT NULL DEFAULT now(),
+    UNIQUE (credential_id, account_name)
+);
+CREATE INDEX idx_amo_cred ON azure_managed_orgs(credential_id);
+
+-- ── Passphrase-derived credential encryption key (single row) ──────────────────
+-- When PLATFORM_CRED_KEY env is not set, the platform can derive the AES-256 key from an
+-- admin-chosen passphrase via PBKDF2. We persist only the salt + iteration count + a verifier
+-- (a known constant encrypted with the derived key) — never the key or passphrase itself. The
+-- verifier lets us confirm a re-entered passphrase is correct on unlock after a restart.
+CREATE TABLE cred_key_settings (
+    id          UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    salt        VARCHAR(64)  NOT NULL,        -- base64 of random salt
+    iterations  INTEGER      NOT NULL,        -- PBKDF2 iteration count
+    verifier    VARCHAR(256) NOT NULL,        -- v1: ciphertext of a known constant
+    created_at  TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    updated_at  TIMESTAMPTZ  NOT NULL DEFAULT now()
+);

@@ -110,7 +110,7 @@ class InsightNodeTest {
 
   @Test
   void tools_declaresAllExpectedTools() {
-    List<String> names = nodeWithoutSlack.tools().stream().map(t -> t.name()).toList();
+    List<String> names = nodeWithoutSlack.toolSpecs().stream().map(t -> t.name()).toList();
     assertThat(names)
         .containsExactlyInAnyOrder(
             "platform_get_trends",
