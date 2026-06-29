@@ -52,6 +52,18 @@ public class AiGenerationRun {
   @Column(name = "max_rounds", nullable = false)
   private int maxRounds = 3;
 
+  /** The agent resolved for this run (null ⇒ built-in seed). */
+  @Column(name = "agent_id")
+  private UUID agentId;
+
+  /** The task sub-type chosen for this run (e.g. FUNCTIONAL / NON_FUNCTIONAL / DEFAULT). */
+  @Column(name = "task_sub_type", length = 40)
+  private String taskSubType;
+
+  /** Agent's explicit model id override, if any (consumed by the node). */
+  @Column(name = "resolved_model_id", columnDefinition = "TEXT")
+  private String resolvedModelId;
+
   @Column(name = "created_at", nullable = false, updatable = false)
   private Instant createdAt = Instant.now();
 
@@ -79,6 +91,13 @@ public class AiGenerationRun {
   public void recordResolvedPrompts(String systemPromptUsed, String userPromptUsed) {
     this.systemPromptUsed = systemPromptUsed;
     this.userPromptUsed = userPromptUsed;
+  }
+
+  /** Record which agent (and sub-type / model) drove this run, for audit and node consumption. */
+  public void recordAgentResolution(UUID agentId, String taskSubType, String resolvedModelId) {
+    this.agentId = agentId;
+    this.taskSubType = taskSubType;
+    this.resolvedModelId = resolvedModelId;
   }
 
   public UUID getId() {
@@ -123,6 +142,18 @@ public class AiGenerationRun {
 
   public int getMaxRounds() {
     return maxRounds;
+  }
+
+  public UUID getAgentId() {
+    return agentId;
+  }
+
+  public String getTaskSubType() {
+    return taskSubType;
+  }
+
+  public String getResolvedModelId() {
+    return resolvedModelId;
   }
 
   public Instant getCreatedAt() {

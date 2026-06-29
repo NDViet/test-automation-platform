@@ -62,3 +62,11 @@ management:
     export:
       prometheus:
         enabled: true
+
+# Agent-management settings.
+agent:
+  # RBAC enforcement on agent/task-agent writes is ON HOLD until platform-wide RBAC is in place.
+  # Flip to true (or set AGENT_RBAC_ENABLED=true) to enforce: ORG scope → ORG_ADMIN,
+  # PROJECT scope → ORG_ADMIN or TEAM_ADMIN of a team in the project.
+  rbac:
+    enabled: ${AGENT_RBAC_ENABLED:false}

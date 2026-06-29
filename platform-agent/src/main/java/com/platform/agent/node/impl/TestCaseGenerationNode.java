@@ -233,7 +233,8 @@ public class TestCaseGenerationNode implements AgentNode {
     // message.
     //    Clarifying questions are enabled only for the new flow with rounds remaining.
     boolean allowQuestions = run != null && run.getMaxRounds() > 0;
-    TextOnlyNode shim = new TextOnlyNode(this, fullPrompt, allowQuestions);
+    String modelOverride = run != null ? run.getResolvedModelId() : null;
+    TextOnlyNode shim = new TextOnlyNode(this, fullPrompt, allowQuestions, modelOverride);
     NodeResult claudeResult = orchestrator.run(bundle, shim);
 
     return finishFromClaude(bundle, claudeResult);
@@ -247,7 +248,12 @@ public class TestCaseGenerationNode implements AgentNode {
   @Transactional
   public NodeResult resumeWithAnswers(
       ContextBundle bundle, String checkpointId, String answersText, boolean allowQuestions) {
-    TextOnlyNode shim = new TextOnlyNode(this, "", allowQuestions);
+    AiGenerationRun run =
+        bundle.workflowId() == null
+            ? null
+            : runRepo.findByWorkflowId(bundle.workflowId()).orElse(null);
+    String modelOverride = run != null ? run.getResolvedModelId() : null;
+    TextOnlyNode shim = new TextOnlyNode(this, "", allowQuestions, modelOverride);
     NodeResult claudeResult = orchestrator.resume(bundle, checkpointId, shim, answersText);
     return finishFromClaude(bundle, claudeResult);
   }
@@ -685,11 +691,22 @@ public class TestCaseGenerationNode implements AgentNode {
     private final TestCaseGenerationNode parent;
     private final String fullSystemPrompt;
     private final boolean allowQuestions;
+    private final String modelOverride;
 
-    TextOnlyNode(TestCaseGenerationNode parent, String fullSystemPrompt, boolean allowQuestions) {
+    TextOnlyNode(
+        TestCaseGenerationNode parent,
+        String fullSystemPrompt,
+        boolean allowQuestions,
+        String modelOverride) {
       this.parent = parent;
       this.fullSystemPrompt = fullSystemPrompt;
       this.allowQuestions = allowQuestions;
+      this.modelOverride = modelOverride;
+    }
+
+    @Override
+    public String modelOverride() {
+      return modelOverride;
     }
 
     @Override

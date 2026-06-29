@@ -31,6 +31,21 @@ async function del(path: string): Promise<void> {
   if (!res.ok) throw new Error(`DELETE ${path} → ${res.status}`)
 }
 
+/** DELETE carrying the X-Actor header (for RBAC-guarded resources); surfaces server error message. */
+async function delActor(path: string, actor: string): Promise<void> {
+  const res = await fetch(BASE + path, { method: 'DELETE', headers: { 'X-Actor': actor } })
+  if (!res.ok) {
+    let msg = `DELETE ${path} → ${res.status}`
+    try {
+      const e = (await res.json()) as { message?: string }
+      if (e?.message) msg = e.message
+    } catch {
+      /* ignore */
+    }
+    throw new Error(msg)
+  }
+}
+
 async function patch(path: string): Promise<void> {
   const res = await fetch(BASE + path, { method: 'PATCH' })
   if (!res.ok) throw new Error(`PATCH ${path} → ${res.status}`)
@@ -963,6 +978,54 @@ export const api = {
     putActor<import('./types').AiSkill>(`/ai/projects/${projectId}/skills/${skillId}`, body, actor),
   deleteAiSkill: (projectId: string, skillId: string) =>
     del(`/ai/projects/${projectId}/skills/${skillId}`),
+
+  // ── Agents (org/project-scoped reusable agent configs) ────────────────────
+  agents: (scope: import('./types').AgentScope, scopeId: string) =>
+    get<import('./types').Agent[]>(`/ai/${scope}/${scopeId}/agents`),
+  effectiveAgents: (projectId: string) =>
+    get<import('./types').Agent[]>(`/ai/projects/${projectId}/agents/effective`),
+  createAgent: (
+    scope: import('./types').AgentScope,
+    scopeId: string,
+    body: import('./types').AgentForm,
+    actor: string,
+  ) => postActor<import('./types').Agent>(`/ai/${scope}/${scopeId}/agents`, body, actor),
+  updateAgent: (
+    scope: import('./types').AgentScope,
+    scopeId: string,
+    id: string,
+    body: import('./types').AgentForm,
+    actor: string,
+  ) => putActor<import('./types').Agent>(`/ai/${scope}/${scopeId}/agents/${id}`, body, actor),
+  deleteAgent: (scope: import('./types').AgentScope, scopeId: string, id: string, actor: string) =>
+    delActor(`/ai/${scope}/${scopeId}/agents/${id}`, actor),
+
+  // ── Task → agent assignments ──────────────────────────────────────────────
+  taskAgents: (scope: import('./types').AgentScope, scopeId: string) =>
+    get<import('./types').TaskAgentAssignment[]>(`/ai/${scope}/${scopeId}/task-agents`),
+  upsertTaskAgent: (
+    scope: import('./types').AgentScope,
+    scopeId: string,
+    body: { taskType: string; subType: string; agentId: string },
+    actor: string,
+  ) =>
+    putActor<import('./types').TaskAgentAssignment>(
+      `/ai/${scope}/${scopeId}/task-agents`,
+      body,
+      actor,
+    ),
+  deleteTaskAgent: (
+    scope: import('./types').AgentScope,
+    scopeId: string,
+    id: string,
+    actor: string,
+  ) => delActor(`/ai/${scope}/${scopeId}/task-agents/${id}`, actor),
+  taskSubTypes: (taskType: string) =>
+    get<import('./types').TaskSubType[]>(`/ai/task-subtypes?taskType=${taskType}`),
+  effectiveTaskAgent: (projectId: string, taskType: string, subType?: string) =>
+    get<import('./types').EffectiveAssignment>(
+      `/ai/projects/${projectId}/task-agents/effective?taskType=${taskType}${subType ? `&subType=${subType}` : ''}`,
+    ),
 
   // ── AI prompt templates (project-scoped) ──────────────────────────────────
   aiPromptTemplates: (projectId: string) =>

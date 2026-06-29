@@ -114,7 +114,8 @@ public class LangChainAgentRunner implements AgentOrchestrator {
 
   @Override
   public NodeResult run(ContextBundle bundle, AgentNode node) {
-    String modelId = resolveModelId(bundle.llmTier());
+    String modelId =
+        node.modelOverride() != null ? node.modelOverride() : resolveModelId(bundle.llmTier());
     StreamingChatModel model = provider.streamingChatModel(modelId);
     TokenUsage total = TokenUsage.zero();
     if (model == null) {
@@ -141,7 +142,8 @@ public class LangChainAgentRunner implements AgentOrchestrator {
   @Override
   public NodeResult resume(
       ContextBundle bundle, String checkpointId, AgentNode node, String nextUserMessage) {
-    String modelId = resolveModelId(bundle.llmTier());
+    String modelId =
+        node.modelOverride() != null ? node.modelOverride() : resolveModelId(bundle.llmTier());
     StreamingChatModel model = provider.streamingChatModel(modelId);
     if (model == null) {
       return NodeResult.failed(

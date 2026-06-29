@@ -57,6 +57,8 @@ const adminGroup: NavGroup = {
     { to: '/settings/roles', label: 'Roles', icon: ShieldCheck },
     { to: '/settings/api-keys', label: 'API Keys', icon: Key },
     { to: '/settings/ai', label: 'AI Settings', icon: Bot },
+    { to: '/settings/agents', label: 'Agents', icon: Bot },
+    { to: '/settings/task-agents', label: 'Task Agents', icon: Bot },
   ],
 }
 

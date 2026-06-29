@@ -18,8 +18,16 @@ public class AiSkill {
   @GeneratedValue(strategy = GenerationType.UUID)
   private UUID id;
 
-  @Column(name = "project_id", nullable = false)
+  @Column(name = "project_id")
   private UUID projectId;
+
+  /** ORG | PROJECT — owning scope (see V2). Defaults to PROJECT for the existing CRUD path. */
+  @Column(name = "scope", nullable = false, length = 10)
+  private String scope = "PROJECT";
+
+  /** organizations.id or projects.id depending on {@link #scope}. */
+  @Column(name = "scope_id", nullable = false)
+  private UUID scopeId;
 
   @Column(name = "name", nullable = false, columnDefinition = "TEXT")
   private String name;
@@ -52,6 +60,8 @@ public class AiSkill {
       boolean enabled,
       String createdBy) {
     this.projectId = projectId;
+    this.scope = "PROJECT";
+    this.scopeId = projectId;
     this.name = name;
     this.description = description;
     this.instructions = instructions;
@@ -74,6 +84,14 @@ public class AiSkill {
 
   public UUID getProjectId() {
     return projectId;
+  }
+
+  public String getScope() {
+    return scope;
+  }
+
+  public UUID getScopeId() {
+    return scopeId;
   }
 
   public String getName() {

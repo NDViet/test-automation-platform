@@ -47,4 +47,12 @@ public interface AgentNode {
   default java.util.List<dev.langchain4j.agent.tool.ToolSpecification> toolSpecs() {
     return java.util.List.of();
   }
+
+  /**
+   * Explicit LiteLLM model id to use for this node, overriding tier-based selection. Returns {@code
+   * null} to use the tier default. Set by an agent's {@code model_id}.
+   */
+  default String modelOverride() {
+    return null;
+  }
 }

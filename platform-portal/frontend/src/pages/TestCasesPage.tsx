@@ -900,6 +900,34 @@ function GenerateAIModal({ projectId, onClose }: { projectId: string; onClose: (
   const [uploadError, setUploadError] = useState<string | null>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
+  // Agent selection (functional/non-functional etc.), pre-filled with the resolved default.
+  const [subType, setSubType] = useState('')
+  const [agentId, setAgentId] = useState('')
+  const [agentTouched, setAgentTouched] = useState(false)
+  const { data: agentOptions } = useQuery({
+    queryKey: ['agents-effective', projectId],
+    queryFn: () => api.effectiveAgents(projectId),
+  })
+  const { data: subTypeOptions } = useQuery({
+    queryKey: ['task-subtypes', 'GENERATE_TEST_CASES'],
+    queryFn: () => api.taskSubTypes('GENERATE_TEST_CASES'),
+  })
+  const { data: resolvedDefault } = useQuery({
+    queryKey: ['effective-task-agent', projectId, subType],
+    queryFn: () => api.effectiveTaskAgent(projectId, 'GENERATE_TEST_CASES', subType || undefined),
+  })
+  // Default the sub-type to the catalog default, and the agent to the resolved default,
+  // until the user picks explicitly.
+  useEffect(() => {
+    if (!subType && subTypeOptions && subTypeOptions.length > 0) {
+      const def = subTypeOptions.find(s => s.isDefault) ?? subTypeOptions[0]
+      setSubType(def.key)
+    }
+  }, [subTypeOptions, subType])
+  useEffect(() => {
+    if (!agentTouched) setAgentId(resolvedDefault?.agentId ?? '')
+  }, [resolvedDefault, agentTouched])
+
   const { data: skills } = useQuery({
     queryKey: ['ai-skills', projectId],
     queryFn: () => api.aiSkills(projectId),
@@ -1008,6 +1036,8 @@ function GenerateAIModal({ projectId, onClose }: { projectId: string; onClose: (
         systemPromptOverride: sysOverride,
         userPromptOverride: usrOverride,
         maxRounds: maxRounds !== 3 ? maxRounds : undefined,
+        agentId: agentId || undefined,
+        subType: subType || undefined,
       }
       return api.generateTestCasesFromAI(projectId, body)
     },
@@ -1146,6 +1176,50 @@ function GenerateAIModal({ projectId, onClose }: { projectId: string; onClose: (
 
             {/* Steering inputs */}
             <div className="px-5 py-3 border-t border-slate-100 shrink-0 space-y-3 max-h-[38vh] overflow-y-auto">
+              {/* Agent + sub-type selection (pre-filled with the resolved default) */}
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">Type</label>
+                  <select
+                    value={subType}
+                    onChange={e => {
+                      setSubType(e.target.value)
+                      setAgentTouched(false) // re-resolve default agent for the new sub-type
+                    }}
+                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  >
+                    {(subTypeOptions ?? []).map(s => (
+                      <option key={s.key} value={s.key}>
+                        {s.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">
+                    Agent{' '}
+                    {resolvedDefault && !agentTouched && (
+                      <span className="text-slate-400">(default: {resolvedDefault.agentName})</span>
+                    )}
+                  </label>
+                  <select
+                    value={agentId}
+                    onChange={e => {
+                      setAgentId(e.target.value)
+                      setAgentTouched(true)
+                    }}
+                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  >
+                    <option value="">Default ({resolvedDefault?.agentName ?? 'seed'})</option>
+                    {(agentOptions ?? []).map(a => (
+                      <option key={a.id} value={a.id}>
+                        {a.name}
+                        {a.inherited ? ' (org)' : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
               {/* Free text */}
               <div>
                 <label className="block text-xs font-medium text-slate-700 mb-1">

@@ -2,10 +2,12 @@ package com.platform.agent.api;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.platform.agent.agents.EffectiveAgentConfig;
 import com.platform.agent.hub.ContextAssembler;
 import com.platform.agent.workflow.AgentWorkflowService;
 import com.platform.agent.workflow.GenerationResumeService;
 import com.platform.agent.workflow.GenerationStatusService;
+import com.platform.common.agent.AgentTaskType;
 import com.platform.common.agent.ContextBundle;
 import com.platform.common.agent.GenerateTestCasesRequest;
 import com.platform.common.agent.TriggerRef;
@@ -45,6 +47,7 @@ public class TestCaseGenerationController {
   private final AiGenerationRunRepository runRepo;
   private final GenerationResumeService resumeService;
   private final GenerationStatusService statusService;
+  private final com.platform.agent.agents.AgentResolutionService agentResolutionService;
 
   public TestCaseGenerationController(
       AgentWorkflowService workflowService,
@@ -53,7 +56,8 @@ public class TestCaseGenerationController {
       GenerationInputService inputService,
       AiGenerationRunRepository runRepo,
       GenerationResumeService resumeService,
-      GenerationStatusService statusService) {
+      GenerationStatusService statusService,
+      com.platform.agent.agents.AgentResolutionService agentResolutionService) {
     this.workflowService = workflowService;
     this.contextAssembler = contextAssembler;
     this.mapper = mapper;
@@ -61,6 +65,7 @@ public class TestCaseGenerationController {
     this.runRepo = runRepo;
     this.resumeService = resumeService;
     this.statusService = statusService;
+    this.agentResolutionService = agentResolutionService;
   }
 
   /**
@@ -112,20 +117,37 @@ public class TestCaseGenerationController {
     try {
       AgentWorkflow workflow = workflowService.createWorkflow(projectId, trigger);
 
-      // Persist the resolved run inputs so the node can assemble skills/prompts/files and so the
-      // run is auditable. Only for the new flow — pure legacy runs carry no AiGenerationRun.
-      if (isNewFlow) {
-        runRepo.save(
-            new AiGenerationRun(
-                workflow.getId(),
-                projectId,
-                writeJson(req.skillIdsOrEmpty()),
-                req.hasFreeText() ? req.freeText() : null,
-                writeJson(req.fileIdsOrEmpty()),
-                req.systemPromptOverride(),
-                req.userPromptOverride(),
-                clampRounds(req.maxRounds())));
-      }
+      // Resolve the agent for this run (explicit pick → project/org assignment → built-in seed).
+      // The seed reproduces today's default prompts, so an unconfigured run behaves as before.
+      UUID explicitAgentId = parseUuidOrNull(req.agentId());
+      EffectiveAgentConfig cfg =
+          agentResolutionService.resolve(
+              projectId, AgentTaskType.GENERATE_TEST_CASES, req.subType(), explicitAgentId);
+      String effectiveSubType =
+          agentResolutionService.effectiveSubType(AgentTaskType.GENERATE_TEST_CASES, req.subType());
+
+      // Persist the resolved run inputs so the node assembles from the agent's
+      // prompts/model/rounds,
+      // plus any rich per-run input (free text, files). An explicit user prompt override still
+      // wins.
+      int rounds =
+          req.maxRounds() != null
+              ? clampRounds(req.maxRounds())
+              : (isNewFlow ? 3 : cfg.maxRounds());
+      AiGenerationRun run =
+          new AiGenerationRun(
+              workflow.getId(),
+              projectId,
+              writeJson(req.skillIdsOrEmpty()),
+              req.hasFreeText() ? req.freeText() : null,
+              writeJson(req.fileIdsOrEmpty()),
+              notBlank(req.systemPromptOverride())
+                  ? req.systemPromptOverride()
+                  : cfg.systemPrompt(),
+              notBlank(req.userPromptOverride()) ? req.userPromptOverride() : cfg.userPrompt(),
+              rounds);
+      run.recordAgentResolution(cfg.agentId(), effectiveSubType, cfg.modelId());
+      runRepo.save(run);
 
       ContextBundle bundle = contextAssembler.assemble(workflow.getId(), projectId, trigger);
       workflowService.executeWorkflow(workflow.getId(), bundle);
@@ -209,8 +231,10 @@ public class TestCaseGenerationController {
         testCaseId,
         projectId);
 
-    // Parse optional githubConfigId
+    // Parse optional githubConfigId + agent selection
     UUID githubConfigId = parseGithubConfigId(body);
+    UUID explicitAgentId = parseUuidOrNull(jsonText(body, "agentId"));
+    String subType = jsonText(body, "subType");
 
     TriggerRef trigger =
         new TriggerRef(
@@ -224,6 +248,19 @@ public class TestCaseGenerationController {
 
     try {
       AgentWorkflow workflow = workflowService.createWorkflow(projectId, trigger);
+
+      // Resolve the agent for automation generation (explicit → assignment → seed) and record it
+      // on a run so the node can apply the model override. The node keeps its specialized prompt.
+      EffectiveAgentConfig cfg =
+          agentResolutionService.resolve(
+              projectId, AgentTaskType.GENERATE_AUTOMATION_CODE, subType, explicitAgentId);
+      String effectiveSubType =
+          agentResolutionService.effectiveSubType(AgentTaskType.GENERATE_AUTOMATION_CODE, subType);
+      AiGenerationRun run =
+          new AiGenerationRun(workflow.getId(), projectId, "[]", null, "[]", null, null, 0);
+      run.recordAgentResolution(cfg.agentId(), effectiveSubType, cfg.modelId());
+      runRepo.save(run);
+
       ContextBundle bundle = contextAssembler.assemble(workflow.getId(), projectId, trigger);
       workflowService.executeWorkflow(workflow.getId(), bundle);
 
@@ -265,7 +302,8 @@ public class TestCaseGenerationController {
    */
   private GenerateTestCasesRequest parseRequest(String body) {
     if (body == null || body.isBlank()) {
-      return new GenerateTestCasesRequest(List.of(), null, null, null, null, null, null);
+      return new GenerateTestCasesRequest(
+          List.of(), null, null, null, null, null, null, null, null);
     }
     try {
       JsonNode root = mapper.readTree(body);
@@ -276,10 +314,13 @@ public class TestCaseGenerationController {
           stringList(root.path("skillIds")),
           textOrNull(root.path("systemPromptOverride")),
           textOrNull(root.path("userPromptOverride")),
-          root.path("maxRounds").isInt() ? root.path("maxRounds").asInt() : null);
+          root.path("maxRounds").isInt() ? root.path("maxRounds").asInt() : null,
+          textOrNull(root.path("agentId")),
+          textOrNull(root.path("subType")));
     } catch (Exception e) {
       log.debug("Could not parse generation request body: {}", e.getMessage());
-      return new GenerateTestCasesRequest(List.of(), null, null, null, null, null, null);
+      return new GenerateTestCasesRequest(
+          List.of(), null, null, null, null, null, null, null, null);
     }
   }
 
@@ -324,6 +365,19 @@ public class TestCaseGenerationController {
     return Math.max(1, Math.min(5, maxRounds));
   }
 
+  private static boolean notBlank(String s) {
+    return s != null && !s.isBlank();
+  }
+
+  private static UUID parseUuidOrNull(String s) {
+    if (s == null || s.isBlank()) return null;
+    try {
+      return UUID.fromString(s.trim());
+    } catch (IllegalArgumentException e) {
+      return null;
+    }
+  }
+
   /** Parse {@code {"answers":[{"id","answer"}]}} into resume-service answers. */
   private List<GenerationResumeService.Answer> parseAnswers(String body) {
     List<GenerationResumeService.Answer> out = new ArrayList<>();
@@ -341,6 +395,17 @@ public class TestCaseGenerationController {
       log.debug("Could not parse answers body: {}", e.getMessage());
     }
     return out;
+  }
+
+  /** Read a top-level string field from an optional JSON body; null if absent/unparseable/blank. */
+  private String jsonText(String body, String field) {
+    if (body == null || body.isBlank()) return null;
+    try {
+      String v = mapper.readTree(body).path(field).asText(null);
+      return v == null || v.isBlank() ? null : v;
+    } catch (Exception e) {
+      return null;
+    }
   }
 
   /**

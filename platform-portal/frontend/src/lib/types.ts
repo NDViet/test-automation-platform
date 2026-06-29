@@ -1336,6 +1336,67 @@ export interface PromptDefaults {
   user: string
 }
 
+// ── Agents (org/project-scoped reusable agent configs) ───────────────────────
+export type AgentScope = 'orgs' | 'projects'
+
+export interface Agent {
+  id: string
+  scope: 'ORG' | 'PROJECT'
+  scopeId: string
+  name: string
+  description: string | null
+  persona: string | null
+  systemTemplateId: string | null
+  userTemplateId: string | null
+  skillIds: string[]
+  modelRole: string | null
+  modelId: string | null
+  contextConfig: Record<string, unknown> | null
+  maxRounds: number
+  enabled: boolean
+  inherited: boolean
+  createdBy: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface AgentForm {
+  name: string
+  description?: string | null
+  persona?: string | null
+  systemTemplateId?: string | null
+  userTemplateId?: string | null
+  skillIds: string[]
+  modelRole?: string | null
+  modelId?: string | null
+  contextConfig?: Record<string, unknown> | null
+  maxRounds?: number
+  enabled?: boolean
+}
+
+export interface TaskAgentAssignment {
+  id: string
+  scope: 'ORG' | 'PROJECT'
+  scopeId: string
+  taskType: string
+  subType: string
+  agentId: string
+  enabled: boolean
+}
+
+export interface TaskSubType {
+  taskType: string
+  key: string
+  label: string
+  isDefault: boolean
+}
+
+export interface EffectiveAssignment {
+  source: 'PROJECT' | 'ORG' | 'SEED'
+  agentId: string | null
+  agentName: string
+}
+
 // ── AI test-case generation request/result ──────────────────────────────────
 export interface GenerationFile {
   id: string
@@ -1355,6 +1416,8 @@ export interface GenerateTestCasesRequestBody {
   systemPromptOverride?: string
   userPromptOverride?: string
   maxRounds?: number
+  agentId?: string
+  subType?: string
 }
 
 export interface GenerationStartResult {

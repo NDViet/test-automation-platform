@@ -263,6 +263,40 @@ class LangChainAgentRunnerTest {
   }
 
   @Test
+  void modelOverrideBypassesTierModel() {
+    // Only the override model is stubbed; if the runner fell back to the tier model the stream
+    // model would be null → FAILED. COMPLETED proves node.modelOverride() was used.
+    when(provider.streamingChatModel("custom-model")).thenReturn(chatModel);
+    stubStream(withTokens(AiMessage.from("ok"), 1, 1));
+    AgentNode node =
+        new AgentNode() {
+          @Override
+          public AgentTaskType taskType() {
+            return AgentTaskType.values()[0];
+          }
+
+          @Override
+          public NodeType nodeType() {
+            return NodeType.values()[0];
+          }
+
+          @Override
+          public NodeResult execute(ContextBundle bundle) {
+            return null;
+          }
+
+          @Override
+          public String modelOverride() {
+            return "custom-model";
+          }
+        };
+
+    NodeResult result = runner.run(AgentGridFixtures.bundle(), node);
+
+    assertThat(result.status()).isEqualTo(NodeResultStatus.COMPLETED);
+  }
+
+  @Test
   void resolvesComplexTierToComplexModel() {
     when(settings.model(LangChainAgentRunner.KEY_MODEL_COMPLEX, "claude-opus-4-6"))
         .thenReturn("opus-route");

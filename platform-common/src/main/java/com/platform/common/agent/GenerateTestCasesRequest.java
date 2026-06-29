@@ -15,7 +15,9 @@ public record GenerateTestCasesRequest(
     List<String> skillIds,
     String systemPromptOverride,
     String userPromptOverride,
-    Integer maxRounds) {
+    Integer maxRounds,
+    String agentId,
+    String subType) {
 
   public List<String> requirementIdsOrEmpty() {
     return requirementIds == null ? List.of() : requirementIds;

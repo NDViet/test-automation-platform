@@ -18,8 +18,16 @@ public class AiPromptTemplate {
   @GeneratedValue(strategy = GenerationType.UUID)
   private UUID id;
 
-  @Column(name = "project_id", nullable = false)
+  @Column(name = "project_id")
   private UUID projectId;
+
+  /** ORG | PROJECT — owning scope (see V2). Defaults to PROJECT for the existing CRUD path. */
+  @Column(name = "scope", nullable = false, length = 10)
+  private String scope = "PROJECT";
+
+  /** organizations.id or projects.id depending on {@link #scope}. */
+  @Column(name = "scope_id", nullable = false)
+  private UUID scopeId;
 
   /** SYSTEM | USER */
   @Column(name = "kind", nullable = false, length = 10)
@@ -48,6 +56,8 @@ public class AiPromptTemplate {
   public AiPromptTemplate(
       UUID projectId, String kind, String name, String body, boolean isDefault, String createdBy) {
     this.projectId = projectId;
+    this.scope = "PROJECT";
+    this.scopeId = projectId;
     this.kind = kind;
     this.name = name;
     this.body = body;
@@ -73,6 +83,14 @@ public class AiPromptTemplate {
 
   public UUID getProjectId() {
     return projectId;
+  }
+
+  public String getScope() {
+    return scope;
+  }
+
+  public UUID getScopeId() {
+    return scopeId;
   }
 
   public String getKind() {

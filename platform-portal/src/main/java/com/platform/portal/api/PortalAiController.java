@@ -244,4 +244,155 @@ public class PortalAiController {
         .retrieve()
         .toBodilessEntity();
   }
+
+  // ── Agents (org/project-scoped) ────────────────────────────────────────────
+  // Proxy to platform-agent /hub/{scope}/{scopeId}/ai/agents (scope = orgs|projects).
+
+  @GetMapping("/{scope}/{scopeId}/agents")
+  @Operation(summary = "List agents at an org or project scope")
+  public Object listAgents(@PathVariable String scope, @PathVariable String scopeId) {
+    return agentClient
+        .get()
+        .uri("/hub/" + scope + "/" + scopeId + "/ai/agents")
+        .accept(MediaType.APPLICATION_JSON)
+        .retrieve()
+        .body(Object.class);
+  }
+
+  @GetMapping("/projects/{projectId}/agents/effective")
+  @Operation(summary = "Effective agents for a project (own ∪ inherited org)")
+  public Object effectiveAgents(@PathVariable String projectId) {
+    return agentClient
+        .get()
+        .uri("/hub/projects/" + projectId + "/ai/agents/effective")
+        .accept(MediaType.APPLICATION_JSON)
+        .retrieve()
+        .body(Object.class);
+  }
+
+  @PostMapping("/{scope}/{scopeId}/agents")
+  @Operation(summary = "Create an agent")
+  public Object createAgent(
+      @PathVariable String scope,
+      @PathVariable String scopeId,
+      @RequestBody Map<String, Object> body,
+      @RequestHeader(value = "X-Actor", required = false) String actor) {
+    return agentClient
+        .post()
+        .uri("/hub/" + scope + "/" + scopeId + "/ai/agents")
+        .contentType(MediaType.APPLICATION_JSON)
+        .header("X-Actor", actor == null ? "" : actor)
+        .body(body)
+        .retrieve()
+        .body(Object.class);
+  }
+
+  @PutMapping("/{scope}/{scopeId}/agents/{id}")
+  @Operation(summary = "Update an agent")
+  public Object updateAgent(
+      @PathVariable String scope,
+      @PathVariable String scopeId,
+      @PathVariable String id,
+      @RequestBody Map<String, Object> body,
+      @RequestHeader(value = "X-Actor", required = false) String actor) {
+    return agentClient
+        .put()
+        .uri("/hub/" + scope + "/" + scopeId + "/ai/agents/" + id)
+        .contentType(MediaType.APPLICATION_JSON)
+        .header("X-Actor", actor == null ? "" : actor)
+        .body(body)
+        .retrieve()
+        .body(Object.class);
+  }
+
+  @DeleteMapping("/{scope}/{scopeId}/agents/{id}")
+  @Operation(summary = "Delete an agent")
+  public void deleteAgent(
+      @PathVariable String scope,
+      @PathVariable String scopeId,
+      @PathVariable String id,
+      @RequestHeader(value = "X-Actor", required = false) String actor) {
+    agentClient
+        .delete()
+        .uri("/hub/" + scope + "/" + scopeId + "/ai/agents/" + id)
+        .header("X-Actor", actor == null ? "" : actor)
+        .retrieve()
+        .toBodilessEntity();
+  }
+
+  // ── Task → agent assignments + sub-types ────────────────────────────────────
+
+  @GetMapping("/{scope}/{scopeId}/task-agents")
+  @Operation(summary = "List task→agent assignments at a scope")
+  public Object listTaskAgents(@PathVariable String scope, @PathVariable String scopeId) {
+    return agentClient
+        .get()
+        .uri("/hub/" + scope + "/" + scopeId + "/ai/task-agents")
+        .accept(MediaType.APPLICATION_JSON)
+        .retrieve()
+        .body(Object.class);
+  }
+
+  @PutMapping("/{scope}/{scopeId}/task-agents")
+  @Operation(summary = "Assign the default agent for a (task, sub-type)")
+  public Object upsertTaskAgent(
+      @PathVariable String scope,
+      @PathVariable String scopeId,
+      @RequestBody Map<String, Object> body,
+      @RequestHeader(value = "X-Actor", required = false) String actor) {
+    return agentClient
+        .put()
+        .uri("/hub/" + scope + "/" + scopeId + "/ai/task-agents")
+        .contentType(MediaType.APPLICATION_JSON)
+        .header("X-Actor", actor == null ? "" : actor)
+        .body(body)
+        .retrieve()
+        .body(Object.class);
+  }
+
+  @DeleteMapping("/{scope}/{scopeId}/task-agents/{id}")
+  @Operation(summary = "Remove an assignment (revert to inherited/seed)")
+  public void deleteTaskAgent(
+      @PathVariable String scope,
+      @PathVariable String scopeId,
+      @PathVariable String id,
+      @RequestHeader(value = "X-Actor", required = false) String actor) {
+    agentClient
+        .delete()
+        .uri("/hub/" + scope + "/" + scopeId + "/ai/task-agents/" + id)
+        .header("X-Actor", actor == null ? "" : actor)
+        .retrieve()
+        .toBodilessEntity();
+  }
+
+  @GetMapping("/task-subtypes")
+  @Operation(summary = "Allowed sub-types for a task type")
+  public Object taskSubTypes(@RequestParam String taskType) {
+    return agentClient
+        .get()
+        .uri("/hub/ai/task-subtypes?taskType=" + taskType)
+        .accept(MediaType.APPLICATION_JSON)
+        .retrieve()
+        .body(Object.class);
+  }
+
+  @GetMapping("/projects/{projectId}/task-agents/effective")
+  @Operation(summary = "Resolved default agent for a project task (source + agent)")
+  public Object effectiveTaskAgent(
+      @PathVariable String projectId,
+      @RequestParam String taskType,
+      @RequestParam(required = false) String subType) {
+    String uri =
+        "/hub/projects/"
+            + projectId
+            + "/ai/task-agents/effective?taskType="
+            + taskType
+            + (subType == null ? "" : "&subType=" + subType);
+    return agentClient
+        .get()
+        .uri(uri)
+        .accept(MediaType.APPLICATION_JSON)
+        .retrieve()
+        .body(Object.class);
+  }
 }

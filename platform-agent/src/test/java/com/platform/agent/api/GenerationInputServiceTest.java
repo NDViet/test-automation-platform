@@ -44,7 +44,8 @@ class GenerationInputServiceTest {
 
   private GenerateTestCasesRequest req(
       List<String> reqIds, String freeText, List<String> fileIds, List<String> skillIds) {
-    return new GenerateTestCasesRequest(reqIds, freeText, fileIds, skillIds, null, null, null);
+    return new GenerateTestCasesRequest(
+        reqIds, freeText, fileIds, skillIds, null, null, null, null, null);
   }
 
   @Test

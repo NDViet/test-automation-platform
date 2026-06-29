@@ -9,6 +9,8 @@ import RunDetail from './pages/RunDetail'
 import AlertsPage from './pages/AlertsPage'
 import ApiKeysPage from './pages/ApiKeysPage'
 import AiSettingsPage from './pages/AiSettingsPage'
+import AgentsPage from './pages/AgentsPage'
+import TaskAgentsPage from './pages/TaskAgentsPage'
 import AdminIntegrationsPage from './pages/AdminIntegrationsPage'
 import MappingRulesPage from './pages/MappingRulesPage'
 import RolesPage from './pages/RolesPage'
@@ -43,6 +45,8 @@ export default function App() {
           <Route path="alerts" element={<AlertsPage />} />
           <Route path="settings/api-keys" element={<ApiKeysPage />} />
           <Route path="settings/ai" element={<AiSettingsPage />} />
+          <Route path="settings/agents" element={<AgentsPage />} />
+          <Route path="settings/task-agents" element={<TaskAgentsPage />} />
           <Route path="settings/integrations" element={<AdminIntegrationsPage />} />
           <Route path="settings/mapping-rules" element={<MappingRulesPage />} />
           <Route path="settings/roles" element={<RolesPage />} />

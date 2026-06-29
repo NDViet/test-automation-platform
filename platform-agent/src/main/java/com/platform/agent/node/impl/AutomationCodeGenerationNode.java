@@ -42,6 +42,7 @@ public class AutomationCodeGenerationNode implements AgentNode {
   private final GitHubApiClient gitHubApiClient;
   private final com.platform.agent.node.tools.IntegrationTokenResolver tokenResolver;
   private final ObjectMapper mapper;
+  private final com.platform.core.repository.AiGenerationRunRepository runRepo;
 
   public AutomationCodeGenerationNode(
       AgentOrchestrator orchestrator,
@@ -51,7 +52,8 @@ public class AutomationCodeGenerationNode implements AgentNode {
       PlatformRequirementRepository requirementRepo,
       GitHubApiClient gitHubApiClient,
       com.platform.agent.node.tools.IntegrationTokenResolver tokenResolver,
-      ObjectMapper mapper) {
+      ObjectMapper mapper,
+      com.platform.core.repository.AiGenerationRunRepository runRepo) {
     this.orchestrator = orchestrator;
     this.testCaseRepo = testCaseRepo;
     this.stepRepo = stepRepo;
@@ -60,6 +62,7 @@ public class AutomationCodeGenerationNode implements AgentNode {
     this.gitHubApiClient = gitHubApiClient;
     this.tokenResolver = tokenResolver;
     this.mapper = mapper;
+    this.runRepo = runRepo;
   }
 
   @Override
@@ -165,7 +168,16 @@ public class AutomationCodeGenerationNode implements AgentNode {
 
     // 7. Store context for tool dispatch (used inside dispatchToolCall)
     //    We pass it through a shim that holds this state and delegates tool calls back here.
-    AutomationShimNode shim = new AutomationShimNode(this, tc, githubConfig, testCaseId);
+    // Apply the resolved agent's model override (recorded on the run by the controller), if any.
+    String modelOverride =
+        bundle.workflowId() == null
+            ? null
+            : runRepo
+                .findByWorkflowId(bundle.workflowId())
+                .map(com.platform.core.domain.AiGenerationRun::getResolvedModelId)
+                .orElse(null);
+    AutomationShimNode shim =
+        new AutomationShimNode(this, tc, githubConfig, testCaseId, modelOverride);
     NodeResult claudeResult = orchestrator.run(bundle, shim);
 
     // 8. After Claude finishes, reload the test case to check final automation status.
@@ -467,16 +479,24 @@ public class AutomationCodeGenerationNode implements AgentNode {
     private final PlatformTestCase tc;
     private final ProjectIntegrationConfig githubConfig;
     private final UUID testCaseId;
+    private final String modelOverride;
 
     AutomationShimNode(
         AutomationCodeGenerationNode parent,
         PlatformTestCase tc,
         ProjectIntegrationConfig githubConfig,
-        UUID testCaseId) {
+        UUID testCaseId,
+        String modelOverride) {
       this.parent = parent;
       this.tc = tc;
       this.githubConfig = githubConfig;
       this.testCaseId = testCaseId;
+      this.modelOverride = modelOverride;
+    }
+
+    @Override
+    public String modelOverride() {
+      return modelOverride;
     }
 
     @Override
