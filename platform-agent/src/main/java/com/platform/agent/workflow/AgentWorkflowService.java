@@ -11,8 +11,10 @@ import com.platform.common.agent.*;
 import com.platform.common.kafka.Topics;
 import com.platform.core.domain.AgentWorkflow;
 import com.platform.core.domain.AgentWorkflowStep;
+import com.platform.core.domain.GenerationClarification;
 import com.platform.core.repository.AgentWorkflowRepository;
 import com.platform.core.repository.AgentWorkflowStepRepository;
+import com.platform.core.repository.GenerationClarificationRepository;
 import java.util.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -40,6 +42,7 @@ public class AgentWorkflowService {
   private final List<AgentNode> nodes;
   private final KafkaTemplate<String, String> kafka;
   private final ObjectMapper mapper;
+  private final GenerationClarificationRepository clarificationRepo;
 
   public AgentWorkflowService(
       AgentWorkflowRepository workflowRepo,
@@ -51,7 +54,8 @@ public class AgentWorkflowService {
       TokenBudgetGuard budgetGuard,
       List<AgentNode> nodes,
       KafkaTemplate<String, String> kafka,
-      ObjectMapper mapper) {
+      ObjectMapper mapper,
+      GenerationClarificationRepository clarificationRepo) {
     this.workflowRepo = workflowRepo;
     this.stepRepo = stepRepo;
     this.router = router;
@@ -62,6 +66,7 @@ public class AgentWorkflowService {
     this.nodes = nodes;
     this.kafka = kafka;
     this.mapper = mapper;
+    this.clarificationRepo = clarificationRepo;
   }
 
   @Transactional
@@ -142,6 +147,20 @@ public class AgentWorkflowService {
           reviewGateway.requestReview(result, bundle);
           publishEvent(workflowId, "AWAITING_REVIEW");
           return; // pause; resume when decision comes back
+        }
+
+        if (result.needsInput()) {
+          // The agent asked the user for clarification — persist the round and park the workflow.
+          int round = (int) clarificationRepo.countByWorkflowId(workflowId) + 1;
+          clarificationRepo.save(
+              new GenerationClarification(
+                  workflowId, round, result.summary(), result.checkpointId()));
+          step.markAwaitingReview(result.summary());
+          stepRepo.save(step);
+          workflow.markAwaitingInput();
+          workflowRepo.save(workflow);
+          publishEvent(workflowId, "AWAITING_INPUT");
+          return; // pause; resume when the user submits answers
         }
 
         if (result.hasFailed()) {

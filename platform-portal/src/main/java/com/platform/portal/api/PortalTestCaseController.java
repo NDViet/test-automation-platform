@@ -333,6 +333,70 @@ public class PortalTestCaseController {
         .body(Object.class);
   }
 
+  @GetMapping("/test-cases/generations/{workflowId}")
+  @Operation(summary = "Generation run status + clarification transcript")
+  public Object generationStatus(
+      @PathVariable String projectId, @PathVariable String workflowId) {
+    return agentClient
+        .get()
+        .uri("/hub/test-cases/" + projectId + "/generations/" + workflowId)
+        .accept(MediaType.APPLICATION_JSON)
+        .retrieve()
+        .body(Object.class);
+  }
+
+  @PostMapping("/test-cases/generations/{workflowId}/answers")
+  @Operation(summary = "Answer the agent's clarifying questions and resume generation")
+  public Object answerGeneration(
+      @PathVariable String projectId,
+      @PathVariable String workflowId,
+      @RequestBody Object body) {
+    return agentClient
+        .post()
+        .uri("/hub/test-cases/" + projectId + "/generations/" + workflowId + "/answers")
+        .contentType(MediaType.APPLICATION_JSON)
+        .accept(MediaType.APPLICATION_JSON)
+        .body(body)
+        .retrieve()
+        .body(Object.class);
+  }
+
+  @PostMapping(
+      value = "/test-cases/generation-files",
+      consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+  @Operation(summary = "Upload a reference input file for AI test-case generation")
+  public Object uploadGenerationFile(
+      @PathVariable String projectId,
+      @RequestParam("file") MultipartFile file,
+      @RequestHeader(value = "X-Actor", required = false) String actor)
+      throws IOException {
+    HttpHeaders partHeaders = new HttpHeaders();
+    if (file.getContentType() != null) {
+      partHeaders.setContentType(MediaType.parseMediaType(file.getContentType()));
+    }
+    ByteArrayResource bytes =
+        new ByteArrayResource(file.getBytes()) {
+          @Override
+          public String getFilename() {
+            return file.getOriginalFilename();
+          }
+        };
+    MultiValueMap<String, Object> form = new LinkedMultiValueMap<>();
+    form.add("file", new HttpEntity<>(bytes, partHeaders));
+
+    return agentClient
+        .post()
+        .uri("/hub/projects/" + projectId + "/ai/generation-files")
+        .contentType(MediaType.MULTIPART_FORM_DATA)
+        .headers(
+            h -> {
+              if (actor != null) h.set("X-Actor", actor);
+            })
+        .body(form)
+        .retrieve()
+        .body(Object.class);
+  }
+
   @PostMapping("/test-cases/{tcId}/link-requirement/{requirementId}")
   @Operation(summary = "Link a requirement to a test case")
   public Object linkRequirement(

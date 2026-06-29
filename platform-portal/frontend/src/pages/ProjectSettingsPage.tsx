@@ -21,6 +21,8 @@ import {
 } from 'lucide-react'
 import CreateTeamModal from '@/components/CreateTeamModal'
 import MappingRulesEditor from '@/components/MappingRulesEditor'
+import AiSkillsManager from '@/components/AiSkillsManager'
+import AiPromptTemplatesManager from '@/components/AiPromptTemplatesManager'
 import type {
   SaveIntegrationConfigForm,
   IntegrationConfig,
@@ -919,7 +921,13 @@ export default function ProjectSettingsPage() {
       )}
 
       {/* ── AI ── */}
-      {tab === 'ai' && project && <ProjectAiSettings projectId={project.id} />}
+      {tab === 'ai' && project && (
+        <div className="space-y-10">
+          <ProjectAiSettings projectId={project.id} />
+          <AiSkillsManager projectId={project.id} />
+          <AiPromptTemplatesManager projectId={project.id} />
+        </div>
+      )}
 
       {/* ── GitHub ── */}
       {tab === 'github' && project && (

@@ -17,8 +17,10 @@ public interface AgentOrchestrator {
   NodeResult run(ContextBundle bundle, AgentNode node);
 
   /**
-   * Resume a paused conversation from a stored checkpoint. Rehydrates the message history and
+   * Resume a paused conversation from a stored checkpoint. Rehydrates the message history, appends
+   * {@code nextUserMessage} (e.g. the user's clarification answers) as the next user turn, and
    * resumes the tool-use loop.
    */
-  NodeResult resume(String checkpointId, AgentNode node);
+  NodeResult resume(
+      ContextBundle bundle, String checkpointId, AgentNode node, String nextUserMessage);
 }

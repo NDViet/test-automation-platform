@@ -88,6 +88,11 @@ public class AgentWorkflow {
     this.status = "AWAITING_REVIEW";
   }
 
+  /** The agent paused to ask the user for clarification; resumes on answers. */
+  public void markAwaitingInput() {
+    this.status = "AWAITING_INPUT";
+  }
+
   public void addTokens(int input, int output, BigDecimal costCents) {
     this.totalInputTokens += input;
     this.totalOutputTokens += output;

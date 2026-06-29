@@ -4,9 +4,14 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.platform.agent.hub.ContextAssembler;
 import com.platform.agent.workflow.AgentWorkflowService;
+import com.platform.agent.workflow.GenerationResumeService;
+import com.platform.agent.workflow.GenerationStatusService;
 import com.platform.common.agent.ContextBundle;
+import com.platform.common.agent.GenerateTestCasesRequest;
 import com.platform.common.agent.TriggerRef;
 import com.platform.core.domain.AgentWorkflow;
+import com.platform.core.domain.AiGenerationRun;
+import com.platform.core.repository.AiGenerationRunRepository;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -36,14 +41,26 @@ public class TestCaseGenerationController {
   private final AgentWorkflowService workflowService;
   private final ContextAssembler contextAssembler;
   private final ObjectMapper mapper;
+  private final GenerationInputService inputService;
+  private final AiGenerationRunRepository runRepo;
+  private final GenerationResumeService resumeService;
+  private final GenerationStatusService statusService;
 
   public TestCaseGenerationController(
       AgentWorkflowService workflowService,
       ContextAssembler contextAssembler,
-      ObjectMapper mapper) {
+      ObjectMapper mapper,
+      GenerationInputService inputService,
+      AiGenerationRunRepository runRepo,
+      GenerationResumeService resumeService,
+      GenerationStatusService statusService) {
     this.workflowService = workflowService;
     this.contextAssembler = contextAssembler;
     this.mapper = mapper;
+    this.inputService = inputService;
+    this.runRepo = runRepo;
+    this.resumeService = resumeService;
+    this.statusService = statusService;
   }
 
   /**
@@ -66,8 +83,17 @@ public class TestCaseGenerationController {
 
     log.info("Test case generation requested for project {}", projectId);
 
-    // Parse optional requirementIds from request body
-    List<String> requirementIds = parseRequirementIds(body);
+    // Parse the rich request. Legacy bodies ({"requirementIds":[...]}) and an absent body both
+    // map cleanly: missing fields are null, so the original one-shot behavior is preserved.
+    GenerateTestCasesRequest req = parseRequest(body);
+    List<String> requirementIds = req.requirementIdsOrEmpty();
+
+    // A completely empty request = legacy "generate for all requirements" — no input/skills/
+    // overrides to validate or persist. Anything richer goes through validation.
+    boolean isNewFlow = hasNewFlowData(req);
+    if (req.hasAnyInput() || isNewFlow) {
+      inputService.validate(projectId, req);
+    }
 
     // Build entityExternalId: comma-separated UUIDs if filtered, else project UUID
     String entityExternalId =
@@ -85,6 +111,22 @@ public class TestCaseGenerationController {
 
     try {
       AgentWorkflow workflow = workflowService.createWorkflow(projectId, trigger);
+
+      // Persist the resolved run inputs so the node can assemble skills/prompts/files and so the
+      // run is auditable. Only for the new flow — pure legacy runs carry no AiGenerationRun.
+      if (isNewFlow) {
+        runRepo.save(
+            new AiGenerationRun(
+                workflow.getId(),
+                projectId,
+                writeJson(req.skillIdsOrEmpty()),
+                req.hasFreeText() ? req.freeText() : null,
+                writeJson(req.fileIdsOrEmpty()),
+                req.systemPromptOverride(),
+                req.userPromptOverride(),
+                clampRounds(req.maxRounds())));
+      }
+
       ContextBundle bundle = contextAssembler.assemble(workflow.getId(), projectId, trigger);
       workflowService.executeWorkflow(workflow.getId(), bundle);
 
@@ -108,6 +150,41 @@ public class TestCaseGenerationController {
       return ResponseEntity.internalServerError()
           .body(Map.of("error", "Failed to start test case generation: " + e.getMessage()));
     }
+  }
+
+  /**
+   * GET /hub/test-cases/{projectId}/generations/{workflowId}
+   *
+   * <p>Run status + clarification transcript + the currently pending question round (if any).
+   */
+  @GetMapping("/{projectId}/generations/{workflowId}")
+  public GenerationStatusService.GenerationStatusDto getGeneration(
+      @PathVariable UUID projectId, @PathVariable UUID workflowId) {
+    return statusService.getStatus(projectId, workflowId);
+  }
+
+  /**
+   * POST /hub/test-cases/{projectId}/generations/{workflowId}/answers
+   *
+   * <p>Submit answers to the agent's clarifying questions and resume the paused run. Returns 409 if
+   * the run is not awaiting input. Body: {@code { "answers": [{ "id": "...", "answer": "..." }] }}.
+   */
+  @PostMapping("/{projectId}/generations/{workflowId}/answers")
+  public ResponseEntity<Map<String, Object>> submitAnswers(
+      @PathVariable UUID projectId,
+      @PathVariable UUID workflowId,
+      @RequestBody(required = false) String body) {
+    List<GenerationResumeService.Answer> answers = parseAnswers(body);
+    GenerationResumeService.ResumePlan plan =
+        resumeService.markAnswered(projectId, workflowId, answers);
+    boolean allowMore = resumeService.allowMoreQuestions(workflowId);
+    resumeService.resumeAsync(workflowId, plan, allowMore);
+    return ResponseEntity.accepted()
+        .body(
+            Map.of(
+                "workflowId", workflowId.toString(),
+                "projectId", projectId.toString(),
+                "status", "RESUMING"));
   }
 
   /**
@@ -183,27 +260,87 @@ public class TestCaseGenerationController {
   // -------------------------------------------------------------------------
 
   /**
-   * Parses the optional request body for a "requirementIds" array. Returns an empty list if the
-   * body is absent, blank, or contains no requirementIds.
+   * Parse the optional request body into a {@link GenerateTestCasesRequest}. An absent/blank body or
+   * a legacy {@code {"requirementIds":[...]}} body both map cleanly (missing fields → null).
    */
-  private List<String> parseRequirementIds(String body) {
-    if (body == null || body.isBlank()) return List.of();
+  private GenerateTestCasesRequest parseRequest(String body) {
+    if (body == null || body.isBlank()) {
+      return new GenerateTestCasesRequest(List.of(), null, null, null, null, null, null);
+    }
     try {
       JsonNode root = mapper.readTree(body);
-      JsonNode ids = root.path("requirementIds");
-      if (ids.isArray()) {
-        List<String> result = new ArrayList<>();
-        ids.forEach(
-            n -> {
-              String val = n.asText(null);
-              if (val != null && !val.isBlank()) result.add(val);
-            });
-        return result;
+      return new GenerateTestCasesRequest(
+          stringList(root.path("requirementIds")),
+          textOrNull(root.path("freeText")),
+          stringList(root.path("fileIds")),
+          stringList(root.path("skillIds")),
+          textOrNull(root.path("systemPromptOverride")),
+          textOrNull(root.path("userPromptOverride")),
+          root.path("maxRounds").isInt() ? root.path("maxRounds").asInt() : null);
+    } catch (Exception e) {
+      log.debug("Could not parse generation request body: {}", e.getMessage());
+      return new GenerateTestCasesRequest(List.of(), null, null, null, null, null, null);
+    }
+  }
+
+  /** True when the request carries anything beyond bare requirement selection (the new flow). */
+  private static boolean hasNewFlowData(GenerateTestCasesRequest req) {
+    return req.hasFreeText()
+        || !req.fileIdsOrEmpty().isEmpty()
+        || !req.skillIdsOrEmpty().isEmpty()
+        || req.systemPromptOverride() != null
+        || req.userPromptOverride() != null
+        || req.maxRounds() != null;
+  }
+
+  private static List<String> stringList(JsonNode node) {
+    List<String> result = new ArrayList<>();
+    if (node != null && node.isArray()) {
+      node.forEach(
+          n -> {
+            String val = n.asText(null);
+            if (val != null && !val.isBlank()) result.add(val);
+          });
+    }
+    return result;
+  }
+
+  private static String textOrNull(JsonNode node) {
+    if (node == null || node.isMissingNode() || node.isNull()) return null;
+    String val = node.asText(null);
+    return (val == null || val.isBlank()) ? null : val;
+  }
+
+  private String writeJson(Object value) {
+    try {
+      return mapper.writeValueAsString(value);
+    } catch (Exception e) {
+      return "[]";
+    }
+  }
+
+  private static int clampRounds(Integer maxRounds) {
+    if (maxRounds == null) return 3;
+    return Math.max(1, Math.min(5, maxRounds));
+  }
+
+  /** Parse {@code {"answers":[{"id","answer"}]}} into resume-service answers. */
+  private List<GenerationResumeService.Answer> parseAnswers(String body) {
+    List<GenerationResumeService.Answer> out = new ArrayList<>();
+    if (body == null || body.isBlank()) return out;
+    try {
+      JsonNode arr = mapper.readTree(body).path("answers");
+      if (arr.isArray()) {
+        for (JsonNode n : arr) {
+          String id = n.path("id").asText(null);
+          String answer = n.path("answer").asText(null);
+          if (id != null) out.add(new GenerationResumeService.Answer(id, answer));
+        }
       }
     } catch (Exception e) {
-      log.debug("Could not parse requirementIds from body: {}", e.getMessage());
+      log.debug("Could not parse answers body: {}", e.getMessage());
     }
-    return List.of();
+    return out;
   }
 
   /**

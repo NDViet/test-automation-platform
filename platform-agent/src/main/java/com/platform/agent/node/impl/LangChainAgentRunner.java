@@ -20,6 +20,8 @@ import dev.langchain4j.agent.tool.ToolExecutionRequest;
 import dev.langchain4j.agent.tool.ToolSpecification;
 import dev.langchain4j.data.message.AiMessage;
 import dev.langchain4j.data.message.ChatMessage;
+import dev.langchain4j.data.message.ChatMessageDeserializer;
+import dev.langchain4j.data.message.ChatMessageSerializer;
 import dev.langchain4j.data.message.SystemMessage;
 import dev.langchain4j.data.message.ToolExecutionResultMessage;
 import dev.langchain4j.data.message.UserMessage;
@@ -55,6 +57,8 @@ public class LangChainAgentRunner implements AgentOrchestrator {
   private static final Logger log = LoggerFactory.getLogger(LangChainAgentRunner.class);
   static final int MAX_TOOL_ITERATIONS = 25;
   private static final String REVIEW_SENTINEL = "__AWAITING_REVIEW__";
+  /** A tool dispatch returning this prefix pauses the run for user clarification. */
+  static final String INPUT_SENTINEL = "__AWAITING_INPUT__";
 
   static final String KEY_MODEL_STANDARD = "ai.litellm.model.standard";
   static final String KEY_MODEL_COMPLEX = "ai.litellm.model.complex";
@@ -102,6 +106,51 @@ public class LangChainAgentRunner implements AgentOrchestrator {
     List<ChatMessage> messages = new ArrayList<>();
     messages.add(SystemMessage.from(systemPrompt(bundle, node)));
     messages.add(UserMessage.from(userPrompt(bundle, node)));
+
+    return executeLoop(bundle, node, model, modelId, messages, total);
+  }
+
+  @Override
+  public NodeResult resume(
+      ContextBundle bundle, String checkpointId, AgentNode node, String nextUserMessage) {
+    String modelId = resolveModelId(bundle.llmTier());
+    ChatModel model = provider.chatModel(modelId);
+    if (model == null) {
+      return NodeResult.failed(
+          bundle.sessionId(),
+          bundle.workflowId(),
+          node.nodeType(),
+          node.taskType(),
+          "MISSING_LLM_CONFIG",
+          "LiteLLM is not configured — set the base URL and key in AI Settings",
+          TokenUsage.zero());
+    }
+
+    List<ChatMessage> messages = loadCheckpointMessages(checkpointId);
+    if (messages == null) {
+      return NodeResult.failed(
+          bundle.sessionId(),
+          bundle.workflowId(),
+          node.nodeType(),
+          node.taskType(),
+          "CHECKPOINT_NOT_FOUND",
+          "Could not load checkpoint " + checkpointId,
+          TokenUsage.zero());
+    }
+    if (nextUserMessage != null && !nextUserMessage.isBlank()) {
+      messages.add(UserMessage.from(nextUserMessage));
+    }
+    return executeLoop(bundle, node, model, modelId, messages, TokenUsage.zero());
+  }
+
+  /** Shared tool-use loop used by both a fresh run and a resumed conversation. */
+  private NodeResult executeLoop(
+      ContextBundle bundle,
+      AgentNode node,
+      ChatModel model,
+      String modelId,
+      List<ChatMessage> messages,
+      TokenUsage total) {
     List<ToolSpecification> tools = node.toolSpecs();
 
     try {
@@ -132,7 +181,8 @@ public class LangChainAgentRunner implements AgentOrchestrator {
           String result = node.dispatchToolCall(req.name(), req.arguments(), bundle);
           if (stepSummarizer != null
               && result.length() > 800
-              && !result.startsWith(REVIEW_SENTINEL)) {
+              && !result.startsWith(REVIEW_SENTINEL)
+              && !result.startsWith(INPUT_SENTINEL)) {
             result = stepSummarizer.summarize(req.name(), result);
           }
           if (result.startsWith(REVIEW_SENTINEL)) {
@@ -145,6 +195,20 @@ public class LangChainAgentRunner implements AgentOrchestrator {
                 node.taskType(),
                 ArtifactManifest.empty(),
                 summary,
+                checkpointId,
+                total);
+          }
+          if (result.startsWith(INPUT_SENTINEL)) {
+            // Record the model's question turn so the conversation resumes coherently, then pause.
+            messages.add(ToolExecutionResultMessage.from(req, "Awaiting user input."));
+            String checkpointId = saveCheckpoint(bundle, messages, total);
+            String questionsJson = result.substring(INPUT_SENTINEL.length()).trim();
+            return NodeResult.awaitingInput(
+                bundle.sessionId(),
+                bundle.workflowId(),
+                node.nodeType(),
+                node.taskType(),
+                questionsJson,
                 checkpointId,
                 total);
           }
@@ -178,16 +242,18 @@ public class LangChainAgentRunner implements AgentOrchestrator {
     }
   }
 
-  @Override
-  public NodeResult resume(String checkpointId, AgentNode node) {
-    return NodeResult.failed(
-        UUID.randomUUID(),
-        UUID.randomUUID(),
-        node.nodeType(),
-        node.taskType(),
-        "RESUME_NOT_IMPLEMENTED",
-        "Checkpoint resume requires full handoff state",
-        TokenUsage.zero());
+  /** Load and deserialize the conversation messages for a checkpoint, or null if unavailable. */
+  private List<ChatMessage> loadCheckpointMessages(String checkpointId) {
+    try {
+      var state = checkpointService.load(checkpointId).orElse(null);
+      if (state == null || state.messagesBlob() == null) return null;
+      String json = blobStore.fetchText(state.messagesBlob()).orElse(null);
+      if (json == null) return null;
+      return new ArrayList<>(ChatMessageDeserializer.messagesFromJson(json));
+    } catch (Exception e) {
+      log.error("failed to load checkpoint {}", checkpointId, e);
+      return null;
+    }
   }
 
   String resolveModelId(LlmTier tier) {
@@ -354,7 +420,8 @@ public class LangChainAgentRunner implements AgentOrchestrator {
   private String saveCheckpoint(
       ContextBundle bundle, List<ChatMessage> messages, TokenUsage usage) {
     try {
-      String messagesJson = mapper.writeValueAsString(messages);
+      // Use LangChain4j's codec so the polymorphic message hierarchy round-trips on resume.
+      String messagesJson = ChatMessageSerializer.messagesToJson(messages);
       var blob =
           blobStore.storeText(
               BlobStoreBuckets.CHECKPOINTS,

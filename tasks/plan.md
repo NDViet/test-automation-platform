@@ -1,160 +1,290 @@
-# Plan — Manual Test Execution (release/sprint/team/area scoped)
+# Plan — Interactive AI Test Case Generation
 
-Spec: `SPEC.md` (CONFIRMED). This plan slices the four gaps (resume/reopen, mid‑run add, ADO defect
-link, evidence) into vertical tasks, each shipping backend → portal proxy → frontend → tests in one
-commit. The create / per‑case status / scope / pickers / release board already exist and are reused.
+Source: `SPEC.md`. Slices are **vertical** (domain → persistence → service → controller →
+BFF → frontend per capability) and ordered by dependency. Each task is TDD (RED → GREEN →
+regression → build → commit), one commit per task.
 
-## 1. What already exists (reused, not rebuilt)
-- `TestRun` (status `IN_PROGRESS|COMPLETED|ABANDONED`, scope dims, `complete()`/`abandon()`),
-  `TestCaseExecution` (`record(status, actualResult, notes, executedBy)`), `TestRunService` +
-  `TestRunController` (`/api/v1/projects/{projectId}/test-runs`).
-- `TcmRunService.createRun(...)` — APPROVED‑only gate + matrix expansion → executions.
-- `SuiteResolverService.resolveMany`, selectable‑cases picker, suites.
-- `AzureBoardsPollClient.connect(projectId)` + `getWorkItems(ado, ids)` (READ), `CredentialResolver`.
-- `BlobStore.storeBytes/fetchBytes/presignUrl` (S3/MinIO; `presignUrl` throws on Filesystem dev).
-- Portal proxy `PortalTestCaseController` (`/api/portal/projects/{projectId}/test-runs/**`).
-- Frontend `TestRunExecutionPage.tsx`, `TestExecutionPage.tsx`, `lib/api.ts` (BASE `/api/portal`),
-  `lib/types.ts`.
+## Key facts from code exploration (ground truth)
 
-## 2. Dependency graph
+- `TestCaseGenerationNode` is a one-shot node: hardcoded `systemPrompt()`, builds a
+  requirements message, wraps itself in a `TextOnlyNode` shim with **no tools**, calls
+  `orchestrator.run(bundle, shim)`, parses a JSON array, persists DRAFT `PlatformTestCase`
+  + `TestCaseStep`, returns `NodeResult.completed(...)`.
+- The orchestrator (`LangChainAgentRunner.run`) already has a **tool-call loop** with a
+  `REVIEW_SENTINEL` (`__AWAITING_REVIEW__`): when `node.dispatchToolCall(...)` returns a
+  string starting with the sentinel, it saves a checkpoint (messages → CHECKPOINTS blob via
+  `CheckpointService.save`) and returns `NodeResult.awaitingReview(..., checkpointId, ...)`.
+  **We reuse this exact mechanism** for clarifying questions with a new sentinel.
+- ⚠️ `LangChainAgentRunner.resume(checkpointId, node)` is a **stub** returning
+  `NodeResult.failed("RESUME_NOT_IMPLEMENTED")`. Making it real is the heart of the feature.
+- ⚠️ Checkpoint save uses raw `mapper.writeValueAsString(messages)` on LangChain4j
+  `ChatMessage` objects. For round-trip resume we must use LangChain4j's
+  `ChatMessageSerializer.messagesToJson()` / `ChatMessageDeserializer.messagesFromJson()`
+  (Jackson won't round-trip the polymorphic message hierarchy reliably). Coordinated change
+  in save + resume.
+- `AgentWorkflowService.executeWorkflow(UUID, ContextBundle)` is `@Async`; on
+  `result.needsReview()` it sets `workflow.markAwaitingReview()`, calls
+  `reviewGateway.requestReview(...)`, publishes Kafka `AWAITING_REVIEW`, and returns.
+- `AgentWorkflow` entity: status varchar(20) values PENDING|RUNNING|COMPLETED|FAILED|
+  AWAITING_REVIEW; mutators `markRunning/markCompleted/markFailed/markAwaitingReview`,
+  `addTokens`. Trigger carried as `triggerRef` jsonb.
+- `ContextBundle` is a record carrying sessionId/workflowId/projectId/projectSlug/trigger +
+  context tiers + `checkpointId` + `resumeStrategy` + `llmTier`. It does **not** today carry
+  skills/prompt-overrides/free-text/files — we pass those via a new side table keyed by
+  workflowId, loaded by the node (avoids widening the record signature everywhere).
+- File-upload reference: `ExecutionAttachmentService.upload(MultipartFile → BlobStore
+  .storeBytes(ARTIFACTS, bytes, contentType) → serialize(BlobRef) → row)`. Portal multipart
+  passthrough already wired (ByteArrayResource + HttpEntity) for evidence.
+- Generate endpoint today: `POST /hub/test-cases/{projectId}/generate` →
+  `workflowService.createWorkflow(projectId, trigger)` → `contextAssembler.assemble(...)` →
+  `executeWorkflow(...)`. BFF proxy in `PortalTestCaseController`.
+- Kafka topics: `Topics.AGENT_WORKFLOW_EVENTS`, `AGENT_APPROVAL_REQUESTS`,
+  `AGENT_APPROVAL_DECISIONS`. We will **not** add a new topic (answers resume is invoked
+  directly/async — see C/D); reusing/extending event strings only.
+
+## Decisions needed before build (CHECKPOINT 0)
+
+1. **Migration strategy.** Product is brand-new. Two options:
+   (a) one new `V2__ai_generation.sql` containing all new tables/columns; or
+   (b) one migration *per slice* (`V2__ai_skills`, `V3__ai_prompt_templates`,
+   `V4__ai_generation_runs`, `V5__generation_clarifications`). Recommend **(b)** —
+   per-slice migrations never edit an already-applied file, avoiding the checksum-mismatch
+   pain seen earlier. Confirm.
+2. **Resume transport.** Answers endpoint invokes `GenerationResumeService` **directly and
+   async** (mirrors `executeWorkflow`), no new Kafka topic. Confirm (vs Kafka decision
+   round-trip like the review gate).
+3. **Where resolved request lives.** New side table `ai_generation_runs` (1:1 with
+   workflow) rather than widening `AgentWorkflow`. Confirm.
+
+---
+
+## Phase A — Skills library (independent slice)
+
+### T1 — AiSkill: domain + repo + migration + CRUD service
+- **Files:** `platform-core` `domain/AiSkill.java`, `repository/AiSkillRepository.java`,
+  `db/migration/V2__ai_skills.sql`; service `AiSkillService` (place alongside existing TCM
+  services / agent api package — match repo convention).
+- **Behavior:** project-scoped CRUD; fields id, projectId, name, description, instructions
+  (TEXT), enabled, createdBy, createdAt, updatedAt; unique (projectId, name).
+- **AC:** create/list/get/update/delete scoped by projectId; reject cross-project access
+  (404 when skill's projectId ≠ path projectId); duplicate name in same project → 409.
+- **Tests:** `AiSkillServiceTest` — CRUD happy paths, cross-project rejection, duplicate
+  name. **Verify:** `mvn -pl platform-core,platform-agent -am test`.
+
+### T2 — Skills HTTP API + portal BFF proxy
+- **Files:** `platform-agent` `api/AiSkillController.java`
+  (`/hub/projects/{projectId}/ai/skills` CRUD); `platform-portal` `PortalAiController` (new)
+  proxying `/api/portal/projects/{projectId}/ai/skills`.
+- **AC:** all CRUD verbs proxied; status codes preserved.
+- **Tests:** controller slice test (MockMvc) for create+list+delete.
+  **Verify:** `mvn -pl platform-agent,platform-portal -am test`.
+
+### T3 — Skills frontend (Settings CRUD)
+- **Files:** `frontend/src/lib/types.ts` (`AiSkill`), `lib/api.ts` (skills CRUD),
+  `pages/AiSettingsPage.tsx` (Skills library section: list, create/edit modal, delete).
+- **AC:** user can manage skills under AI settings; list refetches on mutation.
+- **Verify:** `tsc -b` clean; `vite build`; browser smoke (create/edit/delete a skill).
+
+> **CHECKPOINT A** — skills CRUD usable end-to-end.
+
+---
+
+## Phase B — Prompt templates (independent slice, parallel to A)
+
+### T4 — AiPromptTemplate: domain + repo + migration + service (default resolution)
+- **Files:** `platform-core` `domain/AiPromptTemplate.java`,
+  `repository/AiPromptTemplateRepository.java`, `db/migration/V3__ai_prompt_templates.sql`;
+  `AiPromptTemplateService`.
+- **Behavior:** project-scoped; kind SYSTEM|USER; name, body (TEXT), isDefault, updatedAt.
+  Service resolves the default per (projectId, kind); seeds a built-in default body (the
+  current hardcoded system prompt) when none exists.
+- **AC:** CRUD; exactly one default per (projectId, kind) (setting a new default clears the
+  prior); `resolveDefault(projectId, kind)` returns seeded fallback when empty.
+- **Tests:** `AiPromptTemplateServiceTest` — default uniqueness, fallback resolution,
+  SYSTEM vs USER isolation. **Verify:** module tests.
+
+### T5 — Prompt-template HTTP API + portal BFF proxy
+- **Files:** `api/AiPromptTemplateController.java`
+  (`/hub/projects/{projectId}/ai/prompt-templates`); extend `PortalAiController`.
+- **AC:** CRUD + `GET .../defaults` returning resolved system+user defaults (for modal
+  prefill). **Tests:** controller slice test. **Verify:** module tests.
+
+### T6 — Prompt-template frontend (Settings CRUD)
+- **Files:** `types.ts` (`AiPromptTemplate`), `api.ts`, `AiSettingsPage.tsx` (Prompt
+  Templates section).
+- **AC:** manage system/user templates; mark default. **Verify:** `tsc -b`, `vite build`,
+  browser smoke.
+
+> **CHECKPOINT B** — skills + prompt templates both manageable; backend ready to be consumed
+> by generation.
+
+---
+
+## Phase C — Rich generation request (input + assembly), still one-shot
+
+### T7 — Generation request model + input-file upload + resolved-run persistence
+- **Files:** `platform-core` `domain/AiGenerationRun.java` (1:1 workflow: workflowId,
+  projectId, skillIdsJson, systemPromptUsed TEXT, userPromptUsed TEXT, freeText TEXT,
+  attachmentManifestJson, maxRounds, createdAt), `repository/AiGenerationRunRepository.java`,
+  `db/migration/V4__ai_generation_runs.sql`; `platform-common` request DTO
+  `GenerateTestCasesRequest(requirementIds, freeText, fileIds, skillIds,
+  systemPromptOverride, userPromptOverride, maxRounds)`; input-file upload endpoint
+  `POST /hub/projects/{projectId}/ai/generation-files` (MultipartFile → BlobStore ARTIFACTS,
+  return fileId+manifest) following `ExecutionAttachmentService.upload`; portal BFF multipart
+  proxy.
+- **AC:** request validation — **≥1 input source** required (requirementIds OR freeText OR
+  fileIds) else 400; unknown skillId → 404; unknown fileId → 400. Upload stores bytes in
+  ARTIFACTS and returns a referencable id.
+- **Tests:** request-validation unit test (each branch); upload service test (BlobStore
+  mocked). **Verify:** module tests.
+
+### T8 — Enriched generate endpoint + run persistence (no clarifying questions yet)
+- **Files:** modify `TestCaseGenerationController` generate endpoint to accept
+  `GenerateTestCasesRequest` (keep back-compat: legacy `{requirementIds}` body still parses);
+  persist an `AiGenerationRun` (skills, free text, file manifest, prompt overrides) before
+  dispatch; pass workflowId so the node can load it. Update `PortalTestCaseController` proxy.
+- **AC:** richer body creates a workflow + `AiGenerationRun`; legacy body still works.
+- **Tests:** controller test for both body shapes. **Verify:** module tests.
+
+### T9 — Prompt assembly in TestCaseGenerationNode
+- **Files:** modify `TestCaseGenerationNode` — load `AiGenerationRun` by workflowId; resolve
+  **system** = override ?? default template ?? current hardcoded text, **+ appended skills**
+  (selected `AiSkill.instructions`); resolve **user** = override ?? default template, **+**
+  free text **+** requirements message (existing) **+** file excerpts (fetch text blobs,
+  truncate). Persist exact `systemPromptUsed`/`userPromptUsed` back to `AiGenerationRun`.
+  Keep JSON-array output contract + persistence unchanged.
+- **AC:** composed messages contain each provided part; `*Used` persisted; with no
+  skills/overrides/free-text/files the prompt equals today's (backward compatible).
+- **Tests:** assembled-prompt test (contains skill + free text + requirement + file excerpt,
+  `*Used` saved) + back-compat test (empty extras ⇒ legacy prompt). **Verify:** `mvn -pl
+  platform-agent -am test`.
+
+### T10 — Generate modal frontend (inputs)
+- **Files:** `types.ts` (`GenerateTestCasesRequest`), `api.ts` (enriched
+  `generateTestCasesFromAI`, file upload), `pages/TestCasesPage.tsx` `GenerateTestCasesModal`
+  — add skill multi-select, system/user prompt fields prefilled from `/defaults` (editable),
+  free-text box, file attach; existing requirement select retained; client-side ≥1-input
+  guard.
+- **AC:** can launch a run with any combination; defaults prefill; legacy requirements-only
+  path still works. **Verify:** `tsc -b`, `vite build`, browser smoke (run with skill + free
+  text + file produces DRAFT cases).
+
+> **CHECKPOINT C** — steerable one-shot generation (skills + prompts + rich input) works end
+> to end; no clarifying questions yet. Validate quality before adding the interactive loop.
+
+---
+
+## Phase D — Clarifying questions (pause → answer → resume)
+
+### T11 — `awaitingInput` result type + status plumbing
+- **Files:** `platform-common` `NodeResult.awaitingInput(...)` + `NodeResultStatus
+  .AWAITING_INPUT` + `needsInput()` (mirror `awaitingReview`/`needsReview`); `platform-core`
+  `AgentWorkflow.markAwaitingInput()` ("AWAITING_INPUT" fits varchar(20)).
+- **AC:** new factory carries checkpointId + a questions payload; workflow can enter
+  AWAITING_INPUT.
+- **Tests:** `NodeResultTest`. **Verify:** `mvn -pl platform-common,platform-core -am test`.
+
+### T12 — `ask_user` tool on the node + orchestrator sentinel
+- **Files:** modify `TestCaseGenerationNode` (and shim) to advertise an `ask_user`
+  `ToolSpecification` (`questions: [{id, question, kind(TEXT|CHOICE), options?}]`) and
+  implement `dispatchToolCall("ask_user", ...)` returning `INPUT_SENTINEL + questionsJson`;
+  modify `LangChainAgentRunner` to recognize `INPUT_SENTINEL` (`__AWAITING_INPUT__`)
+  alongside `REVIEW_SENTINEL`, save checkpoint, return `awaitingInput(..., checkpointId,
+  questionsJson)`.
+- **AC:** when the model calls `ask_user`, the run saves a checkpoint and returns
+  awaitingInput with the questions; **no test cases persisted** that turn.
+- **Tests:** orchestrator test with a stub `ChatModel` emitting an `ask_user` tool call ⇒
+  checkpoint saved + awaitingInput returned. **Verify:** `mvn -pl platform-agent -am test`.
+
+### T13 — Workflow service handles AWAITING_INPUT + persists clarification
+- **Files:** `platform-core` `domain/GenerationClarification.java`
+  (workflowId, round, questionsJson, answersJson nullable, status
+  PENDING|ANSWERED|SKIPPED, createdAt, answeredAt) + repo +
+  `db/migration/V5__generation_clarifications.sql`; modify `AgentWorkflowService
+  .executeWorkflow` — on `result.needsInput()`: persist a `GenerationClarification`
+  (round N, PENDING), `workflow.markAwaitingInput()`, publish `AWAITING_INPUT`, return.
+- **AC:** reaching awaitingInput creates a PENDING clarification (round increments) and parks
+  the workflow; event emitted.
+- **Tests:** `AgentWorkflowServiceTest` (mock orchestrator returns awaitingInput) ⇒
+  clarification saved + workflow AWAITING_INPUT + no completion. **Verify:** module test.
+
+### T14 — Implement real checkpoint resume in the orchestrator (HIGH RISK)
+- **Files:** modify `LangChainAgentRunner` — `saveCheckpoint` serializes via LangChain4j
+  `ChatMessageSerializer.messagesToJson(...)`; implement `resume(checkpointId, node, String
+  nextUserMessage)` (extend `AgentOrchestrator`): load `ConversationState`, fetch +
+  `ChatMessageDeserializer.messagesFromJson(...)`, append answers as `UserMessage`, run the
+  tool-loop, return completed / awaitingInput.
+- **AC:** a saved checkpoint round-trips to an equivalent message list; resume continues the
+  conversation and can complete or ask again.
+- **Tests:** round-trip serialization test; resume test with stub `ChatModel` that completes
+  after the injected answers turn. **Spike LangChain4j (de)serialization first.**
+  **Verify:** `mvn -pl platform-agent -am test`.
+
+### T15 — GenerationResumeService + answers endpoint (multi-round, cap, 409)
+- **Files:** `platform-agent` `workflow/GenerationResumeService.java`
+  (`@Async resumeWithAnswers(projectId, workflowId, answers)`): guard status ==
+  AWAITING_INPUT else 409; mark latest clarification ANSWERED (answersJson); rebuild resume
+  `ContextBundle` and call `orchestrator.resume(checkpoint, node, answersAsText)`; handle the
+  result like `executeWorkflow` (awaitingInput → new round; completed → persist + COMPLETED;
+  failed → FAILED). Enforce `maxRounds` cap (default 3 from `AiGenerationRun`) → on cap,
+  inject "proceed with best effort, note assumptions" instead of re-asking. Endpoint
+  `POST /hub/test-cases/{projectId}/generations/{workflowId}/answers`; portal BFF proxy.
+- **AC:** answering resumes the same run from checkpoint (no restart); a second `ask_user`
+  yields round N+1; answering when not AWAITING_INPUT → 409; cap reached ⇒ completes with
+  assumptions noted.
+- **Tests:** `GenerationResumeServiceTest` — resume→complete, multi-round, 409 guard, cap.
+  **Verify:** `mvn -pl platform-agent -am test`.
+
+### T16 — Generation status endpoint (status + pending questions + transcript)
+- **Files:** `GET /hub/test-cases/{projectId}/generations/{workflowId}` returning workflow
+  status, pending questions (if any), clarification transcript + resolved run info; portal
+  BFF proxy.
+- **AC:** returns AWAITING_INPUT + questions while parked; COMPLETED + summary after finish;
+  lists all rounds.
+- **Tests:** controller test for parked vs completed. **Verify:** module test.
+
+### T17 — Interactive run frontend (questions UI + transcript)
+- **Files:** `types.ts` (`GenerationStatus`, `ClarificationQuestion`, `ClarificationAnswer`),
+  `api.ts` (`getGeneration`, `submitGenerationAnswers`), new `pages/AiGenerationRunPage.tsx`
+  (or panel reachable from the modal/list): poll status; when AWAITING_INPUT render questions
+  (text + choice) with answer inputs and "Submit answers"; show Q&A transcript and final
+  DRAFT-case result; surface the run after launching from `GenerateTestCasesModal`.
+- **AC:** a run that asks questions shows them; submitting resumes; multi-round visible;
+  completion shows generated cases. **Verify:** `tsc -b`, `vite build`, browser E2E.
+
+> **CHECKPOINT D** — full interactive loop works end to end.
+
+---
+
+## Phase E — Verification & rollout
+
+### T18 — Regression + full backend suite
+- **AC:** entire backend suite green (`mvn -q test`); legacy one-shot generation
+  (requirements-only, no questions) unchanged; Review Queue/AgentWorkflow intact.
+
+### T19 — Build all jars + images, browser E2E, Flyway alignment
+- **AC:** `mvn -q package -DskipTests && docker compose build && docker compose up -d` with
+  every JVM service on the aligned Flyway version and new migrations applied; chrome-devtools
+  E2E: manage a skill + template, launch a run with skill+freetext+file, answer a clarifying
+  question across two rounds, see DRAFT cases. Never log/commit secrets.
+
+---
+
+## Dependency graph
 
 ```
-M1 (schema + data foundation)
-   ├──> T3 (ADO defect link)      [needs defect columns]
-   └──> T4 (evidence attachments) [needs execution_attachments table]
-
-T1 (reopen + complete-confirm + COMPLETED read-only guard)
-   └──> establishes the "editable only when IN_PROGRESS" guard reused by T2/T3/T4
-
-T2 (add cases mid-run)            [needs T1 guard; reuses TcmRunService gate]
-T5 (verify F1/F2/F5 + cohesive wiring + regression)  [last; depends on all]
+Phase A (T1→T2→T3)  ─┐
+Phase B (T4→T5→T6)  ─┤  (A, B independent — parallelizable)
+                     ▼
+Phase C  T7 → T8 → T9 → T10        (uses A,B services for assembly/prefill)
+                     ▼
+Phase D  T11 → T12 → T13           (status/tool plumbing)
+              T14 → T15 → T16      (T14 resume gates T15; T15 gates T16)
+                     ▼
+              T17                  (frontend needs T15/T16)
+                     ▼
+Phase E  T18 → T19
 ```
 
-Execution order: **M1 → T1 → T2 → T3 → T4 → T5.** (T1 before T2/T3/T4 so the read‑only guard exists
-before features that must respect it. M1 before T3/T4 for schema.)
-
-## 3. Conventions
-- TDD per task (RED→GREEN); one commit per task, message prefixed with the task id + the
-  `Co-Authored-By: Claude Opus 4.8 (1M context) <noreply@anthropic.com>` trailer.
-- `export JAVA_HOME="$(/usr/libexec/java_home -v 21)"` before every `mvn`; build touched modules
-  with `-am`. Backend tests are Mockito/JUnit5 (no live DB). Format (Spotless + Prettier) and pass
-  `tsc -b`/`vite build` before "done".
-- Schema changes fold into the single `V1__initial_schema.sql` (pre‑release). The combined `V1` is
-  verified by applying it to a throwaway DB (`psql` on a scratch database), **not** against the
-  running one (whose old `V1` checksum would conflict).
-
-## 4. Tasks
-
-### M1 — Schema + data foundation
-- **platform-core:** in `V1__initial_schema.sql` add to `test_case_executions`:
-  `defect_external_id VARCHAR(64)`, `defect_url VARCHAR(500)`, `defect_title VARCHAR(500)`,
-  `defect_state VARCHAR(60)` (nullable); add table `execution_attachments` (cols per SPEC §4) +
-  `idx_exec_attach_exec`. New `ExecutionAttachment` entity + `ExecutionAttachmentRepository`
-  (`findByExecutionId`, `findByTestRunId`). Extend `TestCaseExecution` with the 4 defect fields +
-  `linkDefect(extId, url, title, state)` / `clearDefect()`; add `TestRun.reopen()`.
-- **Acceptance:** combined `V1` applies cleanly on an empty DB; entities map to the new columns;
-  `linkDefect/clearDefect/reopen` set/clear the right fields. No behavior change to existing flows.
-- **Verify:** `mvn -pl platform-core -am test`; apply `V1` to a scratch DB (`createdb v1test` →
-  `psql -f V1` → assert `execution_attachments` + the 4 columns exist) → drop. Unit test for the
-  new domain methods.
-
-> ### ✅ CHECKPOINT CP-1 — Foundation
-> Combined `V1` applies on a fresh DB; entities/repos compile and map. **Note:** local stack needs a
-> DB reset (drop `platform` DB or wipe `volume_data/postgres`) before it will boot on the new `V1`.
-> **Sign off** before building features on it.
-
-### T1 — F7: reopen + complete‑with‑confirm + read‑only guard
-- **Backend:** `TestRunService.reopen(projectId, runId)` (only from `COMPLETED` → `IN_PROGRESS`,
-  clears `completedAt`); keep `complete()` allowed with pending (counts already computed). Add a
-  private `requireEditable(run)` guard (throws 409 when not `IN_PROGRESS`) and apply it in
-  `updateExecution`. New `POST …/test-runs/{runId}/reopen`.
-- **Portal proxy:** add `POST /test-runs/{runId}/reopen` to `PortalTestCaseController`.
-- **Frontend:** `TestRunExecutionPage` — when `COMPLETED`, show a **Reopen** button and render the
-  run read‑only (status buttons disabled); **Complete** shows a confirm dialog when pending > 0
-  ("N cases still pending — complete anyway?"). `api.reopenTestRun`.
-- **Acceptance:** reopen flips status and re‑enables editing; editing a COMPLETED run’s execution →
-  409; complete with pending succeeds after confirm; completed run renders read‑only.
-- **Verify:** `mvn -pl platform-ingestion,platform-portal -am test` (unit tests: reopen transition,
-  guard rejects when COMPLETED); `tsc -b` + `vite build`.
-
-### T2 — F6: add existing approved cases mid‑run
-- **Backend:** `TestRunService.addCases(projectId, runId, AddCasesRequest{testCaseIds, suiteIds,
-  matrixType})` — `requireEditable`; resolve via `effectiveCaseIds` (explicit ∪ suites); enforce
-  APPROVED‑only + matrix expansion (reuse `TcmRunService` logic); **skip cases already in the run**
-  (idempotent, no duplicate executions); recompute counts. New `POST …/test-runs/{runId}/cases`.
-- **Portal proxy:** add `POST /test-runs/{runId}/cases`.
-- **Frontend:** “Add cases” action on `TestRunExecutionPage` opening the existing scope‑filtered,
-  APPROVED‑only picker + suites; on submit appends PENDING executions and refreshes. `api.addTestRunCases`.
-- **Acceptance:** only APPROVED selectable; re‑adding an existing case adds nothing; totals/pending
-  grow by the net‑new count; blocked (409) when run is COMPLETED.
-- **Verify:** `mvn -pl platform-ingestion,platform-portal -am test` (idempotency + APPROVED + COMPLETED‑guard tests); `tsc -b` + `vite build`.
-
-### T3 — F3: link / unlink an existing ADO defect (READ‑ONLY)
-- **Backend:** `TestRunService.linkDefect(projectId, runId, execId, LinkDefectRequest{workItemId})`
-  — `requireEditable`; `AzureBoardsPollClient.connect(projectId)` + `getWorkItems([id])`; if absent
-  → 400 "Work item {id} not found"; else read `System.Title`/`System.State`, build URL
-  `{ado.root}/_workitems/edit/{id}`, call `exec.linkDefect(...)`. `unlinkDefect(...)` → `clearDefect()`.
-  Extend `TestCaseExecutionDto` with `defectId/defectUrl/defectTitle/defectState`. New
-  `POST` + `DELETE …/executions/{execId}/defect`.
-- **Portal proxy:** add the two endpoints.
-- **Frontend:** on a case row, a **Link defect** input (work‑item id) → chip with title/state +
-  external link; **unlink** clears it. `api.linkExecutionDefect` / `api.unlinkExecutionDefect`;
-  extend `TestCaseExecution` type.
-- **Acceptance:** valid id → stored + chip + link to `…/_workitems/edit/{id}`; invalid id → 400,
-  nothing stored; unlink clears; **no ADO write/PATCH/POST work‑item call** anywhere.
-- **Verify:** `mvn -pl platform-ingestion,platform-portal -am test` (valid stores; invalid → 400;
-  Mockito `verify` that only read methods are invoked, no write); `tsc -b` + `vite build`.
-
-> ### ✅ CHECKPOINT CP-ADO — read‑only guarantee (CRITICAL)
-> Confirm defect linking validates via read APIs only and the platform makes **zero** ADO writes.
-> **Explicit sign‑off** before this runs against a real org/PAT.
-
-### T4 — F4: per‑case evidence attachments (BlobStore)
-- **Backend:** `ExecutionAttachmentService` — `upload(projectId, runId, execId, MultipartFile,
-  uploadedBy)` (`requireEditable`; enforce **30 MB/file**, no count/type limit; `BlobStore.storeBytes`
-  → persist row with serialized `BlobRef`); `list(execId)`; `download(attachmentId)` →
-  **stream bytes** via `fetchBytes` (works for both S3 and Filesystem dev; presign optional when
-  supported); `delete(attachmentId)` (remove row only — never delete the shared content‑addressed
-  blob). Endpoints: `GET`/`POST(multipart)` `…/executions/{execId}/attachments`,
-  `GET …/attachments/{id}/download`, `DELETE …/attachments/{id}`.
-- **Portal proxy:** add the four endpoints incl. **multipart passthrough** for upload and a
-  streaming passthrough for download.
-- **Frontend:** per‑case attachments list with upload (drag/drop or file input), download link, and
-  delete; show >30 MB rejection message. `api.listExecutionAttachments` / `uploadExecutionAttachment`
-  / `deleteExecutionAttachment` + a download URL helper.
-- **Acceptance:** any extension uploads; >30 MB → clear error; download returns original bytes;
-  delete removes the row (blob untouched); blocked (409) when run COMPLETED.
-- **Verify:** `mvn -pl platform-ingestion,platform-portal -am test` (size‑limit reject; metadata
-  persisted; delete removes row, not blob — assert `blobStore.delete` not called); `tsc -b` + `vite build`.
-
-### T5 — F1/F2/F5: verify scope/execute/resume + cohesive run detail + regression
-- **Backend:** confirm create‑scope inheritance (release → blank dims) still holds; ensure every
-  mutating execution endpoint honors `requireEditable`. Add a small test asserting the release →
-  run scope inheritance.
-- **Frontend:** cohesively present on `TestRunExecutionPage`: per‑case status + actual result,
-  defect chip, attachments, the Add‑cases action, and the Reopen/Complete controls; ensure an
-  `IN_PROGRESS` run reopened from the list/board restores all state (F5). Reuse the height‑fill
-  scroll idiom so long runs don’t clip.
-- **Acceptance:** the full path works — create (scoped) → execute → link defect → attach evidence →
-  add a missed case → complete (confirm) → reopen → edit → complete. Resume mid‑run loses nothing.
-- **Verify:** full `mvn -pl platform-ingestion,platform-portal -am test` green; `tsc -b` +
-  `vite build`; manual end‑to‑end against a freshly reset DB + the ADO credential.
-
-> ### ✅ CHECKPOINT CP-FINAL
-> End‑to‑end manual execution lifecycle verified in the browser against a fresh DB. **Sign off to finish.**
-
-## 5. Cross‑cutting acceptance (all tasks)
-- ADO stays **read‑only**; PATs encrypted, never logged/returned.
-- Mutations idempotent where stated; run counters recomputed after every change.
-- A `COMPLETED` run is read‑only until reopened (409 on mutate).
-- Attachment delete never hard‑deletes shared blobs.
-- Spotless + Prettier + `tsc -b` + tests green before any task is marked done.
-
-## 6. Risks / notes
-- **DB reset required** after M1 (the running DB has the pre‑consolidation `V1` checksum). Reset via
-  `docker compose down && rm -rf volume_data/postgres/* && ./scripts/dev-up.sh`, or
-  `DROP DATABASE platform; CREATE DATABASE platform;` then restart ingestion.
-- `presignUrl` is unsupported on the Filesystem dev BlobStore → download streams bytes through the
-  service (universal); presign is an optional fast‑path for S3/MinIO only.
-- ADO `getWorkItems` is org‑scoped (no project arg) and returns batch JSON; treat an empty result
-  or non‑2xx as "not found / not accessible" → 400 with a readable message.
+Critical path: T7→T8→T9→T11→T12→T13→T14→T15→T16→T17→T18→T19. **T14 (real checkpoint resume)
+is the highest-risk task** — spike LangChain4j message (de)serialization before committing.

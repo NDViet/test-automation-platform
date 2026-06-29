@@ -116,6 +116,58 @@ class LangChainAgentRunnerTest {
   }
 
   @Test
+  void askUserToolPausesWithAwaitingInputAndSavesCheckpoint() {
+    when(provider.chatModel("claude-sonnet-4-6")).thenReturn(chatModel);
+    lenient().when(checkpointService.save(any(), any(), any())).thenReturn("chk-77");
+    ChatResponse askTurn =
+        withTokens(
+            AiMessage.from(
+                ToolExecutionRequest.builder()
+                    .id("1")
+                    .name("ask_user")
+                    .arguments("{\"questions\":[{\"id\":\"q1\",\"question\":\"Which browsers?\"}]}")
+                    .build()),
+            10,
+            5);
+    when(chatModel.chat(any(ChatRequest.class))).thenReturn(askTurn);
+
+    AgentNode node =
+        new AgentNode() {
+          @Override
+          public AgentTaskType taskType() {
+            return AgentTaskType.values()[0];
+          }
+
+          @Override
+          public NodeType nodeType() {
+            return NodeType.values()[0];
+          }
+
+          @Override
+          public NodeResult execute(ContextBundle bundle) {
+            return null;
+          }
+
+          @Override
+          public List<ToolSpecification> toolSpecs() {
+            return List.of(ToolSpecification.builder().name("ask_user").description("ask").build());
+          }
+
+          @Override
+          public String dispatchToolCall(String toolName, String inputJson, ContextBundle bundle) {
+            return "__AWAITING_INPUT__" + inputJson;
+          }
+        };
+
+    NodeResult result = runner.run(AgentGridFixtures.bundle(), node);
+
+    assertThat(result.status()).isEqualTo(NodeResultStatus.AWAITING_INPUT);
+    assertThat(result.needsInput()).isTrue();
+    assertThat(result.checkpointId()).isNotBlank(); // real round-trip wired in T14
+    assertThat(result.summary()).contains("Which browsers?");
+  }
+
+  @Test
   void failsWhenLiteLlmNotConfigured() {
     when(provider.chatModel(anyString())).thenReturn(null);
 
@@ -123,6 +175,61 @@ class LangChainAgentRunnerTest {
 
     assertThat(result.status()).isEqualTo(NodeResultStatus.FAILED);
     assertThat(result.errorCode()).isEqualTo("MISSING_LLM_CONFIG");
+  }
+
+  @Test
+  void resumeLoadsCheckpointInjectsAnswersAndContinues() {
+    // Persisted conversation: a system + user turn, serialized with LangChain4j's codec.
+    List<dev.langchain4j.data.message.ChatMessage> saved =
+        List.of(
+            dev.langchain4j.data.message.SystemMessage.from("sys"),
+            dev.langchain4j.data.message.UserMessage.from("original task"));
+    String json = dev.langchain4j.data.message.ChatMessageSerializer.messagesToJson(saved);
+
+    // Round-trip sanity: the codec restores the same number of messages.
+    assertThat(dev.langchain4j.data.message.ChatMessageDeserializer.messagesFromJson(json))
+        .hasSize(2);
+
+    when(provider.chatModel("claude-sonnet-4-6")).thenReturn(chatModel);
+    com.platform.common.storage.BlobRef ref =
+        new com.platform.common.storage.BlobRef("platform-checkpoints", "k", "h", "application/json", 1);
+    when(checkpointService.load("chk"))
+        .thenReturn(
+            java.util.Optional.of(
+                new CheckpointService.ConversationState(
+                    "session",
+                    ref,
+                    null,
+                    null,
+                    List.of(),
+                    com.platform.common.agent.ResumeStrategy.COMPRESSED,
+                    java.time.Instant.ofEpochSecond(1))));
+    when(blobStore.fetchText(ref)).thenReturn(java.util.Optional.of(json));
+
+    org.mockito.ArgumentCaptor<ChatRequest> reqCap =
+        org.mockito.ArgumentCaptor.forClass(ChatRequest.class);
+    when(chatModel.chat(reqCap.capture())).thenReturn(withTokens(AiMessage.from("done"), 3, 2));
+
+    NodeResult result =
+        runner.resume(AgentGridFixtures.bundle(), "chk", new FakeNode(), "ANSWER: chrome, firefox");
+
+    assertThat(result.status()).isEqualTo(NodeResultStatus.COMPLETED);
+    assertThat(result.summary()).isEqualTo("done");
+    // The injected answers turn is present in the resumed conversation.
+    String sent = reqCap.getValue().messages().toString();
+    assertThat(sent).contains("ANSWER: chrome, firefox");
+    assertThat(sent).contains("original task");
+  }
+
+  @Test
+  void resumeFailsWhenCheckpointMissing() {
+    when(provider.chatModel("claude-sonnet-4-6")).thenReturn(chatModel);
+    when(checkpointService.load("missing")).thenReturn(java.util.Optional.empty());
+
+    NodeResult result =
+        runner.resume(AgentGridFixtures.bundle(), "missing", new FakeNode(), "answer");
+
+    assertThat(result.status()).isEqualTo(NodeResultStatus.FAILED);
   }
 
   @Test

@@ -1104,3 +1104,80 @@ CREATE TABLE cred_key_settings (
     created_at  TIMESTAMPTZ  NOT NULL DEFAULT now(),
     updated_at  TIMESTAMPTZ  NOT NULL DEFAULT now()
 );
+
+-- ── Interactive AI Test Case Generation ────────────────────────────────────────
+
+-- Reusable, project-scoped AI "skills" (named instruction sets) for test-case generation.
+CREATE TABLE ai_skills (
+    id           UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    project_id   UUID         NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    name         TEXT         NOT NULL,
+    description  TEXT,
+    instructions TEXT         NOT NULL,
+    enabled      BOOLEAN      NOT NULL DEFAULT TRUE,
+    created_by   VARCHAR(200),
+    created_at   TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    updated_at   TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    UNIQUE (project_id, name)
+);
+CREATE INDEX idx_ai_skills_project ON ai_skills(project_id);
+
+-- Project-scoped, reusable prompt templates (SYSTEM | USER) for AI test-case generation.
+CREATE TABLE ai_prompt_templates (
+    id          UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    project_id  UUID         NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    kind        VARCHAR(10)  NOT NULL,
+    name        TEXT         NOT NULL,
+    body        TEXT         NOT NULL,
+    is_default  BOOLEAN      NOT NULL DEFAULT FALSE,
+    created_by  VARCHAR(200),
+    created_at  TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    updated_at  TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    UNIQUE (project_id, kind, name)
+);
+CREATE INDEX idx_ai_prompt_tpl_project_kind ON ai_prompt_templates(project_id, kind);
+
+-- Input files uploaded for an AI generation run (bytes live in BlobStore ARTIFACTS).
+CREATE TABLE ai_generation_files (
+    id           UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    project_id   UUID         NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    file_name    VARCHAR(300) NOT NULL,
+    content_type VARCHAR(150),
+    size_bytes   BIGINT       NOT NULL,
+    blob_ref     VARCHAR(500) NOT NULL,
+    uploaded_by  VARCHAR(200),
+    uploaded_at  TIMESTAMPTZ  NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_ai_gen_files_project ON ai_generation_files(project_id);
+
+-- Resolved inputs for a generation workflow (1:1 with agent_workflows).
+CREATE TABLE ai_generation_runs (
+    id                      UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+    workflow_id             UUID        NOT NULL UNIQUE REFERENCES agent_workflows(id) ON DELETE CASCADE,
+    project_id              UUID        NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    skill_ids               TEXT,
+    free_text               TEXT,
+    attachment_manifest     TEXT,
+    system_prompt_override  TEXT,
+    user_prompt_override    TEXT,
+    system_prompt_used      TEXT,
+    user_prompt_used        TEXT,
+    max_rounds              INT         NOT NULL DEFAULT 3,
+    created_at              TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+CREATE INDEX idx_ai_gen_runs_project ON ai_generation_runs(project_id);
+
+-- One round of clarifying questions (and the user's answers) for a generation workflow.
+CREATE TABLE generation_clarifications (
+    id            UUID         PRIMARY KEY DEFAULT gen_random_uuid(),
+    workflow_id   UUID         NOT NULL REFERENCES agent_workflows(id) ON DELETE CASCADE,
+    round         INT          NOT NULL,
+    checkpoint_id VARCHAR(200),
+    questions     TEXT         NOT NULL,
+    answers       TEXT,
+    status        VARCHAR(12)  NOT NULL DEFAULT 'PENDING',
+    created_at    TIMESTAMPTZ  NOT NULL DEFAULT now(),
+    answered_at   TIMESTAMPTZ,
+    UNIQUE (workflow_id, round)
+);
+CREATE INDEX idx_gen_clar_workflow ON generation_clarifications(workflow_id);

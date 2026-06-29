@@ -1,102 +1,40 @@
-# TODO — Manual Test Execution
+# TODO — Interactive AI Test Case Generation
 
-Vertical slices. Check off only when **Acceptance** and **Verify** both pass. Stop at each
-**CHECKPOINT** for human review. Spec: `SPEC.md` · Plan: `tasks/plan.md`.
+Track per-task. Mark `[x]` only after RED→GREEN→regression→build→commit. See `tasks/plan.md`.
 
-Order: **M1 → T1 → T2 → T3 → T4 → T5.**
+## Checkpoint 0 — confirm before build
+- [ ] C0: confirm migration strategy (per-slice V2..V5 vs single V2), resume transport
+  (direct async, no new Kafka topic), and `ai_generation_runs` side table
 
----
+## Phase A — Skills library
+- [x] T1: AiSkill domain + repo + V2 migration + CRUD service (+ tests)
+- [x] T2: Skills HTTP API + portal BFF proxy (+ tests)
+- [x] T3: Skills frontend (AiSettingsPage CRUD)
+- [x] CHECKPOINT A: skills CRUD end-to-end
 
-## Phase 1 — Foundation
+## Phase B — Prompt templates
+- [x] T4: AiPromptTemplate domain + repo + V3 migration + service w/ default resolution (+ tests)
+- [x] T5: Prompt-template HTTP API + `/defaults` + portal BFF proxy (+ tests)
+- [x] T6: Prompt-template frontend (AiSettingsPage CRUD)
+- [x] CHECKPOINT B: skills + templates manageable
 
-### [x] M1 — Schema + data foundation (defect columns, execution_attachments, domain methods)
-- **platform-core:** extend `V1__initial_schema.sql` (4 defect columns on `test_case_executions` +
-  `execution_attachments` table + index); `ExecutionAttachment` entity + repository; defect fields +
-  `linkDefect()`/`clearDefect()` on `TestCaseExecution`; `TestRun.reopen()`.
-- **Acceptance:** combined `V1` applies on an empty DB; entities map; domain methods set/clear fields;
-  existing flows unchanged.
-- **Verify:** `mvn -pl platform-core -am test`; apply `V1` to a scratch DB and assert new objects; unit test domain methods.
+## Phase C — Rich generation request (one-shot)
+- [x] T7: AiGenerationRun model + input-file upload + V4 migration + request validation (+ tests)
+- [x] T8: Enriched generate endpoint + run persistence + portal proxy (back-compat) (+ tests)
+- [x] T9: Prompt assembly in TestCaseGenerationNode (skills+prompts+freetext+files) (+ tests)
+- [x] T10: Generate modal frontend (skills, prompts, free text, file attach)
+- [x] CHECKPOINT C (code paths verified; full LLM run needs a LiteLLM API key): steerable one-shot generation works end-to-end
 
-> ### ✅ CHECKPOINT CP-1 — Foundation
-> `V1` applies on a fresh DB; foundation compiles. Local DB must be reset before the stack boots on
-> the new `V1`. **Sign off.**
+## Phase D — Clarifying questions (pause → answer → resume)
+- [x] T11: NodeResult.awaitingInput + AWAITING_INPUT status + markAwaitingInput (+ tests)
+- [x] T12: ask_user tool on node + orchestrator INPUT_SENTINEL (+ tests)
+- [x] T13: GenerationClarification + V5 migration + workflow AWAITING_INPUT handling (+ tests)
+- [x] T14: Real checkpoint resume in LangChainAgentRunner (HIGH RISK — spike first) (+ tests)
+- [x] T15: GenerationResumeService + answers endpoint (multi-round, cap, 409) (+ tests)
+- [x] T16: Generation status endpoint (status + questions + transcript) + proxy (+ tests)
+- [x] T17: Interactive run frontend (questions UI + transcript)
+- [x] CHECKPOINT D (endpoints + logic verified; live loop needs LiteLLM key): full interactive loop end-to-end
 
----
-
-## Phase 2 — Lifecycle & mid-run editing
-
-### [x] T1 — F7: reopen + complete-with-confirm + read-only guard
-- `TestRunService.reopen` + `requireEditable` guard (409 when not IN_PROGRESS) applied to
-  `updateExecution`; `POST …/test-runs/{runId}/reopen`; portal proxy; frontend Reopen button +
-  read-only completed view + complete-with-pending confirm.
-- **Acceptance:** reopen flips COMPLETED→IN_PROGRESS; editing a completed run → 409; complete with
-  pending succeeds after confirm; completed run renders read-only.
-- **Verify:** `mvn -pl platform-ingestion,platform-portal -am test`; `tsc -b` + `vite build`.
-
-### [x] T2 — F6: add existing approved cases mid-run
-- `TestRunService.addCases` (APPROVED-only, matrix-expanded, idempotent skip-existing, requireEditable);
-  `POST …/test-runs/{runId}/cases`; portal proxy; frontend "Add cases" picker + suites.
-- **Acceptance:** only APPROVED selectable; re-adding existing adds nothing; totals/pending grow by
-  net-new; 409 when COMPLETED.
-- **Verify:** `mvn -pl platform-ingestion,platform-portal -am test`; `tsc -b` + `vite build`.
-
-> ### ✅ CHECKPOINT CP-2 — Lifecycle + add-cases
-> Resume/reopen/complete and mid-run add work end-to-end. **Sign off.**
-
----
-
-## Phase 3 — ADO defect linking (read-only)
-
-### [x] T3 — F3: link / unlink an existing ADO defect
-- `linkDefect`/`unlinkDefect` validating via `AzureBoardsPollClient.getWorkItems([id])` (READ only),
-  storing id/url/title/state; DTO extended; `POST`/`DELETE …/executions/{execId}/defect`; portal
-  proxy; frontend link input + chip + unlink.
-- **Acceptance:** valid id stored + chip + edit URL; invalid id → 400, nothing stored; unlink clears;
-  zero ADO write calls.
-- **Verify:** `mvn -pl platform-ingestion,platform-portal -am test` (incl. Mockito verify: no write
-  method invoked); `tsc -b` + `vite build`.
-
-> ### ✅ CHECKPOINT CP-ADO — read-only guarantee (CRITICAL)
-> Confirm only read APIs are used; the platform performs **no** ADO writes. **Explicit sign-off**
-> before running against a real org/PAT.
-
----
-
-## Phase 4 — Evidence
-
-### [x] T4 — F4: per-case evidence attachments (BlobStore)
-- `ExecutionAttachmentService` (upload 30 MB cap / no count or type limit, list, download-streams-bytes,
-  delete row only); 4 endpoints; portal multipart + streaming passthrough; frontend upload/list/
-  download/delete UI.
-- **Acceptance:** any extension uploads; >30 MB → clear error; download returns original bytes;
-  delete removes row (blob untouched); 409 when COMPLETED.
-- **Verify:** `mvn -pl platform-ingestion,platform-portal -am test` (size reject; metadata persisted;
-  blob not deleted on row delete); `tsc -b` + `vite build`.
-
-> ### ✅ CHECKPOINT CP-3 — Evidence
-> Upload/download/delete works against MinIO (and filesystem dev). **Sign off.**
-
----
-
-## Phase 5 — Verify & cohesion
-
-### [x] T5 — F1/F2/F5: verify scope/execute/resume + cohesive run detail + regression
-- Confirm release→run scope inheritance + execute + resume; ensure every mutating endpoint honors
-  `requireEditable`; present status/defect/evidence/add-cases/reopen cohesively on the run detail
-  page; height-fill scroll for long runs.
-- **Acceptance:** full path works (create scoped → execute → link defect → attach evidence → add
-  missed case → complete w/ confirm → reopen → edit → complete); resume loses nothing.
-- **Verify:** full `mvn -pl platform-ingestion,platform-portal -am test` green; `tsc -b` + `vite
-  build`; manual end-to-end on a fresh DB + ADO credential.
-
-> ### ✅ CHECKPOINT CP-FINAL
-> Lifecycle verified in the browser against a fresh DB. **Sign off to finish.**
-
----
-
-## Cross-cutting (every task)
-- ADO read-only; PATs encrypted, never logged/returned.
-- Idempotent where stated; run counters recomputed after each change.
-- COMPLETED run read-only until reopened (409 on mutate).
-- Attachment delete never hard-deletes shared blobs.
-- Spotless + Prettier + `tsc -b` + tests green before "done".
+## Phase E — Verification & rollout
+- [x] T18: Regression + full backend test suite green
+- [x] T19: Build all jars + images, Flyway alignment, browser E2E

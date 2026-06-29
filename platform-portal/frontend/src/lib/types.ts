@@ -1286,3 +1286,103 @@ export interface AutomatedTestDetail {
   trend: TestTrendPoint[]
   recentRuns: RecentRun[]
 }
+
+// ── AI generation skills (project-scoped reusable instruction sets) ──────────
+export interface AiSkill {
+  id: string
+  projectId: string
+  name: string
+  description: string | null
+  instructions: string
+  enabled: boolean
+  createdBy: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface AiSkillForm {
+  name: string
+  description?: string
+  instructions: string
+  enabled: boolean
+}
+
+// ── AI prompt templates (project-scoped SYSTEM/USER templates) ───────────────
+export type PromptKind = 'SYSTEM' | 'USER'
+
+export interface AiPromptTemplate {
+  id: string
+  projectId: string
+  kind: PromptKind
+  name: string
+  body: string
+  isDefault: boolean
+  createdBy: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+export interface AiPromptTemplateForm {
+  kind: PromptKind
+  name: string
+  body: string
+  isDefault: boolean
+}
+
+export interface PromptDefaults {
+  system: string
+  user: string
+}
+
+// ── AI test-case generation request/result ──────────────────────────────────
+export interface GenerationFile {
+  id: string
+  projectId: string
+  fileName: string
+  contentType: string | null
+  sizeBytes: number
+  uploadedBy: string | null
+  uploadedAt: string
+}
+
+export interface GenerateTestCasesRequestBody {
+  requirementIds?: string[]
+  freeText?: string
+  fileIds?: string[]
+  skillIds?: string[]
+  systemPromptOverride?: string
+  userPromptOverride?: string
+  maxRounds?: number
+}
+
+export interface GenerationStartResult {
+  workflowId: string
+  projectId?: string
+  message: string
+}
+
+export interface ClarificationQuestion {
+  id: string
+  question: string
+  kind?: 'TEXT' | 'CHOICE'
+  options?: string[]
+}
+
+export interface ClarificationAnswer {
+  id: string
+  answer: string
+}
+
+export interface ClarificationRound {
+  round: number
+  status: string
+  questions: ClarificationQuestion[] | null
+  answers: ClarificationAnswer[] | null
+}
+
+export interface GenerationStatus {
+  workflowId: string
+  status: string
+  rounds: ClarificationRound[]
+  pending: ClarificationRound | null
+}

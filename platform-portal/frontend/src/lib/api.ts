@@ -62,6 +62,26 @@ async function putActor<T>(path: string, body: unknown, actor: string): Promise<
   return res.json() as Promise<T>
 }
 
+/** POST carrying the X-Actor header; surfaces the server's error message body. */
+async function postActor<T>(path: string, body: unknown, actor: string): Promise<T> {
+  const res = await fetch(BASE + path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Actor': actor },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) {
+    let msg = `POST ${path} → ${res.status}`
+    try {
+      const e = (await res.json()) as { message?: string }
+      if (e?.message) msg = e.message
+    } catch {
+      /* ignore */
+    }
+    throw new Error(msg)
+  }
+  return res.json() as Promise<T>
+}
+
 /** POST that surfaces the server's error message body (for user-facing flows like onboarding). */
 async function postMsg<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(BASE + path, {
@@ -544,10 +564,48 @@ export const api = {
       {},
     )
   },
-  generateTestCasesFromAI: (projectId: string, requirementIds?: string[]) =>
-    post<{ workflowId: string; message: string }>(`/projects/${projectId}/test-cases/generate`, {
-      requirementIds,
-    }),
+  generateTestCasesFromAI: (
+    projectId: string,
+    body: import('./types').GenerateTestCasesRequestBody,
+  ) =>
+    post<import('./types').GenerationStartResult>(
+      `/projects/${projectId}/test-cases/generate`,
+      body,
+    ),
+  getGeneration: (projectId: string, workflowId: string) =>
+    get<import('./types').GenerationStatus>(
+      `/projects/${projectId}/test-cases/generations/${workflowId}`,
+    ),
+  submitGenerationAnswers: (
+    projectId: string,
+    workflowId: string,
+    answers: import('./types').ClarificationAnswer[],
+  ) =>
+    post<{ workflowId: string; status: string }>(
+      `/projects/${projectId}/test-cases/generations/${workflowId}/answers`,
+      { answers },
+    ),
+  uploadGenerationFile: async (projectId: string, file: File) => {
+    const fd = new FormData()
+    fd.append('file', file)
+    const actor = localStorage.getItem('platform.actor') ?? ''
+    const res = await fetch(`${BASE}/projects/${projectId}/test-cases/generation-files`, {
+      method: 'POST',
+      body: fd,
+      headers: actor ? { 'X-Actor': actor } : undefined,
+    })
+    if (!res.ok) {
+      let msg = `Upload failed → ${res.status}`
+      try {
+        const e = (await res.json()) as { message?: string; detail?: string }
+        msg = e?.message || e?.detail || msg
+      } catch {
+        /* ignore */
+      }
+      throw new Error(msg)
+    }
+    return res.json() as Promise<import('./types').GenerationFile>
+  },
   linkRequirement: (projectId: string, tcId: string, requirementId: string) =>
     post<import('./types').ManagedTestCase>(
       `/projects/${projectId}/test-cases/${tcId}/link-requirement/${requirementId}`,
@@ -888,4 +946,48 @@ export const api = {
       `/projects/${projectId}/github/workflow-dispatch`,
       body,
     ),
+
+  // ── AI generation skills (project-scoped) ─────────────────────────────────
+  aiSkills: (projectId: string) =>
+    get<import('./types').AiSkill[]>(`/ai/projects/${projectId}/skills`),
+  createAiSkill: (projectId: string, body: import('./types').AiSkillForm, actor: string) =>
+    postActor<import('./types').AiSkill>(`/ai/projects/${projectId}/skills`, body, actor),
+  updateAiSkill: (
+    projectId: string,
+    skillId: string,
+    body: import('./types').AiSkillForm,
+    actor: string,
+  ) =>
+    putActor<import('./types').AiSkill>(`/ai/projects/${projectId}/skills/${skillId}`, body, actor),
+  deleteAiSkill: (projectId: string, skillId: string) =>
+    del(`/ai/projects/${projectId}/skills/${skillId}`),
+
+  // ── AI prompt templates (project-scoped) ──────────────────────────────────
+  aiPromptTemplates: (projectId: string) =>
+    get<import('./types').AiPromptTemplate[]>(`/ai/projects/${projectId}/prompt-templates`),
+  aiPromptDefaults: (projectId: string) =>
+    get<import('./types').PromptDefaults>(`/ai/projects/${projectId}/prompt-templates/defaults`),
+  createAiPromptTemplate: (
+    projectId: string,
+    body: import('./types').AiPromptTemplateForm,
+    actor: string,
+  ) =>
+    postActor<import('./types').AiPromptTemplate>(
+      `/ai/projects/${projectId}/prompt-templates`,
+      body,
+      actor,
+    ),
+  updateAiPromptTemplate: (
+    projectId: string,
+    id: string,
+    body: import('./types').AiPromptTemplateForm,
+    actor: string,
+  ) =>
+    putActor<import('./types').AiPromptTemplate>(
+      `/ai/projects/${projectId}/prompt-templates/${id}`,
+      body,
+      actor,
+    ),
+  deleteAiPromptTemplate: (projectId: string, id: string) =>
+    del(`/ai/projects/${projectId}/prompt-templates/${id}`),
 }

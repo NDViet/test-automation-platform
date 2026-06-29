@@ -11,12 +11,15 @@ import type {
   Requirement,
   IntegrationConfig,
   CaseProperty,
+  GenerationFile,
+  GenerateTestCasesRequestBody,
 } from '@/lib/types'
 import Badge from '@/components/Badge'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import ErrorMessage from '@/components/ErrorMessage'
 import Markdown from '@/components/Markdown'
 import MarkdownEditor from '@/components/MarkdownEditor'
+import GenerationProgress from '@/components/GenerationProgress'
 import {
   Plus,
   Sparkles,
@@ -884,6 +887,53 @@ function GenerateAIModal({ projectId, onClose }: { projectId: string; onClose: (
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [expanded, setExpanded] = useState<Set<string>>(new Set())
   const [started, setStarted] = useState(false)
+  const [workflowId, setWorkflowId] = useState<string | null>(null)
+
+  // Steering inputs (new flow)
+  const [skillIds, setSkillIds] = useState<Set<string>>(new Set())
+  const [freeText, setFreeText] = useState('')
+  const [files, setFiles] = useState<GenerationFile[]>([])
+  const [systemPrompt, setSystemPrompt] = useState('')
+  const [userPrompt, setUserPrompt] = useState('')
+  const [maxRounds, setMaxRounds] = useState(3)
+  const [showAdvanced, setShowAdvanced] = useState(false)
+  const [uploadError, setUploadError] = useState<string | null>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+
+  const { data: skills } = useQuery({
+    queryKey: ['ai-skills', projectId],
+    queryFn: () => api.aiSkills(projectId),
+  })
+  const { data: promptDefaults } = useQuery({
+    queryKey: ['ai-prompt-defaults', projectId],
+    queryFn: () => api.aiPromptDefaults(projectId),
+  })
+  // Pre-fill the editable prompt fields from the resolved defaults once.
+  const [prefilled, setPrefilled] = useState(false)
+  useEffect(() => {
+    if (promptDefaults && !prefilled) {
+      setSystemPrompt(promptDefaults.system)
+      setUserPrompt(promptDefaults.user)
+      setPrefilled(true)
+    }
+  }, [promptDefaults, prefilled])
+
+  const uploadMutation = useMutation({
+    mutationFn: (file: File) => api.uploadGenerationFile(projectId, file),
+    onSuccess: f => {
+      setFiles(prev => [...prev, f])
+      setUploadError(null)
+    },
+    onError: e => setUploadError((e as Error).message),
+  })
+
+  function toggleSkill(id: string) {
+    setSkillIds(prev => {
+      const next = new Set(prev)
+      next.has(id) ? next.delete(id) : next.add(id)
+      return next
+    })
+  }
 
   const { data: reqs, isLoading: reqsLoading } = useQuery({
     queryKey: ['requirements', projectId],
@@ -942,9 +992,27 @@ function GenerateAIModal({ projectId, onClose }: { projectId: string; onClose: (
     setSelected(new Set())
   }
 
+  const hasInput = selected.size > 0 || freeText.trim().length > 0 || files.length > 0
+
   const mutation = useMutation({
-    mutationFn: () => api.generateTestCasesFromAI(projectId, Array.from(selected)),
-    onSuccess: () => {
+    mutationFn: () => {
+      const sysOverride =
+        promptDefaults && systemPrompt !== promptDefaults.system ? systemPrompt : undefined
+      const usrOverride =
+        promptDefaults && userPrompt !== promptDefaults.user ? userPrompt : undefined
+      const body: GenerateTestCasesRequestBody = {
+        requirementIds: selected.size ? Array.from(selected) : undefined,
+        freeText: freeText.trim() || undefined,
+        fileIds: files.length ? files.map(f => f.id) : undefined,
+        skillIds: skillIds.size ? Array.from(skillIds) : undefined,
+        systemPromptOverride: sysOverride,
+        userPromptOverride: usrOverride,
+        maxRounds: maxRounds !== 3 ? maxRounds : undefined,
+      }
+      return api.generateTestCasesFromAI(projectId, body)
+    },
+    onSuccess: res => {
+      setWorkflowId(res.workflowId)
       setStarted(true)
       void queryClient.invalidateQueries({ queryKey: ['testCases', projectId] })
     },
@@ -964,29 +1032,9 @@ function GenerateAIModal({ projectId, onClose }: { projectId: string; onClose: (
           </button>
         </div>
 
-        {started ? (
-          /* ── Success state ── */
-          <>
-            <div className="px-5 py-8 text-center space-y-3">
-              <div className="w-12 h-12 rounded-full bg-green-100 flex items-center justify-center mx-auto">
-                <Sparkles size={22} className="text-green-600" />
-              </div>
-              <p className="text-sm font-medium text-slate-800">Generation started!</p>
-              <p className="text-xs text-slate-500">
-                Claude is generating test cases for {selected.size} requirement
-                {selected.size !== 1 ? 's' : ''}. This may take a minute — refresh the list to see
-                new test cases as they appear.
-              </p>
-            </div>
-            <div className="px-5 py-4 border-t border-slate-200 flex justify-end shrink-0">
-              <button
-                onClick={onClose}
-                className="px-4 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
-              >
-                Close
-              </button>
-            </div>
-          </>
+        {started && workflowId ? (
+          /* ── Live run: progress, clarifying questions, transcript ── */
+          <GenerationProgress projectId={projectId} workflowId={workflowId} onClose={onClose} />
         ) : (
           /* ── Selection state ── */
           <>
@@ -1096,8 +1144,153 @@ function GenerateAIModal({ projectId, onClose }: { projectId: string; onClose: (
               )}
             </div>
 
+            {/* Steering inputs */}
+            <div className="px-5 py-3 border-t border-slate-100 shrink-0 space-y-3 max-h-[38vh] overflow-y-auto">
+              {/* Free text */}
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">
+                  Additional instructions <span className="text-slate-400">(optional)</span>
+                </label>
+                <textarea
+                  value={freeText}
+                  onChange={e => setFreeText(e.target.value)}
+                  rows={2}
+                  placeholder="e.g. Focus on negative paths for the payment flow"
+                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                />
+              </div>
+
+              {/* Skills */}
+              {skills && skills.filter(s => s.enabled).length > 0 && (
+                <div>
+                  <label className="block text-xs font-medium text-slate-700 mb-1">Skills</label>
+                  <div className="flex flex-wrap gap-1.5">
+                    {skills
+                      .filter(s => s.enabled)
+                      .map(s => (
+                        <button
+                          key={s.id}
+                          type="button"
+                          onClick={() => toggleSkill(s.id)}
+                          className={cn(
+                            'px-2.5 py-1 text-xs rounded-full border transition-colors',
+                            skillIds.has(s.id)
+                              ? 'bg-purple-600 text-white border-purple-600'
+                              : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50',
+                          )}
+                          title={s.description ?? s.instructions}
+                        >
+                          {s.name}
+                        </button>
+                      ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Reference files */}
+              <div>
+                <label className="block text-xs font-medium text-slate-700 mb-1">
+                  Reference files <span className="text-slate-400">(optional)</span>
+                </label>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  className="hidden"
+                  onChange={e => {
+                    const f = e.target.files?.[0]
+                    if (f) uploadMutation.mutate(f)
+                    if (fileInputRef.current) fileInputRef.current.value = ''
+                  }}
+                />
+                <div className="flex flex-wrap items-center gap-1.5">
+                  {files.map(f => (
+                    <span
+                      key={f.id}
+                      className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded bg-slate-100 text-slate-600"
+                    >
+                      <FileSpreadsheet size={12} />
+                      {f.fileName}
+                      <button
+                        onClick={() => setFiles(prev => prev.filter(x => x.id !== f.id))}
+                        className="text-slate-400 hover:text-red-600"
+                      >
+                        <X size={12} />
+                      </button>
+                    </span>
+                  ))}
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    disabled={uploadMutation.isPending}
+                    className="inline-flex items-center gap-1 px-2.5 py-1 text-xs rounded border border-dashed border-slate-300 text-slate-500 hover:bg-slate-50 disabled:opacity-50"
+                  >
+                    {uploadMutation.isPending ? (
+                      <Loader2 size={12} className="animate-spin" />
+                    ) : (
+                      <Upload size={12} />
+                    )}
+                    Attach file
+                  </button>
+                </div>
+                {uploadError && <p className="text-xs text-red-600 mt-1">{uploadError}</p>}
+              </div>
+
+              {/* Advanced: prompts + rounds */}
+              <div>
+                <button
+                  type="button"
+                  onClick={() => setShowAdvanced(v => !v)}
+                  className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-slate-700"
+                >
+                  {showAdvanced ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+                  Advanced: prompts &amp; clarification rounds
+                </button>
+                {showAdvanced && (
+                  <div className="mt-2 space-y-2">
+                    <div>
+                      <label className="block text-xs font-medium text-slate-700 mb-1">
+                        System prompt
+                      </label>
+                      <textarea
+                        value={systemPrompt}
+                        onChange={e => setSystemPrompt(e.target.value)}
+                        rows={4}
+                        className="w-full px-3 py-2 text-xs font-mono border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-medium text-slate-700 mb-1">
+                        User prompt
+                      </label>
+                      <textarea
+                        value={userPrompt}
+                        onChange={e => setUserPrompt(e.target.value)}
+                        rows={2}
+                        className="w-full px-3 py-2 text-xs font-mono border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      />
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <label className="text-xs font-medium text-slate-700">
+                        Max clarification rounds
+                      </label>
+                      <input
+                        type="number"
+                        min={1}
+                        max={5}
+                        value={maxRounds}
+                        onChange={e =>
+                          setMaxRounds(Math.max(1, Math.min(5, Number(e.target.value))))
+                        }
+                        className="w-16 px-2 py-1 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
             {/* Footer */}
-            <div className="px-5 py-4 shrink-0 flex items-center justify-between gap-3">
+            <div className="px-5 py-4 shrink-0 flex items-center justify-between gap-3 border-t border-slate-200">
               {mutation.isError && (
                 <p className="text-xs text-red-600 flex-1">{(mutation.error as Error).message}</p>
               )}
@@ -1110,12 +1303,12 @@ function GenerateAIModal({ projectId, onClose }: { projectId: string; onClose: (
                 </button>
                 <button
                   onClick={() => mutation.mutate()}
-                  disabled={selected.size === 0 || mutation.isPending}
+                  disabled={!hasInput || mutation.isPending}
                   className="px-4 py-2 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700 disabled:opacity-50 transition-colors flex items-center gap-2"
                 >
                   {mutation.isPending && <Loader2 size={14} className="animate-spin" />}
                   <Sparkles size={14} />
-                  Generate for {selected.size > 0 ? `${selected.size} req.` : '…'}
+                  Generate
                 </button>
               </div>
             </div>

@@ -2,16 +2,28 @@ package com.platform.agent.node.impl;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.platform.agent.api.AiPromptTemplateService;
 import com.platform.agent.node.AgentNode;
 import com.platform.agent.node.AgentOrchestrator;
 import com.platform.common.agent.*;
+import com.platform.common.storage.BlobRef;
+import com.platform.common.storage.BlobStore;
+import com.platform.core.domain.AiGenerationFile;
+import com.platform.core.domain.AiGenerationRun;
+import com.platform.core.domain.AiSkill;
 import com.platform.core.domain.PlatformRequirement;
 import com.platform.core.domain.PlatformTestCase;
 import com.platform.core.domain.TestCaseStep;
+import com.platform.core.repository.AiGenerationFileRepository;
+import com.platform.core.repository.AiGenerationRunRepository;
+import com.platform.core.repository.AiSkillRepository;
 import com.platform.core.repository.PlatformRequirementRepository;
 import com.platform.core.repository.PlatformTestCaseRepository;
 import com.platform.core.repository.TestCaseStepRepository;
 import dev.langchain4j.agent.tool.ToolSpecification;
+import dev.langchain4j.model.chat.request.json.JsonArraySchema;
+import dev.langchain4j.model.chat.request.json.JsonObjectSchema;
+import dev.langchain4j.model.chat.request.json.JsonStringSchema;
 import java.util.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,18 +50,89 @@ public class TestCaseGenerationNode implements AgentNode {
   private final PlatformTestCaseRepository testCaseRepo;
   private final TestCaseStepRepository stepRepo;
   private final ObjectMapper mapper;
+  private final AiGenerationRunRepository runRepo;
+  private final AiPromptTemplateService promptTemplateService;
+  private final AiSkillRepository skillRepo;
+  private final AiGenerationFileRepository fileRepo;
+  private final BlobStore blobStore;
+
+  /** Max characters of an attached file's text pulled into the prompt (per file). */
+  private static final int FILE_EXCERPT_LIMIT = 8000;
+
+  /** Must match LangChainAgentRunner.INPUT_SENTINEL — a dispatch with this prefix pauses the run. */
+  static final String INPUT_SENTINEL = "__AWAITING_INPUT__";
+
+  /** Tool the model calls to request clarification from the user before generating. */
+  private static final ToolSpecification ASK_USER_TOOL =
+      ToolSpecification.builder()
+          .name("ask_user")
+          .description(
+              "Ask the user one or more clarifying questions when the requirements/context are"
+                  + " insufficient to write good test cases. Only call this when genuinely blocked;"
+                  + " otherwise produce the JSON test cases directly.")
+          .parameters(
+              JsonObjectSchema.builder()
+                  .addProperty(
+                      "questions",
+                      JsonArraySchema.builder()
+                          .description("The clarifying questions to ask the user")
+                          .items(
+                              JsonObjectSchema.builder()
+                                  .addStringProperty("id", "stable identifier for the question")
+                                  .addStringProperty("question", "the question text")
+                                  .addStringProperty("kind", "TEXT or CHOICE")
+                                  .addProperty(
+                                      "options",
+                                      JsonArraySchema.builder()
+                                          .description("choices when kind is CHOICE")
+                                          .items(JsonStringSchema.builder().build())
+                                          .build())
+                                  .required("id", "question")
+                                  .build())
+                          .build())
+                  .required("questions")
+                  .build())
+          .build();
+
+  /** Mandatory JSON output contract, always appended so the response stays machine-parseable. */
+  private static final String OUTPUT_FORMAT_BLOCK =
+      """
+      ## Output format (JSON array):
+      [
+        {
+          "title": "...",
+          "description": "...",
+          "preconditions": "...",
+          "priority": "HIGH",
+          "sourceRequirementId": "uuid-of-requirement",
+          "steps": [
+            { "action": "...", "expectedResult": "...", "notes": null }
+          ]
+        }
+      ]
+      Return ONLY a valid JSON array of test case objects. No prose before or after the JSON.""";
 
   public TestCaseGenerationNode(
       AgentOrchestrator orchestrator,
       PlatformRequirementRepository requirementRepo,
       PlatformTestCaseRepository testCaseRepo,
       TestCaseStepRepository stepRepo,
-      ObjectMapper mapper) {
+      ObjectMapper mapper,
+      AiGenerationRunRepository runRepo,
+      AiPromptTemplateService promptTemplateService,
+      AiSkillRepository skillRepo,
+      AiGenerationFileRepository fileRepo,
+      BlobStore blobStore) {
     this.orchestrator = orchestrator;
     this.requirementRepo = requirementRepo;
     this.testCaseRepo = testCaseRepo;
     this.stepRepo = stepRepo;
     this.mapper = mapper;
+    this.runRepo = runRepo;
+    this.promptTemplateService = promptTemplateService;
+    this.skillRepo = skillRepo;
+    this.fileRepo = fileRepo;
+    this.blobStore = blobStore;
   }
 
   @Override
@@ -101,6 +184,12 @@ public class TestCaseGenerationNode implements AgentNode {
   public NodeResult execute(ContextBundle bundle) {
     UUID projectId = bundle.projectId();
 
+    // Load the resolved run inputs (skills, prompts, free text, files). Absent → legacy one-shot.
+    AiGenerationRun run =
+        bundle.workflowId() == null
+            ? null
+            : runRepo.findByWorkflowId(bundle.workflowId()).orElse(null);
+
     // 1. Load requirements for this project
     List<PlatformRequirement> allRequirements =
         requirementRepo.findByProjectIdOrderByUpdatedAtDesc(projectId);
@@ -110,7 +199,11 @@ public class TestCaseGenerationNode implements AgentNode {
     //    when generating for all requirements.
     List<PlatformRequirement> requirements = filterRequirements(allRequirements, bundle);
 
-    if (requirements.isEmpty()) {
+    // Free text / files are valid input on their own, so empty requirements is not fatal there.
+    boolean hasAuxInput =
+        run != null && (notBlank(run.getFreeText()) || !parseIdList(run.getAttachmentManifestJson()).isEmpty());
+
+    if (requirements.isEmpty() && !hasAuxInput) {
       log.warn("TestCaseGenerationNode: no requirements found for project {}", projectId);
       return NodeResult.completed(
           bundle.sessionId(),
@@ -122,19 +215,45 @@ public class TestCaseGenerationNode implements AgentNode {
           TokenUsage.zero());
     }
 
-    // 3. Build user message listing all requirements
-    String userMessage = buildRequirementsMessage(requirements);
+    // 3. Build the full system prompt sent to the model. Legacy (no run) is byte-identical to the
+    //    original; the new flow layers in resolved prompts, skills, free text, and file excerpts.
+    String requirementsMessage = requirements.isEmpty() ? null : buildRequirementsMessage(requirements);
+    String fullPrompt =
+        run == null
+            ? legacyPrompt(bundle, requirementsMessage)
+            : assemblePrompt(bundle, run, requirementsMessage);
 
-    // 4. Use a thin shim to pass the pre-built user message to Claude
-    //    We wrap ourselves as a shim so the orchestrator sends our system prompt + user message
-    TextOnlyNode shim = new TextOnlyNode(this, userMessage);
+    // 4. Use a thin shim so the orchestrator sends our fully-assembled prompt as the system message.
+    //    Clarifying questions are enabled only for the new flow with rounds remaining.
+    boolean allowQuestions = run != null && run.getMaxRounds() > 0;
+    TextOnlyNode shim = new TextOnlyNode(this, fullPrompt, allowQuestions);
     NodeResult claudeResult = orchestrator.run(bundle, shim);
 
-    if (claudeResult.hasFailed()) {
+    return finishFromClaude(bundle, claudeResult);
+  }
+
+  /**
+   * Resume a paused generation after the user answered clarifying questions. Rehydrates the
+   * conversation from {@code checkpointId}, injects the answers, and parses/persists whatever the
+   * model produces (which may be more questions).
+   */
+  @Transactional
+  public NodeResult resumeWithAnswers(
+      ContextBundle bundle, String checkpointId, String answersText, boolean allowQuestions) {
+    TextOnlyNode shim = new TextOnlyNode(this, "", allowQuestions);
+    NodeResult claudeResult = orchestrator.resume(bundle, checkpointId, shim, answersText);
+    return finishFromClaude(bundle, claudeResult);
+  }
+
+  /** Parse the model's response and persist DRAFT test cases, or propagate pause/failure. */
+  private NodeResult finishFromClaude(ContextBundle bundle, NodeResult claudeResult) {
+    UUID projectId = bundle.projectId();
+
+    // Paused for clarification — propagate without persisting any test cases this turn.
+    if (claudeResult.needsInput() || claudeResult.hasFailed()) {
       return claudeResult;
     }
 
-    // 5. Parse the JSON array from Claude's response
     String responseText = claudeResult.summary() != null ? claudeResult.summary() : "";
     List<GeneratedTestCase> generatedCases = parseGeneratedTestCases(responseText);
 
@@ -148,13 +267,10 @@ public class TestCaseGenerationNode implements AgentNode {
           nodeType(),
           taskType(),
           ArtifactManifest.empty(),
-          "Generated 0 test cases from "
-              + requirements.size()
-              + " requirements (parse error or empty response).",
+          "Generated 0 test cases (parse error or empty response).",
           claudeResult.tokenUsage());
     }
 
-    // 6. Persist each generated test case and its steps
     int savedCount = 0;
     for (GeneratedTestCase gen : generatedCases) {
       try {
@@ -178,7 +294,6 @@ public class TestCaseGenerationNode implements AgentNode {
         tc.setStatus("DRAFT");
         PlatformTestCase saved = testCaseRepo.save(tc);
 
-        // Persist steps
         if (gen.steps() != null) {
           int stepNum = 1;
           for (GeneratedStep step : gen.steps()) {
@@ -198,8 +313,7 @@ public class TestCaseGenerationNode implements AgentNode {
       }
     }
 
-    String summary =
-        "Generated " + savedCount + " test cases from " + requirements.size() + " requirements.";
+    String summary = "Generated " + savedCount + " test cases.";
     log.info("TestCaseGenerationNode: {} for project {}", summary, projectId);
 
     return NodeResult.completed(
@@ -249,6 +363,136 @@ public class TestCaseGenerationNode implements AgentNode {
     if (filterIds.isEmpty()) return all;
 
     return all.stream().filter(r -> filterIds.contains(r.getId())).toList();
+  }
+
+  /** Legacy one-shot prompt — byte-identical to the original behavior (no AiGenerationRun). */
+  private String legacyPrompt(ContextBundle bundle, String requirementsMessage) {
+    return systemPrompt(bundle) + "\n\n## Requirements to process\n\n" + requirementsMessage;
+  }
+
+  /**
+   * New-flow prompt: resolved system (override → default template → seed) + skills, then the
+   * mandatory JSON output contract, then the user content (resolved user prompt + free text + file
+   * excerpts + requirements). The exact prompts sent are persisted onto the run for audit.
+   */
+  private String assemblePrompt(
+      ContextBundle bundle, AiGenerationRun run, String requirementsMessage) {
+    UUID projectId = bundle.projectId();
+
+    String systemBase =
+        notBlank(run.getSystemPromptOverride())
+            ? run.getSystemPromptOverride()
+            : promptTemplateService.resolveDefault(projectId, AiPromptTemplateService.KIND_SYSTEM);
+    String userBase =
+        notBlank(run.getUserPromptOverride())
+            ? run.getUserPromptOverride()
+            : promptTemplateService.resolveDefault(projectId, AiPromptTemplateService.KIND_USER);
+
+    String skillsBlock = buildSkillsBlock(projectId, run);
+    String fileExcerpts = buildFileExcerpts(projectId, run);
+
+    String clarification =
+        run.getMaxRounds() > 0
+            ? "\n\n## Clarification\nIf the requirements or context are insufficient to write good"
+                + " test cases, call the ask_user tool with specific questions BEFORE generating."
+                + " Otherwise, produce the JSON test cases directly."
+            : "";
+    String resolvedSystem =
+        systemBase + skillsBlock + clarification + "\n\n" + OUTPUT_FORMAT_BLOCK;
+
+    StringBuilder user = new StringBuilder();
+    user.append(userBase).append("\n\n");
+    if (notBlank(run.getFreeText())) {
+      user.append("## Additional context\n").append(run.getFreeText().trim()).append("\n\n");
+    }
+    if (notBlank(fileExcerpts)) {
+      user.append("## Attached files\n").append(fileExcerpts).append("\n\n");
+    }
+    if (requirementsMessage != null) {
+      user.append(requirementsMessage);
+    }
+    String userContent = user.toString();
+
+    // Record exactly what was sent, for audit/repro.
+    run.recordResolvedPrompts(resolvedSystem, userContent);
+    runRepo.save(run);
+
+    return resolvedSystem + "\n\n## Input\n\n" + userContent;
+  }
+
+  private String buildSkillsBlock(UUID projectId, AiGenerationRun run) {
+    List<String> ids = parseIdList(run.getSkillIdsJson());
+    if (ids.isEmpty()) return "";
+    StringBuilder sb = new StringBuilder();
+    for (String id : ids) {
+      UUID skillId;
+      try {
+        skillId = UUID.fromString(id);
+      } catch (IllegalArgumentException e) {
+        continue;
+      }
+      AiSkill skill = skillRepo.findById(skillId).orElse(null);
+      if (skill == null || !skill.getProjectId().equals(projectId) || !skill.isEnabled()) continue;
+      sb.append("\n### Skill: ").append(skill.getName()).append("\n").append(skill.getInstructions());
+    }
+    return sb.isEmpty() ? "" : "\n\n## Applied skills" + sb;
+  }
+
+  private String buildFileExcerpts(UUID projectId, AiGenerationRun run) {
+    List<String> ids = parseIdList(run.getAttachmentManifestJson());
+    if (ids.isEmpty()) return "";
+    StringBuilder sb = new StringBuilder();
+    for (String id : ids) {
+      UUID fileId;
+      try {
+        fileId = UUID.fromString(id);
+      } catch (IllegalArgumentException e) {
+        continue;
+      }
+      AiGenerationFile f = fileRepo.findById(fileId).orElse(null);
+      if (f == null || !f.getProjectId().equals(projectId)) continue;
+      String text = fetchFileText(f);
+      sb.append("\n### File: ").append(f.getFileName()).append("\n");
+      sb.append(text == null ? "(binary or unreadable file)" : truncate(text)).append("\n");
+    }
+    return sb.toString();
+  }
+
+  private String fetchFileText(AiGenerationFile f) {
+    try {
+      BlobRef ref = mapper.readValue(f.getBlobRef(), BlobRef.class);
+      return blobStore.fetchText(ref).orElse(null);
+    } catch (Exception e) {
+      log.debug("TestCaseGenerationNode: could not read file {}: {}", f.getId(), e.getMessage());
+      return null;
+    }
+  }
+
+  private static String truncate(String s) {
+    return s.length() <= FILE_EXCERPT_LIMIT
+        ? s
+        : s.substring(0, FILE_EXCERPT_LIMIT) + "\n…(truncated)";
+  }
+
+  private List<String> parseIdList(String json) {
+    if (json == null || json.isBlank()) return List.of();
+    try {
+      JsonNode node = mapper.readTree(json);
+      if (!node.isArray()) return List.of();
+      List<String> out = new ArrayList<>();
+      node.forEach(
+          n -> {
+            String v = n.asText(null);
+            if (v != null && !v.isBlank()) out.add(v);
+          });
+      return out;
+    } catch (Exception e) {
+      return List.of();
+    }
+  }
+
+  private static boolean notBlank(String s) {
+    return s != null && !s.isBlank();
   }
 
   private String buildRequirementsMessage(List<PlatformRequirement> requirements) {
@@ -430,11 +674,13 @@ public class TestCaseGenerationNode implements AgentNode {
    */
   private static class TextOnlyNode implements AgentNode {
     private final TestCaseGenerationNode parent;
-    private final String requirementsMessage;
+    private final String fullSystemPrompt;
+    private final boolean allowQuestions;
 
-    TextOnlyNode(TestCaseGenerationNode parent, String requirementsMessage) {
+    TextOnlyNode(TestCaseGenerationNode parent, String fullSystemPrompt, boolean allowQuestions) {
       this.parent = parent;
-      this.requirementsMessage = requirementsMessage;
+      this.fullSystemPrompt = fullSystemPrompt;
+      this.allowQuestions = allowQuestions;
     }
 
     @Override
@@ -449,11 +695,9 @@ public class TestCaseGenerationNode implements AgentNode {
 
     @Override
     public String systemPrompt(ContextBundle bundle) {
-      // Combine the node's system prompt with the requirements message so the
-      // orchestrator's generic user message ("Task: GENERATE_TEST_CASES") is supplementary.
-      return parent.systemPrompt(bundle)
-          + "\n\n## Requirements to process\n\n"
-          + requirementsMessage;
+      // The parent has already assembled the entire system message; the orchestrator's generic user
+      // message ("Task: GENERATE_TEST_CASES") is supplementary.
+      return fullSystemPrompt;
     }
 
     @Override
@@ -463,11 +707,15 @@ public class TestCaseGenerationNode implements AgentNode {
 
     @Override
     public List<ToolSpecification> toolSpecs() {
-      return List.of();
+      return allowQuestions ? List.of(ASK_USER_TOOL) : List.of();
     }
 
     @Override
     public String dispatchToolCall(String toolName, String inputJson, ContextBundle bundle) {
+      if ("ask_user".equals(toolName)) {
+        // The runner recognizes this sentinel, saves a checkpoint, and pauses for user input.
+        return INPUT_SENTINEL + inputJson;
+      }
       return "No tools available for this node.";
     }
   }

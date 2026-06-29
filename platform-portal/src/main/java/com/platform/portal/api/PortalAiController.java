@@ -15,9 +15,13 @@ import org.springframework.web.client.RestClient;
 public class PortalAiController {
 
   private final RestClient aiClient;
+  private final RestClient agentClient;
 
-  public PortalAiController(@Qualifier("aiClient") RestClient aiClient) {
+  public PortalAiController(
+      @Qualifier("aiClient") RestClient aiClient,
+      @Qualifier("agentClient") RestClient agentClient) {
     this.aiClient = aiClient;
+    this.agentClient = agentClient;
   }
 
   @GetMapping("/settings")
@@ -102,5 +106,130 @@ public class PortalAiController {
         .contentType(MediaType.APPLICATION_JSON)
         .retrieve()
         .body(Object.class);
+  }
+
+  // ── AI Skills (project-scoped reusable instruction sets) ───────────────────
+  // Proxy to platform-agent /hub/projects/{projectId}/ai/skills.
+
+  @GetMapping("/projects/{projectId}/skills")
+  @Operation(summary = "List AI generation skills for a project")
+  public Object listSkills(@PathVariable String projectId) {
+    return agentClient
+        .get()
+        .uri("/hub/projects/" + projectId + "/ai/skills")
+        .accept(MediaType.APPLICATION_JSON)
+        .retrieve()
+        .body(Object.class);
+  }
+
+  @PostMapping("/projects/{projectId}/skills")
+  @Operation(summary = "Create an AI generation skill")
+  public Object createSkill(
+      @PathVariable String projectId,
+      @RequestBody Map<String, Object> body,
+      @RequestHeader(value = "X-Actor", required = false) String actor) {
+    return agentClient
+        .post()
+        .uri("/hub/projects/" + projectId + "/ai/skills")
+        .contentType(MediaType.APPLICATION_JSON)
+        .header("X-Actor", actor == null ? "" : actor)
+        .body(body)
+        .retrieve()
+        .body(Object.class);
+  }
+
+  @PutMapping("/projects/{projectId}/skills/{skillId}")
+  @Operation(summary = "Update an AI generation skill")
+  public Object updateSkill(
+      @PathVariable String projectId,
+      @PathVariable String skillId,
+      @RequestBody Map<String, Object> body,
+      @RequestHeader(value = "X-Actor", required = false) String actor) {
+    return agentClient
+        .put()
+        .uri("/hub/projects/" + projectId + "/ai/skills/" + skillId)
+        .contentType(MediaType.APPLICATION_JSON)
+        .header("X-Actor", actor == null ? "" : actor)
+        .body(body)
+        .retrieve()
+        .body(Object.class);
+  }
+
+  @DeleteMapping("/projects/{projectId}/skills/{skillId}")
+  @Operation(summary = "Delete an AI generation skill")
+  public void deleteSkill(@PathVariable String projectId, @PathVariable String skillId) {
+    agentClient
+        .delete()
+        .uri("/hub/projects/" + projectId + "/ai/skills/" + skillId)
+        .retrieve()
+        .toBodilessEntity();
+  }
+
+  // ── AI prompt templates (project-scoped SYSTEM/USER templates) ─────────────
+  // Proxy to platform-agent /hub/projects/{projectId}/ai/prompt-templates.
+
+  @GetMapping("/projects/{projectId}/prompt-templates")
+  @Operation(summary = "List AI generation prompt templates for a project")
+  public Object listPromptTemplates(@PathVariable String projectId) {
+    return agentClient
+        .get()
+        .uri("/hub/projects/" + projectId + "/ai/prompt-templates")
+        .accept(MediaType.APPLICATION_JSON)
+        .retrieve()
+        .body(Object.class);
+  }
+
+  @GetMapping("/projects/{projectId}/prompt-templates/defaults")
+  @Operation(summary = "Resolved default SYSTEM + USER prompt bodies")
+  public Object promptDefaults(@PathVariable String projectId) {
+    return agentClient
+        .get()
+        .uri("/hub/projects/" + projectId + "/ai/prompt-templates/defaults")
+        .accept(MediaType.APPLICATION_JSON)
+        .retrieve()
+        .body(Object.class);
+  }
+
+  @PostMapping("/projects/{projectId}/prompt-templates")
+  @Operation(summary = "Create an AI generation prompt template")
+  public Object createPromptTemplate(
+      @PathVariable String projectId,
+      @RequestBody Map<String, Object> body,
+      @RequestHeader(value = "X-Actor", required = false) String actor) {
+    return agentClient
+        .post()
+        .uri("/hub/projects/" + projectId + "/ai/prompt-templates")
+        .contentType(MediaType.APPLICATION_JSON)
+        .header("X-Actor", actor == null ? "" : actor)
+        .body(body)
+        .retrieve()
+        .body(Object.class);
+  }
+
+  @PutMapping("/projects/{projectId}/prompt-templates/{id}")
+  @Operation(summary = "Update an AI generation prompt template")
+  public Object updatePromptTemplate(
+      @PathVariable String projectId,
+      @PathVariable String id,
+      @RequestBody Map<String, Object> body,
+      @RequestHeader(value = "X-Actor", required = false) String actor) {
+    return agentClient
+        .put()
+        .uri("/hub/projects/" + projectId + "/ai/prompt-templates/" + id)
+        .contentType(MediaType.APPLICATION_JSON)
+        .header("X-Actor", actor == null ? "" : actor)
+        .body(body)
+        .retrieve()
+        .body(Object.class);
+  }
+
+  @DeleteMapping("/projects/{projectId}/prompt-templates/{id}")
+  @Operation(summary = "Delete an AI generation prompt template")
+  public void deletePromptTemplate(@PathVariable String projectId, @PathVariable String id) {
+    agentClient
+        .delete()
+        .uri("/hub/projects/" + projectId + "/ai/prompt-templates/" + id)
+        .retrieve()
+        .toBodilessEntity();
   }
 }

@@ -41,6 +41,10 @@ public record NodeResult(
     return status == NodeResultStatus.AWAITING_REVIEW;
   }
 
+  public boolean needsInput() {
+    return status == NodeResultStatus.AWAITING_INPUT;
+  }
+
   public boolean hasFailed() {
     return status == NodeResultStatus.FAILED;
   }
@@ -88,6 +92,35 @@ public record NodeResult(
         NodeResultStatus.AWAITING_REVIEW,
         artifacts,
         summary,
+        checkpointId,
+        tokenUsage,
+        null,
+        null,
+        List.of(),
+        Instant.now());
+  }
+
+  /**
+   * Convenience factory for a result that pauses for user clarification. The questions are carried
+   * as a JSON string in {@code summary}; {@code checkpointId} locates the saved conversation to
+   * resume once the user answers.
+   */
+  public static NodeResult awaitingInput(
+      UUID sessionId,
+      UUID workflowId,
+      NodeType nodeType,
+      AgentTaskType taskType,
+      String questionsJson,
+      String checkpointId,
+      TokenUsage tokenUsage) {
+    return new NodeResult(
+        sessionId,
+        workflowId,
+        nodeType,
+        taskType,
+        NodeResultStatus.AWAITING_INPUT,
+        ArtifactManifest.empty(),
+        questionsJson,
         checkpointId,
         tokenUsage,
         null,

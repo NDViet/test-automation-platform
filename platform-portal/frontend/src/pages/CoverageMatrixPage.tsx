@@ -80,7 +80,8 @@ export default function CoverageMatrixPage() {
   })
 
   const generateMutation = useMutation({
-    mutationFn: (reqId: string) => api.generateTestCasesFromAI(projectId!, [reqId]),
+    mutationFn: (reqId: string) =>
+      api.generateTestCasesFromAI(projectId!, { requirementIds: [reqId] }),
     onSuccess: () => void qc.invalidateQueries({ queryKey: ['coverage', projectId] }),
   })
 

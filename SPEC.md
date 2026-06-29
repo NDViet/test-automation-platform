@@ -1,233 +1,290 @@
-# SPEC — Manual Test Execution (release/sprint/team/area scoped)
+# SPEC — Interactive AI Test Case Generation (Skills, Prompts, Input & Clarifying Questions)
 
-> Status: CONFIRMED — ready for planning/implementation.
-> Scope: `platform-core`, `platform-ingestion`, `platform-portal` (+ frontend).
-> Prior spec (LiteLLM gateway, implemented) archived at `spec/archive/litellm-spec.md`.
+> Status: **DRAFT — awaiting confirmation**
+> Scope: `platform-core`, `platform-common`, `platform-agent`, `platform-llm`,
+> `platform-portal` (+ frontend).
+> Prior specs archived under `spec/archive/` (LiteLLM gateway, Manual Test
+> Execution — both implemented).
 
 ## 1. Objective
 
-Let a QA engineer run a **manual test execution** against a defined scope, work through it
-case‑by‑case over multiple sittings, and close it out with evidence and defect links.
+### Problem
+Today, AI test-case generation is a one-shot, fully-hardcoded flow. The user can
+only pick `requirementIds`; the system prompt is hardcoded inside
+`TestCaseGenerationNode`, there is no user prompt, no reusable instructions, and
+no way for the agent to ask for missing context. It generates DRAFT
+`PlatformTestCase` rows in a single Claude call and finishes. Quality is capped
+by whatever the requirements happen to say.
 
-Most of the foundation already exists (`test_runs`, `test_case_executions`, scope dimensions,
-suite/case pickers, the release board, `BlobStore`, ADO read client). This spec fills the gaps:
-**resume/reopen, mid‑run case addition, linking an existing ADO work item as a defect, and
-per‑case evidence attachments.**
+### Goal
+Make generation **steerable and interactive**:
 
-**Target users:** QA engineers / SDETs executing manual test passes for a release; QA leads
-reviewing execution status on the release board.
+1. **Skills** — a reusable, project-scoped library of named instruction sets
+   (CRUD) the user can attach to a run to shape how the agent generates.
+2. **Prompt templates** — project-level saved **system prompt** and **user
+   prompt** templates with sensible defaults, **overridable per run**.
+3. **Rich input** — generation input may combine **selected requirements**,
+   **free-text**, and **file attachments** (stored in BlobStore), in any
+   combination.
+4. **Clarifying questions (pause → answer → resume)** — during generation the
+   agent may pause and surface questions; the user answers in the portal; the run
+   **resumes from checkpoint** and continues. Multiple rounds are supported until
+   the agent has enough context, then it produces test cases.
 
-### Confirmed product decisions (from clarification)
-- **Defect = link an *existing* ADO work item** by id. Validate via the **read** API and store
-  `id + URL`. **No ADO writes** — the ADO integration stays read‑only/inbound.
-- **Evidence = per test‑case result**, stored in the platform **BlobStore** (MinIO/S3,
-  content‑addressed), downloaded via presigned URL.
-- **Mid‑run add = existing APPROVED cases** via the same scope‑filtered picker + suites; appended
-  as `PENDING`; idempotent (no duplicate executions).
-- **Lifecycle = persist + resume + reopen.** `IN_PROGRESS` survives sessions; the user explicitly
-  completes (confirm if cases remain pending); a `COMPLETED` run can be reopened to `IN_PROGRESS`.
+### Target users
+- **QA engineers / SDETs** authoring test cases who want to inject domain
+  knowledge (skills), tailor prompts, and feed extra context (free text, files).
+- **QA leads** who curate the project's reusable skill library and prompt
+  templates so the whole team generates consistently.
 
-## 2. Scope
+### Acceptance criteria (feature-level)
+- A user can create/read/update/delete **skills** scoped to a project and select
+  zero or more for a generation run.
+- A user can save and edit project **prompt templates** (system + user) and
+  override either per run without mutating the saved template.
+- A generation request accepts any combination of `requirementIds`, free-text
+  `input`, attached `fileIds`, selected `skillIds`, and per-run prompt
+  overrides; at least one input source must be present.
+- When the agent needs clarification, the run enters **AWAITING_INPUT**, the
+  questions are visible in the portal, and the run does not produce test cases
+  until answered (or explicitly cancelled).
+- After the user submits answers, the same run **resumes** (does not restart from
+  scratch — prior conversation/context is preserved via checkpoint) and either
+  asks again or completes with DRAFT test cases.
+- Generated test cases remain DRAFT `PlatformTestCase` rows tied to the workflow,
+  exactly as today (no change to downstream review/approval lifecycle).
+- Skills, prompt overrides, attached files, and the full Q&A transcript are
+  recorded against the workflow for auditability.
 
-### In scope
-1. Create a manual execution scoped to **release / sprint (iteration) / team / area** (exists;
-   verify scope inheritance from a selected release).
-2. Execute: per‑case status (`PENDING → PASSED | FAILED | BLOCKED | SKIPPED`) with actual result /
-   notes (exists; extend with defect + evidence).
-3. **Link an existing ADO work item** (defect) to a case execution; show id + clickable URL; unlink.
-4. **Attach evidence** (screenshots, logs, files) to a case execution; list + download + delete.
-5. **Resume** an `IN_PROGRESS` run across sessions; **reopen** a `COMPLETED` run.
-6. **Add missing test cases** (existing, approved, scope‑filtered, incl. suites) to a live run.
-7. Complete the run on explicit user action (confirm when pending > 0).
+### Out of scope (this spec)
+- Changing the DRAFT → UNDER_REVIEW → APPROVED lifecycle or the Review Queue.
+- Streaming token output to the UI.
+- Cross-project/global skill sharing or skill versioning history (project-scoped,
+  last-write-wins for now).
+- Generating automation code (separate flow).
+- Editing ADO/work items (platform stays read-only on ADO).
 
-### Out of scope
-- Creating/writing ADO work items (Bugs) from the platform.
-- Authoring brand‑new test cases inline during a run.
-- Uploading evidence directly to ADO.
-- Automated‑run changes; analytics/trends for manual runs (separate effort).
-- Real‑time multi‑user collaboration on one run.
+## 2. Commands
 
-## 3. Functional requirements & acceptance criteria
-
-### F1 — Create manual execution scoped to release/sprint/team/area
-- **Given** the New Manual Run modal, the user sets name, environment, optional release, and
-  sprint/team/area, and picks cases and/or suites.
-- Selecting a **release** prefills blank scope dimensions from the release mapping
-  (`map_iteration_path`, `map_area_path`, `map_team_id`); the user may override.
-- **Accept:** the run persists with `release_id / iteration_path / area_path / team_id` set; one
-  `test_case_executions` row per selected (and matrix‑expanded) case at `PENDING`; lands on the
-  run detail page.
-
-### F2 — Execute a case (status + result)
-- Per case: set status; `actual_result` required when `FAILED`; `notes` optional any status.
-- **Accept:** `PUT …/executions/{execId}` persists status, `executed_by`, `executed_at`; run
-  counters (passed/failed/blocked/skipped/pending) recompute; optimistic UI reflects immediately.
-
-### F3 — Link an existing ADO defect to a case execution
-- From a case (typically `FAILED`), the user enters an ADO work‑item **id**.
-- Backend resolves the project's ADO credential and **validates the id via the read API**
-  (`AzureBoardsPollClient`/read client); rejects unknown ids with a clear message.
-- Store `defect_external_id` + `defect_url` (+ optional cached `defect_title`, `defect_state`) on
-  the execution. Support **unlink**.
-- **Accept:** a valid id shows as a chip with title/state and a link to `…/_workitems/edit/{id}`;
-  an invalid id returns 400 with a readable message and stores nothing; unlink clears the fields.
-- **Never** call any ADO write/PATCH endpoint.
-
-### F4 — Attach evidence to a case execution
-- Upload one or more files to a case execution (multipart). Stored via `BlobStore` (content‑
-  addressed); an `execution_attachments` row links blob → execution with filename, content type,
-  size, `uploaded_by`, `uploaded_at`.
-- List attachments per case; download via **presigned URL**; delete an attachment (removes the row;
-  blob is content‑addressed/shared so it is not hard‑deleted).
-- **Accept:** uploaded files appear under the case; download fetches the original bytes. **Any file
-  extension is accepted**; only the per‑file size cap (30 MB) is enforced, returning a clear error
-  when exceeded. No per‑execution file‑count limit.
-
-### F5 — Resume an in‑progress run
-- An `IN_PROGRESS` run is reachable from the executions list and the release board and opens with
-  prior per‑case statuses, defect links, and attachments intact.
-- **Accept:** navigating away and back (or re‑login) preserves all execution state; no data loss.
-
-### F6 — Add missing cases mid‑run
-- On the run detail page, an **Add cases** action opens the same scope‑filtered, APPROVED‑only
-  picker (and suites) used at creation.
-- Selected cases are appended as new `PENDING` executions; cases already in the run are skipped
-  (idempotent). Matrix expansion applies as on create.
-- **Accept:** only `APPROVED` cases are selectable; re‑adding an existing case creates no duplicate;
-  totals/pending update; allowed only while the run is `IN_PROGRESS`.
-
-### F7 — Complete & reopen
-- **Complete** is a user action; if pending > 0, the UI confirms ("N cases still pending — complete
-  anyway?"). On complete: `status = COMPLETED`, `completed_at` set.
-- **Reopen** a `COMPLETED` run → `status = IN_PROGRESS`, `completed_at` cleared; re‑enables editing,
-  adding cases, defect linking, and evidence.
-- **Accept:** completing with pending requires confirmation and succeeds; a completed run is
-  read‑only until reopened; reopen restores full editability.
-
-## 4. Data model changes (Postgres / Flyway)
-
-Pre‑release ⇒ migrations are consolidated into a single `V1__initial_schema.sql`
-(`platform-core/src/main/resources/db/migration/`). **Fold these changes into `V1`** (a fresh DB is
-assumed); do **not** add a `V2` unless a deployed DB must be preserved.
-
-- `test_case_executions` — add: `defect_external_id VARCHAR(64)`, `defect_url VARCHAR(500)`,
-  `defect_title VARCHAR(500)`, `defect_state VARCHAR(60)` (all nullable).
-- New table `execution_attachments`:
-  - `id UUID PK`, `execution_id UUID NOT NULL REFERENCES test_case_executions(id) ON DELETE CASCADE`,
-    `test_run_id UUID NOT NULL`, `file_name VARCHAR(300) NOT NULL`, `content_type VARCHAR(150)`,
-    `size_bytes BIGINT NOT NULL`, `blob_ref VARCHAR(500) NOT NULL`, `uploaded_by VARCHAR(200)`,
-    `uploaded_at TIMESTAMPTZ NOT NULL DEFAULT now()`.
-  - Index `idx_exec_attach_exec (execution_id)`.
-- `test_runs.status` already supports `IN_PROGRESS | COMPLETED | ABANDONED`; reopen reuses
-  `IN_PROGRESS` (no schema change). Add a `TestRun.reopen()` domain method.
-
-## 5. API surface
-
-All new backend endpoints live in **platform-ingestion** under
-`/api/v1/projects/{projectId}/test-runs/{runId}/…`, proxied by **platform-portal** under
-`/api/portal/…`, and surfaced in `platform-portal/frontend/src/lib/api.ts`.
-
-| Method | Path | Purpose |
-|---|---|---|
-| POST | `…/test-runs/{runId}/cases` | Add cases mid‑run `{ testCaseIds[], suiteIds[], matrixType? }` → new executions (F6) |
-| POST | `…/test-runs/{runId}/reopen` | Reopen a completed run (F7) |
-| POST | `…/test-runs/{runId}/executions/{execId}/defect` | Validate + link ADO work item `{ workItemId }` (F3) |
-| DELETE | `…/test-runs/{runId}/executions/{execId}/defect` | Unlink defect (F3) |
-| GET | `…/test-runs/{runId}/executions/{execId}/attachments` | List attachments (F4) |
-| POST | `…/test-runs/{runId}/executions/{execId}/attachments` | Multipart upload (F4) |
-| GET | `…/attachments/{attachmentId}/download` | Presigned URL or streamed bytes (F4) |
-| DELETE | `…/attachments/{attachmentId}` | Delete attachment row (F4) |
-
-Reuse existing endpoints for create/list/get/complete/update‑execution and the selectable‑cases /
-suites pickers. Portal proxies forward upstream status + message (existing pattern); the portal must
-support **multipart passthrough** for the upload endpoint.
-
-## 6. Commands
+Build/run uses the existing monorepo toolchain. **Backend jars are prebuilt and
+COPYed into images**, so always `mvn package` before `docker compose build`.
 
 ```bash
-# Java toolchain — REQUIRED before any mvn (default shell JDK is 17 and fails)
+# JDK 21 required
 export JAVA_HOME="$(/usr/libexec/java_home -v 21)"
 
-# Build + test the touched backend modules (always use -am so platform-core is rebuilt in-reactor)
-mvn -pl platform-ingestion,platform-portal -am test
+# Backend: build a module (+ deps) and run its tests
+mvn -q -pl platform-agent -am package                 # build agent + deps
+mvn -q -pl platform-agent -am test                    # run agent tests
+mvn -q -pl platform-core,platform-agent,platform-portal -am package -DskipTests
 
-# Run a single test class
-mvn -pl platform-ingestion -am test -Dtest=TestRunServiceTest -Dsurefire.failIfNoSpecifiedTests=false
+# Frontend (platform-portal/frontend)
+cd platform-portal/frontend
+npm run format
+npx tsc -b            # typecheck
+npx vite build        # production build (bundled into platform-portal static)
 
-# Format (Java = Spotless/google-java-format, Frontend = Prettier)
-mvn -q -Pformat process-sources -pl platform-core,platform-ingestion,platform-portal
-cd platform-portal/frontend && npm run format
+# Containers: rebuild only what changed, then recreate
+docker compose build platform-agent platform-portal
+docker compose up -d --force-recreate platform-agent platform-portal
 
-# Frontend typecheck + build (the portal jar bundles these static assets)
-cd platform-portal/frontend && npx tsc -b && npx vite build
-
-# Bring the local stack up reliably (creates volume_data dirs, warms Docker path cache)
-./scripts/dev-up.sh
+# Full consistency pass (all JVM services share Flyway version)
+mvn -q package -DskipTests && docker compose build && docker compose up -d
 ```
 
-## 7. Project structure (where things go)
+Local verification: portal at `http://localhost:8085`, agent hub behind the
+portal BFF (`/api/portal/...` → `/hub/...`). Browser checks via chrome-devtools
+MCP.
 
-- **Domain + repo + migration:** `platform-core/src/main/java/com/platform/core/domain/`,
-  `…/repository/`, `…/resources/db/migration/V1__initial_schema.sql`.
-- **Service + controller + DTOs:** `platform-ingestion/src/main/java/com/platform/ingestion/management/tcm/`
-  (`TestRunService`, `TestRunController`, request/response records).
-- **ADO read validation:** reuse `com.platform.core.service.ado.AzureBoardsPollClient` (read only) +
-  `CredentialResolver`; no new write client.
-- **Blob storage:** `platform-common`/`platform-storage` `BlobStore` (`storeBytes`, `presignUrl`).
-- **Portal BFF proxies:** `platform-portal/src/main/java/com/platform/portal/api/` (e.g.
-  `PortalExecutionController` / the test‑run proxy controller).
-- **Frontend:** page `platform-portal/frontend/src/pages/TestRunExecutionPage.tsx` (execute, defect,
-  evidence, add‑cases, reopen); list `TestExecutionPage.tsx`; API in `lib/api.ts`; types in
-  `lib/types.ts`.
+## 3. Project structure
 
-## 8. Code style
+New and changed code lives in the existing modules. **Vertical slices** — each
+capability spans domain → persistence → service → controller → portal BFF →
+frontend.
 
-- **Java:** Java 21, Spring Boot 4; constructor injection; `ResponseStatusException` for 4xx with a
-  human‑readable reason; google‑java‑format (Spotless). Match the existing TCM service idioms
-  (JdbcTemplate/JPA as already used in the module). Never log or echo secrets/PATs.
-- **Frontend:** React + TS + Vite, TanStack Query for data, Tailwind; match existing page idioms
-  (loading/empty/error via `LoadingSpinner`/`ErrorMessage`, optimistic mutations, `postMsg`‑style
-  error surfacing). Prettier‑formatted. Files must pass `tsc -b` (strict).
-- **Identity:** any user attribution (`executed_by`, `uploaded_by`) follows the platform's existing
-  actor convention (e.g. `X-Actor`); reuse it, don't invent a new one.
+### Backend — `platform-core` (domain + persistence + Flyway)
+- `domain/AiSkill.java` — project-scoped skill: `id, projectId, name,
+  description, instructions (TEXT), enabled, createdBy, createdAt, updatedAt`.
+- `domain/AiPromptTemplate.java` — project-scoped template: `id, projectId,
+  kind (SYSTEM|USER), name, body (TEXT), isDefault, updatedAt`.
+- `domain/GenerationClarification.java` — one Q&A turn for a workflow:
+  `id, workflowId, round, questionsJson (TEXT), answersJson (TEXT, nullable),
+  status (PENDING|ANSWERED|SKIPPED), createdAt, answeredAt`.
+- Extend `domain/AgentWorkflow.java` (or a new `GenerationRequest` side table)
+  to persist the run's resolved inputs: `skillIdsJson, systemPromptUsed,
+  userPromptUsed, freeTextInput, attachmentManifestJson`.
+- `repository/` — `AiSkillRepository`, `AiPromptTemplateRepository`,
+  `GenerationClarificationRepository` (Spring Data JPA).
+- Reuse existing `PlatformTestCase`, `TestCaseStep`, `AgentWorkflow`,
+  `AgentWorkflowStep`, `agent_checkpoints`, BlobStore (`ARTIFACTS` for uploaded
+  input files; `CHECKPOINTS` for conversation state).
+- `db/migration/` — **a single new forward migration** (e.g.
+  `V2__ai_skills_prompts_clarifications.sql`) adding `ai_skills`,
+  `ai_prompt_templates`, `generation_clarifications`, and the new columns on
+  `agent_workflows`. (Product is brand-new; if V1 has not shipped to any
+  non-resettable environment, fold into V1 instead — confirm at build time.
+  Flyway version must stay aligned across the db-migrate image and all services.)
 
-## 9. Testing strategy
+### Backend — `platform-agent` (orchestration + node)
+- `node/impl/TestCaseGenerationNode.java` — **modify**: build the prompt from
+  (resolved system template/override) + (skills) + (user template/override +
+  free text + requirement context + file excerpts); expose an `ask_user` tool so
+  the model can request clarification; on tool-call, return
+  `NodeResult.awaitingInput(questions, checkpointId)` instead of completing.
+- `node/AskUserTool` (or a tool spec within the node) — structured tool the model
+  calls to emit questions: `[{ id, question, kind (TEXT|CHOICE), options? }]`.
+- `workflow/AgentWorkflowService.java` — **modify**: handle the new
+  `AWAITING_INPUT` workflow state; persist `GenerationClarification`; emit the
+  Kafka `AWAITING_INPUT` event.
+- `workflow/GenerationResumeService.java` — **new**: given workflowId + answers,
+  rehydrate from checkpoint via `CheckpointService` + `orchestrator.resume(...)`,
+  inject the answers as the next user turn, and continue the node loop.
+- `api/TestCaseGenerationController.java` — **modify/extend**:
+  - `POST /hub/test-cases/{projectId}/generate` — accept the richer request DTO.
+  - `POST /hub/test-cases/{projectId}/generations/{workflowId}/answers` — submit
+    clarification answers and resume.
+  - `GET  /hub/test-cases/{projectId}/generations/{workflowId}` — run status +
+    pending questions + transcript.
+- `api/AiSkillController.java`, `api/AiPromptTemplateController.java` — **new**:
+  CRUD for skills and prompt templates under `/hub/...`.
 
-- **Per task: TDD (RED→GREEN), one commit per task**, message prefixed with the task id and ending
-  with the required `Co-Authored-By` trailer.
-- **Backend unit tests** (Mockito/JUnit5/AssertJ) for: add‑cases idempotency + APPROVED‑only +
-  matrix expansion; reopen state transition; defect link validation (valid id stores id/URL, invalid
-  id → 400, never calls a write method); attachment metadata persistence; complete‑with‑pending
-  confirmation path.
-- **Schema:** validate the combined `V1` applies cleanly on an empty DB (the established check).
-- **Frontend:** `tsc -b` + `vite build` must pass; manual verification of the execute → link defect
-  → attach evidence → add case → complete → reopen flow.
-- **Full regression:** `mvn -pl platform-ingestion,platform-portal -am test` green before "done".
+### Backend — `platform-common`
+- Extend `agent/NodeResult.java` with an `awaitingInput` variant (or reuse the
+  awaitingReview machinery with a distinct decision channel).
+- DTOs/records for the generation request, clarification questions/answers.
 
-## 10. Boundaries
+### Backend — `platform-llm`
+- No new public API expected; multi-turn is already supported (message-list
+  accumulation + checkpoints). Confirm the `resume(checkpointId, node)` path
+  covers injecting a fresh user message (the answers turn).
 
-**Always**
-- Keep the ADO integration **read‑only**: validate/link work items via read APIs only.
-- Encrypt PATs at rest; resolve credentials via `CredentialResolver`; never log/return secrets.
-- Make mutations idempotent (mid‑run add creates no duplicate executions; re‑linking the same defect
-  is a no‑op).
-- Recompute run counters from executions after every change; keep `IN_PROGRESS` durable across
-  sessions.
-- Format (Spotless + Prettier) and pass tests before marking a task done.
+### Backend — `platform-portal` (BFF proxy)
+- `api/PortalTestCaseController.java` — **modify**: proxy the enriched generate
+  call, the answers endpoint, and the generation-status GET; multipart
+  passthrough for input-file uploads (reuse the existing
+  ByteArrayResource/HttpEntity pattern used for execution evidence).
+- `api/PortalAiController.java` (or extend the existing AI settings controller) —
+  proxy skill + prompt-template CRUD.
 
-**Ask first**
-- Any change that would make the platform **write** to Azure DevOps (creating/updating work items).
-- Adding virus/content scanning, or introducing a file‑type allowlist/blocklist (currently all
-  extensions are accepted).
-- Changing the run state machine beyond `IN_PROGRESS ↔ COMPLETED` (e.g. `ABANDONED` semantics).
-- Adding a new auth/identity mechanism for attribution.
+### Frontend — `platform-portal/frontend/src`
+- `pages/TestCasesPage.tsx` — **modify** `GenerateTestCasesModal`: add skill
+  multi-select, system/user prompt fields (prefilled from default template,
+  editable), free-text input, file attach, plus the existing requirement select.
+- `pages/AiGenerationRunPage.tsx` (or a panel/modal) — **new**: shows run status;
+  when `AWAITING_INPUT`, renders questions with answer inputs and a "Submit
+  answers" action; shows the Q&A transcript and final result.
+- `pages/AiSettingsPage.tsx` — **extend**: Skills library CRUD + Prompt
+  Templates CRUD sections (project-scoped).
+- `lib/api.ts` — methods: skills CRUD, prompt-template CRUD, enriched
+  `generateTestCasesFromAI`, `getGeneration`, `submitGenerationAnswers`,
+  input-file upload.
+- `lib/types.ts` — `AiSkill`, `AiPromptTemplate`, `GenerationRequest`,
+  `GenerationStatus`, `ClarificationQuestion`, `ClarificationAnswer`.
 
-**Never**
-- Call ADO write/PATCH/POST work‑item endpoints.
-- Hard‑delete shared content‑addressed blobs on attachment delete (remove the row only).
-- Store secrets or full PATs in `test_runs`/executions/attachments or logs.
-- Allow editing a `COMPLETED` run without an explicit reopen.
+## 4. Code style
 
-### Evidence limits (confirmed)
-- Max **30 MB per file**. **No limit** on the number of files per execution. **All file
-  extensions accepted** (no type allowlist/blocklist).
+Follow the existing repo conventions (match surrounding code):
+
+- **Java 21 / Spring Boot 4**: constructor injection; records for DTOs;
+  package-by-feature under `com.platform.<module>`. Throw
+  `ResponseStatusException` with precise status codes for guard failures (e.g.
+  `409` for answering a run that isn't awaiting input, `404` unknown skill,
+  `400` empty input). Keep ADO read-only.
+- **Persistence**: JPA entities mirror existing ones; UUID PKs; JSON columns as
+  `TEXT` serialized with Jackson `ObjectMapper` (matching the defect/attachment
+  pattern). New migration is additive.
+- **Agent node**: keep the JSON-array output contract and
+  `parseGeneratedTestCases` approach. The `ask_user` tool must be a clean,
+  well-described tool spec so the model only calls it when context is genuinely
+  insufficient; cap clarification rounds (config, default 3) to prevent loops.
+- **Prompts**: a resolved prompt = template/override is data, never hardcoded
+  business specifics. Persist the exact `systemPromptUsed`/`userPromptUsed` for
+  audit/repro.
+- **Frontend**: React + TanStack Query + Tailwind + lucide-react; follow
+  existing modal/page idioms; run `npm run format` and keep `tsc -b` clean.
+- **Naming**: `AiSkill`, `AiPromptTemplate`, `GenerationClarification`,
+  `AWAITING_INPUT`. Reuse `AGENT` as `createdBy` for generated cases.
+
+## 5. Testing strategy
+
+TDD (JUnit5 + Mockito + AssertJ) per task; one commit per task; full suite +
+build before commit.
+
+### Backend unit tests
+- **Skills CRUD**: create/list/update/delete scoped by project; reject
+  cross-project access; unique name per project.
+- **Prompt templates**: default resolution; per-run override does not mutate the
+  saved template; SYSTEM vs USER kinds.
+- **Request validation**: at least one input source required (requirements OR
+  free-text OR files); unknown `skillId`/`fileId` → 400/404.
+- **Prompt assembly**: given skills + template + free text + requirements + file
+  excerpts, the composed system/user messages contain each part and are
+  persisted as `*Used`.
+- **Clarification loop** (the core):
+  - When the model calls `ask_user`, the node returns `awaitingInput`, a
+    `GenerationClarification` (round N, PENDING) is saved, workflow →
+    `AWAITING_INPUT`, Kafka event emitted, and **no test cases are persisted**.
+  - `GenerationResumeService` with answers → marks the clarification ANSWERED,
+    resumes from checkpoint, injects answers as the next user turn, continues.
+  - Multi-round: a second `ask_user` produces round N+1; answering completes.
+  - Answering a run not in `AWAITING_INPUT` → 409.
+  - Cap reached → node proceeds with best-effort generation, noting assumptions.
+- **Completion**: on final JSON, DRAFT `PlatformTestCase` + `TestCaseStep` rows
+  persist as today, tagged with workflowId; transcript saved.
+
+### Frontend
+- Type-level: `tsc -b` clean with new types.
+- Manual browser verification (chrome-devtools MCP): generate modal with skills
+  + prompts + free text + file; run reaching `AWAITING_INPUT` renders questions;
+  submitting answers resumes and yields DRAFT cases.
+
+### Regression
+- Existing one-shot path still works when no skills/prompts/questions are used
+  (backward compatible: empty skill list, default prompts, model asks nothing).
+- Existing `AgentWorkflow`/Review Queue behavior unchanged.
+
+## 6. Boundaries
+
+### Always
+- Keep ADO integration **read-only** (no work-item writes).
+- `mvn package` before `docker compose build`; keep Flyway version aligned across
+  the db-migrate image and every JVM service.
+- Persist exactly what was sent to the model (resolved prompts, skills, inputs,
+  file manifest) and the full Q&A transcript for audit/repro.
+- Make generation backward compatible: a request with only `requirementIds` and
+  no skills/overrides behaves like today.
+- Bound the clarification loop with a configurable max-round cap.
+- TDD with a failing test first; one focused commit per task using the required
+  trailer.
+- Keep `PLATFORM_CRED_KEY` and secrets in gitignored `.env`; never commit/log.
+
+### Ask first
+- Any change to the DRAFT→APPROVED lifecycle or the Review Queue.
+- Folding the new schema into V1 vs adding V2 (depends on whether V1 has shipped
+  to a non-resettable environment).
+- Adding a new Kafka topic vs extending `AGENT_WORKFLOW_EVENTS`.
+- Allowing skills/templates to reference KNOWLEDGE/RAG blobs (deferred; confirm
+  before pulling into context).
+- Per-run model/temperature selection exposure beyond current AI settings.
+
+### Never
+- Never write to ADO or any external system during generation.
+- Never auto-approve generated test cases (they stay DRAFT).
+- Never restart a clarified run from scratch — always resume from checkpoint so
+  prior context/cost isn't lost.
+- Never hardcode project/domain specifics into prompts — they come from
+  templates/skills/input data.
+- Never block the request thread on the LLM — generation stays async with status
+  polling/events.
+- Never let an unbounded clarification loop run (respect the cap).
+- Never `git add -A` blindly; stage only the files a task touched.
+
+---
+
+## Confirmed decisions (from clarification)
+1. **Skills** = reusable, project-scoped **library (CRUD)**, selected per run.
+2. **Clarifying questions** = **pause → answer → resume**, multiple rounds.
+3. **Input** = **free-text + selected requirements + file attachments** (any
+   combination; ≥1 required).
+4. **Prompts** = **saved project templates (defaults) + per-run override** for
+   both system and user prompts.
