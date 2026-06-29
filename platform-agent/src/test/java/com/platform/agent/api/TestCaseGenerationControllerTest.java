@@ -66,8 +66,7 @@ class TestCaseGenerationControllerTest {
 
   @Test
   void richBodyValidatesAndPersistsRun() {
-    String body =
-        "{\"freeText\":\"test the login flow\",\"skillIds\":[],\"maxRounds\":3}";
+    String body = "{\"freeText\":\"test the login flow\",\"skillIds\":[],\"maxRounds\":3}";
 
     var resp = controller.generateTestCases(projectId, body);
 

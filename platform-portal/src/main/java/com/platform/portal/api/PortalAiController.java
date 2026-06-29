@@ -59,6 +59,18 @@ public class PortalAiController {
         .body(Object.class);
   }
 
+  @PostMapping("/settings/models")
+  @Operation(summary = "Fetch the models the configured LiteLLM gateway exposes")
+  public Object fetchModels(@RequestBody(required = false) Map<String, Object> body) {
+    return aiClient
+        .post()
+        .uri("/api/v1/ai/settings/models")
+        .contentType(MediaType.APPLICATION_JSON)
+        .body(body != null ? body : Map.of())
+        .retrieve()
+        .body(Object.class);
+  }
+
   @GetMapping("/settings/scoped/effective")
   @Operation(summary = "Effective (merged Org→Team→Project) AI settings for a project")
   public Object effectiveScopedSettings(@RequestParam String projectId) {

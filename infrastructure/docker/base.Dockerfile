@@ -1,6 +1,6 @@
 # Shared runtime base for every platform-* Spring Boot service.
 #
-# Build this once; each service image does `FROM platform-base:local` and only
+# Build this once; each service image does `FROM ghcr.io/ndviet/platform-base:main` and only
 # adds its fat jar + EXPOSE. The JRE, OS packages, non-root user, and JVM
 # entrypoint are therefore built and cached a single time instead of being
 # repeated (and re-resolved) in all six service Dockerfiles.

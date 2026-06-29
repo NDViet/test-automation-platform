@@ -17,6 +17,12 @@ export default defineConfig({
         target: 'http://localhost:8085',
         changeOrigin: true,
       },
+      // Live generation-progress WebSocket (dev server → portal).
+      '/ws': {
+        target: 'ws://localhost:8085',
+        ws: true,
+        changeOrigin: true,
+      },
     },
   },
   build: {

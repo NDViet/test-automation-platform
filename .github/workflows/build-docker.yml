@@ -84,6 +84,22 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
+      # Same tag scheme as the service images (branch → :main, semver, sha-short,
+      # :latest on main). The immutable full-sha tag is also kept so the `push`
+      # job below can pin to the exact base built in this run.
+      - name: Extract Docker metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/platform-base
+          tags: |
+            type=ref,event=branch
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=sha,prefix=sha-,format=short
+            type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
+            type=raw,value=${{ github.sha }}
+
       # Build the shared runtime base once (multi-arch). Every service image
       # below pulls this via the BASE_IMAGE build-arg, so the JRE + apk packages
       # + user setup are built a single time instead of once per service.
@@ -94,9 +110,8 @@ jobs:
           file: infrastructure/docker/base.Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
-          tags: |
-            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/platform-base:${{ github.sha }}
-            ${{ env.REGISTRY }}/${{ env.IMAGE_PREFIX }}/platform-base:latest
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=base
           cache-to: type=gha,mode=max,scope=base
 

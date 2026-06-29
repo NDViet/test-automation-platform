@@ -42,8 +42,12 @@ public class AiSkillService {
     }
     AiSkill skill =
         new AiSkill(
-            projectId, name, trimToNull(req.description()), req.instructions(),
-            req.enabledOrDefault(), actor);
+            projectId,
+            name,
+            trimToNull(req.description()),
+            req.instructions(),
+            req.enabledOrDefault(),
+            actor);
     return AiSkillDto.from(repo.save(skill));
   }
 
@@ -68,7 +72,8 @@ public class AiSkillService {
   private AiSkill loadOwned(UUID projectId, UUID skillId) {
     AiSkill skill =
         repo.findById(skillId)
-            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Skill not found"));
+            .orElseThrow(
+                () -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Skill not found"));
     if (!skill.getProjectId().equals(projectId)) {
       throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Skill not found");
     }

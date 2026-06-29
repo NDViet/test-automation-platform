@@ -15,18 +15,25 @@ public class LlmSettings {
 
   public static final String KEY_BASE_URL = "ai.litellm.base-url";
   public static final String KEY_API_KEY = "ai.litellm.api-key";
+  public static final String KEY_TIMEOUT_SECONDS = "ai.litellm.timeout-seconds";
+
+  /** Generous default — large test-case/automation generations routinely run well over a minute. */
+  private static final int DEFAULT_TIMEOUT_SECONDS = 180;
 
   private final PlatformSettingRepository repo;
   private final String envBaseUrl;
   private final String envApiKey;
+  private final int envTimeoutSeconds;
 
   public LlmSettings(
       PlatformSettingRepository repo,
       @Value("${litellm.base-url:}") String envBaseUrl,
-      @Value("${litellm.api-key:}") String envApiKey) {
+      @Value("${litellm.api-key:}") String envApiKey,
+      @Value("${litellm.timeout-seconds:180}") int envTimeoutSeconds) {
     this.repo = repo;
     this.envBaseUrl = envBaseUrl;
     this.envApiKey = envApiKey;
+    this.envTimeoutSeconds = envTimeoutSeconds;
   }
 
   /** LiteLLM OpenAI-compatible base URL (e.g. {@code http://litellm:4000/v1}), or {@code null}. */
@@ -50,6 +57,26 @@ public class LlmSettings {
   /** True when both a base URL and an API key are configured. */
   public boolean isConfigured() {
     return notBlank(baseUrl()) && notBlank(apiKey());
+  }
+
+  /**
+   * Per-request timeout (seconds) for the LLM HTTP call. DB setting {@code
+   * ai.litellm.timeout-seconds} overrides the env default; invalid/blank values fall back to
+   * {@value #DEFAULT_TIMEOUT_SECONDS}.
+   */
+  public int timeoutSeconds() {
+    String v = get(KEY_TIMEOUT_SECONDS);
+    if (v != null) {
+      try {
+        int parsed = Integer.parseInt(v.trim());
+        if (parsed > 0) {
+          return parsed;
+        }
+      } catch (NumberFormatException ignored) {
+        // fall through to env/default
+      }
+    }
+    return envTimeoutSeconds > 0 ? envTimeoutSeconds : DEFAULT_TIMEOUT_SECONDS;
   }
 
   private String resolve(String key, String envFallback) {

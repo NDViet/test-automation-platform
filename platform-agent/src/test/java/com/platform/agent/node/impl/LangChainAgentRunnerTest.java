@@ -3,6 +3,7 @@ package com.platform.agent.node.impl;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.when;
 
@@ -22,10 +23,12 @@ import com.platform.llm.LlmSettings;
 import dev.langchain4j.agent.tool.ToolExecutionRequest;
 import dev.langchain4j.agent.tool.ToolSpecification;
 import dev.langchain4j.data.message.AiMessage;
-import dev.langchain4j.model.chat.ChatModel;
+import dev.langchain4j.model.chat.StreamingChatModel;
 import dev.langchain4j.model.chat.request.ChatRequest;
 import dev.langchain4j.model.chat.response.ChatResponse;
+import dev.langchain4j.model.chat.response.StreamingChatResponseHandler;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -39,7 +42,7 @@ class LangChainAgentRunnerTest {
   @Mock LlmSettings settings;
   @Mock CheckpointService checkpointService;
   @Mock BlobStore blobStore;
-  @Mock ChatModel chatModel;
+  @Mock StreamingChatModel chatModel;
 
   LangChainAgentRunner runner;
 
@@ -82,6 +85,8 @@ class LangChainAgentRunnerTest {
         new LangChainAgentRunner(
             provider, settings, checkpointService, blobStore, new ObjectMapper(), null);
     lenient().when(settings.model(anyString(), anyString())).thenReturn("claude-sonnet-4-6");
+    // Generous idle limit so the streaming watchdog never fires during the synchronous test stubs.
+    lenient().when(settings.timeoutSeconds()).thenReturn(180);
   }
 
   private static ChatResponse withTokens(AiMessage ai, int in, int out) {
@@ -91,9 +96,26 @@ class LangChainAgentRunnerTest {
         .build();
   }
 
+  /**
+   * Make the mocked streaming model deliver the given responses on successive calls, completing
+   * each synchronously via {@code onCompleteResponse} (the last response repeats if called again).
+   */
+  private void stubStream(ChatResponse... responses) {
+    AtomicInteger idx = new AtomicInteger(0);
+    doAnswer(
+            inv -> {
+              StreamingChatResponseHandler handler = inv.getArgument(1);
+              ChatResponse r = responses[Math.min(idx.getAndIncrement(), responses.length - 1)];
+              handler.onCompleteResponse(r);
+              return null;
+            })
+        .when(chatModel)
+        .chat(any(ChatRequest.class), any(StreamingChatResponseHandler.class));
+  }
+
   @Test
   void runsToolLoopThenReturnsCompletedWithAccumulatedTokens() {
-    when(provider.chatModel("claude-sonnet-4-6")).thenReturn(chatModel);
+    when(provider.streamingChatModel("claude-sonnet-4-6")).thenReturn(chatModel);
     ChatResponse toolTurn =
         withTokens(
             AiMessage.from(
@@ -101,7 +123,7 @@ class LangChainAgentRunnerTest {
             10,
             5);
     ChatResponse finalTurn = withTokens(AiMessage.from("final answer"), 10, 5);
-    when(chatModel.chat(any(ChatRequest.class))).thenReturn(toolTurn, finalTurn);
+    stubStream(toolTurn, finalTurn);
 
     FakeNode node = new FakeNode();
     NodeResult result = runner.run(AgentGridFixtures.bundle(), node);
@@ -117,7 +139,7 @@ class LangChainAgentRunnerTest {
 
   @Test
   void askUserToolPausesWithAwaitingInputAndSavesCheckpoint() {
-    when(provider.chatModel("claude-sonnet-4-6")).thenReturn(chatModel);
+    when(provider.streamingChatModel("claude-sonnet-4-6")).thenReturn(chatModel);
     lenient().when(checkpointService.save(any(), any(), any())).thenReturn("chk-77");
     ChatResponse askTurn =
         withTokens(
@@ -129,7 +151,7 @@ class LangChainAgentRunnerTest {
                     .build()),
             10,
             5);
-    when(chatModel.chat(any(ChatRequest.class))).thenReturn(askTurn);
+    stubStream(askTurn);
 
     AgentNode node =
         new AgentNode() {
@@ -169,7 +191,7 @@ class LangChainAgentRunnerTest {
 
   @Test
   void failsWhenLiteLlmNotConfigured() {
-    when(provider.chatModel(anyString())).thenReturn(null);
+    when(provider.streamingChatModel(anyString())).thenReturn(null);
 
     NodeResult result = runner.run(AgentGridFixtures.bundle(), new FakeNode());
 
@@ -190,9 +212,10 @@ class LangChainAgentRunnerTest {
     assertThat(dev.langchain4j.data.message.ChatMessageDeserializer.messagesFromJson(json))
         .hasSize(2);
 
-    when(provider.chatModel("claude-sonnet-4-6")).thenReturn(chatModel);
+    when(provider.streamingChatModel("claude-sonnet-4-6")).thenReturn(chatModel);
     com.platform.common.storage.BlobRef ref =
-        new com.platform.common.storage.BlobRef("platform-checkpoints", "k", "h", "application/json", 1);
+        new com.platform.common.storage.BlobRef(
+            "platform-checkpoints", "k", "h", "application/json", 1);
     when(checkpointService.load("chk"))
         .thenReturn(
             java.util.Optional.of(
@@ -208,7 +231,14 @@ class LangChainAgentRunnerTest {
 
     org.mockito.ArgumentCaptor<ChatRequest> reqCap =
         org.mockito.ArgumentCaptor.forClass(ChatRequest.class);
-    when(chatModel.chat(reqCap.capture())).thenReturn(withTokens(AiMessage.from("done"), 3, 2));
+    doAnswer(
+            inv -> {
+              StreamingChatResponseHandler handler = inv.getArgument(1);
+              handler.onCompleteResponse(withTokens(AiMessage.from("done"), 3, 2));
+              return null;
+            })
+        .when(chatModel)
+        .chat(reqCap.capture(), any(StreamingChatResponseHandler.class));
 
     NodeResult result =
         runner.resume(AgentGridFixtures.bundle(), "chk", new FakeNode(), "ANSWER: chrome, firefox");
@@ -223,7 +253,7 @@ class LangChainAgentRunnerTest {
 
   @Test
   void resumeFailsWhenCheckpointMissing() {
-    when(provider.chatModel("claude-sonnet-4-6")).thenReturn(chatModel);
+    when(provider.streamingChatModel("claude-sonnet-4-6")).thenReturn(chatModel);
     when(checkpointService.load("missing")).thenReturn(java.util.Optional.empty());
 
     NodeResult result =

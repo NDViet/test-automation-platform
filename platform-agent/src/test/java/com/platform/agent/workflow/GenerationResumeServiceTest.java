@@ -80,21 +80,20 @@ class GenerationResumeServiceTest {
     assertThatThrownBy(() -> service.markAnswered(projectId, workflowId, answers()))
         .isInstanceOf(ResponseStatusException.class)
         .satisfies(
-            e ->
-                assertThat(((ResponseStatusException) e).getStatusCode().value()).isEqualTo(409));
+            e -> assertThat(((ResponseStatusException) e).getStatusCode().value()).isEqualTo(409));
   }
 
   @Test
   void markAnsweredRecordsAnswerFlipsRunningAndReturnsPlan() {
     AgentWorkflow wf = workflow("AWAITING_INPUT");
-    GenerationClarification clar =
-        new GenerationClarification(workflowId, 1, "[]", "chk-1");
+    GenerationClarification clar = new GenerationClarification(workflowId, 1, "[]", "chk-1");
     when(clarificationRepo.findFirstByWorkflowIdAndStatusOrderByRoundDesc(workflowId, "PENDING"))
         .thenReturn(Optional.of(clar));
     when(runRepo.findByWorkflowId(workflowId)).thenReturn(Optional.empty());
     when(clarificationRepo.countByWorkflowId(workflowId)).thenReturn(1L);
 
-    GenerationResumeService.ResumePlan plan = service.markAnswered(projectId, workflowId, answers());
+    GenerationResumeService.ResumePlan plan =
+        service.markAnswered(projectId, workflowId, answers());
 
     assertThat(clar.getStatus()).isEqualTo("ANSWERED");
     assertThat(wf.getStatus()).isEqualTo("RUNNING");

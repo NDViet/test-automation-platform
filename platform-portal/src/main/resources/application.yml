@@ -6,6 +6,11 @@ spring:
       # Evidence uploads pass through the portal to ingestion (cap is 30 MB/file there).
       max-file-size: 50MB
       max-request-size: 100MB
+  # Shared Redis — the portal subscribes to generation-progress events the agent publishes.
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
 
 server:
   port: ${SERVER_PORT:8085}

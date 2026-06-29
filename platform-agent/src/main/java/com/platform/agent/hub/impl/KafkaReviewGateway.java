@@ -6,9 +6,7 @@ import com.platform.agent.hub.slack.SlackNotificationService;
 import com.platform.common.agent.*;
 import com.platform.common.kafka.Topics;
 import com.platform.core.domain.AgentReviewRequest;
-import com.platform.core.domain.AgentWorkflowStep;
 import com.platform.core.repository.AgentReviewRequestRepository;
-import com.platform.core.repository.AgentWorkflowStepRepository;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
@@ -26,7 +24,6 @@ public class KafkaReviewGateway implements ReviewGateway {
 
   private final KafkaTemplate<String, String> kafka;
   private final AgentReviewRequestRepository reviewRepo;
-  private final AgentWorkflowStepRepository stepRepo;
   private final ObjectMapper mapper;
 
   @Autowired(required = false)
@@ -35,21 +32,19 @@ public class KafkaReviewGateway implements ReviewGateway {
   public KafkaReviewGateway(
       KafkaTemplate<String, String> kafka,
       AgentReviewRequestRepository reviewRepo,
-      AgentWorkflowStepRepository stepRepo,
       ObjectMapper mapper) {
     this.kafka = kafka;
     this.reviewRepo = reviewRepo;
-    this.stepRepo = stepRepo;
     this.mapper = mapper;
   }
 
   @Override
-  public UUID requestReview(NodeResult result, ContextBundle bundle) {
-    // Persist the review request
+  public UUID requestReview(NodeResult result, ContextBundle bundle, UUID stepId) {
+    // Persist the review request against the real workflow step (FK target).
     AgentReviewRequest req =
         new AgentReviewRequest(
             result.workflowId(),
-            findOrCreateStep(result),
+            stepId,
             resolveChannel(bundle),
             resolveDestination(bundle),
             result.summary(),
@@ -114,12 +109,5 @@ public class KafkaReviewGateway implements ReviewGateway {
     if (bundle.outboundTargets() == null || bundle.outboundTargets().reviewTarget() == null)
       return "portal";
     return bundle.outboundTargets().reviewTarget().destination();
-  }
-
-  private UUID findOrCreateStep(NodeResult result) {
-    return stepRepo.findByWorkflowIdAndStatus(result.workflowId(), "RUNNING").stream()
-        .findFirst()
-        .map(AgentWorkflowStep::getId)
-        .orElse(UUID.randomUUID());
   }
 }

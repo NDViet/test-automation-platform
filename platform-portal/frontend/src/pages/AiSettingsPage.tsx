@@ -14,6 +14,7 @@ import {
   Info,
   Plus,
   Trash2,
+  RefreshCw,
 } from 'lucide-react'
 import LiteLlmExport from '@/components/LiteLlmExport'
 import type { AiSettingsUpdate, LiteLlmModel } from '@/lib/types'
@@ -156,7 +157,30 @@ export default function AiSettingsPage() {
         liteLlmBaseUrl: baseUrl.trim() || undefined,
         ...(apiKey.trim() ? { liteLlmApiKey: apiKey.trim() } : {}),
       }),
-    onSuccess: result => setTestResult(result),
+    onSuccess: result => {
+      setTestResult(result)
+      // Replace the model list with exactly what the gateway allows for this key/team, so the
+      // per-role pickers below select from real models instead of free-text or stale defaults.
+      if (result.success && result.models && result.models.length > 0) {
+        setModels(result.models)
+      }
+    },
+    onError: () =>
+      setTestResult({ success: false, message: 'Request failed — check console for details' }),
+  })
+
+  const fetchModelsMutation = useMutation({
+    mutationFn: () =>
+      api.fetchAiModels({
+        liteLlmBaseUrl: baseUrl.trim() || undefined,
+        ...(apiKey.trim() ? { liteLlmApiKey: apiKey.trim() } : {}),
+      }),
+    onSuccess: result => {
+      setTestResult(result)
+      if (result.success && result.models && result.models.length > 0) {
+        setModels(result.models)
+      }
+    },
     onError: () =>
       setTestResult({ success: false, message: 'Request failed — check console for details' }),
   })
@@ -271,17 +295,34 @@ export default function AiSettingsPage() {
         <div className="px-5 py-4 space-y-3">
           <div className="flex items-center justify-between">
             <p className="text-sm font-medium text-slate-700">Models</p>
-            <button
-              onClick={() => setModels(ms => [...ms, { id: '', label: '' }])}
-              className="flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-700"
-            >
-              <Plus size={14} /> Add model
-            </button>
+            <div className="flex items-center gap-3">
+              <button
+                onClick={() => {
+                  setTestResult(null)
+                  void fetchModelsMutation.mutate()
+                }}
+                disabled={fetchModelsMutation.isPending}
+                className="flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 disabled:opacity-50"
+              >
+                <RefreshCw
+                  size={14}
+                  className={fetchModelsMutation.isPending ? 'animate-spin' : ''}
+                />
+                {fetchModelsMutation.isPending ? 'Fetching…' : 'Fetch from gateway'}
+              </button>
+              <button
+                onClick={() => setModels(ms => [...ms, { id: '', label: '' }])}
+                className="flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-700"
+              >
+                <Plus size={14} /> Add model
+              </button>
+            </div>
           </div>
           {models.length === 0 && (
             <p className="text-xs text-slate-400">
-              No models yet — add the model ids exposed by your LiteLLM proxy (e.g.
-              claude-sonnet-4-6, gpt-4o).
+              No models yet — click <span className="font-medium">Test Connection</span> to load the
+              models your key is allowed to use, or add their ids manually (e.g. claude-sonnet-4-6,
+              gpt-4o). The per-role pickers below select from this list.
             </p>
           )}
           {models.map((m, i) => (

@@ -12,9 +12,11 @@ public interface ReviewGateway {
 
   /**
    * Route a NodeResult that has status AWAITING_REVIEW to the configured review channel. Publishes
-   * an approval request and returns the review request ID.
+   * an approval request and returns the review request ID. {@code stepId} is the persisted workflow
+   * step this review belongs to — it is the FK target for the review request, so it must reference
+   * an existing {@code agent_workflow_steps} row.
    */
-  UUID requestReview(NodeResult result, ContextBundle bundle);
+  UUID requestReview(NodeResult result, ContextBundle bundle, UUID stepId);
 
   /**
    * Apply a human decision to a pending review. If APPROVED, publishes the artifact manifest and

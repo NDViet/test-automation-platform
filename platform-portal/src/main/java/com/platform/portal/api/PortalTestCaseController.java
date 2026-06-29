@@ -335,8 +335,7 @@ public class PortalTestCaseController {
 
   @GetMapping("/test-cases/generations/{workflowId}")
   @Operation(summary = "Generation run status + clarification transcript")
-  public Object generationStatus(
-      @PathVariable String projectId, @PathVariable String workflowId) {
+  public Object generationStatus(@PathVariable String projectId, @PathVariable String workflowId) {
     return agentClient
         .get()
         .uri("/hub/test-cases/" + projectId + "/generations/" + workflowId)
@@ -348,9 +347,7 @@ public class PortalTestCaseController {
   @PostMapping("/test-cases/generations/{workflowId}/answers")
   @Operation(summary = "Answer the agent's clarifying questions and resume generation")
   public Object answerGeneration(
-      @PathVariable String projectId,
-      @PathVariable String workflowId,
-      @RequestBody Object body) {
+      @PathVariable String projectId, @PathVariable String workflowId, @RequestBody Object body) {
     return agentClient
         .post()
         .uri("/hub/test-cases/" + projectId + "/generations/" + workflowId + "/answers")

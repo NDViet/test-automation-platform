@@ -260,8 +260,8 @@ public class TestCaseGenerationController {
   // -------------------------------------------------------------------------
 
   /**
-   * Parse the optional request body into a {@link GenerateTestCasesRequest}. An absent/blank body or
-   * a legacy {@code {"requirementIds":[...]}} body both map cleanly (missing fields → null).
+   * Parse the optional request body into a {@link GenerateTestCasesRequest}. An absent/blank body
+   * or a legacy {@code {"requirementIds":[...]}} body both map cleanly (missing fields → null).
    */
   private GenerateTestCasesRequest parseRequest(String body) {
     if (body == null || body.isBlank()) {

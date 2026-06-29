@@ -59,7 +59,9 @@ public class TestCaseGenerationNode implements AgentNode {
   /** Max characters of an attached file's text pulled into the prompt (per file). */
   private static final int FILE_EXCERPT_LIMIT = 8000;
 
-  /** Must match LangChainAgentRunner.INPUT_SENTINEL — a dispatch with this prefix pauses the run. */
+  /**
+   * Must match LangChainAgentRunner.INPUT_SENTINEL — a dispatch with this prefix pauses the run.
+   */
   static final String INPUT_SENTINEL = "__AWAITING_INPUT__";
 
   /** Tool the model calls to request clarification from the user before generating. */
@@ -110,7 +112,8 @@ public class TestCaseGenerationNode implements AgentNode {
           ]
         }
       ]
-      Return ONLY a valid JSON array of test case objects. No prose before or after the JSON.""";
+      Return ONLY a valid JSON array of test case objects. No prose before or after the JSON.\
+      """;
 
   public TestCaseGenerationNode(
       AgentOrchestrator orchestrator,
@@ -201,7 +204,9 @@ public class TestCaseGenerationNode implements AgentNode {
 
     // Free text / files are valid input on their own, so empty requirements is not fatal there.
     boolean hasAuxInput =
-        run != null && (notBlank(run.getFreeText()) || !parseIdList(run.getAttachmentManifestJson()).isEmpty());
+        run != null
+            && (notBlank(run.getFreeText())
+                || !parseIdList(run.getAttachmentManifestJson()).isEmpty());
 
     if (requirements.isEmpty() && !hasAuxInput) {
       log.warn("TestCaseGenerationNode: no requirements found for project {}", projectId);
@@ -217,13 +222,15 @@ public class TestCaseGenerationNode implements AgentNode {
 
     // 3. Build the full system prompt sent to the model. Legacy (no run) is byte-identical to the
     //    original; the new flow layers in resolved prompts, skills, free text, and file excerpts.
-    String requirementsMessage = requirements.isEmpty() ? null : buildRequirementsMessage(requirements);
+    String requirementsMessage =
+        requirements.isEmpty() ? null : buildRequirementsMessage(requirements);
     String fullPrompt =
         run == null
             ? legacyPrompt(bundle, requirementsMessage)
             : assemblePrompt(bundle, run, requirementsMessage);
 
-    // 4. Use a thin shim so the orchestrator sends our fully-assembled prompt as the system message.
+    // 4. Use a thin shim so the orchestrator sends our fully-assembled prompt as the system
+    // message.
     //    Clarifying questions are enabled only for the new flow with rounds remaining.
     boolean allowQuestions = run != null && run.getMaxRounds() > 0;
     TextOnlyNode shim = new TextOnlyNode(this, fullPrompt, allowQuestions);
@@ -397,8 +404,7 @@ public class TestCaseGenerationNode implements AgentNode {
                 + " test cases, call the ask_user tool with specific questions BEFORE generating."
                 + " Otherwise, produce the JSON test cases directly."
             : "";
-    String resolvedSystem =
-        systemBase + skillsBlock + clarification + "\n\n" + OUTPUT_FORMAT_BLOCK;
+    String resolvedSystem = systemBase + skillsBlock + clarification + "\n\n" + OUTPUT_FORMAT_BLOCK;
 
     StringBuilder user = new StringBuilder();
     user.append(userBase).append("\n\n");
@@ -433,7 +439,10 @@ public class TestCaseGenerationNode implements AgentNode {
       }
       AiSkill skill = skillRepo.findById(skillId).orElse(null);
       if (skill == null || !skill.getProjectId().equals(projectId) || !skill.isEnabled()) continue;
-      sb.append("\n### Skill: ").append(skill.getName()).append("\n").append(skill.getInstructions());
+      sb.append("\n### Skill: ")
+          .append(skill.getName())
+          .append("\n")
+          .append(skill.getInstructions());
     }
     return sb.isEmpty() ? "" : "\n\n## Applied skills" + sb;
   }

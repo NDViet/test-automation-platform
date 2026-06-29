@@ -6,7 +6,6 @@ import com.platform.agent.hub.ReviewGateway;
 import com.platform.agent.hub.TaskRouter;
 import com.platform.agent.hub.graph.TokenBudgetGuard;
 import com.platform.agent.node.AgentNode;
-import com.platform.agent.node.AgentOrchestrator;
 import com.platform.common.agent.*;
 import com.platform.common.kafka.Topics;
 import com.platform.core.domain.AgentWorkflow;
@@ -37,7 +36,6 @@ public class AgentWorkflowService {
   private final TaskRouter router;
   private final NodeRegistry registry;
   private final ReviewGateway reviewGateway;
-  private final AgentOrchestrator orchestrator;
   private final TokenBudgetGuard budgetGuard;
   private final List<AgentNode> nodes;
   private final KafkaTemplate<String, String> kafka;
@@ -50,7 +48,6 @@ public class AgentWorkflowService {
       TaskRouter router,
       NodeRegistry registry,
       ReviewGateway reviewGateway,
-      AgentOrchestrator orchestrator,
       TokenBudgetGuard budgetGuard,
       List<AgentNode> nodes,
       KafkaTemplate<String, String> kafka,
@@ -61,7 +58,6 @@ public class AgentWorkflowService {
     this.router = router;
     this.registry = registry;
     this.reviewGateway = reviewGateway;
-    this.orchestrator = orchestrator;
     this.budgetGuard = budgetGuard;
     this.nodes = nodes;
     this.kafka = kafka;
@@ -131,7 +127,11 @@ public class AgentWorkflowService {
         stepRepo.save(step);
         publishEvent(workflowId, "NODE_STARTED");
 
-        NodeResult result = orchestrator.run(bundle, node);
+        // Invoke the node's own entrypoint. Simple nodes delegate to orchestrator.run(bundle,this);
+        // rich nodes (TestCaseGenerationNode, AutomationCodeGenerationNode) load context and
+        // persist
+        // their artifacts here — calling orchestrator.run directly would bypass that logic.
+        NodeResult result = node.execute(bundle);
 
         workflow.addTokens(
             result.tokenUsage().totalInputTokens(),
@@ -144,7 +144,7 @@ public class AgentWorkflowService {
           stepRepo.save(step);
           workflow.markAwaitingReview();
           workflowRepo.save(workflow);
-          reviewGateway.requestReview(result, bundle);
+          reviewGateway.requestReview(result, bundle, step.getId());
           publishEvent(workflowId, "AWAITING_REVIEW");
           return; // pause; resume when decision comes back
         }

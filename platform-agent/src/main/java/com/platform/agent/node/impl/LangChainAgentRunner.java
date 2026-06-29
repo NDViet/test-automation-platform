@@ -5,6 +5,7 @@ import com.platform.agent.node.AgentNode;
 import com.platform.agent.node.AgentOrchestrator;
 import com.platform.agent.node.CheckpointService;
 import com.platform.agent.node.StepSummarizer;
+import com.platform.agent.progress.GenerationProgressPublisher;
 import com.platform.common.agent.ArtifactManifest;
 import com.platform.common.agent.ContextBundle;
 import com.platform.common.agent.LlmTier;
@@ -25,15 +26,25 @@ import dev.langchain4j.data.message.ChatMessageSerializer;
 import dev.langchain4j.data.message.SystemMessage;
 import dev.langchain4j.data.message.ToolExecutionResultMessage;
 import dev.langchain4j.data.message.UserMessage;
-import dev.langchain4j.model.chat.ChatModel;
+import dev.langchain4j.exception.TimeoutException;
+import dev.langchain4j.model.chat.StreamingChatModel;
 import dev.langchain4j.model.chat.request.ChatRequest;
 import dev.langchain4j.model.chat.response.ChatResponse;
+import dev.langchain4j.model.chat.response.StreamingChatResponseHandler;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Primary;
 import org.springframework.stereotype.Component;
 
@@ -57,6 +68,7 @@ public class LangChainAgentRunner implements AgentOrchestrator {
   private static final Logger log = LoggerFactory.getLogger(LangChainAgentRunner.class);
   static final int MAX_TOOL_ITERATIONS = 25;
   private static final String REVIEW_SENTINEL = "__AWAITING_REVIEW__";
+
   /** A tool dispatch returning this prefix pauses the run for user clarification. */
   static final String INPUT_SENTINEL = "__AWAITING_INPUT__";
 
@@ -71,6 +83,19 @@ public class LangChainAgentRunner implements AgentOrchestrator {
   private final BlobStore blobStore;
   private final ObjectMapper mapper;
   private final StepSummarizer stepSummarizer;
+
+  /** Optional — present in services that relay progress (generation); absent is fine elsewhere. */
+  @Autowired(required = false)
+  private GenerationProgressPublisher progressPublisher;
+
+  /** Single daemon thread that enforces the per-token idle timeout on streaming calls. */
+  private final ScheduledExecutorService watchdogScheduler =
+      Executors.newSingleThreadScheduledExecutor(
+          r -> {
+            Thread t = new Thread(r, "llm-stream-watchdog");
+            t.setDaemon(true);
+            return t;
+          });
 
   public LangChainAgentRunner(
       LlmChatModelProvider provider,
@@ -90,7 +115,7 @@ public class LangChainAgentRunner implements AgentOrchestrator {
   @Override
   public NodeResult run(ContextBundle bundle, AgentNode node) {
     String modelId = resolveModelId(bundle.llmTier());
-    ChatModel model = provider.chatModel(modelId);
+    StreamingChatModel model = provider.streamingChatModel(modelId);
     TokenUsage total = TokenUsage.zero();
     if (model == null) {
       return NodeResult.failed(
@@ -107,6 +132,9 @@ public class LangChainAgentRunner implements AgentOrchestrator {
     messages.add(SystemMessage.from(systemPrompt(bundle, node)));
     messages.add(UserMessage.from(userPrompt(bundle, node)));
 
+    if (progressPublisher != null && bundle.workflowId() != null) {
+      progressPublisher.started(bundle.workflowId());
+    }
     return executeLoop(bundle, node, model, modelId, messages, total);
   }
 
@@ -114,7 +142,7 @@ public class LangChainAgentRunner implements AgentOrchestrator {
   public NodeResult resume(
       ContextBundle bundle, String checkpointId, AgentNode node, String nextUserMessage) {
     String modelId = resolveModelId(bundle.llmTier());
-    ChatModel model = provider.chatModel(modelId);
+    StreamingChatModel model = provider.streamingChatModel(modelId);
     if (model == null) {
       return NodeResult.failed(
           bundle.sessionId(),
@@ -140,6 +168,9 @@ public class LangChainAgentRunner implements AgentOrchestrator {
     if (nextUserMessage != null && !nextUserMessage.isBlank()) {
       messages.add(UserMessage.from(nextUserMessage));
     }
+    if (progressPublisher != null && bundle.workflowId() != null) {
+      progressPublisher.started(bundle.workflowId());
+    }
     return executeLoop(bundle, node, model, modelId, messages, TokenUsage.zero());
   }
 
@@ -147,7 +178,7 @@ public class LangChainAgentRunner implements AgentOrchestrator {
   private NodeResult executeLoop(
       ContextBundle bundle,
       AgentNode node,
-      ChatModel model,
+      StreamingChatModel model,
       String modelId,
       List<ChatMessage> messages,
       TokenUsage total) {
@@ -159,7 +190,7 @@ public class LangChainAgentRunner implements AgentOrchestrator {
         if (tools != null && !tools.isEmpty()) {
           rb.toolSpecifications(tools);
         }
-        ChatResponse response = model.chat(rb.build());
+        ChatResponse response = streamChat(model, rb.build(), bundle.workflowId());
         total = total.add(usageOf(response, modelId));
         AiMessage ai = response.aiMessage();
 
@@ -240,6 +271,87 @@ public class LangChainAgentRunner implements AgentOrchestrator {
           e.getMessage(),
           total);
     }
+  }
+
+  /**
+   * Stream one chat turn, bridging the async token callback back to a blocking call so the existing
+   * tool-use loop is unchanged. Liveness is the token flow: a watchdog aborts only after {@code
+   * settings.timeoutSeconds()} of <em>no</em> tokens — so a long-but-progressing generation runs to
+   * completion, while a genuinely hung connection is still cut. Throttled previews are relayed to
+   * the portal/browser as they arrive.
+   */
+  private ChatResponse streamChat(StreamingChatModel model, ChatRequest request, UUID workflowId)
+      throws Exception {
+    int idleTimeoutSeconds = settings.timeoutSeconds();
+    CompletableFuture<ChatResponse> future = new CompletableFuture<>();
+    AtomicLong lastActivity = new AtomicLong(System.nanoTime());
+    AtomicLong lastPublish = new AtomicLong(0L);
+    StringBuilder acc = new StringBuilder();
+
+    ScheduledFuture<?> watchdog =
+        watchdogScheduler.scheduleAtFixedRate(
+            () -> {
+              long idleMs = (System.nanoTime() - lastActivity.get()) / 1_000_000L;
+              if (!future.isDone() && idleMs > idleTimeoutSeconds * 1000L) {
+                future.completeExceptionally(
+                    new TimeoutException(
+                        "LLM stream idle for "
+                            + idleMs
+                            + "ms (no tokens received) — aborting at "
+                            + idleTimeoutSeconds
+                            + "s idle limit"));
+              }
+            },
+            idleTimeoutSeconds,
+            5,
+            TimeUnit.SECONDS);
+
+    try {
+      model.chat(
+          request,
+          new StreamingChatResponseHandler() {
+            @Override
+            public void onPartialResponse(String partial) {
+              lastActivity.set(System.nanoTime());
+              if (partial != null && !partial.isEmpty()) {
+                acc.append(partial);
+              }
+              if (progressPublisher != null && workflowId != null) {
+                long now = System.nanoTime();
+                // Throttle to ≤ ~2.5 msgs/sec so the relay stays light even on fast streams.
+                if (now - lastPublish.get() > 400_000_000L) {
+                  lastPublish.set(now);
+                  progressPublisher.token(workflowId, tail(acc, 4000), acc.length());
+                }
+              }
+            }
+
+            @Override
+            public void onCompleteResponse(ChatResponse response) {
+              future.complete(response);
+            }
+
+            @Override
+            public void onError(Throwable error) {
+              future.completeExceptionally(error);
+            }
+          });
+      return future.get();
+    } catch (ExecutionException e) {
+      Throwable cause = e.getCause();
+      if (cause instanceof Exception ex) {
+        throw ex;
+      }
+      throw new RuntimeException(cause);
+    } finally {
+      watchdog.cancel(false);
+    }
+  }
+
+  /** Last {@code max} characters of the accumulator — a bounded live-preview tail. */
+  private static String tail(StringBuilder sb, int max) {
+    int len = sb.length();
+    return len <= max ? sb.toString() : sb.substring(len - max);
   }
 
   /** Load and deserialize the conversation messages for a checkpoint, or null if unavailable. */

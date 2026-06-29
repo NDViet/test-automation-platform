@@ -12,8 +12,8 @@ import org.springframework.web.server.ResponseStatusException;
 
 /**
  * Project-scoped CRUD for AI generation prompt templates plus default resolution. At most one
- * template per (project, kind) is the default; {@link #resolveDefault} falls back to a built-in seed
- * when the project has none, so generation always has a sensible prompt.
+ * template per (project, kind) is the default; {@link #resolveDefault} falls back to a built-in
+ * seed when the project has none, so generation always has a sensible prompt.
  */
 @Service
 public class AiPromptTemplateService {
@@ -37,7 +37,8 @@ public class AiPromptTemplateService {
       - Write clear, executable steps (action + expected result per step)
       - Set priority: CRITICAL for core flows, HIGH for important features, MEDIUM for standard,
         LOW for edge cases
-      - Response MUST be valid JSON — an array of test case objects""";
+      - Response MUST be valid JSON — an array of test case objects\
+      """;
 
   /** Built-in seed used when a project has no default USER template. */
   public static final String SEED_USER =
@@ -72,8 +73,7 @@ public class AiPromptTemplateService {
     }
     boolean isDefault = req.isDefaultOrFalse();
     if (isDefault) clearExistingDefault(projectId, kind);
-    AiPromptTemplate t =
-        new AiPromptTemplate(projectId, kind, name, req.body(), isDefault, actor);
+    AiPromptTemplate t = new AiPromptTemplate(projectId, kind, name, req.body(), isDefault, actor);
     return AiPromptTemplateDto.from(repo.save(t));
   }
 
@@ -86,7 +86,8 @@ public class AiPromptTemplateService {
     if (!name.equals(t.getName())
         && repo.existsByProjectIdAndKindAndName(projectId, t.getKind(), name)) {
       throw new ResponseStatusException(
-          HttpStatus.CONFLICT, "A " + t.getKind() + " template named '" + name + "' already exists");
+          HttpStatus.CONFLICT,
+          "A " + t.getKind() + " template named '" + name + "' already exists");
     }
     boolean isDefault = req.isDefaultOrFalse();
     if (isDefault && !t.isDefault()) clearExistingDefault(projectId, t.getKind());

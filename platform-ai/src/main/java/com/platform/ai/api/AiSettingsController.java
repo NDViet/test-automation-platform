@@ -1,5 +1,6 @@
 package com.platform.ai.api;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.platform.core.domain.PlatformSetting;
 import com.platform.core.repository.PlatformSettingRepository;
@@ -8,6 +9,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -111,12 +113,37 @@ public class AiSettingsController {
 
   public record TestConnectionRequest(String liteLlmBaseUrl, String liteLlmApiKey) {}
 
-  public record TestConnectionResult(boolean success, String message) {}
+  public record TestConnectionResult(boolean success, String message, List<ModelEntry> models) {}
 
   @PostMapping("/test")
   public ResponseEntity<TestConnectionResult> testConnection(
       @RequestBody(required = false) TestConnectionRequest req) {
-    // Fall back to the effective (DB-or-env) config the runtime client actually uses.
+    return ResponseEntity.ok(probe(req, "Connection successful"));
+  }
+
+  /**
+   * Fetch the models the configured gateway exposes for this key/team (GET {baseUrl}/models). Same
+   * result shape as {@code /test}: callers use the returned {@code models} to populate the model
+   * pickers. Editable base-url/key may be supplied in the body to fetch before saving.
+   */
+  @PostMapping("/models")
+  public ResponseEntity<TestConnectionResult> fetchModels(
+      @RequestBody(required = false) TestConnectionRequest req) {
+    TestConnectionResult result = probe(req, null);
+    if (result.success()) {
+      result =
+          new TestConnectionResult(
+              true, result.models().size() + " model(s) available", result.models());
+    }
+    return ResponseEntity.ok(result);
+  }
+
+  /**
+   * Resolve the effective base-url/key (request override, else the DB-or-env config the runtime
+   * client uses) and probe {baseUrl}/models. {@code successMessage} is the message on success;
+   * failures carry the gateway/transport error.
+   */
+  private TestConnectionResult probe(TestConnectionRequest req, String successMessage) {
     String baseUrl =
         req != null && notBlank(req.liteLlmBaseUrl())
             ? req.liteLlmBaseUrl().trim()
@@ -127,27 +154,29 @@ public class AiSettingsController {
             : llmSettings.apiKey();
 
     if (!notBlank(baseUrl)) {
-      return ResponseEntity.ok(
-          new TestConnectionResult(false, "LiteLLM base URL is not configured"));
+      return new TestConnectionResult(false, "LiteLLM base URL is not configured", List.of());
     }
     if (!notBlank(key)) {
-      return ResponseEntity.ok(
-          new TestConnectionResult(false, "LiteLLM API key is not configured"));
+      return new TestConnectionResult(false, "LiteLLM API key is not configured", List.of());
     }
     try {
-      boolean ok = probeModels(baseUrl, key);
-      return ResponseEntity.ok(
-          new TestConnectionResult(
-              ok, ok ? "Connection successful" : "LiteLLM returned an error from /models"));
+      ModelsProbe result = probeModels(baseUrl, key);
+      String message =
+          result.ok()
+              ? (successMessage != null
+                  ? successMessage + " — " + result.models().size() + " model(s) available"
+                  : "OK")
+              : "LiteLLM returned an error from /models";
+      return new TestConnectionResult(result.ok(), message, result.models());
     } catch (Exception e) {
       String detail = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
       // A common footgun: from inside the container, localhost is the app itself — not the gateway.
       if (baseUrl.contains("localhost") || baseUrl.contains("127.0.0.1")) {
         detail +=
-            " (note: this test runs server-side; use the gateway's network host, e.g."
+            " (note: this runs server-side; use the gateway's network host, e.g."
                 + " http://litellm:4000/v1, not localhost)";
       }
-      return ResponseEntity.ok(new TestConnectionResult(false, "Connection failed: " + detail));
+      return new TestConnectionResult(false, "Connection failed: " + detail, List.of());
     }
   }
 
@@ -193,8 +222,15 @@ public class AiSettingsController {
     return s != null && !s.isBlank();
   }
 
-  /** GET {baseUrl}/models with a Bearer key; 2xx means the gateway is reachable and authorized. */
-  private boolean probeModels(String baseUrl, String key) throws Exception {
+  /** Outcome of probing {baseUrl}/models: reachable+authorized, plus the model ids it exposes. */
+  private record ModelsProbe(boolean ok, List<ModelEntry> models) {}
+
+  /**
+   * GET {baseUrl}/models with a Bearer key; 2xx means the gateway is reachable and authorized. On
+   * success the OpenAI-style {@code data[].id} list is returned so the UI can offer exactly the
+   * models this key/team is allowed to use, instead of free-text or stale defaults.
+   */
+  private ModelsProbe probeModels(String baseUrl, String key) throws Exception {
     String url = baseUrl.replaceAll("/+$", "") + "/models";
     HttpRequest req =
         HttpRequest.newBuilder()
@@ -206,6 +242,26 @@ public class AiSettingsController {
             .build();
     HttpResponse<String> resp =
         HttpClient.newHttpClient().send(req, HttpResponse.BodyHandlers.ofString());
-    return resp.statusCode() >= 200 && resp.statusCode() < 300;
+    boolean ok = resp.statusCode() >= 200 && resp.statusCode() < 300;
+    return new ModelsProbe(ok, ok ? parseModelList(resp.body()) : List.of());
+  }
+
+  /** Extract model ids from an OpenAI-compatible {@code {"data":[{"id":...}]}} list response. */
+  private List<ModelEntry> parseModelList(String body) {
+    List<ModelEntry> out = new ArrayList<>();
+    try {
+      JsonNode data = mapper.readTree(body).path("data");
+      if (data.isArray()) {
+        for (JsonNode node : data) {
+          String id = node.path("id").asText(null);
+          if (notBlank(id)) {
+            out.add(new ModelEntry(id, null));
+          }
+        }
+      }
+    } catch (Exception e) {
+      log.warn("[AI] Could not parse /models response as a model list: {}", e.getMessage());
+    }
+    return out;
   }
 }

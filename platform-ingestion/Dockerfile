@@ -1,7 +1,7 @@
 # Runtime built on the shared platform-base image (infrastructure/docker/base.Dockerfile).
 # JRE, OS packages, the non-root user, and the JVM entrypoint all come from the base.
-# Override BASE_IMAGE to use a registry-published base (e.g. in CI).
-ARG BASE_IMAGE=platform-base:local
+# Defaults to the registry-published base; CI overrides BASE_IMAGE to pin the exact run's sha.
+ARG BASE_IMAGE=ghcr.io/ndviet/platform-base:main
 FROM ${BASE_IMAGE}
 
 # Pre-create the blob directory with platform ownership so that when Docker

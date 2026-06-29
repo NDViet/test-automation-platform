@@ -283,10 +283,27 @@ public class DefaultContextAssembler implements ContextAssembler {
       case WEBHOOK -> List.of(AgentTaskType.ANALYZE_PR_DIFF, AgentTaskType.DETECT_COVERAGE_GAPS);
       case SCHEDULE ->
           List.of(AgentTaskType.GENERATE_NIGHTLY_DIGEST, AgentTaskType.INVESTIGATE_FLAKINESS);
-      case MANUAL ->
-          List.of(
-              AgentTaskType.EXTRACT_ACCEPTANCE_CRITERIA, AgentTaskType.GENERATE_MANUAL_TEST_CASES);
+      case MANUAL -> inferManualTasks(trigger);
       case API_CALL -> List.of(AgentTaskType.GENERATE_AUTOMATED_TESTS);
     };
+  }
+
+  /**
+   * A MANUAL trigger fires several distinct flows; the controller records which one in {@code
+   * entityType} (e.g. {@code generate_test_cases}, {@code generate_automation_code}). Routing must
+   * honour that so the request reaches the node actually registered for it — otherwise the workflow
+   * runs unrelated tasks (e.g. acceptance-criteria extraction) and never the requested generation.
+   */
+  private List<AgentTaskType> inferManualTasks(TriggerRef trigger) {
+    String entityType = trigger.entityType();
+    if ("generate_test_cases".equals(entityType)) {
+      return List.of(AgentTaskType.GENERATE_TEST_CASES);
+    }
+    if ("generate_automation_code".equals(entityType)) {
+      return List.of(AgentTaskType.GENERATE_AUTOMATION_CODE);
+    }
+    // Legacy/generic manual trigger.
+    return List.of(
+        AgentTaskType.EXTRACT_ACCEPTANCE_CRITERIA, AgentTaskType.GENERATE_MANUAL_TEST_CASES);
   }
 }

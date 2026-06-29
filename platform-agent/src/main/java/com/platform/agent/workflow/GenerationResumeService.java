@@ -25,9 +25,9 @@ import org.springframework.web.server.ResponseStatusException;
 
 /**
  * Resumes a parked generation workflow after the user answers clarifying questions. The answer
- * submission is validated + recorded synchronously (so the caller gets 409 on a bad state), then the
- * conversation is resumed asynchronously from its checkpoint. Multi-round is supported up to the
- * run's {@code maxRounds} cap; at the cap the agent is told to proceed with best effort.
+ * submission is validated + recorded synchronously (so the caller gets 409 on a bad state), then
+ * the conversation is resumed asynchronously from its checkpoint. Multi-round is supported up to
+ * the run's {@code maxRounds} cap; at the cap the agent is told to proceed with best effort.
  */
 @Service
 public class GenerationResumeService {
@@ -141,8 +141,7 @@ public class GenerationResumeService {
     if (result.needsInput()) {
       int round = (int) clarificationRepo.countByWorkflowId(workflowId) + 1;
       clarificationRepo.save(
-          new GenerationClarification(
-              workflowId, round, result.summary(), result.checkpointId()));
+          new GenerationClarification(workflowId, round, result.summary(), result.checkpointId()));
       workflow.markAwaitingInput();
       workflowRepo.save(workflow);
       publishEvent(workflowId, "AWAITING_INPUT");

@@ -1,6 +1,13 @@
-import { useState } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import { Loader2, Sparkles, MessageCircleQuestion, CheckCircle2, AlertTriangle } from 'lucide-react'
+import {
+  Loader2,
+  Sparkles,
+  MessageCircleQuestion,
+  CheckCircle2,
+  AlertTriangle,
+  ClipboardCheck,
+} from 'lucide-react'
 import { api } from '@/lib/api'
 import type { ClarificationAnswer, ClarificationRound } from '@/lib/types'
 
@@ -34,6 +41,45 @@ export default function GenerationProgress({
   const state = status?.status ?? 'RUNNING'
   const answered = (status?.rounds ?? []).filter(r => r.status === 'ANSWERED')
 
+  // Live token stream over WebSocket — the agent relays throttled previews via Redis. This is the
+  // heartbeat: while previews keep arriving the run is provably still transferring content. The
+  // poll above remains the source of truth for the terminal status.
+  const [live, setLive] = useState<{ chars: number; preview: string } | null>(null)
+  const wsRef = useRef<WebSocket | null>(null)
+  const terminal = TERMINAL.has(state)
+
+  useEffect(() => {
+    if (terminal) {
+      wsRef.current?.close()
+      return
+    }
+    const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    const url = `${proto}//${window.location.host}/ws/generations/${workflowId}`
+    let ws: WebSocket
+    try {
+      ws = new WebSocket(url)
+    } catch {
+      return // fall back to polling-only
+    }
+    wsRef.current = ws
+    ws.onmessage = ev => {
+      try {
+        const msg = JSON.parse(ev.data as string)
+        if (msg.type === 'token') setLive({ chars: msg.chars ?? 0, preview: msg.preview ?? '' })
+        else if (msg.type === 'started') setLive({ chars: 0, preview: '' })
+      } catch {
+        /* ignore malformed frames */
+      }
+    }
+    return () => {
+      try {
+        ws.close()
+      } catch {
+        /* ignore */
+      }
+    }
+  }, [workflowId, terminal])
+
   return (
     <div className="px-5 py-5 space-y-4 overflow-y-auto">
       {/* State banner */}
@@ -60,13 +106,32 @@ export default function GenerationProgress({
           title="Generation failed"
           body="The run did not finish. Check AI settings (LiteLLM) and try again."
         />
-      ) : (
+      ) : state === 'AWAITING_REVIEW' ? (
         <Banner
-          icon={<Loader2 className="animate-spin text-purple-600" size={22} />}
-          tone="purple"
-          title="Generating…"
-          body="Claude is working. If it needs clarification it will pause and ask you here."
+          icon={<ClipboardCheck className="text-amber-600" size={22} />}
+          tone="amber"
+          title="Awaiting review"
+          body="The run produced output that is paused for human review. Approve it in the Review Queue to finish."
         />
+      ) : (
+        <>
+          <Banner
+            icon={<Loader2 className="animate-spin text-purple-600" size={22} />}
+            tone="purple"
+            title={live && live.chars > 0 ? `Generating… (${live.chars} chars)` : 'Generating…'}
+            body={
+              live
+                ? 'Streaming live from the model — content is still transferring.'
+                : 'Claude is working. If it needs clarification it will pause and ask you here.'
+            }
+          />
+          {live && live.preview && (
+            <pre className="max-h-48 overflow-y-auto whitespace-pre-wrap break-words rounded-lg border border-slate-200 bg-slate-50 p-3 text-xs font-mono text-slate-600">
+              {live.preview}
+              <span className="animate-pulse">▌</span>
+            </pre>
+          )}
+        </>
       )}
 
       {/* Transcript of answered rounds */}
@@ -112,14 +177,16 @@ function Banner({
   icon: React.ReactNode
   title: string
   body: string
-  tone: 'green' | 'red' | 'purple'
+  tone: 'green' | 'red' | 'purple' | 'amber'
 }) {
   const ring =
     tone === 'green'
       ? 'bg-green-50 border-green-200'
       : tone === 'red'
         ? 'bg-red-50 border-red-200'
-        : 'bg-purple-50 border-purple-200'
+        : tone === 'amber'
+          ? 'bg-amber-50 border-amber-200'
+          : 'bg-purple-50 border-purple-200'
   return (
     <div className={`flex items-start gap-3 rounded-lg border px-4 py-3 ${ring}`}>
       {icon}

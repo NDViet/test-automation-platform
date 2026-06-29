@@ -7,13 +7,12 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.platform.agent.contract.AgentGridFixtures;
 import com.platform.agent.hub.NodeRegistry;
 import com.platform.agent.hub.ReviewGateway;
 import com.platform.agent.hub.TaskRouter;
 import com.platform.agent.hub.graph.TokenBudgetGuard;
 import com.platform.agent.node.AgentNode;
-import com.platform.agent.node.AgentOrchestrator;
-import com.platform.agent.contract.AgentGridFixtures;
 import com.platform.common.agent.AgentTaskType;
 import com.platform.common.agent.ContextBundle;
 import com.platform.common.agent.NodeResult;
@@ -43,13 +42,15 @@ class AgentWorkflowServiceTest {
   @Mock TaskRouter router;
   @Mock NodeRegistry registry;
   @Mock ReviewGateway reviewGateway;
-  @Mock AgentOrchestrator orchestrator;
   @Mock TokenBudgetGuard budgetGuard;
   @Mock KafkaTemplate<String, String> kafka;
   @Mock GenerationClarificationRepository clarificationRepo;
 
   AgentWorkflowService service;
   private final UUID workflowId = UUID.randomUUID();
+
+  /** Result the stub node returns from execute(); set per-test before executeWorkflow. */
+  private NodeResult nodeResult;
 
   private AgentNode genNode() {
     return new AgentNode() {
@@ -65,7 +66,7 @@ class AgentWorkflowServiceTest {
 
       @Override
       public NodeResult execute(ContextBundle bundle) {
-        return null;
+        return nodeResult;
       }
     };
   }
@@ -79,7 +80,6 @@ class AgentWorkflowServiceTest {
             router,
             registry,
             reviewGateway,
-            orchestrator,
             budgetGuard,
             List.of(genNode()),
             kafka,
@@ -89,7 +89,8 @@ class AgentWorkflowServiceTest {
 
   @Test
   void awaitingInputPersistsClarificationAndParksWorkflow() {
-    AgentWorkflow workflow = new AgentWorkflow(UUID.randomUUID(), "MANUAL", null, java.util.Map.of());
+    AgentWorkflow workflow =
+        new AgentWorkflow(UUID.randomUUID(), "MANUAL", null, java.util.Map.of());
     when(workflowRepo.findById(workflowId)).thenReturn(Optional.of(workflow));
     when(budgetGuard.isWithinBudget(any())).thenReturn(true);
     when(router.plan(any()))
@@ -99,16 +100,15 @@ class AgentWorkflowServiceTest {
                     UUID.randomUUID(), AgentTaskType.GENERATE_TEST_CASES, 0)));
     ContextBundle bundle = AgentGridFixtures.bundle();
     String questions = "[{\"id\":\"q1\",\"question\":\"Which browsers?\"}]";
-    when(orchestrator.run(any(), any()))
-        .thenReturn(
-            NodeResult.awaitingInput(
-                bundle.sessionId(),
-                workflowId,
-                NodeType.TEST_GENERATION,
-                AgentTaskType.GENERATE_TEST_CASES,
-                questions,
-                "chk-1",
-                TokenUsage.zero()));
+    nodeResult =
+        NodeResult.awaitingInput(
+            bundle.sessionId(),
+            workflowId,
+            NodeType.TEST_GENERATION,
+            AgentTaskType.GENERATE_TEST_CASES,
+            questions,
+            "chk-1",
+            TokenUsage.zero());
 
     service.executeWorkflow(workflowId, bundle);
 
@@ -120,6 +120,6 @@ class AgentWorkflowServiceTest {
     assertThat(cap.getValue().getCheckpointId()).isEqualTo("chk-1");
     assertThat(cap.getValue().getStatus()).isEqualTo("PENDING");
     assertThat(workflow.getStatus()).isEqualTo("AWAITING_INPUT");
-    verify(reviewGateway, never()).requestReview(any(), any());
+    verify(reviewGateway, never()).requestReview(any(), any(), any());
   }
 }

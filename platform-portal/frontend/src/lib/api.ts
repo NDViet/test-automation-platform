@@ -148,6 +148,8 @@ export const api = {
     put<import('./types').AiSettings>('/ai/settings', body),
   testAiConnection: (body: { liteLlmBaseUrl?: string; liteLlmApiKey?: string }) =>
     post<import('./types').TestConnectionResult>('/ai/settings/test', body),
+  fetchAiModels: (body: { liteLlmBaseUrl?: string; liteLlmApiKey?: string }) =>
+    post<import('./types').TestConnectionResult>('/ai/settings/models', body),
   scopedAiEffective: (projectId: string) =>
     get<Record<string, string | null>>(`/ai/settings/scoped/effective?projectId=${projectId}`),
   setScopedAi: (scope: string, scopeId: string, key: string, value: string) =>

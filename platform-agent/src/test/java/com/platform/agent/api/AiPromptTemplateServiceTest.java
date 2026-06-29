@@ -51,7 +51,8 @@ class AiPromptTemplateServiceTest {
         .thenReturn(Optional.of(prior));
     when(repo.save(any(AiPromptTemplate.class))).thenAnswer(inv -> inv.getArgument(0));
 
-    service.create(projectId, new AiPromptTemplateRequest("SYSTEM", "new", "new body", true), "carol");
+    service.create(
+        projectId, new AiPromptTemplateRequest("SYSTEM", "new", "new body", true), "carol");
 
     // prior default is demoted (two unsaved entities share a null id, so we assert on state
     // rather than verify(save) which equals() would conflate)

@@ -393,10 +393,14 @@ services:
       PLATFORM_CRED_KEY: ${PLATFORM_CRED_KEY:-}
       # Service-account key the portal sends to ingestion (same as ingestion's PLATFORM_PORTAL_KEY)
       PLATFORM_PORTAL_KEY: ${PLATFORM_PORTAL_KEY:-}
+      # Shared Redis — portal subscribes to gen:progress:* events the agent publishes.
+      REDIS_HOST: redis
+      REDIS_PORT: "6379"
       SPRING_PROFILES_ACTIVE: docker
     depends_on:
       - platform-ingestion
       - platform-analytics
+      - redis
     profiles:
       - services
 

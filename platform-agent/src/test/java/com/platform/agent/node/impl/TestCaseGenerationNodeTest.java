@@ -13,6 +13,7 @@ import com.platform.agent.api.AiPromptTemplateService;
 import com.platform.agent.contract.AgentGridFixtures;
 import com.platform.agent.node.AgentNode;
 import com.platform.agent.node.AgentOrchestrator;
+import com.platform.common.agent.AgentTaskType;
 import com.platform.common.agent.ArtifactManifest;
 import com.platform.common.agent.ContextBundle;
 import com.platform.common.agent.NodeResult;
@@ -28,7 +29,6 @@ import com.platform.core.repository.AiSkillRepository;
 import com.platform.core.repository.PlatformRequirementRepository;
 import com.platform.core.repository.PlatformTestCaseRepository;
 import com.platform.core.repository.TestCaseStepRepository;
-import com.platform.common.agent.AgentTaskType;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -69,7 +69,9 @@ class TestCaseGenerationNodeTest {
             skillRepo,
             fileRepo,
             blobStore);
-    bundle = AgentGridFixtures.bundle(AgentGridFixtures.manualTrigger(AgentGridFixtures.PROJECT_ID.toString()));
+    bundle =
+        AgentGridFixtures.bundle(
+            AgentGridFixtures.manualTrigger(AgentGridFixtures.PROJECT_ID.toString()));
   }
 
   private NodeResult completed(String summary) {
@@ -107,10 +109,12 @@ class TestCaseGenerationNodeTest {
         .thenReturn(List.of()); // free-text-only generation
     when(promptTemplateService.resolveDefault(bundle.projectId(), "SYSTEM"))
         .thenReturn("SYS DEFAULT");
-    when(promptTemplateService.resolveDefault(bundle.projectId(), "USER")).thenReturn("USR DEFAULT");
+    when(promptTemplateService.resolveDefault(bundle.projectId(), "USER"))
+        .thenReturn("USR DEFAULT");
     when(skillRepo.findById(skillId))
         .thenReturn(
-            Optional.of(new AiSkill(bundle.projectId(), "API", null, "COVER 4XX/5XX", true, "bob")));
+            Optional.of(
+                new AiSkill(bundle.projectId(), "API", null, "COVER 4XX/5XX", true, "bob")));
     when(orchestrator.run(any(), any())).thenReturn(completed("[]"));
     when(runRepo.save(any(AiGenerationRun.class))).thenAnswer(i -> i.getArgument(0));
 

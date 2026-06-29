@@ -220,6 +220,8 @@ export interface AiSettingsUpdate {
 export interface TestConnectionResult {
   success: boolean
   message: string
+  /** Model ids the gateway exposes for this key/team (from {baseUrl}/models). */
+  models?: LiteLlmModel[]
 }
 
 export interface AnalyseNowResult {

@@ -82,7 +82,6 @@ class GenerationStatusServiceTest {
     assertThatThrownBy(() -> service.getStatus(projectId, workflowId))
         .isInstanceOf(ResponseStatusException.class)
         .satisfies(
-            e ->
-                assertThat(((ResponseStatusException) e).getStatusCode().value()).isEqualTo(404));
+            e -> assertThat(((ResponseStatusException) e).getStatusCode().value()).isEqualTo(404));
   }
 }

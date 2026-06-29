@@ -49,7 +49,8 @@ class GenerationInputServiceTest {
 
   @Test
   void validateRejectsWhenNoInputSource() {
-    assertThatThrownBy(() -> service.validate(projectId, req(List.of(), "  ", List.of(), List.of())))
+    assertThatThrownBy(
+            () -> service.validate(projectId, req(List.of(), "  ", List.of(), List.of())))
         .isInstanceOf(ResponseStatusException.class)
         .satisfies(e -> assertThat(status(e)).isEqualTo(400));
   }
