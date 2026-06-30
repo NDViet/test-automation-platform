@@ -2,9 +2,14 @@ import { forwardRef } from 'react'
 import { ChevronDown } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
-export const Select = forwardRef<HTMLSelectElement, React.SelectHTMLAttributes<HTMLSelectElement>>(
-  ({ className, children, ...props }, ref) => (
-    <div className="relative inline-flex w-full">
+interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
+  /** Classes for the wrapper (e.g. width). Defaults to full width. */
+  containerClassName?: string
+}
+
+export const Select = forwardRef<HTMLSelectElement, SelectProps>(
+  ({ className, containerClassName, children, ...props }, ref) => (
+    <div className={cn('relative inline-flex w-full', containerClassName)}>
       <select
         ref={ref}
         className={cn(

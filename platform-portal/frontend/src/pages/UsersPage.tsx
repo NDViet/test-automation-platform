@@ -1,8 +1,9 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { UserPlus, KeyRound, ShieldCheck, Trash2, Plus, Search } from 'lucide-react'
+import { UserPlus, KeyRound, ShieldCheck, Trash2, Plus, Search, Users } from 'lucide-react'
 import { api } from '@/lib/api'
 import type { AdminUser } from '@/lib/types'
+import { Button, Card, CardBody, Input, Select, PageHeader, StatusBadge } from '@/components/ui'
 
 const ROLES = ['VIEWER', 'TESTER', 'PROJECT_ADMIN', 'ORG_ADMIN'] as const
 
@@ -65,61 +66,65 @@ export default function UsersPage() {
   })
 
   return (
-    <div className="mx-auto w-full max-w-5xl flex-1 min-h-0 overflow-y-auto space-y-6 p-6">
-      <header>
-        <h1 className="text-xl font-semibold text-slate-800">Users &amp; Roles</h1>
-        <p className="text-sm text-slate-500">
-          Create users and manage their role grants. Admin-created users must change their password
-          on first sign-in.
-        </p>
-      </header>
+    <div className="mx-auto w-full max-w-4xl flex-1 min-h-0 overflow-y-auto scrollbar-thin space-y-5">
+      <PageHeader
+        title="Users & Roles"
+        icon={<Users size={20} />}
+        description="Create users and manage their role grants. Admin-created users must change their password on first sign-in."
+      />
 
       {error && (
-        <div className="rounded-md border border-rose-200 bg-rose-50 px-4 py-2 text-sm text-rose-700">
+        <div
+          role="alert"
+          className="rounded-md border border-danger-border bg-danger-bg px-4 py-2 text-sm text-danger"
+        >
           {error}
         </div>
       )}
 
       {/* Create user */}
-      <section className="rounded-lg border border-slate-200 bg-white p-4">
-        <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-slate-700">
-          <UserPlus size={16} /> New user
-        </h2>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
-          <input
-            className="rounded border border-slate-300 px-3 py-2 text-sm"
-            placeholder="username"
-            value={form.username}
-            onChange={e => setForm({ ...form, username: e.target.value })}
-          />
-          <input
-            className="rounded border border-slate-300 px-3 py-2 text-sm"
-            placeholder="display name"
-            value={form.displayName}
-            onChange={e => setForm({ ...form, displayName: e.target.value })}
-          />
-          <input
-            className="rounded border border-slate-300 px-3 py-2 text-sm"
-            placeholder="email (optional)"
-            value={form.email}
-            onChange={e => setForm({ ...form, email: e.target.value })}
-          />
-          <input
-            className="rounded border border-slate-300 px-3 py-2 text-sm"
-            placeholder="temp password"
-            type="text"
-            value={form.tempPassword}
-            onChange={e => setForm({ ...form, tempPassword: e.target.value })}
-          />
-        </div>
-        <button
-          className="mt-3 inline-flex items-center gap-2 rounded-md bg-blue-600 px-3 py-2 text-sm font-medium text-white disabled:opacity-50"
-          disabled={!form.username || !form.tempPassword || createMut.isPending}
-          onClick={() => createMut.mutate()}
-        >
-          <UserPlus size={15} /> Create user
-        </button>
-      </section>
+      <Card>
+        <CardBody>
+          <h2 className="mb-3 flex items-center gap-2 text-sm font-semibold text-fg">
+            <UserPlus size={16} className="text-fg-muted" /> New user
+          </h2>
+          <div className="grid grid-cols-1 gap-3 sm:grid-cols-4">
+            <Input
+              placeholder="username"
+              aria-label="Username"
+              value={form.username}
+              onChange={e => setForm({ ...form, username: e.target.value })}
+            />
+            <Input
+              placeholder="display name"
+              aria-label="Display name"
+              value={form.displayName}
+              onChange={e => setForm({ ...form, displayName: e.target.value })}
+            />
+            <Input
+              placeholder="email (optional)"
+              aria-label="Email"
+              value={form.email}
+              onChange={e => setForm({ ...form, email: e.target.value })}
+            />
+            <Input
+              placeholder="temp password"
+              aria-label="Temporary password"
+              type="text"
+              value={form.tempPassword}
+              onChange={e => setForm({ ...form, tempPassword: e.target.value })}
+            />
+          </div>
+          <Button
+            className="mt-3"
+            disabled={!form.username || !form.tempPassword}
+            loading={createMut.isPending}
+            onClick={() => createMut.mutate()}
+          >
+            <UserPlus size={15} /> Create user
+          </Button>
+        </CardBody>
+      </Card>
 
       {/* User list */}
       <section className="space-y-3">
@@ -128,23 +133,24 @@ export default function UsersPage() {
           <div className="relative flex-1">
             <Search
               size={15}
-              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+              className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-fg-subtle"
             />
-            <input
-              className="w-full rounded-md border border-slate-300 py-2 pl-9 pr-3 text-sm"
+            <Input
+              className="pl-9"
               placeholder="Filter by username, name, email, or role…"
+              aria-label="Filter users"
               value={filter}
               onChange={e => setFilter(e.target.value)}
             />
           </div>
-          <span className="shrink-0 text-xs text-slate-500">
+          <span className="shrink-0 text-xs text-fg-muted">
             {filtered.length} of {(users ?? []).length}
           </span>
         </div>
 
-        {isLoading && <p className="text-sm text-slate-500">Loading…</p>}
+        {isLoading && <p className="text-sm text-fg-muted">Loading…</p>}
         {!isLoading && filtered.length === 0 && (
-          <p className="py-6 text-center text-sm text-slate-400">No users match “{filter}”.</p>
+          <p className="py-6 text-center text-sm text-fg-subtle">No users match “{filter}”.</p>
         )}
         {filtered.map(u => (
           <UserCard
@@ -207,104 +213,93 @@ function UserCard({
   const targets = isOrgRole ? orgs : projects
 
   return (
-    <div className="rounded-lg border border-slate-200 bg-white p-4">
-      <div className="flex flex-wrap items-center justify-between gap-2">
-        <div>
-          <span className="font-medium text-slate-800">{user.username}</span>
-          {user.displayName && (
-            <span className="ml-2 text-sm text-slate-500">{user.displayName}</span>
-          )}
-          {user.superAdmin && (
-            <span className="ml-2 rounded bg-violet-100 px-1.5 py-0.5 text-[11px] font-medium text-violet-700">
-              super-admin
-            </span>
-          )}
-          {!user.enabled && (
-            <span className="ml-2 rounded bg-slate-200 px-1.5 py-0.5 text-[11px] text-slate-600">
-              disabled
-            </span>
-          )}
-          {user.mustChangePassword && (
-            <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[11px] text-amber-700">
-              must change pw
-            </span>
-          )}
-        </div>
-        <div className="flex gap-2">
-          <button
-            className="inline-flex items-center gap-1 rounded border border-slate-300 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50"
-            onClick={onReset}
-          >
-            <KeyRound size={13} /> Reset password
-          </button>
-          <button
-            className="inline-flex items-center gap-1 rounded border border-slate-300 px-2 py-1 text-xs text-slate-600 hover:bg-slate-50 disabled:opacity-40"
-            onClick={onToggleEnabled}
-            disabled={user.superAdmin && user.enabled}
-            title={user.superAdmin && user.enabled ? 'Super-admins stay enabled' : undefined}
-          >
-            {user.enabled ? 'Disable' : 'Enable'}
-          </button>
-        </div>
-      </div>
-
-      {/* Role grants */}
-      <div className="mt-3 flex flex-wrap gap-1.5">
-        {user.roles.length === 0 && <span className="text-xs text-slate-400">No role grants</span>}
-        {user.roles.map(g => (
-          <span
-            key={g.id}
-            className="inline-flex items-center gap-1 rounded bg-slate-100 px-2 py-0.5 text-[11px] text-slate-600"
-          >
-            <ShieldCheck size={11} />
-            {g.role} · {g.scope.toLowerCase()}
-            <button
-              className="text-slate-400 hover:text-rose-600"
-              title="Revoke"
-              onClick={() => onRevoke(g.id)}
+    <Card>
+      <CardBody>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="font-medium text-fg">{user.username}</span>
+            {user.displayName && <span className="text-sm text-fg-muted">{user.displayName}</span>}
+            {user.superAdmin && <StatusBadge variant="primary">super-admin</StatusBadge>}
+            {!user.enabled && <StatusBadge variant="neutral">disabled</StatusBadge>}
+            {user.mustChangePassword && (
+              <StatusBadge variant="warning">must change pw</StatusBadge>
+            )}
+          </div>
+          <div className="flex gap-2">
+            <Button variant="secondary" size="sm" onClick={onReset}>
+              <KeyRound size={13} /> Reset password
+            </Button>
+            <Button
+              variant="secondary"
+              size="sm"
+              onClick={onToggleEnabled}
+              disabled={user.superAdmin && user.enabled}
+              title={user.superAdmin && user.enabled ? 'Super-admins stay enabled' : undefined}
             >
-              <Trash2 size={11} />
-            </button>
-          </span>
-        ))}
-      </div>
+              {user.enabled ? 'Disable' : 'Enable'}
+            </Button>
+          </div>
+        </div>
 
-      {/* Grant a role */}
-      <div className="mt-3 flex flex-wrap items-center gap-2">
-        <select
-          className="rounded border border-slate-300 px-2 py-1 text-xs"
-          value={role}
-          onChange={e => {
-            setRole(e.target.value as (typeof ROLES)[number])
-            setScopeId('')
-          }}
-        >
-          {ROLES.map(r => (
-            <option key={r} value={r}>
-              {r}
-            </option>
+        {/* Role grants */}
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {user.roles.length === 0 && <span className="text-xs text-fg-subtle">No role grants</span>}
+          {user.roles.map(g => (
+            <StatusBadge key={g.id} variant="neutral" className="rounded-md">
+              <ShieldCheck size={11} />
+              {g.role} · {g.scope.toLowerCase()}
+              <button
+                className="text-fg-subtle hover:text-danger"
+                title="Revoke role"
+                aria-label={`Revoke ${g.role}`}
+                onClick={() => onRevoke(g.id)}
+              >
+                <Trash2 size={11} />
+              </button>
+            </StatusBadge>
           ))}
-        </select>
-        <select
-          className="rounded border border-slate-300 px-2 py-1 text-xs"
-          value={scopeId}
-          onChange={e => setScopeId(e.target.value)}
-        >
-          <option value="">{isOrgRole ? 'Select organization…' : 'Select project…'}</option>
-          {targets.map(t => (
-            <option key={t.id} value={t.id}>
-              {t.name}
-            </option>
-          ))}
-        </select>
-        <button
-          className="inline-flex items-center gap-1 rounded bg-blue-600 px-2 py-1 text-xs font-medium text-white disabled:opacity-50"
-          disabled={!scopeId || grantMut.isPending}
-          onClick={() => grantMut.mutate()}
-        >
-          <Plus size={13} /> Grant
-        </button>
-      </div>
-    </div>
+        </div>
+
+        {/* Grant a role */}
+        <div className="mt-3 flex flex-wrap items-center gap-2">
+          <Select
+            containerClassName="w-auto"
+            aria-label="Role"
+            value={role}
+            onChange={e => {
+              setRole(e.target.value as (typeof ROLES)[number])
+              setScopeId('')
+            }}
+          >
+            {ROLES.map(r => (
+              <option key={r} value={r}>
+                {r}
+              </option>
+            ))}
+          </Select>
+          <Select
+            containerClassName="w-auto min-w-[12rem]"
+            aria-label={isOrgRole ? 'Organization' : 'Project'}
+            value={scopeId}
+            onChange={e => setScopeId(e.target.value)}
+          >
+            <option value="">{isOrgRole ? 'Select organization…' : 'Select project…'}</option>
+            {targets.map(t => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+              </option>
+            ))}
+          </Select>
+          <Button
+            size="sm"
+            disabled={!scopeId}
+            loading={grantMut.isPending}
+            onClick={() => grantMut.mutate()}
+          >
+            <Plus size={13} /> Grant
+          </Button>
+        </div>
+      </CardBody>
+    </Card>
   )
 }
