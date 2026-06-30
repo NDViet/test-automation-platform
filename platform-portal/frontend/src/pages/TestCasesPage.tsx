@@ -15,6 +15,8 @@ import type {
   GenerateTestCasesRequestBody,
 } from '@/lib/types'
 import Badge from '@/components/Badge'
+import { Button, PageHeader } from '@/components/ui'
+import { usePageWidth } from '@/components/layout/PageWidth'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import ErrorMessage from '@/components/ErrorMessage'
 import Markdown from '@/components/Markdown'
@@ -49,61 +51,61 @@ import {
 
 // ── Color helpers ──────────────────────────────────────────────────────────────
 
+// Badge color helpers — return design-token class pairs (see lib/status.ts for the
+// shared StatusVariant mapping these mirror).
 function statusColor(status: string): string {
   switch (status) {
-    case 'DRAFT':
-      return 'text-slate-600 bg-slate-100'
     case 'UNDER_REVIEW':
-      return 'text-yellow-700 bg-yellow-100'
+      return 'text-warning bg-warning-bg'
     case 'APPROVED':
-      return 'text-green-700 bg-green-100'
+      return 'text-success bg-success-bg'
     case 'DEPRECATED':
-      return 'text-red-700 bg-red-100'
+      return 'text-danger bg-danger-bg'
+    case 'DRAFT':
     default:
-      return 'text-slate-600 bg-slate-100'
+      return 'text-neutral bg-neutral-bg'
   }
 }
 
 function priorityColor(priority: string): string {
   switch (priority) {
     case 'CRITICAL':
-      return 'text-red-700 bg-red-100'
+      return 'text-danger bg-danger-bg'
     case 'HIGH':
-      return 'text-orange-700 bg-orange-100'
+      return 'text-warning bg-warning-bg'
     case 'MEDIUM':
-      return 'text-yellow-700 bg-yellow-100'
+      return 'text-info bg-info-bg'
     case 'LOW':
-      return 'text-slate-600 bg-slate-100'
     default:
-      return 'text-slate-600 bg-slate-100'
+      return 'text-neutral bg-neutral-bg'
   }
 }
 
 function automationColor(automationStatus: string): string {
   switch (automationStatus) {
     case 'GENERATING':
-      return 'text-blue-700 bg-blue-100'
+      return 'text-info bg-info-bg'
     case 'PR_CREATED':
-      return 'text-purple-700 bg-purple-100'
+      return 'text-primary-subtle-fg bg-primary-subtle'
     case 'PR_MERGED':
-      return 'text-green-700 bg-green-100'
+      return 'text-success bg-success-bg'
     case 'FAILED':
-      return 'text-red-700 bg-red-100'
+      return 'text-danger bg-danger-bg'
     default:
-      return 'text-slate-500 bg-slate-100'
+      return 'text-neutral bg-neutral-bg'
   }
 }
 
 function coverageColor(status: string): string {
   switch (status) {
     case 'COVERED':
-      return 'text-green-700 bg-green-100'
+      return 'text-success bg-success-bg'
     case 'PARTIAL':
-      return 'text-yellow-700 bg-yellow-100'
+      return 'text-warning bg-warning-bg'
     case 'NOT_COVERED':
-      return 'text-red-700 bg-red-100'
+      return 'text-danger bg-danger-bg'
     default:
-      return 'text-slate-500 bg-slate-100'
+      return 'text-neutral bg-neutral-bg'
   }
 }
 
@@ -2227,6 +2229,7 @@ export default function TestCasesPage() {
   const { filter } = useProjectFilter()
   const queryClient = useQueryClient()
   const { tcId: tcIdParam } = useParams<{ tcId?: string }>()
+  usePageWidth('wide')
 
   const [selectedSuiteId, setSelectedSuiteId] = useState<string | null>(null)
   const [statusFilter, setStatusFilter] = useState('')
@@ -2348,54 +2351,36 @@ export default function TestCasesPage() {
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* ── Header ── */}
-      <div className="flex items-center justify-between mb-4 shrink-0">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Test Cases</h1>
-          <p className="text-sm text-slate-500 mt-0.5">
-            {testCases.length} {testCases.length === 1 ? 'test case' : 'test cases'}
-            {selectedSuiteId ? ` · ${selectedSuiteName}` : ''}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={downloadTemplate}
-            className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
-            title="Download Excel template"
-          >
-            <Download size={15} />
-            Template
-          </button>
-          <button
-            onClick={() => exportTestCases(testCases, `test-cases-${projectId}.xlsx`)}
-            className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
-            title="Export test cases to Excel"
-          >
-            <FileSpreadsheet size={15} />
-            Export
-          </button>
-          <button
-            onClick={() => setShowImportModal(true)}
-            className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-green-700 bg-green-50 border border-green-200 rounded-lg hover:bg-green-100 transition-colors"
-          >
-            <Upload size={15} />
-            Import
-          </button>
-          <button
-            onClick={() => setShowAIModal(true)}
-            className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-purple-700 bg-purple-50 border border-purple-200 rounded-lg hover:bg-purple-100 transition-colors"
-          >
-            <Sparkles size={15} />
-            Generate from AI
-          </button>
-          <button
-            onClick={() => setShowNewModal(true)}
-            className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            <Plus size={15} />
-            New Test Case
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        className="shrink-0"
+        title="Test Cases"
+        description={`${testCases.length} ${
+          testCases.length === 1 ? 'test case' : 'test cases'
+        }${selectedSuiteId ? ` · ${selectedSuiteName}` : ''}`}
+        actions={
+          <>
+            <Button variant="secondary" onClick={downloadTemplate} title="Download Excel template">
+              <Download size={15} /> Template
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => exportTestCases(testCases, `test-cases-${projectId}.xlsx`)}
+              title="Export test cases to Excel"
+            >
+              <FileSpreadsheet size={15} /> Export
+            </Button>
+            <Button variant="secondary" onClick={() => setShowImportModal(true)}>
+              <Upload size={15} /> Import
+            </Button>
+            <Button variant="subtle" onClick={() => setShowAIModal(true)}>
+              <Sparkles size={15} /> Generate from AI
+            </Button>
+            <Button onClick={() => setShowNewModal(true)}>
+              <Plus size={15} /> New Test Case
+            </Button>
+          </>
+        }
+      />
 
       {/* ── Filter bar ── */}
       <div className="flex items-center gap-3 mb-3 shrink-0">
