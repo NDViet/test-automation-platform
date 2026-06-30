@@ -31,6 +31,11 @@
         </dependency>
         <dependency>
             <groupId>org.ndviet</groupId>
+            <artifactId>platform-security</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.ndviet</groupId>
             <artifactId>platform-storage</artifactId>
         </dependency>
         <dependency>

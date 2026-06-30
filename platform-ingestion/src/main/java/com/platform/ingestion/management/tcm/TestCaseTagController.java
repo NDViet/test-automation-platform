@@ -2,6 +2,8 @@ package com.platform.ingestion.management.tcm;
 
 import com.platform.core.domain.TestCaseTag;
 import com.platform.core.repository.TestCaseTagRepository;
+import com.platform.security.authz.Capability;
+import com.platform.security.web.RequireCapability;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
 import java.util.UUID;
@@ -15,6 +17,7 @@ import org.springframework.web.server.ResponseStatusException;
 /** Kiwi-style tags on test cases, plus project-wide tag suggestions for typeahead. */
 @RestController
 @Tag(name = "Test Case Management")
+@RequireCapability(value = Capability.VIEW_RESULTS, scope = "projectId")
 public class TestCaseTagController {
 
   public record TagRequest(String name) {}
@@ -31,12 +34,14 @@ public class TestCaseTagController {
   }
 
   @PostMapping("/api/v1/projects/{projectId}/test-cases/{caseId}/tags")
+  @RequireCapability(value = Capability.OPERATE_QUALITY, scope = "projectId")
   public List<String> add(
       @PathVariable UUID projectId, @PathVariable UUID caseId, @RequestBody TagRequest req) {
     return service.add(caseId, req.name());
   }
 
   @DeleteMapping("/api/v1/projects/{projectId}/test-cases/{caseId}/tags/{name}")
+  @RequireCapability(value = Capability.OPERATE_QUALITY, scope = "projectId")
   public ResponseEntity<Void> remove(
       @PathVariable UUID projectId, @PathVariable UUID caseId, @PathVariable String name) {
     service.remove(caseId, name);

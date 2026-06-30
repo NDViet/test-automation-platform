@@ -1,155 +1,181 @@
-# TODO — Agent Management & Task Assignment
+# TODO — Platform-wide Authentication & RBAC
 
-Source spec: `spec/agent-management-spec.md` · Plan: `tasks/plan.md`.
+Source spec: `spec/platform-rbac-spec.md` · Plan: `tasks/plan.md`.
 Convention: TDD per task (RED → GREEN → regression → build), one commit per task. `[ ]` open · `[x]` done.
+Enforcement stays behind `platform.security.enabled` (default **false**) until Phase F cutover.
 
 ---
 
-## Phase A — Foundation (schema + pure resolver)
+## Phase A — Security core (foundation)
 
-- [x] **T1: Flyway `V2__agent_management.sql` + JPA domain**
-  - Create tables `agents`, `task_agent_assignments`, `task_sub_types`; add `agent_id UUID NULL`,
-    `task_sub_type TEXT NULL` to `ai_generation_runs`; add `scope`/`scope_id` to `ai_skills` &
-    `ai_prompt_templates` (default existing rows → `PROJECT` + their `project_id`).
-  - JPA entities `Agent`, `TaskAgentAssignment`, `TaskSubType` + repositories.
-  - **AC:** migration applies on a clean DB and on a DB seeded with existing project skills/templates
-    (existing rows get `PROJECT` scope); entities load; unique constraints enforced
-    (`agents`(scope,scope_id,name), `task_agent_assignments`(scope,scope_id,task_type,sub_type)).
-  - **Verify:** `mvn -pl platform-core -am test`; boot platform-agent against the dev DB (Flyway log
-    shows V2 applied, no validation error); `\d agents` shows columns.
+- [x] **A1: Flyway `V5__auth_rbac.sql` + identity domain + bootstrap super-admin**
+  - `users` + `user_roles` tables; `User`/`UserRole` entities + repos. Bootstrap runner: empty
+    `users` ⇒ create super-admin (`${SUPER_ADMIN_USERNAME:admin}`, BCrypt(`PLATFORM_CRED_KEY`),
+    `is_super_admin`, `must_change_password`); fail fast if `PLATFORM_CRED_KEY` unset; idempotent.
+  - **AC:** migration applies clean; empty DB → one super-admin; non-empty → no-op; missing cred key
+    → startup fails; password is BCrypt (never plaintext).
+  - **Verify:** migration dry-run; `BootstrapAdminRunnerTest` (3 cases).
 
-- [x] **T2: Seed data — built-in default agents + sub-type catalog**
-  - Seed one built-in default `Agent` per supported `AgentTaskType` (system seed prompt, model role,
-    conservative context). Seed `task_sub_types`: `GENERATE_TEST_CASES` → FUNCTIONAL(default),
-    NON_FUNCTIONAL; all other tasks → single `DEFAULT`.
-  - Seeds are non-deletable resolution fallbacks (flag column or well-known ids).
-  - **AC:** after migrate+seed, every supported task resolves to a seed agent with no user data;
-    seed rows cannot be deleted via the CRUD API (returns 409/forbidden).
-  - **Verify:** unit test asserts a seed agent exists for each task; delete-seed test rejects.
+- [x] **A2: `platform-security` module — JWT + capability model (pure)**
+  - New module (root pom) depending on platform-core. `JwtService` (HS256 sign/verify/expiry,
+    `PLATFORM_JWT_SECRET`), `AuthenticatedUser`, `Capability` enum + `Tier`, `RoleResolver` (reads
+    `user_roles`), `PermissionEvaluator.require(user, capability, scope, scopeId)`.
+  - **AC:** tier math for every role × capability × scope (allow/deny incl. SUPER-always,
+    AI-gateway/ADO-import → SUPER, Tester=OPERATE, Viewer=VIEW); JWT verify rejects tampered/expired.
+  - **Verify:** `PermissionEvaluatorTest`, `JwtServiceTest` green.
 
-- [x] **T3: `AgentResolutionService` (the heart) — cascade + assembly**
-  - Implement: resolve agent for (projectId, taskType, subType, explicitAgentId?) →
-    explicit → project assignment → org assignment → seed; subType defaulting; produce
-    `EffectiveAgentConfig` (composed system prompt = persona + template/seed + skills; user prompt;
-    model id via model_id→role→tier; context toggles; maxRounds). Pure, no LLM, no I/O beyond repos.
-  - **AC:** unit tests cover all four cascade branches, subtype default fallback, name-shadowing
-    (project shadows org), prompt composition **order**, model override precedence
-    (`model_id` > `model_role` > task tier), and out-of-scope reference rejection.
-  - **Verify:** `mvn -pl platform-agent -am -Dtest=AgentResolutionServiceTest test` green.
+- [x] **A3: Security filter + `@RequireCapability` (flag-gated auto-config)**
+  - `JwtAuthFilter` → populates principal; `SecurityFilterChain` requiring auth on `/hub/**`,`/api/**`
+    (actuator open) **only when `platform.security.enabled`**; `@RequireCapability(cap, scopeParam)`
+    method annotation + aspect calling the evaluator.
+  - **AC:** valid token authenticates; missing/invalid → 401; annotated method with insufficient role
+    → 403; flag off → no enforcement (pass-through).
+  - **Verify:** module slice test (mock filter chain) for 401/403/allow + flag-off pass-through.
 
-- [x] **CHECKPOINT A** — migration applies (transactional dry-run); JPA compiles; resolver tests green (6/6); no UI yet.
+- [x] **CHECKPOINT A** — module builds; bootstrap + evaluator + JWT tests green; no service gated.
 
 ---
 
-## Phase B — Agent CRUD slice (vertical: service → REST → BFF → UI)
+## Phase B — Auth endpoints + portal login
 
-- [x] **T4: `AgentService` + `AgentController` (org & project scope)**
-  - CRUD with scope-ownership guards: an agent may only reference templates/skills visible in its
-    scope (project sees project ∪ inherited org; org sees org-only). Name unique per scope.
-    Routes `/hub/{scope}/{scopeId}/ai/agents` (scope = `orgs`|`projects`) + effective:
-    `GET /hub/projects/{projectId}/ai/agents/effective`.
-  - **AC:** create/read/update/delete at both scopes; effective list = project ∪ org with project
-    shadowing; referencing an out-of-scope template/skill → 400; deleting a seed → 409.
-  - **Verify:** `AgentServiceTest` (CRUD + guards + effective merge) green; `curl` each route.
+- [x] **B1: `AuthController` (login/logout/me/change-password) + JWT cookie**
+  - Portal endpoints; login verifies BCrypt → sets httpOnly `platform_token` cookie; `/auth/me`
+    returns user + effective roles (resolved live); `/auth/change-password` (self) clears
+    `must_change_password`.
+  - **AC:** good creds → cookie + body; bad creds → 401; `/me` reflects grants; password never
+    returned/logged; `last_login_at` updated.
+  - **Verify:** `AuthControllerTest` (login ok/bad, me, change-password).
 
-- [x] **T5: BFF proxy (`PortalAiController`) + frontend `api`/`types`**
-  - Proxy the agent routes under `/api/portal/ai/...`; add `Agent`/`AgentForm`/`EffectiveAgent`
-    types and `api.agents*` calls following `aiSkills*` patterns.
-  - **AC:** portal forwards GET/POST/PUT/DELETE incl. `X-Actor`; effective endpoint reachable.
-  - **Verify:** `curl http://localhost:8085/api/portal/ai/projects/{id}/agents/effective` → JSON.
+- [x] **B2: Login + forced-change UI; remove "type actor" box**
+  - `LoginPage`, `AuthContext` (`useAuth`), `ChangePasswordPage`; unauthenticated → login;
+    `must_change_password` → change screen; remove the self-typed actor input on the Roles page.
+  - **AC:** unauth redirected to login; bootstrap admin forced to change password; app loads after.
+  - **Verify:** `npx tsc -b`; browser login flow.
 
-- [x] **T6: Agents page (`/settings/agents`)**
-  - Org/project scope toggle; list, create, edit, delete. Editor: persona, system/user template
-    pickers (from existing templates), multi-select skills, model role/id, context toggles,
-    max rounds, enable. Inherited org agents read-only + "clone to project".
-  - **AC:** user can CRUD a project agent and clone an org agent; form validates required name;
-    inherited agents are not editable in project scope.
-  - **Verify:** `npx tsc -b`; manual browser CRUD against running stack.
-
-- [x] **CHECKPOINT B** — Agent CRUD works org+project; scope-ownership enforced.
+- [x] **CHECKPOINT B** — user logs in; bootstrap super-admin forced to change password; `/me` works.
 
 ---
 
-## Phase C — Task assignment slice (vertical: service → REST → BFF → matrix UI)
+## Phase C — Enforce in portal + agent (first enforced E2E)
 
-- [x] **T7: `TaskAgentService` + `TaskAgentController` (+ subtype catalog endpoint)**
-  - Assignment upsert/delete per (scope, task, subType→agent); `GET /hub/ai/task-subtypes`;
-    `GET /hub/projects/{projectId}/ai/task-agents/effective?taskType=&subType=` returns resolved
-    agent + source (`PROJECT`/`ORG`/`SEED`).
-  - **AC:** set a project default for (GENERATE_TEST_CASES, NON_FUNCTIONAL); effective resolves to it;
-    delete reverts to org/seed with correct source flag; cannot bind an agent the scope can't see.
-  - **Verify:** `TaskAgentServiceTest` (upsert/revert/cascade/source) green.
+- [x] **C1: Gate platform-agent endpoints with `@RequireCapability`; fold in `AgentRbacGuard`**
+  - Add `platform-security` dep + `SecurityFilterChain` to platform-agent; annotate agent/task-agent
+    + generation endpoints (CRUD → OPERATE/ADMIN per matrix); replace `AgentRbacGuard` with the
+    evaluator (remove its standalone flag).
+  - **AC (flag on):** direct call to platform-agent w/o token → 401; Tester CRUDs agents; Viewer →
+    403; project A Tester can't act in project B.
+  - **Verify:** integration tests (401/403/allow) + direct `curl` to :8086.
 
-- [x] **T8: BFF proxy + assignment matrix UI (`/settings/task-agents`)**
-  - Proxy routes; matrix of task types (grouped by flow) × sub-types → agent select, with
-    inherited/seed shown as placeholder; org/project scope toggle.
-  - **AC:** user assigns/reverts a default per (task, subtype); inherited values visible; saves persist.
-  - **Verify:** `npx tsc -b`; browser: set + reload shows persisted default.
+- [x] **C2: Portal forwards the user JWT to backend services**
+  - Portal BFF attaches `Authorization: Bearer <token>` (from the cookie) on `agentClient` (and the
+    shared client config); actor derived from the verified token, not `X-Actor`.
+  - **AC:** portal→agent calls carry the token and pass; unauthenticated portal session → 401.
+  - **Verify:** integration through the portal; agent logs show authenticated principal.
 
-- [x] **CHECKPOINT C** — matrix sets/reverts defaults; `…/effective` returns correct source.
-
----
-
-## Phase D — Execution wiring for GENERATE_TEST_CASES (first end-to-end value)
-
-- [x] **T9: Request + resolution plumb-through**
-  - `GenerateTestCasesRequest` (+ controller parse) gain `agentId?`, `subType?`. Controller calls
-    `AgentResolutionService`, persists `agent_id`/`task_sub_type` on `AiGenerationRun`, and passes
-    `EffectiveAgentConfig` into the run path (side table keyed by workflowId, like today's run inputs).
-  - **AC:** request with/without `agentId`/`subType` both work; run row records the resolved agent
-    + subtype; absent selection resolves the default (project→org→seed).
-  - **Verify:** `TestCaseGenerationControllerTest` asserts plumbing + run fields; contract test
-    accepts missing fields (back-compat).
-
-- [x] **T10: Node consumes `EffectiveAgentConfig` + model override**
-  - `TestCaseGenerationNode` builds its prompt from the resolved config (persona+template+skills)
-    instead of re-deriving; `DefaultContextAssembler` honours `context_config`; `LangChainAgentRunner`
-    uses the agent's `model_id` when present (minimal plumb alongside tier).
-  - **AC:** functional vs non-functional configs produce **different** system prompts/model; the
-    node still persists DRAFT test cases; **no-selection output matches today's seed-prompt path**
-    (regression test).
-  - **Verify:** unit test diffs assembled prompt per subtype; regression test vs current seed output.
-
-- [x] **T11: Execution selector UI (Generate modal)**
-  - Add Agent + Sub-type selectors pre-filled with the resolved default; functional/non-functional
-    appear as sub-types. Reuse the live-stream progress UI.
-  - **AC:** selectors default correctly; changing subtype updates the default agent; submit passes
-    `agentId`/`subType`; live progress unaffected.
-  - **Verify:** `npx tsc -b`; browser: run functional vs non-functional, confirm distinct results.
-
-- [x] **CHECKPOINT D** — functional/non-functional run their agents; run records agent; no-config
-  path unchanged; verified in browser end-to-end.
+- [x] **CHECKPOINT C** — login→portal→agent enforced behind the flag; direct-call bypass blocked;
+  role checks hold.
 
 ---
 
-## Phase E — Roll-out & verification
+## Phase D — Roll enforcement to remaining services
 
-- [~] **T12: wire applicable executors (PARTIAL — automation done; ai-side deferred)**
-  - DONE: `GENERATE_AUTOMATION_CODE` resolves an agent (explicit→assignment→seed), records it on
-    a run, and the node applies the model override (keeping its specialized GitHub-tool prompt).
-    Controller accepts `agentId`/`subType`. Unit test added.
-  - DEFERRED (needs a cross-module design decision, not in spec): **failure analysis / fixing run in
-    `platform-ai` (`LiteLlmAnalysisClient`)**, not the agent workflow, so they cannot reuse
-    `AgentResolutionService` (in `platform-agent`) without an HTTP call or duplicated resolver.
-    Flagged for the user; out of scope for the "automation-only" wiring.
-  - **Verify:** `TestCaseGenerationControllerTest.automationResolvesAgentAndRecordsRun` green;
-    browser smoke deferred to deploy.
+- [x] **D1: platform-ai — filter + capability annotations (AI-gateway → SUPER)**
+  - **AC:** AI settings/gateway + model-fetch require SUPER; analysis reads require VIEW; 401/403 as
+    matrix. **Verify:** service integration tests + direct curl.
+  - Done: gateway settings (GET/PUT/test/models) + batch run-now → `MANAGE_AI_GATEWAY`; analysis
+    reads → VIEW_RESULTS(projectId); analyse + scoped-override → OPERATE/MANAGE_PROJECT.
+    `AiRbacAnnotationTest` (5) green; module 24/0. Beans auto-picked via `com.platform.*` scan.
 
-- [~] **T13: Full regression + build + RBAC pass (RBAC done; deploy/build pending)**
-  - DONE (ON HOLD) — **RBAC**: `AgentRbacGuard` gates agent + task-agent writes; logic + 8 tests
-    ready, but **gated by `agent.rbac.enabled` (default false)** so it does NOT enforce yet. Enable
-    once platform-wide RBAC exists (`AGENT_RBAC_ENABLED=true`): ORG → ORG_ADMIN, PROJECT →
-    ORG_ADMIN or TEAM_ADMIN of a team in the project. X-Actor wired end-to-end already.
-  - PENDING — deploy: apply V2–V4 via Flyway + build all jars/images; browser auth checks.
-  - **Verify:** `mvn -pl platform-agent,platform-core,platform-portal -am test`; image build;
-    browser auth checks.
+- [x] **D2: platform-ingestion — JWT alongside existing API-key; annotations (ADO-import → SUPER)**
+  - Coexist with `ApiKeyAuthFilter` (service calls) + JWT (user calls); ADO onboarding/structure
+    import → SUPER; project ops → OPERATE/ADMIN_PROJECT.
+  - **AC:** service-key path still works; user ADO-import requires SUPER; portal→ingestion unbroken.
+  - Done: `@RequireCapability` extended to class-level (method overrides); `IngestionRbacConfig`
+    imports the capability beans WITHOUT the second filter chain; `SecurityConfig` adds
+    `JwtCookieAuthFilter` into the existing chain (X-API-Key + JWT both authenticate). ADO onboard +
+    cred-key → SUPER; 20 project controllers gated (VIEW/OPERATE/MANAGE_PROJECT). `RequireCapability
+    AspectTest` (3) + `IngestionRbacAnnotationTest` (5) green; module 115/0; API-key tests still pass.
+  - **Deferred (flag-off, no runtime impact):** credential/org/project-CRUD + execution-query
+    controllers keyed by a non-project id (or create-without-scope) left authenticated-only — finish
+    granular scoping in Phase E user-admin.
 
-- [ ] **CHECKPOINT E** — rollout complete; regression green; images build; browser smoke passes.
+- [x] **D3: platform-analytics + platform-integration — annotations**
+  - Mostly VIEW (dashboards/results) with OPERATE where they mutate.
+  - Done: analytics project endpoints → VIEW_RESULTS(projectId); flakiness recompute →
+    OPERATE_QUALITY; org rollups + run/result-keyed logs/traces ungated. `AnalyticsRbacAnnotationTest`
+    (3) green; module 40/0. **platform-integration has no HTTP endpoints — nothing to gate.**
+
+- [x] **CHECKPOINT D** — all services enforce (flag-gated); capability matrix covered by
+  `PermissionEvaluatorTest` + per-service annotation tests.
+- [x] **Deploy-verified A–D** (docker compose, all 6 services, `platform.security.enabled=true`):
+  migration V5 applies; bootstrap super-admin + login/me/change-password; unauth→403 on every
+  service; super allow; Viewer/Tester/cross-project tier denials; ADO/AI-gateway SUPER gates;
+  ingestion X-API-Key ⊕ JWT coexistence. Fixed two integration bugs found only at runtime — portal
+  ObjectMapper/backfill boot failure and the ERROR-dispatch 403-masking (commit b0efad4). Compose
+  wiring (shared JWT secret, portal DB, security toggle) added.
 
 ---
 
-## Resolved decisions (defaults accepted 2026-06-29)
-1. **RBAC** — org-admin CRUDs org agents/assignments; project-manager CRUDs project ones (T13).
-2. **Agent versioning** — snapshot-on-run only; no version history table (T1/T9).
-3. **Scope migration** — add `scope`/`scope_id` to `ai_skills` & `ai_prompt_templates` now (T1).
-4. **Cross-project clone** — org→project clone only in v1 (T6); project→project deferred.
+## Phase E — Role-gated UI + user administration
+
+- [x] **E1: `useAuth` + `<Can>` — hide/disable by role**
+  - Nav + action gating: Viewer read-only; Tester sees Agents/quality features, not project
+    Integrations/credentials; Project Admin sees project settings; Org Admin sees org settings;
+    AI-gateway + ADO-import only for Super Admin. 401→login, 403→friendly notice.
+  - **AC:** each role sees the correct surface; forbidden actions hidden/disabled.
+  - Done: `lib/auth.ts` (client Tier/Capability mirror of platform-security), `<Can>`/`useCan`/
+    `RequireCap`/`Forbidden` (components/Can.tsx); Sidebar admin + project-settings items gated by
+    capability (empty sections hidden); sensitive global routes (AI→SUPER, agents→OPERATE,
+    org/roles/integrations/mapping/api-keys→MANAGE_ORG) wrapped in `RequireCap`; global query/mutation
+    error handler → 401 re-auth, 403 `ForbiddenToast`. **Verify:** `npx tsc -b` green (no JS runner;
+    capability rules mirror backend `PermissionEvaluatorTest`, live-verified with viewer1/tester1).
+
+- [x] **E2: User management page + role grants on `user_roles`**
+  - Super/Org-admin page: list/create users, enable/disable, reset password, grant/revoke roles per
+    (scope, project). Update the role-grant API to `user_roles`; protect last super-admin / last
+    org-admin.
+  - **AC:** admin manages users + grants; grantor needs ≥ that tier; last-admin protected.
+  - Done: `UserAdminService`/`UserAdminController` (portal, `/api/portal/admin/users`) writing
+    `user_roles`; only super/org-admin may manage; grantor-outranks-grant guard via `RoleResolver`;
+    last-enabled-super-admin and last-org-admin protected; `User.resetPasswordByAdmin` forces
+    change-on-next-login. Frontend `UsersPage` (create/enable-disable/reset/grant-revoke) + route +
+    nav (gated MANAGE_ORG). **Verify:** `UserAdminServiceTest` (9, guards) green; portal 19/0;
+    `tsc -b` green.
+
+- [x] **CHECKPOINT E** — UI reflects roles (E1 nav/route gating); admins manage users + roles (E2).
+
+---
+
+## Phase F — Migration & cutover (DEPLOY — sign-off required)
+
+- [x] **F1: `V6` migrate `team_members` → `user_roles`**
+  - Map `ORG_ADMIN`→org `ORG_ADMIN`; `TEAM_ADMIN`→`PROJECT_ADMIN`(team's project); `TEAM_MEMBER`→
+    `TESTER`; `VIEWER`→`VIEWER`. Create `users` rows for distinct `user_id`s **disabled +
+    must_change_password** (no password-less login).
+  - Done: F1a — `RoleResolver` + client `lib/auth.ts` honor org-scoped VIEWER/TESTER (the real data
+    is 228 org-wide null-team grants). F1b — `V6` creates disabled/locked users + maps grants
+    (team→PROJECT, org-wide→ORG of the single org). **Verified live:** V6 applied → 228 users (all
+    disabled+must-change), 1 ORG_ADMIN·ORG + 227 VIEWER·ORG. `PermissionEvaluatorTest` +3.
+
+- [x] **F2: Retire `X-Actor` trust; flip `platform.security.enabled=true`; `V7` drop `team_members`**
+  - Derive actor from the verified principal everywhere; default-on enforcement; remove old table +
+    `RbacService`/`team_members` paths.
+  - Done: F2a — 16 `X-Actor` header params removed across 9 controllers; actor now from
+    `CurrentUser.username()` (JWT). F2b — `platform.security.enabled` default flipped to true (code +
+    compose). F2c — ADO bootstrap writes `user_roles` (disabled users); deleted `TeamMember`/repo,
+    `RbacService`, ingestion `RoleController`/`RoleService`, portal `PortalRoleController`, frontend
+    `RolesPage`; `V7` drops `team_members`. **Verified:** full reactor green; 6 images built;
+    **deployed** — V6+V7 applied (team_members dropped, 231 users incl. 228 migrated); enforcement
+    smoke 6/6 (default-on); browser: portal loads, tester nav = Agents/Task Agents only (no Roles),
+    ForbiddenToast fires.
+
+- [x] **CHECKPOINT F** — enforcement on by default; old model removed; deployed and verified.
+
+---
+
+## Resolved decisions (from spec §16)
+- Auth: built-in users + BCrypt + httpOnly JWT cookie; bootstrap super-admin (`admin`/`PLATFORM_CRED_KEY`).
+- Roles: project-scoped Org/Project Admin, Tester, Viewer (+ super flag); per-assigned-project.
+- Enforcement: every service validates the token + capability; `X-Actor` retired.
+- AI-gateway settings **and** ADO structure import → **Super Admin only**.
+- 8h sliding token; admin-created users; app-logs-only audit.

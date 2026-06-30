@@ -13,7 +13,7 @@ import AgentsPage from './pages/AgentsPage'
 import TaskAgentsPage from './pages/TaskAgentsPage'
 import AdminIntegrationsPage from './pages/AdminIntegrationsPage'
 import MappingRulesPage from './pages/MappingRulesPage'
-import RolesPage from './pages/RolesPage'
+import UsersPage from './pages/UsersPage'
 import OrgSettingsPage from './pages/OrgSettingsPage'
 import RequirementsPage from './pages/RequirementsPage'
 import AdoStructurePage from './pages/AdoStructurePage'
@@ -32,25 +32,72 @@ import FlakyTestsPage from './pages/FlakyTestsPage'
 import ReviewQueuePage from './pages/ReviewQueuePage'
 import AutomatedTestsPage from './pages/AutomatedTestsPage'
 import GitHubWorkflowsPage from './pages/GitHubWorkflowsPage'
+import LoginPage from './pages/LoginPage'
+import ChangePasswordPage from './pages/ChangePasswordPage'
+import LoadingSpinner from './components/LoadingSpinner'
+import { AuthProvider, useAuth } from './context/AuthContext'
+import { RequireCap } from './components/Can'
+import ForbiddenToast from './components/ForbiddenToast'
+import type { ReactNode } from 'react'
+
+/** Gate the app behind authentication: loading → spinner, no user → login, must-change → change. */
+function AuthGate({ children }: { children: ReactNode }) {
+  const { user } = useAuth()
+  if (user === undefined)
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <LoadingSpinner message="Loading…" />
+      </div>
+    )
+  if (user === null) return <LoginPage />
+  if (user.mustChangePassword) return <ChangePasswordPage forced />
+  return <>{children}</>
+}
 
 export default function App() {
   return (
     <BrowserRouter>
-      <Routes>
+      <AuthProvider>
+        <AuthGate>
+          <Routes>
         <Route element={<AppLayout />}>
           <Route index element={<OrgSelectPage />} />
 
           {/* Global (non-project) routes — static segments outrank the dynamic
               project route below, so these always win. */}
           <Route path="alerts" element={<AlertsPage />} />
-          <Route path="settings/api-keys" element={<ApiKeysPage />} />
-          <Route path="settings/ai" element={<AiSettingsPage />} />
-          <Route path="settings/agents" element={<AgentsPage />} />
-          <Route path="settings/task-agents" element={<TaskAgentsPage />} />
-          <Route path="settings/integrations" element={<AdminIntegrationsPage />} />
-          <Route path="settings/mapping-rules" element={<MappingRulesPage />} />
-          <Route path="settings/roles" element={<RolesPage />} />
-          <Route path="settings/organization" element={<OrgSettingsPage />} />
+          <Route
+            path="settings/api-keys"
+            element={<RequireCap cap="MANAGE_ORG"><ApiKeysPage /></RequireCap>}
+          />
+          <Route
+            path="settings/ai"
+            element={<RequireCap cap="MANAGE_AI_GATEWAY"><AiSettingsPage /></RequireCap>}
+          />
+          <Route
+            path="settings/agents"
+            element={<RequireCap cap="OPERATE_QUALITY"><AgentsPage /></RequireCap>}
+          />
+          <Route
+            path="settings/task-agents"
+            element={<RequireCap cap="OPERATE_QUALITY"><TaskAgentsPage /></RequireCap>}
+          />
+          <Route
+            path="settings/integrations"
+            element={<RequireCap cap="MANAGE_ORG"><AdminIntegrationsPage /></RequireCap>}
+          />
+          <Route
+            path="settings/mapping-rules"
+            element={<RequireCap cap="MANAGE_ORG"><MappingRulesPage /></RequireCap>}
+          />
+          <Route
+            path="settings/users"
+            element={<RequireCap cap="MANAGE_ORG"><UsersPage /></RequireCap>}
+          />
+          <Route
+            path="settings/organization"
+            element={<RequireCap cap="MANAGE_ORG"><OrgSettingsPage /></RequireCap>}
+          />
           <Route path="runs/:runId" element={<RunDetail />} />
 
           {/* Back-compat: legacy UUID URLs redirect to slug URLs */}
@@ -89,7 +136,10 @@ export default function App() {
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
-      </Routes>
+          </Routes>
+          <ForbiddenToast />
+        </AuthGate>
+      </AuthProvider>
     </BrowserRouter>
   )
 }

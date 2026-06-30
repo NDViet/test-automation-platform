@@ -37,3 +37,6 @@ dist/
 .env
 # Local data volumes (bind-mounted by docker-compose)
 volume_data/
+
+# Playwright MCP browser-test artifacts
+.playwright-mcp/

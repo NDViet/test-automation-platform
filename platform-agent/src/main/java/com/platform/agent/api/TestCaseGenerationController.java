@@ -14,6 +14,8 @@ import com.platform.common.agent.TriggerRef;
 import com.platform.core.domain.AgentWorkflow;
 import com.platform.core.domain.AiGenerationRun;
 import com.platform.core.repository.AiGenerationRunRepository;
+import com.platform.security.authz.Capability;
+import com.platform.security.web.RequireCapability;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
@@ -83,6 +85,7 @@ public class TestCaseGenerationController {
    * TestCaseGenerationNode treats as "all".
    */
   @PostMapping("/{projectId}/generate")
+  @RequireCapability(value = Capability.OPERATE_QUALITY, scope = "projectId")
   public ResponseEntity<Map<String, Object>> generateTestCases(
       @PathVariable UUID projectId, @RequestBody(required = false) String body) {
 
@@ -180,6 +183,7 @@ public class TestCaseGenerationController {
    * <p>Run status + clarification transcript + the currently pending question round (if any).
    */
   @GetMapping("/{projectId}/generations/{workflowId}")
+  @RequireCapability(value = Capability.VIEW_RESULTS, scope = "projectId")
   public GenerationStatusService.GenerationStatusDto getGeneration(
       @PathVariable UUID projectId, @PathVariable UUID workflowId) {
     return statusService.getStatus(projectId, workflowId);
@@ -192,6 +196,7 @@ public class TestCaseGenerationController {
    * the run is not awaiting input. Body: {@code { "answers": [{ "id": "...", "answer": "..." }] }}.
    */
   @PostMapping("/{projectId}/generations/{workflowId}/answers")
+  @RequireCapability(value = Capability.OPERATE_QUALITY, scope = "projectId")
   public ResponseEntity<Map<String, Object>> submitAnswers(
       @PathVariable UUID projectId,
       @PathVariable UUID workflowId,
@@ -221,6 +226,7 @@ public class TestCaseGenerationController {
    * GitHub config.
    */
   @PostMapping("/{projectId}/{testCaseId}/generate-automation")
+  @RequireCapability(value = Capability.OPERATE_QUALITY, scope = "projectId")
   public ResponseEntity<Map<String, Object>> generateAutomation(
       @PathVariable UUID projectId,
       @PathVariable UUID testCaseId,

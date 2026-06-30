@@ -1,5 +1,7 @@
 package com.platform.ingestion.management;
 
+import com.platform.security.authz.Capability;
+import com.platform.security.web.RequireCapability;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -14,6 +16,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/v1/ado/onboard")
 @Tag(name = "ADO Onboarding")
+@RequireCapability(Capability.IMPORT_ADO_STRUCTURE)
 public class AdoOnboardingController {
 
   private final AdoBootstrapService bootstrap;

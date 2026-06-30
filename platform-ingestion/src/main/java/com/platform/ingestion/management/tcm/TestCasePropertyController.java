@@ -2,6 +2,8 @@ package com.platform.ingestion.management.tcm;
 
 import com.platform.core.domain.TestCaseProperty;
 import com.platform.core.repository.TestCasePropertyRepository;
+import com.platform.security.authz.Capability;
+import com.platform.security.web.RequireCapability;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
 import java.util.UUID;
@@ -16,6 +18,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/v1/projects/{projectId}/test-cases/{caseId}/properties")
 @Tag(name = "Test Case Management")
+@RequireCapability(value = Capability.VIEW_RESULTS, scope = "projectId")
 public class TestCasePropertyController {
 
   public record PropertyDto(String name, String value) {}
@@ -33,6 +36,7 @@ public class TestCasePropertyController {
 
   /** Replaces all properties for the case. */
   @PutMapping
+  @RequireCapability(value = Capability.OPERATE_QUALITY, scope = "projectId")
   public List<PropertyDto> replace(
       @PathVariable UUID projectId,
       @PathVariable UUID caseId,

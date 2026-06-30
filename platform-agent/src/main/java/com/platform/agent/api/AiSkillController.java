@@ -1,5 +1,6 @@
 package com.platform.agent.api;
 
+import com.platform.security.web.CurrentUser;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
@@ -30,8 +31,8 @@ public class AiSkillController {
   @PostMapping
   public ResponseEntity<AiSkillDto> create(
       @PathVariable UUID projectId,
-      @RequestBody AiSkillRequest req,
-      @RequestHeader(value = "X-Actor", required = false) String actor) {
+      @RequestBody AiSkillRequest req) {
+    String actor = CurrentUser.username();
     return ResponseEntity.status(HttpStatus.CREATED).body(service.create(projectId, req, actor));
   }
 
@@ -39,8 +40,8 @@ public class AiSkillController {
   public AiSkillDto update(
       @PathVariable UUID projectId,
       @PathVariable UUID skillId,
-      @RequestBody AiSkillRequest req,
-      @RequestHeader(value = "X-Actor", required = false) String actor) {
+      @RequestBody AiSkillRequest req) {
+    String actor = CurrentUser.username();
     return service.update(projectId, skillId, req, actor);
   }
 

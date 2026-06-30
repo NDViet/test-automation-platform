@@ -1,6 +1,8 @@
 package com.platform.ingestion.query;
 
 import com.platform.ingestion.query.dto.TeamDto;
+import com.platform.security.authz.Capability;
+import com.platform.security.web.RequireCapability;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
@@ -10,6 +12,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/v1/projects/{projectId}/teams")
 @Tag(name = "Teams", description = "Teams within a project (ADO-first: Org → Project → Team)")
+@RequireCapability(value = Capability.VIEW_RESULTS, scope = "projectId")
 public class TeamQueryController {
 
   private final TeamQueryService teamQueryService;

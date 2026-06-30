@@ -3,6 +3,8 @@ package com.platform.ingestion.management;
 import com.platform.ingestion.management.dto.CreateTeamRequest;
 import com.platform.ingestion.management.dto.UpdateTeamRequest;
 import com.platform.ingestion.query.dto.TeamDto;
+import com.platform.security.authz.Capability;
+import com.platform.security.web.RequireCapability;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.util.UUID;
@@ -15,6 +17,7 @@ import org.springframework.web.bind.annotation.*;
 @Tag(
     name = "Team Management",
     description = "Teams within a project (ADO-first: Org → Project → Team)")
+@RequireCapability(value = Capability.MANAGE_PROJECT, scope = "projectId")
 public class TeamManagementController {
 
   private final TeamManagementService service;

@@ -36,7 +36,9 @@ class AdoBootstrapServiceTest {
   @Mock com.platform.core.repository.AdoTeamRepository adoTeamRepo;
   @Mock com.platform.core.repository.TeamRepository teamRepo;
   @Mock com.platform.core.repository.AdoUserRepository adoUserRepo;
-  @Mock com.platform.core.repository.TeamMemberRepository memberRepo;
+  @Mock com.platform.core.repository.UserRepository userRepo;
+  @Mock com.platform.core.repository.UserRoleRepository roleRepo;
+  @Mock com.platform.core.repository.IntegrationCredentialRepository credRepo;
   @Mock Organization savedOrg;
   @Mock com.platform.core.domain.Project savedProject;
 
@@ -59,7 +61,9 @@ class AdoBootstrapServiceTest {
             adoTeamRepo,
             teamRepo,
             adoUserRepo,
-            memberRepo);
+            userRepo,
+            roleRepo,
+            credRepo);
   }
 
   private CredentialDto credDto() {
@@ -215,7 +219,10 @@ class AdoBootstrapServiceTest {
     when(adoUserRepo.findByProjectIdOrderByDisplayName(projId))
         .thenReturn(java.util.List.of(adoUser("alice@acme.com", "alice"), adoUser(null, "bob")));
     when(azureOrgService.resolveOwnerEmail(credId)).thenReturn("alice@acme.com");
-    when(memberRepo.findByUserId(any())).thenReturn(java.util.List.of());
+    when(userRepo.findByUsername(any())).thenReturn(Optional.empty());
+    when(userRepo.save(any())).thenAnswer(i -> i.getArgument(0));
+    when(roleRepo.findByUserIdAndRoleAndScopeAndScopeId(any(), any(), any(), any()))
+        .thenReturn(Optional.empty());
 
     AdoBootstrapService.ProvisionMembersResult r = service.provisionMembers(orgId, credId);
 
@@ -223,17 +230,20 @@ class AdoBootstrapServiceTest {
     assertThat(r.grantsCreated()).isEqualTo(2);
     assertThat(r.ownerEmail()).isEqualTo("alice@acme.com");
 
-    ArgumentCaptor<com.platform.core.domain.TeamMember> cap =
-        ArgumentCaptor.forClass(com.platform.core.domain.TeamMember.class);
-    verify(memberRepo, org.mockito.Mockito.times(2)).save(cap.capture());
-    Map<String, String> roleByUser =
+    ArgumentCaptor<com.platform.core.domain.UserRole> cap =
+        ArgumentCaptor.forClass(com.platform.core.domain.UserRole.class);
+    verify(roleRepo, org.mockito.Mockito.times(2)).save(cap.capture());
+    java.util.List<String> roles =
         cap.getAllValues().stream()
-            .collect(
-                java.util.stream.Collectors.toMap(
-                    com.platform.core.domain.TeamMember::getUserId,
-                    com.platform.core.domain.TeamMember::getRole));
-    assertThat(roleByUser).containsEntry("alice@acme.com", "ORG_ADMIN");
-    assertThat(roleByUser).containsEntry("bob", "VIEWER");
+            .map(com.platform.core.domain.UserRole::getRole)
+            .toList();
+    assertThat(roles).containsExactlyInAnyOrder("ORG_ADMIN", "VIEWER");
+    assertThat(cap.getAllValues())
+        .allSatisfy(
+            ur -> {
+              assertThat(ur.getScope()).isEqualTo("ORG");
+              assertThat(ur.getScopeId()).isEqualTo(orgId);
+            });
   }
 
   @Test
@@ -247,17 +257,22 @@ class AdoBootstrapServiceTest {
         .thenThrow(
             new org.springframework.web.server.ResponseStatusException(
                 org.springframework.http.HttpStatus.BAD_REQUEST, "Azure DevOps rejected the PAT"));
-    when(memberRepo.findByUserId(any())).thenReturn(java.util.List.of());
+    when(userRepo.findByUsername(any())).thenReturn(Optional.empty());
+    when(userRepo.save(any())).thenAnswer(i -> i.getArgument(0));
+    when(roleRepo.findByUserIdAndRoleAndScopeAndScopeId(any(), any(), any(), any()))
+        .thenReturn(Optional.empty());
 
     AdoBootstrapService.ProvisionMembersResult r = service.provisionMembers(orgId, credId);
 
     assertThat(r.membersSeen()).isEqualTo(1);
     assertThat(r.grantsCreated()).isEqualTo(1);
     assertThat(r.ownerEmail()).isNull();
-    ArgumentCaptor<com.platform.core.domain.TeamMember> cap =
-        ArgumentCaptor.forClass(com.platform.core.domain.TeamMember.class);
-    verify(memberRepo).save(cap.capture());
+    ArgumentCaptor<com.platform.core.domain.UserRole> cap =
+        ArgumentCaptor.forClass(com.platform.core.domain.UserRole.class);
+    verify(roleRepo).save(cap.capture());
     assertThat(cap.getValue().getRole()).isEqualTo("VIEWER");
+    assertThat(cap.getValue().getScope()).isEqualTo("ORG");
+    assertThat(cap.getValue().getScopeId()).isEqualTo(orgId);
   }
 
   @Test
@@ -268,28 +283,21 @@ class AdoBootstrapServiceTest {
         .thenReturn(
             java.util.List.of(adoUser("alice@acme.com", "alice"), adoUser("bob@acme.com", "bob")));
     when(azureOrgService.resolveOwnerEmail(credId)).thenReturn("alice@acme.com");
-    // owner already ORG_ADMIN; bob already has an (elevated) org grant → leave both untouched
-    when(memberRepo.findByUserId("alice@acme.com"))
+    // both users already exist and already hold the grant being requested → no new save
+    com.platform.core.domain.User existing = org.mockito.Mockito.mock(com.platform.core.domain.User.class);
+    when(existing.getId()).thenReturn(UUID.randomUUID());
+    when(userRepo.findByUsername(any())).thenReturn(Optional.of(existing));
+    when(roleRepo.findByUserIdAndRoleAndScopeAndScopeId(any(), any(), any(), any()))
         .thenReturn(
-            java.util.List.of(
-                new com.platform.core.domain.TeamMember(
-                    "alice@acme.com",
-                    null,
-                    com.platform.core.domain.TeamMember.Role.ORG_ADMIN,
-                    "x")));
-    when(memberRepo.findByUserId("bob@acme.com"))
-        .thenReturn(
-            java.util.List.of(
-                new com.platform.core.domain.TeamMember(
-                    "bob@acme.com",
-                    null,
-                    com.platform.core.domain.TeamMember.Role.TEAM_ADMIN,
-                    "x")));
+            Optional.of(
+                new com.platform.core.domain.UserRole(
+                    UUID.randomUUID(), "ORG_ADMIN", "ORG", orgId, "x")));
 
     AdoBootstrapService.ProvisionMembersResult r = service.provisionMembers(orgId, credId);
 
     assertThat(r.grantsCreated()).isZero();
-    verify(memberRepo, never()).save(any());
+    verify(roleRepo, never()).save(any());
+    verify(userRepo, never()).save(any());
   }
 
   @Test
@@ -298,16 +306,20 @@ class AdoBootstrapServiceTest {
     when(savedProject.getId()).thenReturn(projId);
     when(adoUserRepo.findByProjectIdOrderByDisplayName(projId)).thenReturn(java.util.List.of());
     when(azureOrgService.resolveOwnerEmail(credId)).thenReturn("owner@acme.com");
-    when(memberRepo.findByUserId("owner@acme.com")).thenReturn(java.util.List.of());
+    when(userRepo.findByUsername(any())).thenReturn(Optional.empty());
+    when(userRepo.save(any())).thenAnswer(i -> i.getArgument(0));
+    when(roleRepo.findByUserIdAndRoleAndScopeAndScopeId(any(), any(), any(), any()))
+        .thenReturn(Optional.empty());
 
     AdoBootstrapService.ProvisionMembersResult r = service.provisionMembers(orgId, credId);
 
     assertThat(r.membersSeen()).isEqualTo(1);
     assertThat(r.grantsCreated()).isEqualTo(1);
-    ArgumentCaptor<com.platform.core.domain.TeamMember> cap =
-        ArgumentCaptor.forClass(com.platform.core.domain.TeamMember.class);
-    verify(memberRepo).save(cap.capture());
+    ArgumentCaptor<com.platform.core.domain.UserRole> cap =
+        ArgumentCaptor.forClass(com.platform.core.domain.UserRole.class);
+    verify(roleRepo).save(cap.capture());
     assertThat(cap.getValue().getRole()).isEqualTo("ORG_ADMIN");
-    assertThat(cap.getValue().getTeamId()).isNull();
+    assertThat(cap.getValue().getScope()).isEqualTo("ORG");
+    assertThat(cap.getValue().getScopeId()).isEqualTo(orgId);
   }
 }

@@ -1,5 +1,7 @@
 package com.platform.analytics.automated;
 
+import com.platform.security.authz.Capability;
+import com.platform.security.web.RequireCapability;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
@@ -30,6 +32,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/v1/analytics/{projectId}/automated-tests")
 @Tag(name = "Automated Tests", description = "Per-test pass/fail analytics and execution trends")
+@RequireCapability(value = Capability.VIEW_RESULTS, scope = "projectId")
 public class AutomatedTestController {
 
   private final AutomatedTestService service;

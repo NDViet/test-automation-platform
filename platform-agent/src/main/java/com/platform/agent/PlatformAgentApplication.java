@@ -1,6 +1,7 @@
 package com.platform.agent;
 
 import com.platform.core.CoreConfiguration;
+import com.platform.security.web.PlatformSecurityConfiguration;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.boot.persistence.autoconfigure.EntityScan;
@@ -12,7 +13,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 @SpringBootApplication(
     scanBasePackages = {"com.platform.agent", "com.platform.storage", "com.platform.llm"})
 @EntityScan(basePackages = "com.platform.core.domain")
-@Import(CoreConfiguration.class)
+@Import({CoreConfiguration.class, PlatformSecurityConfiguration.class})
 @EnableKafka
 @EnableAsync
 @EnableScheduling

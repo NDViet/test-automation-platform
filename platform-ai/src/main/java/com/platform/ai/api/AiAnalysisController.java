@@ -9,6 +9,8 @@ import com.platform.core.domain.FailureAnalysis;
 import com.platform.core.domain.TestCaseResult;
 import com.platform.core.repository.FailureAnalysisRepository;
 import com.platform.core.repository.TestCaseResultRepository;
+import com.platform.security.authz.Capability;
+import com.platform.security.web.RequireCapability;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.List;
@@ -58,6 +60,7 @@ public class AiAnalysisController {
    * @param days look-back window in days (default 7)
    */
   @GetMapping("/projects/{projectId}/analyses")
+  @RequireCapability(value = Capability.VIEW_RESULTS, scope = "projectId")
   public List<FailureAnalysisDto> listAnalyses(
       @PathVariable UUID projectId,
       @RequestParam(required = false) String category,
@@ -79,6 +82,7 @@ public class AiAnalysisController {
 
   /** Latest analysis for a specific test in a project. */
   @GetMapping("/projects/{projectId}/tests/{testId}/analysis")
+  @RequireCapability(value = Capability.VIEW_RESULTS, scope = "projectId")
   public ResponseEntity<FailureAnalysisDto> getLatestForTest(
       @PathVariable UUID projectId, @PathVariable String testId) {
 
@@ -91,6 +95,7 @@ public class AiAnalysisController {
 
   /** Analysis history for a specific test (paginated, newest first). */
   @GetMapping("/projects/{projectId}/tests/{testId}/analyses")
+  @RequireCapability(value = Capability.VIEW_RESULTS, scope = "projectId")
   public List<FailureAnalysisDto> getHistoryForTest(
       @PathVariable UUID projectId,
       @PathVariable String testId,
@@ -108,6 +113,7 @@ public class AiAnalysisController {
    * integration.
    */
   @PostMapping("/projects/{projectId}/results/{resultId}/analyse")
+  @RequireCapability(value = Capability.OPERATE_QUALITY, scope = "projectId")
   public ResponseEntity<FailureAnalysisDto> analyseResult(
       @PathVariable UUID projectId, @PathVariable UUID resultId) {
 
@@ -133,6 +139,7 @@ public class AiAnalysisController {
    * <p>POST /api/v1/analyse/run-now?hours=24
    */
   @PostMapping("/analyse/run-now")
+  @RequireCapability(Capability.MANAGE_AI_GATEWAY)
   public ResponseEntity<Map<String, Object>> runNow(@RequestParam(defaultValue = "24") int hours) {
 
     Instant since = Instant.now().minus(hours, ChronoUnit.HOURS);

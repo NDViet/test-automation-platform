@@ -29,9 +29,12 @@ import {
   Settings,
   ArrowLeftRight,
   GitMerge,
+  LogOut,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { api } from '@/lib/api'
+import { useAuth } from '@/context/AuthContext'
+import { can, type Capability } from '@/lib/auth'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -40,6 +43,8 @@ type NavItem = {
   label: string
   icon: React.ComponentType<{ size?: number; className?: string }>
   end?: boolean
+  /** Capability required to see this item; absent ⇒ visible to any signed-in user. */
+  cap?: Capability
 }
 type NavGroup = {
   label: string
@@ -51,14 +56,14 @@ type NavGroup = {
 const adminGroup: NavGroup = {
   label: 'Admin',
   items: [
-    { to: '/settings/organization', label: 'Organization', icon: Building2 },
-    { to: '/settings/integrations', label: 'Integrations', icon: Plug },
-    { to: '/settings/mapping-rules', label: 'Mapping Rules', icon: Boxes },
-    { to: '/settings/roles', label: 'Roles', icon: ShieldCheck },
-    { to: '/settings/api-keys', label: 'API Keys', icon: Key },
-    { to: '/settings/ai', label: 'AI Settings', icon: Bot },
-    { to: '/settings/agents', label: 'Agents', icon: Bot },
-    { to: '/settings/task-agents', label: 'Task Agents', icon: Bot },
+    { to: '/settings/organization', label: 'Organization', icon: Building2, cap: 'MANAGE_ORG' },
+    { to: '/settings/users', label: 'Users & Roles', icon: Users, cap: 'MANAGE_ORG' },
+    { to: '/settings/integrations', label: 'Integrations', icon: Plug, cap: 'MANAGE_ORG' },
+    { to: '/settings/mapping-rules', label: 'Mapping Rules', icon: Boxes, cap: 'MANAGE_ORG' },
+    { to: '/settings/api-keys', label: 'API Keys', icon: Key, cap: 'MANAGE_ORG' },
+    { to: '/settings/ai', label: 'AI Settings', icon: Bot, cap: 'MANAGE_AI_GATEWAY' },
+    { to: '/settings/agents', label: 'Agents', icon: Bot, cap: 'OPERATE_QUALITY' },
+    { to: '/settings/task-agents', label: 'Task Agents', icon: Bot, cap: 'OPERATE_QUALITY' },
   ],
 }
 
@@ -103,12 +108,12 @@ function projectGroups(base: string): NavGroup[] {
     {
       label: 'Settings',
       items: [
-        { to: `${base}/settings/general`, label: 'General', icon: Settings },
-        { to: `${base}/settings/teams`, label: 'Teams', icon: Users },
-        { to: `${base}/settings/integrations`, label: 'Integrations', icon: Plug },
-        { to: `${base}/settings/mapping`, label: 'Mapping', icon: Boxes },
-        { to: `${base}/settings/ai`, label: 'AI', icon: Bot },
-        { to: `${base}/settings/github`, label: 'GitHub', icon: GitMerge },
+        { to: `${base}/settings/general`, label: 'General', icon: Settings, cap: 'MANAGE_PROJECT' },
+        { to: `${base}/settings/teams`, label: 'Teams', icon: Users, cap: 'MANAGE_PROJECT' },
+        { to: `${base}/settings/integrations`, label: 'Integrations', icon: Plug, cap: 'MANAGE_PROJECT' },
+        { to: `${base}/settings/mapping`, label: 'Mapping', icon: Boxes, cap: 'MANAGE_PROJECT' },
+        { to: `${base}/settings/ai`, label: 'AI', icon: Bot, cap: 'MANAGE_AI_GATEWAY' },
+        { to: `${base}/settings/github`, label: 'GitHub', icon: GitMerge, cap: 'MANAGE_PROJECT' },
       ],
     },
   ]
@@ -157,7 +162,18 @@ function NavItemLink({ item, collapsed }: { item: NavItem; collapsed: boolean })
 
 // ── NavGroup section ──────────────────────────────────────────────────────────
 
-function NavSection({ group, collapsed }: { group: NavGroup; collapsed: boolean }) {
+function NavSection({
+  group,
+  collapsed,
+  gate,
+}: {
+  group: NavGroup
+  collapsed: boolean
+  /** Returns true if the item may be shown. Defaults to always-visible. */
+  gate?: (item: NavItem) => boolean
+}) {
+  const items = gate ? group.items.filter(gate) : group.items
+  if (items.length === 0) return null // hide the whole section when nothing is permitted
   return (
     <div className="space-y-0.5">
       {!collapsed && (
@@ -166,7 +182,7 @@ function NavSection({ group, collapsed }: { group: NavGroup; collapsed: boolean 
         </p>
       )}
       {collapsed && <div className="my-2 border-t border-slate-700/60 mx-2" />}
-      {group.items.map(item => (
+      {items.map(item => (
         <NavItemLink key={item.to} item={item} collapsed={collapsed} />
       ))}
     </div>
@@ -216,6 +232,26 @@ export default function Sidebar() {
   const orgName = currentOrg?.displayName ?? currentOrg?.name ?? 'Test Platform'
   const hue = orgHue(orgName)
   const orgProjects = orgSlug ? (projects ?? []).filter(p => p.orgSlug === orgSlug) : []
+
+  // ── Role-based nav gating ────────────────────────────────────────────────
+  const { user, logout } = useAuth()
+  const accountName = user?.displayName || user?.username || ''
+  const accountInitials =
+    accountName
+      .split(/[\s@._-]+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map(w => w[0]?.toUpperCase() ?? '')
+      .join('') || '?'
+  const currentProject =
+    orgSlug && projectSlug
+      ? (projects ?? []).find(p => p.orgSlug === orgSlug && p.slug === projectSlug)
+      : undefined
+  // Global admin items: "can the user do this anywhere?" (no scope in the URL).
+  const gateGlobal = (item: NavItem) => !item.cap || can(user, item.cap)
+  // Project settings items: scoped to the project currently in context.
+  const gateProject = (item: NavItem) =>
+    !item.cap || can(user, item.cap, { projectId: currentProject?.id, orgId: currentOrg?.id })
 
   // Workspace overview link: org home if we have an org, else org selector
   const overviewLink = orgBase ?? '/'
@@ -321,12 +357,48 @@ export default function Sidebar() {
         {/* Per-project groups (only when inside a project) */}
         {projectBase &&
           projectGroups(projectBase).map(g => (
-            <NavSection key={g.label} group={g} collapsed={collapsed} />
+            <NavSection key={g.label} group={g} collapsed={collapsed} gate={gateProject} />
           ))}
 
-        {/* Admin settings group */}
-        <NavSection group={adminGroup} collapsed={collapsed} />
+        {/* Admin settings group — each item gated by the matching capability */}
+        <NavSection group={adminGroup} collapsed={collapsed} gate={gateGlobal} />
       </nav>
+
+      {/* ── Signed-in user + sign out ──────────────────────────────── */}
+      {user && (
+        <div className="border-t border-slate-700/80">
+          {collapsed ? (
+            <button
+              onClick={() => logout()}
+              title={`Sign out (${accountName})`}
+              className="w-full flex items-center justify-center py-3 text-slate-400 hover:text-white hover:bg-slate-800 transition-colors"
+            >
+              <LogOut size={16} />
+            </button>
+          ) : (
+            <div className="flex items-center gap-2.5 px-3 py-2.5">
+              <div className="shrink-0 w-7 h-7 rounded-full bg-slate-700 text-white text-[11px] font-semibold flex items-center justify-center select-none">
+                {accountInitials}
+              </div>
+              <div className="min-w-0 flex-1 leading-tight">
+                <p className="text-xs font-medium text-white truncate" title={accountName}>
+                  {accountName}
+                </p>
+                <p className="text-[10px] text-slate-400 truncate">
+                  {user.superAdmin ? 'Super admin' : `@${user.username}`}
+                </p>
+              </div>
+              <button
+                onClick={() => logout()}
+                title="Sign out"
+                className="shrink-0 rounded-md p-1.5 text-slate-400 hover:bg-slate-800 hover:text-white transition-colors"
+              >
+                <LogOut size={15} />
+              </button>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── Collapse toggle ─────────────────────────────────────────── */}
       <div className="border-t border-slate-700/80">

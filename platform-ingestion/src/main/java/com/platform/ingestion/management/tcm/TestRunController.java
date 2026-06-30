@@ -1,5 +1,8 @@
 package com.platform.ingestion.management.tcm;
 
+import com.platform.security.authz.Capability;
+import com.platform.security.web.CurrentUser;
+import com.platform.security.web.RequireCapability;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
@@ -14,6 +17,7 @@ import org.springframework.web.multipart.MultipartFile;
 @RestController
 @RequestMapping("/api/v1/projects/{projectId}/test-runs")
 @Tag(name = "Test Case Management")
+@RequireCapability(value = Capability.VIEW_RESULTS, scope = "projectId")
 public class TestRunController {
 
   private final TestRunService service;
@@ -30,6 +34,7 @@ public class TestRunController {
   }
 
   @PostMapping
+  @RequireCapability(value = Capability.OPERATE_QUALITY, scope = "projectId")
   public ResponseEntity<TestRunDto> create(
       @PathVariable UUID projectId, @Valid @RequestBody CreateTestRunRequest req) {
     return ResponseEntity.status(HttpStatus.CREATED).body(service.create(projectId, req));
@@ -41,28 +46,33 @@ public class TestRunController {
   }
 
   @PutMapping("/{runId}")
+  @RequireCapability(value = Capability.OPERATE_QUALITY, scope = "projectId")
   public TestRunDto update(
       @PathVariable UUID projectId, @PathVariable UUID runId, @RequestBody UpdateRunRequest req) {
     return service.updateRun(projectId, runId, req);
   }
 
   @DeleteMapping("/{runId}")
+  @RequireCapability(value = Capability.OPERATE_QUALITY, scope = "projectId")
   public ResponseEntity<Void> delete(@PathVariable UUID projectId, @PathVariable UUID runId) {
     service.delete(projectId, runId);
     return ResponseEntity.noContent().build();
   }
 
   @PostMapping("/{runId}/complete")
+  @RequireCapability(value = Capability.OPERATE_QUALITY, scope = "projectId")
   public TestRunDto complete(@PathVariable UUID projectId, @PathVariable UUID runId) {
     return service.complete(projectId, runId);
   }
 
   @PostMapping("/{runId}/reopen")
+  @RequireCapability(value = Capability.OPERATE_QUALITY, scope = "projectId")
   public TestRunDto reopen(@PathVariable UUID projectId, @PathVariable UUID runId) {
     return service.reopen(projectId, runId);
   }
 
   @PostMapping("/{runId}/cases")
+  @RequireCapability(value = Capability.OPERATE_QUALITY, scope = "projectId")
   public TestRunDto addCases(
       @PathVariable UUID projectId, @PathVariable UUID runId, @RequestBody AddCasesRequest req) {
     return service.addCases(projectId, runId, req);
@@ -75,6 +85,7 @@ public class TestRunController {
   }
 
   @PutMapping("/{runId}/executions/{execId}")
+  @RequireCapability(value = Capability.OPERATE_QUALITY, scope = "projectId")
   public TestCaseExecutionDto updateExecution(
       @PathVariable UUID projectId,
       @PathVariable UUID runId,
@@ -84,6 +95,7 @@ public class TestRunController {
   }
 
   @PostMapping("/{runId}/executions/{execId}/defect")
+  @RequireCapability(value = Capability.OPERATE_QUALITY, scope = "projectId")
   public TestCaseExecutionDto linkDefect(
       @PathVariable UUID projectId,
       @PathVariable UUID runId,
@@ -93,6 +105,7 @@ public class TestRunController {
   }
 
   @DeleteMapping("/{runId}/executions/{execId}/defect")
+  @RequireCapability(value = Capability.OPERATE_QUALITY, scope = "projectId")
   public TestCaseExecutionDto unlinkDefect(
       @PathVariable UUID projectId, @PathVariable UUID runId, @PathVariable UUID execId) {
     return service.unlinkDefect(projectId, runId, execId);
@@ -107,12 +120,13 @@ public class TestRunController {
   }
 
   @PostMapping(value = "/{runId}/executions/{execId}/attachments", consumes = "multipart/form-data")
+  @RequireCapability(value = Capability.OPERATE_QUALITY, scope = "projectId")
   public ExecutionAttachmentDto uploadAttachment(
       @PathVariable UUID projectId,
       @PathVariable UUID runId,
       @PathVariable UUID execId,
-      @RequestParam("file") MultipartFile file,
-      @RequestHeader(value = "X-Actor", required = false) String actor) {
+      @RequestParam("file") MultipartFile file) {
+    String actor = CurrentUser.username();
     return attachments.upload(projectId, runId, execId, file, actor);
   }
 
@@ -131,6 +145,7 @@ public class TestRunController {
   }
 
   @DeleteMapping("/{runId}/attachments/{attachmentId}")
+  @RequireCapability(value = Capability.OPERATE_QUALITY, scope = "projectId")
   public ResponseEntity<Void> deleteAttachment(
       @PathVariable UUID projectId, @PathVariable UUID runId, @PathVariable UUID attachmentId) {
     attachments.delete(projectId, runId, attachmentId);

@@ -1,5 +1,7 @@
 package com.platform.ingestion.management.tcm;
 
+import com.platform.security.authz.Capability;
+import com.platform.security.web.RequireCapability;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -11,6 +13,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/v1/projects/{projectId}/test-suites")
 @Tag(name = "Test Case Management")
+@RequireCapability(value = Capability.VIEW_RESULTS, scope = "projectId")
 public class TestSuiteController {
 
   private final TestSuiteService service;
@@ -25,12 +28,14 @@ public class TestSuiteController {
   }
 
   @PostMapping
+  @RequireCapability(value = Capability.OPERATE_QUALITY, scope = "projectId")
   public ResponseEntity<TestSuiteDto> create(
       @PathVariable UUID projectId, @Valid @RequestBody CreateTestSuiteRequest req) {
     return ResponseEntity.status(HttpStatus.CREATED).body(service.create(projectId, req));
   }
 
   @PutMapping("/{suiteId}")
+  @RequireCapability(value = Capability.OPERATE_QUALITY, scope = "projectId")
   public TestSuiteDto update(
       @PathVariable UUID projectId,
       @PathVariable UUID suiteId,
@@ -39,6 +44,7 @@ public class TestSuiteController {
   }
 
   @DeleteMapping("/{suiteId}")
+  @RequireCapability(value = Capability.OPERATE_QUALITY, scope = "projectId")
   public ResponseEntity<Void> delete(@PathVariable UUID projectId, @PathVariable UUID suiteId) {
     service.delete(projectId, suiteId);
     return ResponseEntity.noContent().build();
@@ -55,6 +61,7 @@ public class TestSuiteController {
 
   /** Replace the static membership of a suite. */
   @PutMapping("/{suiteId}/members")
+  @RequireCapability(value = Capability.OPERATE_QUALITY, scope = "projectId")
   public ResponseEntity<Void> replaceMembers(
       @PathVariable UUID projectId, @PathVariable UUID suiteId, @RequestBody MembersRequest req) {
     service.replaceMembers(projectId, suiteId, req.testCaseIds());

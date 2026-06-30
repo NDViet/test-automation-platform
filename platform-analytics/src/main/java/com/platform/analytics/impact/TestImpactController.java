@@ -2,6 +2,8 @@ package com.platform.analytics.impact;
 
 import com.platform.core.repository.TestCaseResultRepository;
 import com.platform.core.repository.TestCoverageMappingRepository;
+import com.platform.security.authz.Capability;
+import com.platform.security.web.RequireCapability;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -32,6 +34,7 @@ import org.springframework.web.bind.annotation.*;
 @Tag(
     name = "Test Impact Analysis",
     description = "Smart test selection based on changed source files")
+@RequireCapability(value = Capability.VIEW_RESULTS, scope = "projectId")
 public class TestImpactController {
 
   private final TestImpactService impactService;

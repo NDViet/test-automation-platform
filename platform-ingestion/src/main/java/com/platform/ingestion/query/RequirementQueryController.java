@@ -8,6 +8,8 @@ import com.platform.core.service.CredentialResolver;
 import com.platform.ingestion.query.dto.PagedRequirementsDto;
 import com.platform.ingestion.query.dto.RequirementDto;
 import com.platform.ingestion.query.dto.RequirementRelationsDto;
+import com.platform.security.authz.Capability;
+import com.platform.security.web.RequireCapability;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -21,6 +23,7 @@ import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/v1/projects/{projectId}/requirements")
+@RequireCapability(value = Capability.VIEW_RESULTS, scope = "projectId")
 public class RequirementQueryController {
 
   private final PlatformRequirementRepository requirementRepo;

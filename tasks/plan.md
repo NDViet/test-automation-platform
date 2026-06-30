@@ -1,90 +1,95 @@
-# Plan — Agent Management & Task Assignment
+# Plan — Platform-wide Authentication & RBAC
 
-Source: `spec/agent-management-spec.md`. Slices are **vertical** (domain → persistence → service →
-controller → BFF → frontend per capability) and dependency-ordered. Each task is TDD-first
-(RED → GREEN → regression → build), one commit per task. Checkpoints gate each phase.
+Source: `spec/platform-rbac-spec.md`. Slices are **vertical** (schema → security core → endpoint →
+enforcement → UI per capability) and dependency-ordered. TDD-first; one commit per task; a
+`platform.security.enabled` flag (default **false**) keeps the platform usable until cutover.
+
+> Note: the agent-management feature's tracking moved to `tasks/archive/agent-management-*.md`
+> (it has a pending deploy + a deferred failure-analysis item). This plan is a separate, larger
+> security feature — best done on its own branch.
 
 ## Ground truth from code exploration
 
-- **Flyway** has a single baseline `V1__initial_schema.sql`; the next migration is **`V2__agent_management.sql`**.
-- **Existing reusable pieces** (compose, don't duplicate): `AiSkill` + `AiSkillService`/`AiSkillController`
-  (`/hub/projects/{projectId}/ai/skills`), `AiPromptTemplate` + `AiPromptTemplateService`
-  (`SYSTEM`/`USER`, one default per kind, seed fallbacks), AI-Settings per-role model map
-  (`ai.litellm.model.{standard,complex,summarizer}`), `AgentTaskType` enum.
-- **Controllers**: platform-agent exposes `/hub/...`; `PortalAiController` proxies them under
-  `/api/portal/ai/...` via `RestClient` (`aiClient`/`agentClient`), passing `X-Actor` on writes.
-- **Generation entry**: `POST /hub/test-cases/{projectId}/generate` →
-  `TestCaseGenerationController.generateTestCases` parses `GenerateTestCasesRequest`, creates
-  `AgentWorkflow` + (new-flow) `AiGenerationRun`, assembles `ContextBundle`, calls
-  `AgentWorkflowService.executeWorkflow`. The node (`TestCaseGenerationNode.execute`) loads
-  `AiGenerationRun` by workflowId and assembles prompts from skills/overrides.
-- **Scope reality**: `AiSkill` and `AiPromptTemplate` are **project-scoped only** today. Org-level
-  agents that reference org-level templates/skills require an **additive `scope`/`scope_id`**
-  column on both (Open Question #3 — proceed unless told to defer).
-- **Model override gap**: `LangChainAgentRunner` resolves the model **by tier** (`resolveModelId`);
-  `ContextBundle` carries `llmTier` but **no explicit model id**. An agent's `model_id` override
-  needs a thin plumb-through (resolution writes the chosen model into the run/bundle path).
-- **Context injection**: `DefaultContextAssembler` builds the bundle and (just refactored)
-  `inferManualTasks` routes `generate_test_cases → [GENERATE_TEST_CASES]`. `context_config`
-  toggles hook in here.
-- **Resolution is pure** (no LLM) → fully unit-testable; it is the **heart** of the feature and
-  ships first behind tests.
+- **No auth today.** `platform.actor` is typed on the Roles page → sent as `X-Actor`; backend
+  services trust it. No `users` table, login, or session.
+- **Existing RBAC is team-based + advisory.** `RbacService`/`team_members(user_id VARCHAR, team_id,
+  role CHECK in ORG_ADMIN/TEAM_ADMIN/TEAM_MEMBER/VIEWER)`; enforced only at a few points.
+- **Spring Security exists only in `platform-ingestion`** (`SecurityConfig` + `ApiKeyAuthFilter`,
+  `X-API-Key`, gated by `platform.security.api-key.enabled`). The new JWT auth must **coexist** with
+  that service-key chain (service-to-service) while adding **user** auth.
+- **13 modules** in the root pom; add **`platform-security`** (depends on platform-core) that every
+  service imports. Next Flyway version is **V5**.
+- **`PLATFORM_CRED_KEY`** (env) is the bootstrap super-admin password; **`PLATFORM_JWT_SECRET`** (new
+  env) signs/validates the HS256 token in every service.
+- The portal is the front door; it must **forward the user JWT** (`Authorization: Bearer`) to
+  services, which validate it independently — so a directly-reached service still 401/403s.
 
 ## Component dependency graph
 
 ```
-                 ┌────────────────────────────┐
-                 │  V2 migration + JPA domain  │  (agents, task_agent_assignments,
-                 │  + scope cols on skills/tpl │   task_sub_types, ai_generation_runs.agent_id)
-                 └──────────────┬─────────────┘
-                                │
-                 ┌──────────────▼─────────────┐
-                 │   AgentResolutionService    │  explicit→project→org→seed; subtype default;
-                 │   (+ EffectiveAgentConfig)  │  agent→effective prompt/model/context  ← PURE
-                 └───────┬───────────────┬─────┘
-          ┌──────────────┘               └───────────────┐
-┌─────────▼──────────┐          ┌──────────────────▼─────────────┐
-│ Agent CRUD slice   │          │ Task-assignment + subtype slice │
-│ service→REST→BFF→UI│          │ service→REST→BFF→matrix UI      │
-└─────────┬──────────┘          └──────────────────┬─────────────┘
-          └───────────────┬───────────────────────┘
-                ┌──────────▼───────────┐
-                │ Execution wiring slice│  generate request (agentId/subType) → resolve →
-                │ (GENERATE_TEST_CASES) │  node consumes config → run records agent → selector UI
-                └──────────┬───────────┘
-                ┌──────────▼───────────┐
-                │ Roll-out slice        │  seed agents + subtypes for remaining task types
-                └──────────────────────┘
+        ┌─────────────────────────────────────────────┐
+        │ A. Security core                            │  V5 users/user_roles + domain;
+        │  platform-security: JwtService, Capability/ │  bootstrap super-admin;
+        │  Tier, RoleResolver, PermissionEvaluator,   │  JwtAuthFilter + @RequireCapability
+        │  SecurityFilterChain (flag-gated)           │  ← PURE + unit-tested
+        └───────────────┬─────────────────────────────┘
+                        │
+        ┌───────────────▼───────────┐   ┌───────────────────────────────┐
+        │ B. Auth endpoints + login │   │ (A enables both B and C)      │
+        │ /auth/* + portal login UI │   └───────────────────────────────┘
+        └───────────────┬───────────┘
+                        │
+        ┌───────────────▼───────────────────────┐
+        │ C. Enforce in portal + agent (E2E)     │  annotate endpoints; fold AgentRbacGuard;
+        │  portal forwards JWT; direct-call 401  │  verify bypass blocked
+        └───────────────┬───────────────────────┘
+                        │
+        ┌───────────────▼───────────────┐
+        │ D. Roll to ai/ingestion/       │  per-service filter + capability annotations
+        │    analytics/integration       │  (AI-gateway & ADO-import → SUPER)
+        └───────────────┬───────────────┘
+                        │
+        ┌───────────────▼───────────────┐   ┌──────────────────────────────┐
+        │ E. Role-gated UI + user admin  │   │ F. Migration & cutover        │
+        │  useAuth, <Can>, Users page    │   │  team_members→user_roles;     │
+        └────────────────────────────────┘   │  retire X-Actor; flag on; drop│
+                                              └──────────────────────────────┘
 ```
 
 ## Vertical slicing rationale
 
-- **Phase A** is the only "foundation" block (schema + pure resolver). It is a tracer bullet:
-  domain + the decision logic + seeds, proven by unit tests **before** any UI exists.
-- **Phase B** and **Phase C** are independent vertical slices (Agent CRUD vs Assignment) that both
-  depend only on A — they can be built in either order / in parallel.
-- **Phase D** is the first user-visible end-to-end value: pick a (functional/non-functional) agent
-  in the Generate modal and see different output. It depends on A+B+C.
-- **Phase E** is pure rollout (data/seeds), no new code shape.
+- **Phase A** is the only foundation block — the security primitives, proven by unit tests before
+  any endpoint is gated. Pure (tier math, JWT), so fully testable without a running stack.
+- **B** and **C** both depend only on A. B (login) is independently demoable; C is the first
+  *enforced* vertical (login → portal → agent → role check) and proves the anti-bypass property.
+- **D** is mechanical repetition of C's pattern across services (different capability mappings).
+- **E** is UX (defense-in-depth, not the boundary) + the admin surface to actually manage users.
+- **F** is the irreversible cutover: data migration + flipping enforcement on by default + dropping
+  the old table — gated behind explicit sign-off (deploy).
 
 ## Checkpoints (human-verify gates)
 
-- **CHECKPOINT A** — migration applies cleanly (Flyway), JPA boots, `AgentResolutionService`
-  unit tests green (cascade + subtype + assembly). No UI yet.
-- **CHECKPOINT B** — Agent CRUD works org+project via the Agents page; scope-ownership enforced.
-- **CHECKPOINT C** — Assignment matrix sets/reverts defaults; `…/effective` returns correct source.
-- **CHECKPOINT D** — Generate Test Cases with functional vs non-functional runs the assigned
-  agents; `AiGenerationRun` records `agent_id`/`sub_type`; no-config path matches today.
-- **CHECKPOINT E** — remaining task types have seed agents + subtypes; regression suite green;
-  images build; browser smoke.
+- **CHECKPOINT A** — `platform-security` builds; bootstrap + evaluator + JWT unit tests green; no
+  service gated yet.
+- **CHECKPOINT B** — log in via the portal; bootstrap super-admin forced to change password; `/me`
+  returns roles. (Flag still off elsewhere.)
+- **CHECKPOINT C** — login→portal→agent enforced behind the flag; a direct call to platform-agent
+  without a token is 401, with an under-privileged token is 403; Tester can CRUD agents, Viewer
+  can't.
+- **CHECKPOINT D** — every service enforces; cross-service matrix test passes (AI-gateway/ADO-import
+  require SUPER).
+- **CHECKPOINT E** — UI hides/disables by role; super/org-admin can manage users + role grants.
+- **CHECKPOINT F** — `team_members` migrated + dropped; `X-Actor` retired; `platform.security.enabled`
+  default true; full regression green; deployed.
 
 ## Risks / watch-items
 
-- **Scope migration** of `ai_skills`/`ai_prompt_templates` is the riskiest change (touches existing
-  CRUD + resolution). Keep it strictly additive; default existing rows to `PROJECT`/their project.
-- **Model-id plumb-through** crosses `platform-llm` boundary — keep the change minimal (pass the
-  resolved model id alongside tier; do not refactor `LlmChatModelProvider`'s caching contract).
-- **No live-LLM in CI** — all resolution/assembly tests are pure; execution-wiring tests assert
-  request plumbing + run records, not model output.
-- **Backwards compatibility** — unresolved agent ⇒ seed; existing generation with no selection
-  must be byte-compatible with today's seed-prompt path (regression test).
+- **Lockout** is the dominant risk — the flag stays **false** until C/D are verified; bootstrap must
+  fail-fast (never empty password); the last super-admin / org's last org-admin are protected.
+- **Coexistence with ingestion's API-key chain** — JWT (user) and X-API-Key (service) must both
+  work; don't break portal→ingestion service calls.
+- **Token vs revocation** — roles resolved per request (not from the token), so a tiny per-request
+  DB read; cache later if hot.
+- **Every endpoint must be classified** — default-deny means an unmapped endpoint blocks; the matrix
+  test must cover representative endpoints per service, and unmapped → explicit decision.
+- **F is a deploy** (migration + flag flip + image rebuild) — stop for sign-off.

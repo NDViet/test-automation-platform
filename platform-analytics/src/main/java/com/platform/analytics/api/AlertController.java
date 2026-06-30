@@ -8,6 +8,8 @@ import com.platform.core.domain.AlertHistory;
 import com.platform.core.domain.TestExecution;
 import com.platform.core.repository.ProjectRepository;
 import com.platform.core.repository.TestExecutionRepository;
+import com.platform.security.authz.Capability;
+import com.platform.security.web.RequireCapability;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.LinkedHashMap;
@@ -50,6 +52,7 @@ public class AlertController {
   // ── Alert history ─────────────────────────────────────────────────────────
 
   @GetMapping("/api/v1/alerts/projects/{projectId}")
+  @RequireCapability(value = Capability.VIEW_RESULTS, scope = "projectId")
   @Operation(summary = "Recent alerts fired for a project")
   public List<AlertHistory> projectAlerts(
       @PathVariable String projectId, @RequestParam(defaultValue = "7") int days) {
@@ -77,6 +80,7 @@ public class AlertController {
    * https://platform/api/v1/projects/$ID/quality-gate/ci}
    */
   @GetMapping("/api/v1/projects/{projectId}/quality-gate/ci")
+  @RequireCapability(value = Capability.VIEW_RESULTS, scope = "projectId")
   @Operation(summary = "CI quality gate — returns 200 (pass) or 422 (fail)")
   public ResponseEntity<Map<String, Object>> ciGate(@PathVariable UUID projectId) {
     return executionRepo

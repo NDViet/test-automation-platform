@@ -23,6 +23,7 @@
         <module>platform-common</module>
         <module>platform-storage</module>
         <module>platform-core</module>
+        <module>platform-security</module>
         <module>platform-llm</module>
         <module>platform-ingestion</module>
         <module>platform-adapters</module>
@@ -214,6 +215,20 @@
         </dependencies>
     </dependencyManagement>
 
+    <!--
+      Inherited by every module. Byte Buddy's agent is preloaded into the test JVM (see the
+      surefire argLine) so Mockito's inline mock maker never self-attaches; declaring it here as a
+      test dependency lets surefire resolve ${net.bytebuddy:byte-buddy-agent:jar} to its path.
+      Version is managed by the Spring Boot BOM.
+    -->
+    <dependencies>
+        <dependency>
+            <groupId>net.bytebuddy</groupId>
+            <artifactId>byte-buddy-agent</artifactId>
+            <scope>test</scope>
+        </dependency>
+    </dependencies>
+
     <distributionManagement>
         <repository>
             <id>github</id>
@@ -244,7 +259,13 @@
                     <groupId>org.apache.maven.plugins</groupId>
                     <artifactId>maven-surefire-plugin</artifactId>
                     <configuration>
-                        <argLine>-XX:+EnableDynamicAgentLoading</argLine>
+                        <!--
+                          Preload Byte Buddy's agent so Mockito's inline mock maker doesn't have to
+                          self-attach at runtime. JDK 21 self-attach via an external helper process is
+                          fragile (and can be blocked by EDR/AV), and is deprecated for removal — the
+                          official Mockito guidance for JDK 21+ is to load the agent up front.
+                        -->
+                        <argLine>-XX:+EnableDynamicAgentLoading -javaagent:${net.bytebuddy:byte-buddy-agent:jar}</argLine>
                     </configuration>
                 </plugin>
             </plugins>
@@ -285,6 +306,23 @@
                     </execution>
                 </executions>
                 -->
+            </plugin>
+            <!--
+              Resolves dependency artifacts to ${groupId:artifactId:type} properties before tests,
+              so the surefire argLine can point -javaagent at byte-buddy-agent's jar (see above).
+            -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-dependency-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>resolve-test-agent-paths</id>
+                        <phase>initialize</phase>
+                        <goals>
+                            <goal>properties</goal>
+                        </goals>
+                    </execution>
+                </executions>
             </plugin>
         </plugins>
     </build>

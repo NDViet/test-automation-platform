@@ -1,5 +1,6 @@
 package com.platform.agent.agents;
 
+import com.platform.security.web.CurrentUser;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
@@ -35,8 +36,8 @@ public class AgentController {
   public ResponseEntity<AgentDto> create(
       @PathVariable String scope,
       @PathVariable UUID scopeId,
-      @RequestBody AgentRequest req,
-      @RequestHeader(value = "X-Actor", required = false) String actor) {
+      @RequestBody AgentRequest req) {
+    String actor = CurrentUser.username();
     return ResponseEntity.status(HttpStatus.CREATED)
         .body(service.create(toScope(scope), scopeId, req, actor));
   }
@@ -46,8 +47,8 @@ public class AgentController {
       @PathVariable String scope,
       @PathVariable UUID scopeId,
       @PathVariable UUID id,
-      @RequestBody AgentRequest req,
-      @RequestHeader(value = "X-Actor", required = false) String actor) {
+      @RequestBody AgentRequest req) {
+    String actor = CurrentUser.username();
     return service.update(toScope(scope), scopeId, id, req, actor);
   }
 
@@ -55,8 +56,8 @@ public class AgentController {
   public ResponseEntity<Void> delete(
       @PathVariable String scope,
       @PathVariable UUID scopeId,
-      @PathVariable UUID id,
-      @RequestHeader(value = "X-Actor", required = false) String actor) {
+      @PathVariable UUID id) {
+    String actor = CurrentUser.username();
     service.delete(toScope(scope), scopeId, id, actor);
     return ResponseEntity.noContent().build();
   }

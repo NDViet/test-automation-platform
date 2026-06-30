@@ -2,6 +2,8 @@ package com.platform.analytics.api;
 
 import com.platform.analytics.report.ReleaseReportDto;
 import com.platform.analytics.report.ReleaseReportService;
+import com.platform.security.authz.Capability;
+import com.platform.security.web.RequireCapability;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.time.Instant;
@@ -25,6 +27,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/v1/projects/{projectId}/release-report")
 @Tag(name = "Release Report", description = "Quality snapshot for a release window")
+@RequireCapability(value = Capability.VIEW_RESULTS, scope = "projectId")
 public class ReleaseReportController {
 
   private final ReleaseReportService reportService;

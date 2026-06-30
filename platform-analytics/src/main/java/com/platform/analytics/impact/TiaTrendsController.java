@@ -1,5 +1,7 @@
 package com.platform.analytics.impact;
 
+import com.platform.security.authz.Capability;
+import com.platform.security.web.RequireCapability;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
@@ -43,6 +45,7 @@ public class TiaTrendsController {
   // ── Per-project ───────────────────────────────────────────────────────────
 
   @GetMapping("/{projectId}/tia/risk-distribution")
+  @RequireCapability(value = Capability.VIEW_RESULTS, scope = "projectId")
   @Operation(summary = "Risk level distribution — count of LOW/MEDIUM/HIGH/CRITICAL events")
   public ResponseEntity<Map<String, Long>> riskDistribution(
       @PathVariable UUID projectId, @RequestParam(defaultValue = "30") int days) {
@@ -50,6 +53,7 @@ public class TiaTrendsController {
   }
 
   @GetMapping("/{projectId}/tia/reduction-trend")
+  @RequireCapability(value = Capability.VIEW_RESULTS, scope = "projectId")
   @Operation(summary = "Daily reduction % trend — average reduction and event count per day")
   public ResponseEntity<List<TiaTrendsService.DailyReductionPoint>> reductionTrend(
       @PathVariable UUID projectId, @RequestParam(defaultValue = "30") int days) {
@@ -57,6 +61,7 @@ public class TiaTrendsController {
   }
 
   @GetMapping("/{projectId}/tia/coverage-breadth-trend")
+  @RequireCapability(value = Capability.VIEW_RESULTS, scope = "projectId")
   @Operation(summary = "Daily coverage breadth — distinct mapped classes and tests over time")
   public ResponseEntity<List<TiaTrendsService.DailyCoverageBreadthPoint>> coverageBreadthTrend(
       @PathVariable UUID projectId, @RequestParam(defaultValue = "30") int days) {
@@ -64,6 +69,7 @@ public class TiaTrendsController {
   }
 
   @GetMapping("/{projectId}/tia/events")
+  @RequireCapability(value = Capability.VIEW_RESULTS, scope = "projectId")
   @Operation(summary = "Recent TIA events — last N analyse() calls with outcomes")
   public ResponseEntity<List<TiaTrendsService.TiaEventDto>> recentEvents(
       @PathVariable UUID projectId, @RequestParam(defaultValue = "50") int limit) {

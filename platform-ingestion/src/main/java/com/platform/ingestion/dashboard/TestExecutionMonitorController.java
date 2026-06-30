@@ -1,6 +1,8 @@
 package com.platform.ingestion.dashboard;
 
 import com.platform.ingestion.dashboard.TestExecutionMonitorService.Dimension;
+import com.platform.security.authz.Capability;
+import com.platform.security.web.RequireCapability;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.web.bind.annotation.*;
@@ -8,6 +10,7 @@ import org.springframework.web.bind.annotation.*;
 /** Read API for the Test Execution monitor (rollups by Release / Sprint / Area / Team). */
 @RestController
 @RequestMapping("/api/v1/projects/{projectId}/test-execution")
+@RequireCapability(value = Capability.VIEW_RESULTS, scope = "projectId")
 public class TestExecutionMonitorController {
 
   private final TestExecutionMonitorService service;

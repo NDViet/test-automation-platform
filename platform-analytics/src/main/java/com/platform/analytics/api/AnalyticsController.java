@@ -20,6 +20,8 @@ import com.platform.core.repository.OrganizationRepository;
 import com.platform.core.repository.ProjectRepository;
 import com.platform.core.repository.TestCaseResultRepository;
 import com.platform.core.repository.TestExecutionRepository;
+import com.platform.security.authz.Capability;
+import com.platform.security.web.RequireCapability;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.time.Instant;
@@ -74,6 +76,7 @@ public class AnalyticsController {
   // ── Flakiness ─────────────────────────────────────────────────────────────
 
   @GetMapping("/{projectId}/flakiness")
+  @RequireCapability(value = Capability.VIEW_RESULTS, scope = "projectId")
   @Operation(summary = "Top flaky tests for a project")
   public List<FlakinessDto> topFlaky(
       @PathVariable UUID projectId,
@@ -93,6 +96,7 @@ public class AnalyticsController {
   }
 
   @PostMapping("/{projectId}/flakiness/recompute")
+  @RequireCapability(value = Capability.OPERATE_QUALITY, scope = "projectId")
   @Operation(summary = "Recompute flakiness scores for all known tests in a project")
   public Map<String, Object> recomputeFlakiness(@PathVariable UUID projectId) {
     List<FlakinessScore> existing = scoreRepo.findByProjectId(projectId);
@@ -126,6 +130,7 @@ public class AnalyticsController {
   // ── Trends ────────────────────────────────────────────────────────────────
 
   @GetMapping("/{projectId}/trends/pass-rate")
+  @RequireCapability(value = Capability.VIEW_RESULTS, scope = "projectId")
   @Operation(summary = "Daily pass-rate trend for a project")
   public List<PassRatePoint> passRateTrend(
       @PathVariable UUID projectId, @RequestParam(defaultValue = "30") int days) {
@@ -133,6 +138,7 @@ public class AnalyticsController {
   }
 
   @GetMapping("/{projectId}/trends/mttr")
+  @RequireCapability(value = Capability.VIEW_RESULTS, scope = "projectId")
   @Operation(summary = "Mean Time to Recovery (minutes)")
   public Map<String, Object> mttr(
       @PathVariable UUID projectId, @RequestParam(defaultValue = "30") int days) {
@@ -145,6 +151,7 @@ public class AnalyticsController {
   }
 
   @GetMapping("/{projectId}/trends/duration")
+  @RequireCapability(value = Capability.VIEW_RESULTS, scope = "projectId")
   @Operation(summary = "Duration stats (p50/p95) in milliseconds")
   public TrendAnalysisService.DurationStats durationStats(
       @PathVariable UUID projectId, @RequestParam(defaultValue = "30") int days) {
@@ -154,6 +161,7 @@ public class AnalyticsController {
   // ── Quality Gate ──────────────────────────────────────────────────────────
 
   @GetMapping("/{projectId}/quality-gate")
+  @RequireCapability(value = Capability.VIEW_RESULTS, scope = "projectId")
   @Operation(summary = "Evaluate quality gate against the latest run of a project")
   @Transactional(readOnly = true)
   public ResponseEntity<QualityGateResult> qualityGate(@PathVariable UUID projectId) {

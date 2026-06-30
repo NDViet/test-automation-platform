@@ -18,6 +18,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,9 +32,14 @@ import org.springframework.transaction.annotation.Transactional;
  * PLATFORM_CRED_KEY}; skips with a warning otherwise.
  *
  * <p>The flag can be cleared to force a re-run, or the runner can be disabled explicitly via {@code
- * platform.cred.backfill.enabled=false}.
+ * platform.cred.backfill.enabled=false} — set on services that own no credentials (e.g. the portal,
+ * which imports platform-core only for auth and must not race the credential-owning services).
  */
 @Component
+@ConditionalOnProperty(
+    name = "platform.cred.backfill.enabled",
+    havingValue = "true",
+    matchIfMissing = true)
 public class CredentialBackfillRunner implements ApplicationRunner {
 
   private static final Logger log = LoggerFactory.getLogger(CredentialBackfillRunner.class);

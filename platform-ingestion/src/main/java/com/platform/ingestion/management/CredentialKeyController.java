@@ -1,5 +1,7 @@
 package com.platform.ingestion.management;
 
+import com.platform.security.authz.Capability;
+import com.platform.security.web.RequireCapability;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -16,6 +18,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/api/v1/security/cred-key")
 @Tag(name = "Credential Key")
+@RequireCapability(Capability.MANAGE_PLATFORM)
 public class CredentialKeyController {
 
   private final CredentialKeyService keyService;

@@ -43,9 +43,13 @@ public class WebConfig implements WebMvcConfigurer {
   private String agentUrl;
 
   @Bean("ingestionClient")
-  public RestClient ingestionClient() {
+  public RestClient ingestionClient(
+      com.platform.portal.auth.JwtForwardingInterceptor jwtForwarding) {
     RestClient.Builder builder =
-        RestClient.builder().baseUrl(ingestionUrl).requestFactory(noVerifyRequestFactory());
+        RestClient.builder()
+            .baseUrl(ingestionUrl)
+            .requestFactory(noVerifyRequestFactory())
+            .requestInterceptor(jwtForwarding);
     if (ingestionServiceKey != null && !ingestionServiceKey.isBlank()) {
       builder.defaultHeader("X-API-Key", ingestionServiceKey);
     }
@@ -53,29 +57,41 @@ public class WebConfig implements WebMvcConfigurer {
   }
 
   @Bean("analyticsClient")
-  public RestClient analyticsClient() {
+  public RestClient analyticsClient(
+      com.platform.portal.auth.JwtForwardingInterceptor jwtForwarding) {
     return RestClient.builder()
         .baseUrl(analyticsUrl)
         .requestFactory(noVerifyRequestFactory())
+        .requestInterceptor(jwtForwarding)
         .build();
   }
 
   @Bean("aiClient")
-  public RestClient aiClient() {
-    return RestClient.builder().baseUrl(aiUrl).requestFactory(noVerifyRequestFactory()).build();
+  public RestClient aiClient(com.platform.portal.auth.JwtForwardingInterceptor jwtForwarding) {
+    return RestClient.builder()
+        .baseUrl(aiUrl)
+        .requestFactory(noVerifyRequestFactory())
+        .requestInterceptor(jwtForwarding)
+        .build();
   }
 
   @Bean("integrationClient")
-  public RestClient integrationClient() {
+  public RestClient integrationClient(
+      com.platform.portal.auth.JwtForwardingInterceptor jwtForwarding) {
     return RestClient.builder()
         .baseUrl(integrationUrl)
         .requestFactory(noVerifyRequestFactory())
+        .requestInterceptor(jwtForwarding)
         .build();
   }
 
   @Bean("agentClient")
-  public RestClient agentClient() {
-    return RestClient.builder().baseUrl(agentUrl).requestFactory(noVerifyRequestFactory()).build();
+  public RestClient agentClient(com.platform.portal.auth.JwtForwardingInterceptor jwtForwarding) {
+    return RestClient.builder()
+        .baseUrl(agentUrl)
+        .requestFactory(noVerifyRequestFactory())
+        .requestInterceptor(jwtForwarding)
+        .build();
   }
 
   /**

@@ -82,7 +82,7 @@ public class AgentService {
   @Transactional
   public AgentDto create(String scope, UUID scopeId, AgentRequest req, String actor) {
     String s = requireScope(scope);
-    rbacGuard.requireManage(s, scopeId, actor);
+    rbacGuard.requireManage(s, scopeId);
     String name = requireName(req.name());
     UUID orgId = s.equals(SCOPE_PROJECT) ? orgIdOf(scopeId) : scopeId;
     validateRefsVisible(s, scopeId, orgId, req);
@@ -115,7 +115,7 @@ public class AgentService {
   @Transactional
   public AgentDto update(String scope, UUID scopeId, UUID id, AgentRequest req, String actor) {
     String s = requireScope(scope);
-    rbacGuard.requireManage(s, scopeId, actor);
+    rbacGuard.requireManage(s, scopeId);
     Agent agent = loadOwned(s, scopeId, id);
     String name = requireName(req.name());
     UUID orgId = s.equals(SCOPE_PROJECT) ? orgIdOf(scopeId) : scopeId;
@@ -146,7 +146,7 @@ public class AgentService {
   @Transactional
   public void delete(String scope, UUID scopeId, UUID id, String actor) {
     String s = requireScope(scope);
-    rbacGuard.requireManage(s, scopeId, actor);
+    rbacGuard.requireManage(s, scopeId);
     repo.delete(loadOwned(s, scopeId, id));
   }
 

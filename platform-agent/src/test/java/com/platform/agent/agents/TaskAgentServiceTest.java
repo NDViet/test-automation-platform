@@ -166,7 +166,7 @@ class TaskAgentServiceTest {
     org.mockito.Mockito.doThrow(
             new ResponseStatusException(org.springframework.http.HttpStatus.FORBIDDEN, "nope"))
         .when(rbacGuard)
-        .requireManage("PROJECT", projectId, "u");
+        .requireManage("PROJECT", projectId);
 
     assertThatThrownBy(
             () ->

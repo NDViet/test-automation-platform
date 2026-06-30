@@ -4,6 +4,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.platform.core.domain.PlatformSetting;
 import com.platform.core.repository.PlatformSettingRepository;
+import com.platform.security.authz.Capability;
+import com.platform.security.web.RequireCapability;
 import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
@@ -69,6 +71,7 @@ public class AiSettingsController {
   public record ModelEntry(String id, String label) {}
 
   @GetMapping
+  @RequireCapability(Capability.MANAGE_AI_GATEWAY)
   public Map<String, Object> getSettings() {
     Map<String, Object> result = new LinkedHashMap<>();
     result.put("enabled", Boolean.parseBoolean(get(KEY_ENABLED, "false")));
@@ -97,6 +100,7 @@ public class AiSettingsController {
       String modelSummarizer) {}
 
   @PutMapping
+  @RequireCapability(Capability.MANAGE_AI_GATEWAY)
   public Map<String, Object> updateSettings(@RequestBody AiSettingsUpdate body) {
     if (body.enabled() != null) save(KEY_ENABLED, body.enabled().toString());
     if (body.realtimeEnabled() != null) save(KEY_REALTIME, body.realtimeEnabled().toString());
@@ -116,6 +120,7 @@ public class AiSettingsController {
   public record TestConnectionResult(boolean success, String message, List<ModelEntry> models) {}
 
   @PostMapping("/test")
+  @RequireCapability(Capability.MANAGE_AI_GATEWAY)
   public ResponseEntity<TestConnectionResult> testConnection(
       @RequestBody(required = false) TestConnectionRequest req) {
     return ResponseEntity.ok(probe(req, "Connection successful"));
@@ -127,6 +132,7 @@ public class AiSettingsController {
    * pickers. Editable base-url/key may be supplied in the body to fetch before saving.
    */
   @PostMapping("/models")
+  @RequireCapability(Capability.MANAGE_AI_GATEWAY)
   public ResponseEntity<TestConnectionResult> fetchModels(
       @RequestBody(required = false) TestConnectionRequest req) {
     TestConnectionResult result = probe(req, null);

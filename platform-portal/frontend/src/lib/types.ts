@@ -1336,6 +1336,39 @@ export interface PromptDefaults {
   user: string
 }
 
+// ── Authentication / current user ────────────────────────────────────────────
+export interface RoleGrant {
+  role: string
+  scope: string
+  scopeId: string
+}
+
+export interface AuthUser {
+  username: string
+  displayName: string | null
+  superAdmin: boolean
+  mustChangePassword: boolean
+  roles: RoleGrant[]
+}
+
+export interface AdminRoleGrant {
+  id: string
+  role: string
+  scope: string
+  scopeId: string
+}
+export interface AdminUser {
+  id: string
+  username: string
+  displayName: string | null
+  email: string | null
+  superAdmin: boolean
+  enabled: boolean
+  mustChangePassword: boolean
+  lastLoginAt: string | null
+  roles: AdminRoleGrant[]
+}
+
 // ── Agents (org/project-scoped reusable agent configs) ───────────────────────
 export type AgentScope = 'orgs' | 'projects'
 

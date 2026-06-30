@@ -62,7 +62,7 @@ public class TaskAgentService {
   @Transactional
   public TaskAgentDto upsert(String scope, UUID scopeId, TaskAgentRequest req, String actor) {
     String s = requireScope(scope);
-    rbacGuard.requireManage(s, scopeId, actor);
+    rbacGuard.requireManage(s, scopeId);
     String taskType = requireTaskType(req.taskType());
     String subType = req.subTypeOrDefault();
     Agent agent =
@@ -89,7 +89,7 @@ public class TaskAgentService {
   @Transactional
   public void delete(String scope, UUID scopeId, UUID id, String actor) {
     String s = requireScope(scope);
-    rbacGuard.requireManage(s, scopeId, actor);
+    rbacGuard.requireManage(s, scopeId);
     TaskAgentAssignment a =
         repo.findById(id)
             .orElseThrow(

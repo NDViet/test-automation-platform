@@ -1,5 +1,7 @@
 package com.platform.ingestion.management.tcm;
 
+import com.platform.security.authz.Capability;
+import com.platform.security.web.RequireCapability;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.UUID;
 import org.springframework.web.bind.annotation.*;
@@ -7,6 +9,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/v1/projects/{projectId}/coverage")
 @Tag(name = "Test Case Management")
+@RequireCapability(value = Capability.VIEW_RESULTS, scope = "projectId")
 public class CoverageController {
 
   private final CoverageService service;

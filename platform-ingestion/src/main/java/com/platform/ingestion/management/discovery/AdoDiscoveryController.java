@@ -1,6 +1,7 @@
 package com.platform.ingestion.management.discovery;
 
 import com.platform.ingestion.management.discovery.dto.SchemaDriftReport;
+import com.platform.security.web.CurrentUser;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
 import java.util.UUID;
@@ -45,8 +46,8 @@ public class AdoDiscoveryController {
   public SchemaDriftReport drift(
       @PathVariable UUID projectId,
       @PathVariable String type,
-      @RequestParam String adoProject,
-      @RequestHeader(value = "X-Actor", required = false) String actor) {
+      @RequestParam String adoProject) {
+    String actor = CurrentUser.username();
     return driftService.report(projectId, adoProject, type, actor);
   }
 
@@ -55,8 +56,8 @@ public class AdoDiscoveryController {
   public SchemaDriftReport captureBaseline(
       @PathVariable UUID projectId,
       @PathVariable String type,
-      @RequestParam String adoProject,
-      @RequestHeader(value = "X-Actor", required = false) String actor) {
+      @RequestParam String adoProject) {
+    String actor = CurrentUser.username();
     return driftService.captureBaseline(projectId, adoProject, type, actor);
   }
 }

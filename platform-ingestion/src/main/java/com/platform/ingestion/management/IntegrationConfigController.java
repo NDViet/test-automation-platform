@@ -3,6 +3,8 @@ package com.platform.ingestion.management;
 import com.platform.ingestion.management.dto.InheritedCredentialDto;
 import com.platform.ingestion.management.dto.IntegrationConfigDto;
 import com.platform.ingestion.management.dto.SaveIntegrationConfigRequest;
+import com.platform.security.authz.Capability;
+import com.platform.security.web.RequireCapability;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -13,6 +15,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/v1/projects/{projectId}/integrations")
 @Tag(name = "Integration Configs")
+@RequireCapability(value = Capability.MANAGE_PROJECT, scope = "projectId")
 public class IntegrationConfigController {
 
   private final IntegrationConfigService service;

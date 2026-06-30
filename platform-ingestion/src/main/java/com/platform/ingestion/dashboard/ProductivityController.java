@@ -1,5 +1,7 @@
 package com.platform.ingestion.dashboard;
 
+import com.platform.security.authz.Capability;
+import com.platform.security.web.RequireCapability;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -8,6 +10,7 @@ import org.springframework.web.bind.annotation.*;
 /** Read/config API for the Productivity (cycle-time) dashboard. */
 @RestController
 @RequestMapping("/api/v1/projects/{projectId}/productivity")
+@RequireCapability(value = Capability.VIEW_RESULTS, scope = "projectId")
 public class ProductivityController {
 
   private final ProductivityService service;
@@ -49,6 +52,7 @@ public class ProductivityController {
   public record ThresholdRequest(double thresholdHours) {}
 
   @PutMapping("/threshold")
+  @RequireCapability(value = Capability.MANAGE_PROJECT, scope = "projectId")
   public Map<String, Object> setThreshold(
       @PathVariable UUID projectId, @RequestBody ThresholdRequest req) {
     return Map.of("thresholdHours", service.setThresholdHours(projectId, req.thresholdHours()));

@@ -167,7 +167,7 @@ class AgentServiceTest {
     org.mockito.Mockito.doThrow(
             new ResponseStatusException(org.springframework.http.HttpStatus.FORBIDDEN, "nope"))
         .when(rbacGuard)
-        .requireManage("PROJECT", projectId, "alice");
+        .requireManage("PROJECT", projectId);
 
     assertThatThrownBy(() -> service.create("PROJECT", projectId, req("X"), "alice"))
         .isInstanceOf(ResponseStatusException.class);

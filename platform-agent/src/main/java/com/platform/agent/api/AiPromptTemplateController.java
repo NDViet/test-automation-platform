@@ -1,5 +1,6 @@
 package com.platform.agent.api;
 
+import com.platform.security.web.CurrentUser;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
@@ -38,8 +39,8 @@ public class AiPromptTemplateController {
   @PostMapping
   public ResponseEntity<AiPromptTemplateDto> create(
       @PathVariable UUID projectId,
-      @RequestBody AiPromptTemplateRequest req,
-      @RequestHeader(value = "X-Actor", required = false) String actor) {
+      @RequestBody AiPromptTemplateRequest req) {
+    String actor = CurrentUser.username();
     return ResponseEntity.status(HttpStatus.CREATED).body(service.create(projectId, req, actor));
   }
 
@@ -47,8 +48,8 @@ public class AiPromptTemplateController {
   public AiPromptTemplateDto update(
       @PathVariable UUID projectId,
       @PathVariable UUID id,
-      @RequestBody AiPromptTemplateRequest req,
-      @RequestHeader(value = "X-Actor", required = false) String actor) {
+      @RequestBody AiPromptTemplateRequest req) {
+    String actor = CurrentUser.username();
     return service.update(projectId, id, req, actor);
   }
 

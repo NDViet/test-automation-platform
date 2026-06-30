@@ -1,3 +1,12 @@
+# Shared auth/RBAC env injected into every Spring service (portal + backends).
+# PLATFORM_JWT_SECRET MUST be identical across services so a token minted by the portal
+# verifies everywhere; if unset, each service derives its own random secret and cross-service
+# JWT verification fails. PLATFORM_SECURITY_ENABLED flips capability enforcement — ON by default
+# after the Phase F cutover; set it to false only for break-glass/local debugging.
+x-security-env: &security-env
+  PLATFORM_JWT_SECRET: ${PLATFORM_JWT_SECRET:-}
+  PLATFORM_SECURITY_ENABLED: ${PLATFORM_SECURITY_ENABLED:-true}
+
 services:
 
   postgres:
@@ -263,6 +272,7 @@ services:
     ports:
       - "8082:8082"
     environment:
+      <<: *security-env
       DB_URL: jdbc:postgresql://postgres:5432/platform
       DB_USERNAME: platform
       DB_PASSWORD: platform
@@ -289,6 +299,7 @@ services:
     ports:
       - "8083:8083"
     environment:
+      <<: *security-env
       DB_URL: jdbc:postgresql://postgres:5432/platform
       DB_USERNAME: platform
       DB_PASSWORD: platform
@@ -315,6 +326,7 @@ services:
     ports:
       - "8084:8084"
     environment:
+      <<: *security-env
       DATASOURCE_URL: jdbc:postgresql://postgres:5432/platform
       DATASOURCE_USERNAME: platform
       DATASOURCE_PASSWORD: platform
@@ -350,6 +362,7 @@ services:
     ports:
       - "8081:8081"
     environment:
+      <<: *security-env
       DB_URL: jdbc:postgresql://postgres:5432/platform
       DB_USERNAME: platform
       DB_PASSWORD: platform
@@ -385,11 +398,16 @@ services:
     ports:
       - "8085:8085"
     environment:
+      <<: *security-env
       INGESTION_URL: http://platform-ingestion:8081
       ANALYTICS_URL: http://platform-analytics:8082
       INTEGRATION_URL: http://platform-integration:8083
       AI_URL: http://platform-ai:8084
       AGENT_URL: http://platform-agent:8086
+      # The portal owns auth/RBAC — it reads users/user_roles directly (Flyway runs in db-migrate).
+      DB_URL: jdbc:postgresql://postgres:5432/platform
+      DB_USERNAME: platform
+      DB_PASSWORD: platform
       PLATFORM_CRED_KEY: ${PLATFORM_CRED_KEY:-}
       # Service-account key the portal sends to ingestion (same as ingestion's PLATFORM_PORTAL_KEY)
       PLATFORM_PORTAL_KEY: ${PLATFORM_PORTAL_KEY:-}
@@ -398,9 +416,14 @@ services:
       REDIS_PORT: "6379"
       SPRING_PROFILES_ACTIVE: docker
     depends_on:
-      - platform-ingestion
-      - platform-analytics
-      - redis
+      db-migrate:
+        condition: service_completed_successfully
+      platform-ingestion:
+        condition: service_started
+      platform-analytics:
+        condition: service_started
+      redis:
+        condition: service_healthy
     profiles:
       - services
 
@@ -413,6 +436,7 @@ services:
     ports:
       - "8087:8086"
     environment:
+      <<: *security-env
       DB_URL: jdbc:postgresql://postgres:5432/platform
       DB_USERNAME: platform
       DB_PASSWORD: platform

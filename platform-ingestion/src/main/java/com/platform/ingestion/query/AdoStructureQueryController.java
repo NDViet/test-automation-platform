@@ -8,6 +8,8 @@ import com.platform.core.repository.AdoAreaRepository;
 import com.platform.core.repository.AdoIterationRepository;
 import com.platform.core.repository.AdoTeamRepository;
 import com.platform.core.repository.AdoUserRepository;
+import com.platform.security.authz.Capability;
+import com.platform.security.web.RequireCapability;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -19,6 +21,7 @@ import org.springframework.web.server.ResponseStatusException;
 /** Read API over the synced ADO org structure (teams / areas / iterations / users). */
 @RestController
 @RequestMapping("/api/v1/projects/{projectId}/ado")
+@RequireCapability(value = Capability.VIEW_RESULTS, scope = "projectId")
 public class AdoStructureQueryController {
 
   private final AdoTeamRepository teamRepo;
@@ -64,6 +67,7 @@ public class AdoStructureQueryController {
 
   /** Flag (or clear) a user's quality role — a platform annotation preserved across re-syncs. */
   @PutMapping("/users/{userId}/quality-role")
+  @RequireCapability(value = Capability.MANAGE_PROJECT, scope = "projectId")
   public AdoUser setQualityRole(
       @PathVariable UUID projectId,
       @PathVariable UUID userId,

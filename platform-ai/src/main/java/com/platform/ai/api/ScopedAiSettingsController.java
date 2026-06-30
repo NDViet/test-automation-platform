@@ -2,6 +2,8 @@ package com.platform.ai.api;
 
 import com.platform.core.domain.ScopedSetting;
 import com.platform.core.service.SettingResolver;
+import com.platform.security.authz.Capability;
+import com.platform.security.web.RequireCapability;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.UUID;
@@ -41,6 +43,7 @@ public class ScopedAiSettingsController {
 
   /** The effective (merged) AI settings for a project. */
   @GetMapping("/effective")
+  @RequireCapability(value = Capability.VIEW_RESULTS, scope = "projectId")
   public Map<String, String> effective(@RequestParam UUID projectId) {
     Map<String, String> out = new LinkedHashMap<>();
     for (String key : AI_KEYS) {
@@ -51,6 +54,7 @@ public class ScopedAiSettingsController {
 
   /** Upserts a single override at TEAM or PROJECT scope. */
   @PutMapping("/{scope}/{scopeId}")
+  @RequireCapability(value = Capability.MANAGE_PROJECT, scope = "scopeId")
   public ResponseEntity<Void> set(
       @PathVariable String scope, @PathVariable UUID scopeId, @RequestBody SettingUpdate body) {
     ScopedSetting.Scope s;

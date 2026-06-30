@@ -1,5 +1,7 @@
 package com.platform.ingestion.dashboard;
 
+import com.platform.security.authz.Capability;
+import com.platform.security.web.RequireCapability;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.web.bind.annotation.*;
@@ -7,6 +9,7 @@ import org.springframework.web.bind.annotation.*;
 /** Read API for the project Quality dashboards. */
 @RestController
 @RequestMapping("/api/v1/projects/{projectId}/quality")
+@RequireCapability(value = Capability.VIEW_RESULTS, scope = "projectId")
 public class QualityDashboardController {
 
   private final QualityDashboardService service;

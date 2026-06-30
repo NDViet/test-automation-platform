@@ -4,13 +4,17 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.platform.security.jwt.AuthenticatedUser;
 import java.util.UUID;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
+import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.context.SecurityContextHolder;
 
 @ExtendWith(MockitoExtension.class)
 class AiPromptTemplateControllerTest {
@@ -23,6 +27,16 @@ class AiPromptTemplateControllerTest {
   @BeforeEach
   void setUp() {
     controller = new AiPromptTemplateController(service);
+    // Actor now comes from the verified JWT principal (CurrentUser), not an X-Actor header.
+    SecurityContextHolder.getContext()
+        .setAuthentication(
+            new UsernamePasswordAuthenticationToken(
+                new AuthenticatedUser(UUID.randomUUID(), "alice", false), null));
+  }
+
+  @AfterEach
+  void tearDown() {
+    SecurityContextHolder.clearContext();
   }
 
   @Test
@@ -41,7 +55,7 @@ class AiPromptTemplateControllerTest {
     AiPromptTemplateRequest req = new AiPromptTemplateRequest("SYSTEM", "n", "b", true);
     when(service.create(projectId, req, "alice")).thenReturn(null);
 
-    var resp = controller.create(projectId, req, "alice");
+    var resp = controller.create(projectId, req);
 
     assertThat(resp.getStatusCode()).isEqualTo(HttpStatus.CREATED);
     verify(service).create(projectId, req, "alice");

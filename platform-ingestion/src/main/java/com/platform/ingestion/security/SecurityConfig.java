@@ -1,6 +1,8 @@
 package com.platform.ingestion.security;
 
 import com.platform.core.repository.ApiKeyRepository;
+import com.platform.security.jwt.JwtService;
+import com.platform.security.web.JwtCookieAuthFilter;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -37,10 +39,13 @@ public class SecurityConfig {
 
   private final ApiKeyRepository keyRepo;
   private final ApiKeyService keyService;
+  private final JwtService jwtService;
 
-  public SecurityConfig(ApiKeyRepository keyRepo, ApiKeyService keyService) {
+  public SecurityConfig(
+      ApiKeyRepository keyRepo, ApiKeyService keyService, JwtService jwtService) {
     this.keyRepo = keyRepo;
     this.keyService = keyService;
+    this.jwtService = jwtService;
   }
 
   @Bean
@@ -48,10 +53,26 @@ public class SecurityConfig {
     http.csrf(AbstractHttpConfigurer::disable)
         .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS));
 
+    // The portal forwards the user's verified JWT as a Bearer token; this filter populates an
+    // authenticated user principal so @RequireCapability can resolve the caller's roles. It runs
+    // alongside the API-key filter (service-to-service calls) — whichever credential is present
+    // authenticates the request; capability checks then no-op unless platform.security.enabled.
+    http.addFilterBefore(
+        new JwtCookieAuthFilter(jwtService), UsernamePasswordAuthenticationFilter.class);
+
     if (apiKeyEnabled) {
       http.authorizeHttpRequests(
               auth ->
-                  auth.requestMatchers("/actuator/health", "/actuator/health/**", "/actuator/info")
+                  auth
+                      // Don't re-authorize error/forward/async dispatches — the JWT filter is
+                      // skipped on the ERROR dispatch, so re-authorizing /error would mask the
+                      // real upstream status as 403.
+                      .dispatcherTypeMatchers(
+                          jakarta.servlet.DispatcherType.ERROR,
+                          jakarta.servlet.DispatcherType.FORWARD,
+                          jakarta.servlet.DispatcherType.ASYNC)
+                      .permitAll()
+                      .requestMatchers("/actuator/health", "/actuator/health/**", "/actuator/info")
                       .permitAll()
                       .anyRequest()
                       .authenticated())

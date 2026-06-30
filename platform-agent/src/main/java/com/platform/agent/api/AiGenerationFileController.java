@@ -1,5 +1,6 @@
 package com.platform.agent.api;
 
+import com.platform.security.web.CurrentUser;
 import java.util.UUID;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -18,8 +19,8 @@ public class AiGenerationFileController {
   @PostMapping(consumes = "multipart/form-data")
   public AiGenerationFileDto upload(
       @PathVariable UUID projectId,
-      @RequestParam("file") MultipartFile file,
-      @RequestHeader(value = "X-Actor", required = false) String actor) {
+      @RequestParam("file") MultipartFile file) {
+    String actor = CurrentUser.username();
     return inputService.upload(projectId, file, actor);
   }
 }

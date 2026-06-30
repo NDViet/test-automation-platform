@@ -1,5 +1,7 @@
 package com.platform.ingestion.management.tcm;
 
+import com.platform.security.authz.Capability;
+import com.platform.security.web.RequireCapability;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -11,6 +13,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/v1/projects/{projectId}/test-cases")
 @Tag(name = "Test Case Management")
+@RequireCapability(value = Capability.VIEW_RESULTS, scope = "projectId")
 public class TestCaseManagementController {
 
   private final TestCaseManagementService service;
@@ -44,6 +47,7 @@ public class TestCaseManagementController {
   }
 
   @PostMapping
+  @RequireCapability(value = Capability.OPERATE_QUALITY, scope = "projectId")
   public ResponseEntity<ManagedTestCaseDto> create(
       @PathVariable UUID projectId, @Valid @RequestBody CreateTestCaseRequest req) {
     return ResponseEntity.status(HttpStatus.CREATED).body(service.create(projectId, req));
@@ -55,6 +59,7 @@ public class TestCaseManagementController {
   }
 
   @PutMapping("/{tcId}")
+  @RequireCapability(value = Capability.OPERATE_QUALITY, scope = "projectId")
   public ManagedTestCaseDto update(
       @PathVariable UUID projectId,
       @PathVariable UUID tcId,
@@ -63,12 +68,14 @@ public class TestCaseManagementController {
   }
 
   @DeleteMapping("/{tcId}")
+  @RequireCapability(value = Capability.OPERATE_QUALITY, scope = "projectId")
   public ResponseEntity<Void> delete(@PathVariable UUID projectId, @PathVariable UUID tcId) {
     service.delete(projectId, tcId);
     return ResponseEntity.noContent().build();
   }
 
   @PutMapping("/{tcId}/steps")
+  @RequireCapability(value = Capability.OPERATE_QUALITY, scope = "projectId")
   public ManagedTestCaseDto replaceSteps(
       @PathVariable UUID projectId,
       @PathVariable UUID tcId,
@@ -77,21 +84,25 @@ public class TestCaseManagementController {
   }
 
   @PostMapping("/{tcId}/submit-review")
+  @RequireCapability(value = Capability.OPERATE_QUALITY, scope = "projectId")
   public ManagedTestCaseDto submitForReview(@PathVariable UUID projectId, @PathVariable UUID tcId) {
     return service.submitForReview(projectId, tcId);
   }
 
   @PostMapping("/{tcId}/approve")
+  @RequireCapability(value = Capability.OPERATE_QUALITY, scope = "projectId")
   public ManagedTestCaseDto approve(@PathVariable UUID projectId, @PathVariable UUID tcId) {
     return service.approve(projectId, tcId);
   }
 
   @PostMapping("/{tcId}/reject")
+  @RequireCapability(value = Capability.OPERATE_QUALITY, scope = "projectId")
   public ManagedTestCaseDto reject(@PathVariable UUID projectId, @PathVariable UUID tcId) {
     return service.reject(projectId, tcId);
   }
 
   @PostMapping("/{tcId}/generate-automation")
+  @RequireCapability(value = Capability.OPERATE_QUALITY, scope = "projectId")
   public ManagedTestCaseDto triggerAutomationGeneration(
       @PathVariable UUID projectId,
       @PathVariable UUID tcId,
@@ -109,6 +120,7 @@ public class TestCaseManagementController {
 
   /** Replace the case's (static) suite memberships — a case may belong to many suites. */
   @PutMapping("/{tcId}/suites")
+  @RequireCapability(value = Capability.OPERATE_QUALITY, scope = "projectId")
   public ResponseEntity<Void> setCaseSuites(
       @PathVariable UUID projectId, @PathVariable UUID tcId, @RequestBody CaseSuitesRequest req) {
     service.setCaseSuites(projectId, tcId, req.suiteIds());
@@ -116,18 +128,21 @@ public class TestCaseManagementController {
   }
 
   @PostMapping("/{tcId}/link-requirement/{requirementId}")
+  @RequireCapability(value = Capability.OPERATE_QUALITY, scope = "projectId")
   public ManagedTestCaseDto linkRequirement(
       @PathVariable UUID projectId, @PathVariable UUID tcId, @PathVariable UUID requirementId) {
     return service.linkRequirement(projectId, tcId, requirementId);
   }
 
   @DeleteMapping("/{tcId}/link-requirement/{requirementId}")
+  @RequireCapability(value = Capability.OPERATE_QUALITY, scope = "projectId")
   public ManagedTestCaseDto unlinkRequirement(
       @PathVariable UUID projectId, @PathVariable UUID tcId, @PathVariable UUID requirementId) {
     return service.unlinkRequirement(projectId, tcId, requirementId);
   }
 
   @PostMapping("/{tcId}/apply-suggestion")
+  @RequireCapability(value = Capability.OPERATE_QUALITY, scope = "projectId")
   public ManagedTestCaseDto applyAnalysisSuggestion(
       @PathVariable UUID projectId,
       @PathVariable UUID tcId,

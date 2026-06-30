@@ -5,15 +5,19 @@ import com.platform.core.domain.AdoUser;
 import com.platform.core.domain.Organization;
 import com.platform.core.domain.Project;
 import com.platform.core.domain.ProjectIntegrationConfig;
+import com.platform.core.domain.IntegrationCredential;
 import com.platform.core.domain.Team;
-import com.platform.core.domain.TeamMember;
+import com.platform.core.domain.User;
+import com.platform.core.domain.UserRole;
 import com.platform.core.repository.AdoTeamRepository;
 import com.platform.core.repository.AdoUserRepository;
+import com.platform.core.repository.IntegrationCredentialRepository;
 import com.platform.core.repository.OrganizationRepository;
 import com.platform.core.repository.ProjectIntegrationConfigRepository;
 import com.platform.core.repository.ProjectRepository;
-import com.platform.core.repository.TeamMemberRepository;
 import com.platform.core.repository.TeamRepository;
+import com.platform.core.repository.UserRepository;
+import com.platform.core.repository.UserRoleRepository;
 import com.platform.core.service.ado.AzureOrgSyncService;
 import com.platform.ingestion.management.dto.CredentialDto;
 import com.platform.ingestion.management.dto.SaveCredentialRequest;
@@ -55,7 +59,9 @@ public class AdoBootstrapService {
   private final AdoTeamRepository adoTeamRepo;
   private final TeamRepository teamRepo;
   private final AdoUserRepository adoUserRepo;
-  private final TeamMemberRepository memberRepo;
+  private final UserRepository userRepo;
+  private final UserRoleRepository roleRepo;
+  private final IntegrationCredentialRepository credRepo;
 
   public AdoBootstrapService(
       OrganizationRepository orgRepo,
@@ -67,7 +73,9 @@ public class AdoBootstrapService {
       AdoTeamRepository adoTeamRepo,
       TeamRepository teamRepo,
       AdoUserRepository adoUserRepo,
-      TeamMemberRepository memberRepo) {
+      UserRepository userRepo,
+      UserRoleRepository roleRepo,
+      IntegrationCredentialRepository credRepo) {
     this.orgRepo = orgRepo;
     this.credentialService = credentialService;
     this.projectRepo = projectRepo;
@@ -77,7 +85,29 @@ public class AdoBootstrapService {
     this.adoTeamRepo = adoTeamRepo;
     this.teamRepo = teamRepo;
     this.adoUserRepo = adoUserRepo;
-    this.memberRepo = memberRepo;
+    this.userRepo = userRepo;
+    this.roleRepo = roleRepo;
+    this.credRepo = credRepo;
+  }
+
+  private static final String LOCKED_HASH = "!locked-no-password";
+
+  /**
+   * Find-or-create a (disabled, must-change) user for an ADO email and grant it an org-scoped role.
+   * Idempotent — returns true only when a new grant was written.
+   */
+  private boolean grantOrgRole(String email, String role, java.util.UUID orgId, String by) {
+    User user = userRepo.findByUsername(email).orElse(null);
+    if (user == null) {
+      user = new User(email, email.contains("@") ? email : null, LOCKED_HASH, email, false, true);
+      user.setEnabled(false);
+      user = userRepo.save(user);
+    }
+    if (roleRepo.findByUserIdAndRoleAndScopeAndScopeId(user.getId(), role, "ORG", orgId).isPresent()) {
+      return false;
+    }
+    roleRepo.save(new UserRole(user.getId(), role, "ORG", orgId, by));
+    return true;
   }
 
   public record BootstrapOrgResult(
@@ -114,14 +144,15 @@ public class AdoBootstrapService {
           "Could not resolve your Azure DevOps email from this token (check its scopes)");
     }
     String userId = canonicalId(me.email());
-    boolean alreadyAdmin =
-        memberRepo.findByUserId(userId).stream()
-            .anyMatch(m -> m.getTeamId() == null && "ORG_ADMIN".equals(m.getRole()));
-    boolean granted = false;
-    if (!alreadyAdmin) {
-      memberRepo.save(new TeamMember(userId, null, TeamMember.Role.ORG_ADMIN, "ado-claim-admin"));
-      granted = true;
-    }
+    IntegrationCredential cred =
+        credRepo
+            .findById(credentialId)
+            .orElseThrow(
+                () -> new ResponseStatusException(HttpStatus.BAD_REQUEST, "credential not found"));
+    java.util.UUID orgId = cred.getScopeId();
+    boolean granted = grantOrgRole(userId, "ORG_ADMIN", orgId, "ado-claim-admin");
+    // best-effort: a pre-existing grant means they were already admin
+    boolean alreadyAdmin = !granted;
     log.info(
         "[ADO bootstrap] claim-admin: {} (granted={}, alreadyAdmin={})",
         userId,
@@ -304,18 +335,10 @@ public class AdoBootstrapService {
     int created = 0;
     for (String userId : memberIds) {
       boolean isOwner = ownerEmail != null && ownerEmail.equalsIgnoreCase(userId);
-      List<TeamMember> orgGrants =
-          memberRepo.findByUserId(userId).stream().filter(m -> m.getTeamId() == null).toList();
-
       if (isOwner) {
-        boolean hasAdmin = orgGrants.stream().anyMatch(m -> "ORG_ADMIN".equals(m.getRole()));
-        if (!hasAdmin) {
-          memberRepo.save(new TeamMember(userId, null, TeamMember.Role.ORG_ADMIN, "ado-bootstrap"));
-          created++;
-        }
-      } else if (orgGrants.isEmpty()) {
-        memberRepo.save(new TeamMember(userId, null, TeamMember.Role.VIEWER, "ado-bootstrap"));
-        created++;
+        if (grantOrgRole(userId, "ORG_ADMIN", organizationId, "ado-bootstrap")) created++;
+      } else {
+        if (grantOrgRole(userId, "VIEWER", organizationId, "ado-bootstrap")) created++;
       }
     }
     log.info(

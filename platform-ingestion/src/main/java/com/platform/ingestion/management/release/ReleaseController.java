@@ -1,5 +1,7 @@
 package com.platform.ingestion.management.release;
 
+import com.platform.security.authz.Capability;
+import com.platform.security.web.RequireCapability;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -12,6 +14,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/v1/projects/{projectId}/releases")
 @Tag(name = "Releases")
+@RequireCapability(value = Capability.VIEW_RESULTS, scope = "projectId")
 public class ReleaseController {
 
   private final ReleaseService service;
@@ -26,6 +29,7 @@ public class ReleaseController {
   }
 
   @PostMapping
+  @RequireCapability(value = Capability.OPERATE_QUALITY, scope = "projectId")
   public ResponseEntity<ReleaseDto> create(
       @PathVariable UUID projectId, @Valid @RequestBody CreateReleaseRequest req) {
     return ResponseEntity.status(HttpStatus.CREATED).body(service.create(projectId, req));
@@ -37,6 +41,7 @@ public class ReleaseController {
   }
 
   @PutMapping("/{id}")
+  @RequireCapability(value = Capability.OPERATE_QUALITY, scope = "projectId")
   public ReleaseDto update(
       @PathVariable UUID projectId,
       @PathVariable UUID id,
@@ -45,6 +50,7 @@ public class ReleaseController {
   }
 
   @DeleteMapping("/{id}")
+  @RequireCapability(value = Capability.OPERATE_QUALITY, scope = "projectId")
   public ResponseEntity<Void> delete(@PathVariable UUID projectId, @PathVariable UUID id) {
     service.delete(projectId, id);
     return ResponseEntity.noContent().build();

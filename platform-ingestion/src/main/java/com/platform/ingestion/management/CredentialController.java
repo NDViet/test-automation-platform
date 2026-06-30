@@ -2,6 +2,7 @@ package com.platform.ingestion.management;
 
 import com.platform.ingestion.management.dto.CredentialDto;
 import com.platform.ingestion.management.dto.SaveCredentialRequest;
+import com.platform.security.web.CurrentUser;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -41,8 +42,8 @@ public class CredentialController {
 
   @PostMapping
   public CredentialDto save(
-      @Valid @RequestBody SaveCredentialRequest req,
-      @RequestHeader(value = "X-Actor", required = false) String actor) {
+      @Valid @RequestBody SaveCredentialRequest req) {
+    String actor = CurrentUser.username();
     return service.save(req, actor != null ? actor : "portal");
   }
 

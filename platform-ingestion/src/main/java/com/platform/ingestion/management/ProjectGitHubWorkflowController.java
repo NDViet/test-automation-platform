@@ -1,5 +1,7 @@
 package com.platform.ingestion.management;
 
+import com.platform.security.authz.Capability;
+import com.platform.security.web.RequireCapability;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.List;
@@ -10,6 +12,7 @@ import org.springframework.web.bind.annotation.*;
 @RestController
 @RequestMapping("/api/v1/projects")
 @Tag(name = "Project GitHub Workflows")
+@RequireCapability(value = Capability.VIEW_RESULTS, scope = "projectId")
 public class ProjectGitHubWorkflowController {
 
   private final ProjectGitHubWorkflowService service;
@@ -35,6 +38,7 @@ public class ProjectGitHubWorkflowController {
   }
 
   @PostMapping("/{projectId}/github/workflow-dispatch")
+  @RequireCapability(value = Capability.OPERATE_QUALITY, scope = "projectId")
   @Operation(summary = "Trigger a workflow_dispatch event")
   public ProjectGitHubWorkflowService.DispatchResult dispatch(
       @PathVariable UUID projectId, @RequestBody ProjectGitHubWorkflowService.DispatchRequest req) {

@@ -24,6 +24,28 @@
             <artifactId>spring-boot-starter-actuator</artifactId>
         </dependency>
 
+        <!-- Auth/RBAC: the portal owns user authentication, so it needs the shared domain + DB
+             and the security module (JWT issue/verify + the flag-gated filter chain). -->
+        <dependency>
+            <groupId>org.ndviet</groupId>
+            <artifactId>platform-core</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.ndviet</groupId>
+            <artifactId>platform-security</artifactId>
+            <version>${project.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>org.springframework.boot</groupId>
+            <artifactId>spring-boot-starter-data-jpa</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <scope>runtime</scope>
+        </dependency>
+
         <!-- Live generation progress: WebSocket to the browser, fed by Redis pub/sub from the
              agent (which streams LLM tokens). Redis is the same instance the agent publishes to. -->
         <dependency>
@@ -47,6 +69,12 @@
             <groupId>org.bouncycastle</groupId>
             <artifactId>bcpkix-jdk18on</artifactId>
             <version>1.84</version>
+        </dependency>
+
+        <!-- BCrypt password hashing for user authentication (no full spring-security needed here). -->
+        <dependency>
+            <groupId>org.springframework.security</groupId>
+            <artifactId>spring-security-crypto</artifactId>
         </dependency>
 
         <!-- Tests -->

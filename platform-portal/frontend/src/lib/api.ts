@@ -97,6 +97,42 @@ async function postActor<T>(path: string, body: unknown, actor: string): Promise
   return res.json() as Promise<T>
 }
 
+/** Pull a human message out of a Spring ProblemDetail / error body. */
+async function errMessage(res: Response, fallback: string): Promise<string> {
+  try {
+    const e = (await res.json()) as { message?: string; detail?: string; title?: string }
+    return e?.message || e?.detail || e?.title || fallback
+  } catch {
+    return fallback
+  }
+}
+
+/** POST returning no body (204); surfaces the server's error message on failure. */
+async function postVoidMsg(path: string, body: unknown): Promise<void> {
+  const res = await fetch(BASE + path, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) throw new Error(await errMessage(res, `POST ${path} → ${res.status}`))
+}
+
+/** PUT returning no body (204); surfaces the server's error message on failure. */
+async function putVoidMsg(path: string, body: unknown): Promise<void> {
+  const res = await fetch(BASE + path, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) throw new Error(await errMessage(res, `PUT ${path} → ${res.status}`))
+}
+
+/** DELETE returning no body; surfaces the server's error message (e.g. last-admin guard). */
+async function delMsg(path: string): Promise<void> {
+  const res = await fetch(BASE + path, { method: 'DELETE' })
+  if (!res.ok) throw new Error(await errMessage(res, `DELETE ${path} → ${res.status}`))
+}
+
 /** POST that surfaces the server's error message body (for user-facing flows like onboarding). */
 async function postMsg<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(BASE + path, {
@@ -118,6 +154,35 @@ async function postMsg<T>(path: string, body: unknown): Promise<T> {
 }
 
 export const api = {
+  // ── Authentication ─────────────────────────────────────────────────────────
+  authMe: async (): Promise<import('./types').AuthUser | null> => {
+    const res = await fetch(BASE + '/auth/me')
+    if (res.status === 401) return null
+    if (!res.ok) throw new Error(`GET /auth/me → ${res.status}`)
+    return res.json() as Promise<import('./types').AuthUser>
+  },
+  authLogin: (username: string, password: string) =>
+    postMsg<import('./types').AuthUser>('/auth/login', { username, password }),
+  authLogout: () => post<{ status: string }>('/auth/logout', {}),
+  authChangePassword: (currentPassword: string, newPassword: string) =>
+    postMsg<import('./types').AuthUser>('/auth/change-password', { currentPassword, newPassword }),
+
+  // ── User administration (super-admin / org-admin) ──────────────────────────
+  adminUsers: () => get<import('./types').AdminUser[]>('/admin/users'),
+  adminCreateUser: (body: {
+    username: string
+    displayName?: string
+    email?: string
+    tempPassword: string
+  }) => postMsg<import('./types').AdminUser>('/admin/users', body),
+  adminSetUserEnabled: (id: string, enabled: boolean) =>
+    putVoidMsg(`/admin/users/${id}/enabled`, { enabled }),
+  adminResetPassword: (id: string, tempPassword: string) =>
+    postVoidMsg(`/admin/users/${id}/reset-password`, { tempPassword }),
+  adminGrantRole: (id: string, body: { role: string; scope: string; scopeId: string }) =>
+    postMsg<import('./types').AdminRoleGrant>(`/admin/users/${id}/roles`, body),
+  adminRevokeRole: (grantId: string) => delMsg(`/admin/users/roles/${grantId}`),
+
   overview: (days = 7) =>
     get<{ summary: import('./types').OrgSummary; recentAlerts: import('./types').Alert[] }>(
       `/overview?days=${days}`,
@@ -459,28 +524,6 @@ export const api = {
     return get<import('./types').CoverageReport>(
       `/projects/${projectId}/coverage${qs ? '?' + qs : ''}`,
     )
-  },
-
-  // RBAC role administration (X-Actor identifies the acting user)
-  rbacMembers: (scope: string, scopeId?: string) =>
-    get<import('./types').TeamMemberAssignment[]>(
-      `/rbac/members?scope=${scope}${scopeId ? `&scopeId=${scopeId}` : ''}`,
-    ),
-  grantRole: async (body: import('./types').GrantRoleForm, actor: string) => {
-    const res = await fetch(`${BASE}/rbac/members`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'X-Actor': actor },
-      body: JSON.stringify(body),
-    })
-    if (!res.ok) throw new Error(`POST /rbac/members → ${res.status}`)
-    return res.json() as Promise<import('./types').TeamMemberAssignment>
-  },
-  revokeRole: async (id: string, actor: string) => {
-    const res = await fetch(`${BASE}/rbac/members/${id}`, {
-      method: 'DELETE',
-      headers: { 'X-Actor': actor },
-    })
-    if (!res.ok) throw new Error(`DELETE /rbac/members/${id} → ${res.status}`)
   },
 
   // Environments (V50)

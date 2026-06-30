@@ -1,6 +1,7 @@
 package com.platform.ingestion.management.discovery;
 
 import com.platform.ingestion.management.discovery.dto.MappingRulesetView;
+import com.platform.security.web.CurrentUser;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import java.util.UUID;
 import org.springframework.http.ResponseEntity;
@@ -39,8 +40,8 @@ public class MappingRulesController {
   @PutMapping("/organizations/{orgId}/mapping-rules")
   public MappingRulesetView saveOrg(
       @PathVariable UUID orgId,
-      @RequestBody SaveRulesRequest req,
-      @RequestHeader(value = "X-Actor", required = false) String actor) {
+      @RequestBody SaveRulesRequest req) {
+    String actor = CurrentUser.username();
     return service.saveOrg(orgId, req.json(), actor);
   }
 
@@ -60,8 +61,8 @@ public class MappingRulesController {
   @PutMapping("/projects/{projectId}/mapping-rules")
   public MappingRulesetView saveProject(
       @PathVariable UUID projectId,
-      @RequestBody SaveRulesRequest req,
-      @RequestHeader(value = "X-Actor", required = false) String actor) {
+      @RequestBody SaveRulesRequest req) {
+    String actor = CurrentUser.username();
     return service.saveProject(projectId, req.json(), actor);
   }
 

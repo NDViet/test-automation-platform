@@ -1,6 +1,7 @@
 package com.platform.agent.agents;
 
 import com.platform.agent.agents.TaskAgentDtos.EffectiveAssignmentDto;
+import com.platform.security.web.CurrentUser;
 import com.platform.agent.agents.TaskAgentDtos.TaskAgentDto;
 import com.platform.agent.agents.TaskAgentDtos.TaskAgentRequest;
 import com.platform.agent.agents.TaskAgentDtos.TaskSubTypeDto;
@@ -30,8 +31,8 @@ public class TaskAgentController {
   public TaskAgentDto upsert(
       @PathVariable String scope,
       @PathVariable UUID scopeId,
-      @RequestBody TaskAgentRequest req,
-      @RequestHeader(value = "X-Actor", required = false) String actor) {
+      @RequestBody TaskAgentRequest req) {
+    String actor = CurrentUser.username();
     return service.upsert(toScope(scope), scopeId, req, actor);
   }
 
@@ -39,8 +40,8 @@ public class TaskAgentController {
   public ResponseEntity<Void> delete(
       @PathVariable String scope,
       @PathVariable UUID scopeId,
-      @PathVariable UUID id,
-      @RequestHeader(value = "X-Actor", required = false) String actor) {
+      @PathVariable UUID id) {
+    String actor = CurrentUser.username();
     service.delete(toScope(scope), scopeId, id, actor);
     return ResponseEntity.noContent().build();
   }

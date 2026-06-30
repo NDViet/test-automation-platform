@@ -11,6 +11,27 @@ spring:
     redis:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
+  # DB access for user authentication / RBAC (the portal owns auth). Flyway is run by the dedicated
+  # migrate job, not here; the portal only validates the schema.
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/platform}
+    username: ${DB_USERNAME:platform}
+    password: ${DB_PASSWORD:platform}
+    driver-class-name: org.postgresql.Driver
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+  flyway:
+    enabled: false
+
+# The portal imports platform-core only for auth (users/user_roles). It owns no integration
+# credentials, so the credential backfill runner must not load/run here (it belongs to ingestion
+# /integration) — disabling it also avoids needing core's ObjectMapper in the portal context.
+platform:
+  cred:
+    backfill:
+      enabled: false
 
 server:
   port: ${SERVER_PORT:8085}
