@@ -198,6 +198,10 @@ public class LangChainAgentRunner implements AgentOrchestrator {
 
         if (!ai.hasToolExecutionRequests()) {
           String text = ai.text() != null ? ai.text() : "";
+          // Checkpoint the finished conversation (incl. this final turn) so the run can be resumed
+          // to refine its output — e.g. iteratively refining generated test-case proposals.
+          messages.add(ai);
+          String checkpointId = saveCheckpoint(bundle, messages, total);
           return NodeResult.completed(
               bundle.sessionId(),
               bundle.workflowId(),
@@ -205,6 +209,7 @@ public class LangChainAgentRunner implements AgentOrchestrator {
               node.taskType(),
               ArtifactManifest.empty(),
               text,
+              checkpointId,
               total);
         }
 

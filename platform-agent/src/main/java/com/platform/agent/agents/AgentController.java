@@ -34,9 +34,7 @@ public class AgentController {
 
   @PostMapping("/hub/{scope}/{scopeId}/ai/agents")
   public ResponseEntity<AgentDto> create(
-      @PathVariable String scope,
-      @PathVariable UUID scopeId,
-      @RequestBody AgentRequest req) {
+      @PathVariable String scope, @PathVariable UUID scopeId, @RequestBody AgentRequest req) {
     String actor = CurrentUser.username();
     return ResponseEntity.status(HttpStatus.CREATED)
         .body(service.create(toScope(scope), scopeId, req, actor));
@@ -54,9 +52,7 @@ public class AgentController {
 
   @DeleteMapping("/hub/{scope}/{scopeId}/ai/agents/{id}")
   public ResponseEntity<Void> delete(
-      @PathVariable String scope,
-      @PathVariable UUID scopeId,
-      @PathVariable UUID id) {
+      @PathVariable String scope, @PathVariable UUID scopeId, @PathVariable UUID id) {
     String actor = CurrentUser.username();
     service.delete(toScope(scope), scopeId, id, actor);
     return ResponseEntity.noContent().build();

@@ -7,14 +7,7 @@
 import type { AuthUser } from './types'
 
 /** Ordered low→high; a higher tier satisfies every lower requirement. */
-export const TIERS = [
-  'NONE',
-  'VIEW',
-  'OPERATE',
-  'ADMIN_PROJECT',
-  'ADMIN_ORG',
-  'SUPER',
-] as const
+export const TIERS = ['NONE', 'VIEW', 'OPERATE', 'ADMIN_PROJECT', 'ADMIN_ORG', 'SUPER'] as const
 export type Tier = (typeof TIERS)[number]
 
 const TIER_RANK: Record<Tier, number> = TIERS.reduce(

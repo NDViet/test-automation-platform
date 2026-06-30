@@ -15,6 +15,7 @@ import com.platform.core.domain.AgentWorkflow;
 import com.platform.core.domain.AiGenerationRun;
 import com.platform.core.repository.AiGenerationRunRepository;
 import com.platform.security.authz.Capability;
+import com.platform.security.web.CurrentUser;
 import com.platform.security.web.RequireCapability;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -50,6 +51,7 @@ public class TestCaseGenerationController {
   private final GenerationResumeService resumeService;
   private final GenerationStatusService statusService;
   private final com.platform.agent.agents.AgentResolutionService agentResolutionService;
+  private final com.platform.agent.proposals.ProposalService proposalService;
 
   public TestCaseGenerationController(
       AgentWorkflowService workflowService,
@@ -59,7 +61,8 @@ public class TestCaseGenerationController {
       AiGenerationRunRepository runRepo,
       GenerationResumeService resumeService,
       GenerationStatusService statusService,
-      com.platform.agent.agents.AgentResolutionService agentResolutionService) {
+      com.platform.agent.agents.AgentResolutionService agentResolutionService,
+      com.platform.agent.proposals.ProposalService proposalService) {
     this.workflowService = workflowService;
     this.contextAssembler = contextAssembler;
     this.mapper = mapper;
@@ -68,6 +71,7 @@ public class TestCaseGenerationController {
     this.resumeService = resumeService;
     this.statusService = statusService;
     this.agentResolutionService = agentResolutionService;
+    this.proposalService = proposalService;
   }
 
   /**
@@ -212,6 +216,83 @@ public class TestCaseGenerationController {
                 "workflowId", workflowId.toString(),
                 "projectId", projectId.toString(),
                 "status", "RESUMING"));
+  }
+
+  /**
+   * GET /hub/test-cases/{projectId}/generations/{workflowId}/proposals
+   *
+   * <p>The AI-generated test cases staged for review (status PROPOSED/ACCEPTED/REJECTED). The user
+   * accepts / rejects / refines these before any enter the catalog.
+   */
+  @GetMapping("/{projectId}/generations/{workflowId}/proposals")
+  @RequireCapability(value = Capability.OPERATE_QUALITY, scope = "projectId")
+  public List<com.platform.agent.proposals.ProposalDtos.ProposalDto> listProposals(
+      @PathVariable UUID projectId, @PathVariable UUID workflowId) {
+    return proposalService.list(projectId, workflowId);
+  }
+
+  /** Accept a proposal → it becomes a DRAFT test case in the catalog. */
+  @PostMapping("/{projectId}/generations/{workflowId}/proposals/{proposalId}/accept")
+  @RequireCapability(value = Capability.OPERATE_QUALITY, scope = "projectId")
+  public com.platform.agent.proposals.ProposalDtos.ProposalDto acceptProposal(
+      @PathVariable UUID projectId, @PathVariable UUID workflowId, @PathVariable UUID proposalId) {
+    return proposalService.accept(projectId, proposalId, CurrentUser.username());
+  }
+
+  /** Accept every still-proposed case in the run. */
+  @PostMapping("/{projectId}/generations/{workflowId}/proposals/accept-all")
+  @RequireCapability(value = Capability.OPERATE_QUALITY, scope = "projectId")
+  public List<com.platform.agent.proposals.ProposalDtos.ProposalDto> acceptAllProposals(
+      @PathVariable UUID projectId, @PathVariable UUID workflowId) {
+    return proposalService.acceptAll(projectId, workflowId, CurrentUser.username());
+  }
+
+  /** Reject (discard) a proposal — it never enters the catalog. */
+  @PostMapping("/{projectId}/generations/{workflowId}/proposals/{proposalId}/reject")
+  @RequireCapability(value = Capability.OPERATE_QUALITY, scope = "projectId")
+  public com.platform.agent.proposals.ProposalDtos.ProposalDto rejectProposal(
+      @PathVariable UUID projectId, @PathVariable UUID workflowId, @PathVariable UUID proposalId) {
+    return proposalService.reject(projectId, proposalId);
+  }
+
+  /**
+   * Refine a proposal: the AI revises it in place by continuing the generation conversation. Async
+   * — progress streams on the generation socket; re-fetch proposals when the run returns to review.
+   */
+  @PostMapping("/{projectId}/generations/{workflowId}/proposals/{proposalId}/refine")
+  @RequireCapability(value = Capability.OPERATE_QUALITY, scope = "projectId")
+  public ResponseEntity<Map<String, Object>> refineProposal(
+      @PathVariable UUID projectId,
+      @PathVariable UUID workflowId,
+      @PathVariable UUID proposalId,
+      @RequestBody(required = false) com.platform.agent.proposals.ProposalDtos.RefineRequest body) {
+    GenerationResumeService.RefinePlan plan =
+        resumeService.validateRefine(
+            projectId, workflowId, proposalId, body != null ? body.instruction() : null);
+    resumeService.refineAsync(workflowId, plan);
+    return ResponseEntity.accepted()
+        .body(
+            Map.of(
+                "workflowId", workflowId.toString(),
+                "proposalId", proposalId.toString(),
+                "status", "REFINING"));
+  }
+
+  /**
+   * Refine every still-proposed case in the run with one instruction (AI revises each in place).
+   */
+  @PostMapping("/{projectId}/generations/{workflowId}/proposals/refine-all")
+  @RequireCapability(value = Capability.OPERATE_QUALITY, scope = "projectId")
+  public ResponseEntity<Map<String, Object>> refineAllProposals(
+      @PathVariable UUID projectId,
+      @PathVariable UUID workflowId,
+      @RequestBody(required = false) com.platform.agent.proposals.ProposalDtos.RefineRequest body) {
+    GenerationResumeService.RefineAllPlan plan =
+        resumeService.validateRefineAll(
+            projectId, workflowId, body != null ? body.instruction() : null);
+    resumeService.refineAllAsync(plan);
+    return ResponseEntity.accepted()
+        .body(Map.of("workflowId", workflowId.toString(), "status", "REFINING"));
   }
 
   /**

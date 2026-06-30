@@ -41,6 +41,7 @@ class GenerationResumeServiceTest {
   @Mock AgentWorkflowRepository workflowRepo;
   @Mock GenerationClarificationRepository clarificationRepo;
   @Mock AiGenerationRunRepository runRepo;
+  @Mock com.platform.core.repository.GeneratedTestCaseProposalRepository proposalRepo;
   @Mock ContextAssembler contextAssembler;
   @Mock TestCaseGenerationNode generationNode;
   @Mock KafkaTemplate<String, String> kafka;
@@ -56,6 +57,7 @@ class GenerationResumeServiceTest {
             workflowRepo,
             clarificationRepo,
             runRepo,
+            proposalRepo,
             contextAssembler,
             generationNode,
             kafka,
@@ -156,5 +158,86 @@ class GenerationResumeServiceTest {
     when(runRepo.findByWorkflowId(workflowId)).thenReturn(Optional.empty()); // default cap 3
     lenient().when(clarificationRepo.countByWorkflowId(workflowId)).thenReturn(3L);
     assertThat(service.allowMoreQuestions(workflowId)).isFalse();
+  }
+
+  private final UUID proposalId = UUID.randomUUID();
+
+  private com.platform.core.domain.GeneratedTestCaseProposal proposal() {
+    return new com.platform.core.domain.GeneratedTestCaseProposal(
+        workflowId, projectId, 0, "T", null, null, null, "HIGH", null, "[]");
+  }
+
+  private com.platform.core.domain.AiGenerationRun run(String checkpoint) {
+    var r =
+        new com.platform.core.domain.AiGenerationRun(
+            workflowId, projectId, "[]", null, "[]", null, null, 3);
+    if (checkpoint != null) r.recordReviewCheckpoint(checkpoint);
+    return r;
+  }
+
+  @Test
+  void validateRefineRejectsNonProposedProposal() {
+    workflow("AWAITING_INPUT");
+    var p = proposal();
+    p.markAccepted(UUID.randomUUID());
+    when(proposalRepo.findByIdAndProjectId(proposalId, projectId)).thenReturn(Optional.of(p));
+    assertThatThrownBy(() -> service.validateRefine(projectId, workflowId, proposalId, "do it"))
+        .isInstanceOf(ResponseStatusException.class)
+        .satisfies(
+            e -> assertThat(((ResponseStatusException) e).getStatusCode().value()).isEqualTo(409));
+  }
+
+  @Test
+  void validateRefineRejectsWhenNoCheckpoint() {
+    workflow("AWAITING_INPUT");
+    when(proposalRepo.findByIdAndProjectId(proposalId, projectId))
+        .thenReturn(Optional.of(proposal()));
+    when(runRepo.findByWorkflowId(workflowId)).thenReturn(Optional.of(run(null)));
+    assertThatThrownBy(() -> service.validateRefine(projectId, workflowId, proposalId, "do it"))
+        .isInstanceOf(ResponseStatusException.class)
+        .satisfies(
+            e -> assertThat(((ResponseStatusException) e).getStatusCode().value()).isEqualTo(409));
+  }
+
+  @Test
+  void validateRefineReturnsPlanAndMarksRunning() {
+    AgentWorkflow wf = workflow("AWAITING_INPUT");
+    when(proposalRepo.findByIdAndProjectId(proposalId, projectId))
+        .thenReturn(Optional.of(proposal()));
+    when(runRepo.findByWorkflowId(workflowId)).thenReturn(Optional.of(run("chk-9")));
+
+    GenerationResumeService.RefinePlan plan =
+        service.validateRefine(projectId, workflowId, proposalId, "make it clearer");
+
+    assertThat(plan.checkpointId()).isEqualTo("chk-9");
+    assertThat(plan.instruction()).isEqualTo("make it clearer");
+    assertThat(wf.getStatus()).isEqualTo("RUNNING");
+    verify(workflowRepo).save(wf);
+  }
+
+  @Test
+  void validateRefineAllRejectsWhenNothingProposed() {
+    workflow("AWAITING_INPUT");
+    when(runRepo.findByWorkflowId(workflowId)).thenReturn(Optional.of(run("chk-9")));
+    when(proposalRepo.findByWorkflowIdAndStatusOrderByOrdinalAsc(workflowId, "PROPOSED"))
+        .thenReturn(List.of());
+    assertThatThrownBy(() -> service.validateRefineAll(projectId, workflowId, "tighten all"))
+        .isInstanceOf(ResponseStatusException.class)
+        .satisfies(
+            e -> assertThat(((ResponseStatusException) e).getStatusCode().value()).isEqualTo(409));
+  }
+
+  @Test
+  void validateRefineAllReturnsPlanWhenProposedExist() {
+    AgentWorkflow wf = workflow("AWAITING_INPUT");
+    when(runRepo.findByWorkflowId(workflowId)).thenReturn(Optional.of(run("chk-9")));
+    when(proposalRepo.findByWorkflowIdAndStatusOrderByOrdinalAsc(workflowId, "PROPOSED"))
+        .thenReturn(List.of(proposal()));
+
+    GenerationResumeService.RefineAllPlan plan =
+        service.validateRefineAll(projectId, workflowId, "tighten all");
+
+    assertThat(plan.instruction()).isEqualTo("tighten all");
+    assertThat(wf.getStatus()).isEqualTo("RUNNING");
   }
 }

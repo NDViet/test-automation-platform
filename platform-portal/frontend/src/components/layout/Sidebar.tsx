@@ -110,7 +110,12 @@ function projectGroups(base: string): NavGroup[] {
       items: [
         { to: `${base}/settings/general`, label: 'General', icon: Settings, cap: 'MANAGE_PROJECT' },
         { to: `${base}/settings/teams`, label: 'Teams', icon: Users, cap: 'MANAGE_PROJECT' },
-        { to: `${base}/settings/integrations`, label: 'Integrations', icon: Plug, cap: 'MANAGE_PROJECT' },
+        {
+          to: `${base}/settings/integrations`,
+          label: 'Integrations',
+          icon: Plug,
+          cap: 'MANAGE_PROJECT',
+        },
         { to: `${base}/settings/mapping`, label: 'Mapping', icon: Boxes, cap: 'MANAGE_PROJECT' },
         { to: `${base}/settings/ai`, label: 'AI', icon: Bot, cap: 'MANAGE_AI_GATEWAY' },
         { to: `${base}/settings/github`, label: 'GitHub', icon: GitMerge, cap: 'MANAGE_PROJECT' },

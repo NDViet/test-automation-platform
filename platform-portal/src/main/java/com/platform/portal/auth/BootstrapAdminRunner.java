@@ -45,14 +45,13 @@ public class BootstrapAdminRunner implements CommandLineRunner {
       return; // already provisioned
     }
     if (credKey == null || credKey.isBlank()) {
-      throw new IllegalStateException(
-          "Cannot bootstrap super-admin: PLATFORM_CRED_KEY is not set");
+      throw new IllegalStateException("Cannot bootstrap super-admin: PLATFORM_CRED_KEY is not set");
     }
-    User admin =
-        new User(username, null, encoder.encode(credKey), "Super Admin", true, true);
+    User admin = new User(username, null, encoder.encode(credKey), "Super Admin", true, true);
     userRepo.save(admin);
     log.warn(
-        "Bootstrapped super-admin '{}' (initial password = PLATFORM_CRED_KEY; change on first login)",
+        "Bootstrapped super-admin '{}' (initial password = PLATFORM_CRED_KEY; change on first"
+            + " login)",
         username);
   }
 }

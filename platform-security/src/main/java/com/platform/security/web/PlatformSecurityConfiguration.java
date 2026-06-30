@@ -15,11 +15,12 @@ import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 
 /**
- * Wires the shared security model into a host service: scans the {@code com.platform.security} beans
- * (JwtService, evaluator, enforcer, aspect) and installs a stateless filter chain with the JWT auth
- * filter. Enforcement is on by default ({@code platform.security.enabled=true}); set it to false to
- * permit every request (auth still parsed if present) — only for break-glass/local debugging, not a
- * supported production mode. Services opt in with {@code @Import(PlatformSecurityConfiguration.class)}.
+ * Wires the shared security model into a host service: scans the {@code com.platform.security}
+ * beans (JwtService, evaluator, enforcer, aspect) and installs a stateless filter chain with the
+ * JWT auth filter. Enforcement is on by default ({@code platform.security.enabled=true}); set it to
+ * false to permit every request (auth still parsed if present) — only for break-glass/local
+ * debugging, not a supported production mode. Services opt in with
+ * {@code @Import(PlatformSecurityConfiguration.class)}.
  */
 @Configuration
 @EnableWebSecurity
@@ -35,8 +36,7 @@ public class PlatformSecurityConfiguration {
       throws Exception {
     http.csrf(AbstractHttpConfigurer::disable)
         .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-        .addFilterBefore(
-            new JwtCookieAuthFilter(jwt), UsernamePasswordAuthenticationFilter.class);
+        .addFilterBefore(new JwtCookieAuthFilter(jwt), UsernamePasswordAuthenticationFilter.class);
 
     if (enabled) {
       http.authorizeHttpRequests(
@@ -48,8 +48,7 @@ public class PlatformSecurityConfiguration {
                   .dispatcherTypeMatchers(
                       DispatcherType.ERROR, DispatcherType.FORWARD, DispatcherType.ASYNC)
                   .permitAll()
-                  .requestMatchers(
-                      "/actuator/health", "/actuator/health/**", "/actuator/info")
+                  .requestMatchers("/actuator/health", "/actuator/health/**", "/actuator/info")
                   .permitAll()
                   .requestMatchers("/api/portal/auth/login")
                   .permitAll()

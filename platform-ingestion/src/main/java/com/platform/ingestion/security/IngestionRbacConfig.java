@@ -14,9 +14,9 @@ import org.springframework.context.annotation.Import;
  * {@code PlatformSecurityConfiguration} (which declares its own {@code @EnableWebSecurity}
  * SecurityFilterChain). Ingestion already owns a chain ({@link SecurityConfig}) for the API-key
  * path, so importing the full security config would create a conflicting second chain. Instead we
- * register only the beans the {@code @RequireCapability} aspect needs and let {@link SecurityConfig}
- * add the JWT filter into the existing chain — so both X-API-Key (services) and JWT (users)
- * authenticate side by side.
+ * register only the beans the {@code @RequireCapability} aspect needs and let {@link
+ * SecurityConfig} add the JWT filter into the existing chain — so both X-API-Key (services) and JWT
+ * (users) authenticate side by side.
  */
 @Configuration
 @EnableAspectJAutoProxy

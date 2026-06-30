@@ -41,8 +41,7 @@ public class SecurityConfig {
   private final ApiKeyService keyService;
   private final JwtService jwtService;
 
-  public SecurityConfig(
-      ApiKeyRepository keyRepo, ApiKeyService keyService, JwtService jwtService) {
+  public SecurityConfig(ApiKeyRepository keyRepo, ApiKeyService keyService, JwtService jwtService) {
     this.keyRepo = keyRepo;
     this.keyService = keyService;
     this.jwtService = jwtService;

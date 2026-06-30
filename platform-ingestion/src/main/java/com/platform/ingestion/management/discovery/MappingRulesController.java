@@ -38,9 +38,7 @@ public class MappingRulesController {
   }
 
   @PutMapping("/organizations/{orgId}/mapping-rules")
-  public MappingRulesetView saveOrg(
-      @PathVariable UUID orgId,
-      @RequestBody SaveRulesRequest req) {
+  public MappingRulesetView saveOrg(@PathVariable UUID orgId, @RequestBody SaveRulesRequest req) {
     String actor = CurrentUser.username();
     return service.saveOrg(orgId, req.json(), actor);
   }
@@ -60,8 +58,7 @@ public class MappingRulesController {
 
   @PutMapping("/projects/{projectId}/mapping-rules")
   public MappingRulesetView saveProject(
-      @PathVariable UUID projectId,
-      @RequestBody SaveRulesRequest req) {
+      @PathVariable UUID projectId, @RequestBody SaveRulesRequest req) {
     String actor = CurrentUser.username();
     return service.saveProject(projectId, req.json(), actor);
   }

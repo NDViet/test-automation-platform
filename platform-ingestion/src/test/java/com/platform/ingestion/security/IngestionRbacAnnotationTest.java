@@ -23,7 +23,8 @@ class IngestionRbacAnnotationTest {
 
   private static RequireCapability classGate(Class<?> type) {
     RequireCapability rc = type.getAnnotation(RequireCapability.class);
-    assertThat(rc).as("%s must carry a class-level @RequireCapability", type.getSimpleName())
+    assertThat(rc)
+        .as("%s must carry a class-level @RequireCapability", type.getSimpleName())
         .isNotNull();
     return rc;
   }
@@ -35,7 +36,8 @@ class IngestionRbacAnnotationTest {
             .findFirst()
             .orElseThrow(() -> new AssertionError("no method " + method + " on " + type));
     RequireCapability rc = m.getAnnotation(RequireCapability.class);
-    assertThat(rc).as("%s.%s must carry @RequireCapability", type.getSimpleName(), method)
+    assertThat(rc)
+        .as("%s.%s must carry @RequireCapability", type.getSimpleName(), method)
         .isNotNull();
     return rc;
   }

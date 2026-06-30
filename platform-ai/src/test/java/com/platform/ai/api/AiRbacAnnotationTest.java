@@ -26,7 +26,8 @@ class AiRbacAnnotationTest {
     try {
       Method m = type.getDeclaredMethod(method, params);
       RequireCapability rc = m.getAnnotation(RequireCapability.class);
-      assertThat(rc).as("%s.%s must carry @RequireCapability", type.getSimpleName(), method)
+      assertThat(rc)
+          .as("%s.%s must carry @RequireCapability", type.getSimpleName(), method)
           .isNotNull();
       return rc;
     } catch (NoSuchMethodException e) {
@@ -39,7 +40,10 @@ class AiRbacAnnotationTest {
     assertThat(gate(AiSettingsController.class, "getSettings").value())
         .isEqualTo(Capability.MANAGE_AI_GATEWAY);
     assertThat(
-            gate(AiSettingsController.class, "updateSettings", AiSettingsController.AiSettingsUpdate.class)
+            gate(
+                    AiSettingsController.class,
+                    "updateSettings",
+                    AiSettingsController.AiSettingsUpdate.class)
                 .value())
         .isEqualTo(Capability.MANAGE_AI_GATEWAY);
     assertThat(

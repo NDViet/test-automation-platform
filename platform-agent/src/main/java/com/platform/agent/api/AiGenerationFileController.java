@@ -18,8 +18,7 @@ public class AiGenerationFileController {
 
   @PostMapping(consumes = "multipart/form-data")
   public AiGenerationFileDto upload(
-      @PathVariable UUID projectId,
-      @RequestParam("file") MultipartFile file) {
+      @PathVariable UUID projectId, @RequestParam("file") MultipartFile file) {
     String actor = CurrentUser.username();
     return inputService.upload(projectId, file, actor);
   }

@@ -317,7 +317,13 @@
                 <executions>
                     <execution>
                         <id>resolve-test-agent-paths</id>
-                        <phase>initialize</phase>
+                        <!--
+                          Bound just before `test` (not `initialize`) so it only resolves the agent
+                          jar in test/package builds. Resolving at `initialize` would fail early-phase
+                          reactor goals like `mvn -Pformat process-sources`, where sibling module jars
+                          aren't built yet.
+                        -->
+                        <phase>process-test-classes</phase>
                         <goals>
                             <goal>properties</goal>
                         </goals>

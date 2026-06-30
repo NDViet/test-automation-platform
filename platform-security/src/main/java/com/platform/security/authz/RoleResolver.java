@@ -31,11 +31,7 @@ public class RoleResolver {
   @Transactional(readOnly = true)
   public Tier tierForProject(AuthenticatedUser user, UUID projectId) {
     if (user.superAdmin()) return Tier.SUPER;
-    UUID orgId =
-        projectRepo
-            .findById(projectId)
-            .map(p -> p.getOrganization().getId())
-            .orElse(null);
+    UUID orgId = projectRepo.findById(projectId).map(p -> p.getOrganization().getId()).orElse(null);
     Tier best = null;
     for (UserRole r : roleRepo.findByUserId(user.userId())) {
       best = max(best, projectTier(r, projectId, orgId));

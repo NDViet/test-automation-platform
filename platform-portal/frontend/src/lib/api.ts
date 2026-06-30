@@ -636,6 +636,41 @@ export const api = {
     get<import('./types').GenerationStatus>(
       `/projects/${projectId}/test-cases/generations/${workflowId}`,
     ),
+  // AI-generated test cases staged for review (accept/reject/refine before they enter the catalog).
+  listProposals: (projectId: string, workflowId: string) =>
+    get<import('./types').GeneratedProposal[]>(
+      `/projects/${projectId}/test-cases/generations/${workflowId}/proposals`,
+    ),
+  acceptProposal: (projectId: string, workflowId: string, proposalId: string) =>
+    post<import('./types').GeneratedProposal>(
+      `/projects/${projectId}/test-cases/generations/${workflowId}/proposals/${proposalId}/accept`,
+      {},
+    ),
+  acceptAllProposals: (projectId: string, workflowId: string) =>
+    post<import('./types').GeneratedProposal[]>(
+      `/projects/${projectId}/test-cases/generations/${workflowId}/proposals/accept-all`,
+      {},
+    ),
+  rejectProposal: (projectId: string, workflowId: string, proposalId: string) =>
+    post<import('./types').GeneratedProposal>(
+      `/projects/${projectId}/test-cases/generations/${workflowId}/proposals/${proposalId}/reject`,
+      {},
+    ),
+  refineProposal: (
+    projectId: string,
+    workflowId: string,
+    proposalId: string,
+    instruction: string,
+  ) =>
+    post<{ status: string }>(
+      `/projects/${projectId}/test-cases/generations/${workflowId}/proposals/${proposalId}/refine`,
+      { instruction },
+    ),
+  refineAllProposals: (projectId: string, workflowId: string, instruction: string) =>
+    post<{ status: string }>(
+      `/projects/${projectId}/test-cases/generations/${workflowId}/proposals/refine-all`,
+      { instruction },
+    ),
   submitGenerationAnswers: (
     projectId: string,
     workflowId: string,

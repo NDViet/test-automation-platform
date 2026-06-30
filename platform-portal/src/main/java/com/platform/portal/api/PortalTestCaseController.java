@@ -344,6 +344,112 @@ public class PortalTestCaseController {
         .body(Object.class);
   }
 
+  @GetMapping("/test-cases/generations/{workflowId}/proposals")
+  @Operation(summary = "AI-generated test cases staged for review")
+  public Object generationProposals(
+      @PathVariable String projectId, @PathVariable String workflowId) {
+    return agentClient
+        .get()
+        .uri("/hub/test-cases/" + projectId + "/generations/" + workflowId + "/proposals")
+        .accept(MediaType.APPLICATION_JSON)
+        .retrieve()
+        .body(Object.class);
+  }
+
+  @PostMapping("/test-cases/generations/{workflowId}/proposals/{proposalId}/accept")
+  @Operation(summary = "Accept a proposal → DRAFT test case")
+  public Object acceptProposal(
+      @PathVariable String projectId,
+      @PathVariable String workflowId,
+      @PathVariable String proposalId) {
+    return agentClient
+        .post()
+        .uri(
+            "/hub/test-cases/"
+                + projectId
+                + "/generations/"
+                + workflowId
+                + "/proposals/"
+                + proposalId
+                + "/accept")
+        .accept(MediaType.APPLICATION_JSON)
+        .retrieve()
+        .body(Object.class);
+  }
+
+  @PostMapping("/test-cases/generations/{workflowId}/proposals/accept-all")
+  @Operation(summary = "Accept every still-proposed case in the run")
+  public Object acceptAllProposals(
+      @PathVariable String projectId, @PathVariable String workflowId) {
+    return agentClient
+        .post()
+        .uri(
+            "/hub/test-cases/" + projectId + "/generations/" + workflowId + "/proposals/accept-all")
+        .accept(MediaType.APPLICATION_JSON)
+        .retrieve()
+        .body(Object.class);
+  }
+
+  @PostMapping("/test-cases/generations/{workflowId}/proposals/{proposalId}/reject")
+  @Operation(summary = "Reject (discard) a proposal")
+  public Object rejectProposal(
+      @PathVariable String projectId,
+      @PathVariable String workflowId,
+      @PathVariable String proposalId) {
+    return agentClient
+        .post()
+        .uri(
+            "/hub/test-cases/"
+                + projectId
+                + "/generations/"
+                + workflowId
+                + "/proposals/"
+                + proposalId
+                + "/reject")
+        .accept(MediaType.APPLICATION_JSON)
+        .retrieve()
+        .body(Object.class);
+  }
+
+  @PostMapping("/test-cases/generations/{workflowId}/proposals/{proposalId}/refine")
+  @Operation(summary = "Refine a proposal (AI revises it in place)")
+  public Object refineProposal(
+      @PathVariable String projectId,
+      @PathVariable String workflowId,
+      @PathVariable String proposalId,
+      @RequestBody Object body) {
+    return agentClient
+        .post()
+        .uri(
+            "/hub/test-cases/"
+                + projectId
+                + "/generations/"
+                + workflowId
+                + "/proposals/"
+                + proposalId
+                + "/refine")
+        .contentType(MediaType.APPLICATION_JSON)
+        .accept(MediaType.APPLICATION_JSON)
+        .body(body)
+        .retrieve()
+        .body(Object.class);
+  }
+
+  @PostMapping("/test-cases/generations/{workflowId}/proposals/refine-all")
+  @Operation(summary = "Refine every still-proposed case in the run")
+  public Object refineAllProposals(
+      @PathVariable String projectId, @PathVariable String workflowId, @RequestBody Object body) {
+    return agentClient
+        .post()
+        .uri(
+            "/hub/test-cases/" + projectId + "/generations/" + workflowId + "/proposals/refine-all")
+        .contentType(MediaType.APPLICATION_JSON)
+        .accept(MediaType.APPLICATION_JSON)
+        .body(body)
+        .retrieve()
+        .body(Object.class);
+  }
+
   @PostMapping("/test-cases/generations/{workflowId}/answers")
   @Operation(summary = "Answer the agent's clarifying questions and resume generation")
   public Object answerGeneration(

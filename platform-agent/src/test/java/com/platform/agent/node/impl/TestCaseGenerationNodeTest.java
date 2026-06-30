@@ -22,10 +22,12 @@ import com.platform.common.agent.TokenUsage;
 import com.platform.common.storage.BlobStore;
 import com.platform.core.domain.AiGenerationRun;
 import com.platform.core.domain.AiSkill;
+import com.platform.core.domain.GeneratedTestCaseProposal;
 import com.platform.core.domain.PlatformRequirement;
 import com.platform.core.repository.AiGenerationFileRepository;
 import com.platform.core.repository.AiGenerationRunRepository;
 import com.platform.core.repository.AiSkillRepository;
+import com.platform.core.repository.GeneratedTestCaseProposalRepository;
 import com.platform.core.repository.PlatformRequirementRepository;
 import com.platform.core.repository.PlatformTestCaseRepository;
 import com.platform.core.repository.TestCaseStepRepository;
@@ -51,6 +53,7 @@ class TestCaseGenerationNodeTest {
   @Mock AiSkillRepository skillRepo;
   @Mock AiGenerationFileRepository fileRepo;
   @Mock BlobStore blobStore;
+  @Mock GeneratedTestCaseProposalRepository proposalRepo;
 
   TestCaseGenerationNode node;
   ContextBundle bundle;
@@ -68,7 +71,8 @@ class TestCaseGenerationNodeTest {
             promptTemplateService,
             skillRepo,
             fileRepo,
-            blobStore);
+            blobStore,
+            proposalRepo);
     bundle =
         AgentGridFixtures.bundle(
             AgentGridFixtures.manualTrigger(AgentGridFixtures.PROJECT_ID.toString()));
@@ -151,5 +155,83 @@ class TestCaseGenerationNodeTest {
 
     verify(runRepo, never()).save(any());
     verify(promptTemplateService, never()).resolveDefault(any(), eq("SYSTEM"));
+  }
+
+  @Test
+  void refineProposalUpdatesInPlaceAndAdvancesCheckpoint() {
+    UUID wf = bundle.workflowId();
+    AiGenerationRun run =
+        new AiGenerationRun(wf, bundle.projectId(), "[]", null, "[]", null, null, 3);
+    when(runRepo.findByWorkflowId(wf)).thenReturn(Optional.of(run));
+    when(runRepo.save(any())).thenAnswer(i -> i.getArgument(0));
+    GeneratedTestCaseProposal proposal =
+        new GeneratedTestCaseProposal(
+            wf, bundle.projectId(), 0, "Old title", "old", "p", "e", "HIGH", "req", "[]");
+    when(proposalRepo.save(any())).thenAnswer(i -> i.getArgument(0));
+
+    String revisedJson =
+        "{\"title\":\"New clearer title\",\"description\":\"better\",\"priority\":\"low\","
+            + "\"steps\":[{\"action\":\"do X\",\"expectedResult\":\"Y\",\"notes\":null}]}";
+    NodeResult resumed =
+        NodeResult.completed(
+            bundle.sessionId(),
+            wf,
+            NodeType.TEST_GENERATION,
+            AgentTaskType.GENERATE_TEST_CASES,
+            ArtifactManifest.empty(),
+            revisedJson,
+            "chk-2",
+            TokenUsage.zero());
+    when(orchestrator.resume(any(), eq("chk-1"), any(), any())).thenReturn(resumed);
+
+    NodeResult result = node.refineProposal(bundle, "chk-1", proposal, "make the title clearer");
+
+    assertThat(result.needsReview()).isTrue();
+    // Proposal updated in place, still PROPOSED.
+    assertThat(proposal.getTitle()).isEqualTo("New clearer title");
+    assertThat(proposal.getPriority()).isEqualTo("LOW"); // normalized
+    assertThat(proposal.getStepsJson()).contains("do X");
+    assertThat(proposal.getStatus()).isEqualTo("PROPOSED");
+    verify(proposalRepo).save(proposal);
+    // Conversation advanced — next refine resumes from the new checkpoint.
+    assertThat(run.getReviewCheckpointId()).isEqualTo("chk-2");
+    verify(testCaseRepo, never()).save(any()); // refine never touches the catalog
+  }
+
+  @Test
+  void generatedCasesAreStagedAsProposalsNotDrafts() {
+    when(runRepo.findByWorkflowId(bundle.workflowId())).thenReturn(Optional.empty());
+    PlatformRequirement req =
+        new PlatformRequirement(bundle.projectId(), null, "EXT-1", "Login page", "desc", "STORY");
+    when(requirementRepo.findByProjectIdOrderByUpdatedAtDesc(bundle.projectId()))
+        .thenReturn(List.of(req));
+    lenient().when(testCaseRepo.findByProjectId(bundle.projectId())).thenReturn(List.of());
+    String json =
+        """
+        [
+          {"title":"Login happy path","description":"d1","preconditions":"p1",
+           "priority":"HIGH","sourceRequirementId":"req-1",
+           "steps":[{"action":"open login","expectedResult":"form shown","notes":null}]},
+          {"title":"Login bad password","priority":"low","steps":[]}
+        ]
+        """;
+    when(orchestrator.run(any(), any())).thenReturn(completed(json));
+
+    NodeResult result = node.execute(bundle);
+
+    // Parked for proposal review — nothing entered the catalog.
+    assertThat(result.needsReview()).isTrue();
+    verify(testCaseRepo, never()).save(any());
+    verify(stepRepo, never()).save(any());
+
+    ArgumentCaptor<GeneratedTestCaseProposal> cap =
+        ArgumentCaptor.forClass(GeneratedTestCaseProposal.class);
+    verify(proposalRepo, org.mockito.Mockito.times(2)).save(cap.capture());
+    List<GeneratedTestCaseProposal> saved = cap.getAllValues();
+    assertThat(saved).allMatch(p -> "PROPOSED".equals(p.getStatus()));
+    assertThat(saved).extracting(GeneratedTestCaseProposal::getOrdinal).containsExactly(0, 1);
+    assertThat(saved.get(0).getTitle()).isEqualTo("Login happy path");
+    assertThat(saved.get(0).getStepsJson()).contains("open login");
+    assertThat(saved.get(1).getPriority()).isEqualTo("LOW"); // normalized
   }
 }

@@ -14,10 +14,10 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 /**
- * Authenticates a request from the {@code platform_token} cookie (browser) or an
- * {@code Authorization: Bearer} header (service-to-service via the portal). A valid token sets the
- * {@link AuthenticatedUser} principal; an invalid/absent token leaves the context unauthenticated
- * (the filter chain then returns 401 for protected endpoints). Identity only — never trusts headers.
+ * Authenticates a request from the {@code platform_token} cookie (browser) or an {@code
+ * Authorization: Bearer} header (service-to-service via the portal). A valid token sets the {@link
+ * AuthenticatedUser} principal; an invalid/absent token leaves the context unauthenticated (the
+ * filter chain then returns 401 for protected endpoints). Identity only — never trusts headers.
  */
 public class JwtCookieAuthFilter extends OncePerRequestFilter {
 

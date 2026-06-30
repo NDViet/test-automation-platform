@@ -13,8 +13,8 @@ import org.springframework.web.context.request.RequestContextHolder;
 import org.springframework.web.context.request.ServletRequestAttributes;
 
 /**
- * Forwards the browser's {@code platform_token} cookie as an {@code Authorization: Bearer} header on
- * portal→service calls, so each backend service can authenticate the user from the verified JWT
+ * Forwards the browser's {@code platform_token} cookie as an {@code Authorization: Bearer} header
+ * on portal→service calls, so each backend service can authenticate the user from the verified JWT
  * (not a trusted header). Applied to every backend {@code RestClient}.
  */
 @Component

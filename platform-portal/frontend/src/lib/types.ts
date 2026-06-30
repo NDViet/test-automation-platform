@@ -1484,3 +1484,22 @@ export interface GenerationStatus {
   rounds: ClarificationRound[]
   pending: ClarificationRound | null
 }
+
+export interface ProposalStep {
+  action: string
+  expectedResult: string | null
+  notes: string | null
+}
+export interface GeneratedProposal {
+  id: string
+  ordinal: number
+  title: string
+  description: string | null
+  preconditions: string | null
+  expectedResult: string | null
+  priority: string | null
+  sourceRequirementId: string | null
+  status: 'PROPOSED' | 'ACCEPTED' | 'REJECTED'
+  acceptedTestCaseId: string | null
+  steps: ProposalStep[]
+}

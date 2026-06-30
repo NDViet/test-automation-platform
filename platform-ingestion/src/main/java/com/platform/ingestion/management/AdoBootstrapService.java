@@ -2,10 +2,10 @@ package com.platform.ingestion.management;
 
 import com.platform.core.domain.AdoTeam;
 import com.platform.core.domain.AdoUser;
+import com.platform.core.domain.IntegrationCredential;
 import com.platform.core.domain.Organization;
 import com.platform.core.domain.Project;
 import com.platform.core.domain.ProjectIntegrationConfig;
-import com.platform.core.domain.IntegrationCredential;
 import com.platform.core.domain.Team;
 import com.platform.core.domain.User;
 import com.platform.core.domain.UserRole;
@@ -103,7 +103,9 @@ public class AdoBootstrapService {
       user.setEnabled(false);
       user = userRepo.save(user);
     }
-    if (roleRepo.findByUserIdAndRoleAndScopeAndScopeId(user.getId(), role, "ORG", orgId).isPresent()) {
+    if (roleRepo
+        .findByUserIdAndRoleAndScopeAndScopeId(user.getId(), role, "ORG", orgId)
+        .isPresent()) {
       return false;
     }
     roleRepo.save(new UserRole(user.getId(), role, "ORG", orgId, by));

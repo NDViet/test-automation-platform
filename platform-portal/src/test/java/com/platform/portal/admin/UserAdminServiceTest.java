@@ -78,8 +78,7 @@ class UserAdminServiceTest {
   void nonAdminActorDenied() {
     AuthenticatedUser tester = new AuthenticatedUser(UUID.randomUUID(), "tester1", false);
     when(roles.findByUserId(tester.userId())).thenReturn(List.of()); // no ORG_ADMIN grants
-    assertThatThrownBy(
-            () -> service.create(new CreateUserRequest("x", null, null, "p"), tester))
+    assertThatThrownBy(() -> service.create(new CreateUserRequest("x", null, null, "p"), tester))
         .isInstanceOf(ResponseStatusException.class)
         .hasMessageContaining("org-admin");
   }
@@ -105,20 +104,23 @@ class UserAdminServiceTest {
 
   @Test
   void grantDeniedWhenActorDoesNotOutrankAtScope() {
-    AuthenticatedUser orgAdminOfOther =
-        new AuthenticatedUser(UUID.randomUUID(), "oa", false);
+    AuthenticatedUser orgAdminOfOther = new AuthenticatedUser(UUID.randomUUID(), "oa", false);
     UUID userId = UUID.randomUUID();
     UUID orgId = UUID.randomUUID();
     // requireUserAdmin passes: actor holds an ORG_ADMIN grant somewhere…
     when(roles.findByUserId(orgAdminOfOther.userId()))
-        .thenReturn(List.of(new UserRole(orgAdminOfOther.userId(), "ORG_ADMIN", "ORG", UUID.randomUUID(), "x")));
+        .thenReturn(
+            List.of(
+                new UserRole(
+                    orgAdminOfOther.userId(), "ORG_ADMIN", "ORG", UUID.randomUUID(), "x")));
     User target = mockUser(userId);
     when(users.findById(userId)).thenReturn(Optional.of(target));
     // …but NOT for this target org.
     when(roleResolver.tierForOrg(orgAdminOfOther, orgId)).thenReturn(null);
 
     assertThatThrownBy(
-            () -> service.grant(userId, new GrantRequest("ORG_ADMIN", "ORG", orgId), orgAdminOfOther))
+            () ->
+                service.grant(userId, new GrantRequest("ORG_ADMIN", "ORG", orgId), orgAdminOfOther))
         .isInstanceOf(ResponseStatusException.class)
         .hasMessageContaining("above your own");
     verify(roles, never()).save(any());
@@ -130,7 +132,11 @@ class UserAdminServiceTest {
     User target = mockUser(userId);
     when(users.findById(userId)).thenReturn(Optional.of(target));
     assertThatThrownBy(
-            () -> service.grant(userId, new GrantRequest("ORG_ADMIN", "PROJECT", UUID.randomUUID()), superActor))
+            () ->
+                service.grant(
+                    userId,
+                    new GrantRequest("ORG_ADMIN", "PROJECT", UUID.randomUUID()),
+                    superActor))
         .isInstanceOf(ResponseStatusException.class)
         .hasMessageContaining("Invalid role/scope");
   }

@@ -1,290 +1,220 @@
-# SPEC — Interactive AI Test Case Generation (Skills, Prompts, Input & Clarifying Questions)
+# SPEC — Review & Iterative Refinement of AI-Generated Test Cases
 
 > Status: **DRAFT — awaiting confirmation**
-> Scope: `platform-core`, `platform-common`, `platform-agent`, `platform-llm`,
-> `platform-portal` (+ frontend).
-> Prior specs archived under `spec/archive/` (LiteLLM gateway, Manual Test
-> Execution — both implemented).
+> Scope: `platform-core`, `platform-agent`, `platform-portal` (+ frontend).
+> Prior specs archived under `spec/archive/` (interactive AI generation, LiteLLM
+> gateway, manual test execution — all implemented).
 
 ## 1. Objective
 
-### Problem
-Today, AI test-case generation is a one-shot, fully-hardcoded flow. The user can
-only pick `requirementIds`; the system prompt is hardcoded inside
-`TestCaseGenerationNode`, there is no user prompt, no reusable instructions, and
-no way for the agent to ask for missing context. It generates DRAFT
-`PlatformTestCase` rows in a single Claude call and finishes. Quality is capped
-by whatever the requirements happen to say.
+Today, when AI manual test-case generation finishes, `TestCaseGenerationNode.finishFromClaude()`
+**immediately writes every generated case into `platform_test_cases` as `DRAFT`**. The user never
+gets to review the output, refine it, or accept cases selectively — the catalog is populated whether
+the results are good or not.
 
-### Goal
-Make generation **steerable and interactive**:
+This feature inserts a **post-generation review & refinement stage**. After the AI finishes, the
+generated cases land in a **separate staging area as "proposals"** (never in the catalog yet). The
+user reviews the proposed list and, **per case**, can **accept** (→ becomes a `DRAFT` in the
+catalog), **reject** (discarded), or **refine** (give a free-text instruction; the AI revises that
+case by **continuing the same generation conversation**). Batch **Accept all** / **Refine all** are
+also available. Only accepted proposals ever become real test cases.
 
-1. **Skills** — a reusable, project-scoped library of named instruction sets
-   (CRUD) the user can attach to a run to shape how the agent generates.
-2. **Prompt templates** — project-level saved **system prompt** and **user
-   prompt** templates with sensible defaults, **overridable per run**.
-3. **Rich input** — generation input may combine **selected requirements**,
-   **free-text**, and **file attachments** (stored in BlobStore), in any
-   combination.
-4. **Clarifying questions (pause → answer → resume)** — during generation the
-   agent may pause and surface questions; the user answers in the portal; the run
-   **resumes from checkpoint** and continues. Multiple rounds are supported until
-   the agent has enough context, then it produces test cases.
+This is distinct from, and complementary to, the existing **clarification rounds** (`ask_user` /
+`AWAITING_INPUT`) which happen *before* generation. This new stage happens *after* generation.
 
 ### Target users
-- **QA engineers / SDETs** authoring test cases who want to inject domain
-  knowledge (skills), tailor prompts, and feed extra context (free text, files).
-- **QA leads** who curate the project's reusable skill library and prompt
-  templates so the whole team generates consistently.
+- **Testers** (capability `OPERATE_QUALITY` on the project) — the people who trigger generation and
+  curate the results. All new endpoints are gated to `OPERATE_QUALITY` scoped to the project,
+  consistent with the existing generation endpoints.
 
-### Acceptance criteria (feature-level)
-- A user can create/read/update/delete **skills** scoped to a project and select
-  zero or more for a generation run.
-- A user can save and edit project **prompt templates** (system + user) and
-  override either per run without mutating the saved template.
-- A generation request accepts any combination of `requirementIds`, free-text
-  `input`, attached `fileIds`, selected `skillIds`, and per-run prompt
-  overrides; at least one input source must be present.
-- When the agent needs clarification, the run enters **AWAITING_INPUT**, the
-  questions are visible in the portal, and the run does not produce test cases
-  until answered (or explicitly cancelled).
-- After the user submits answers, the same run **resumes** (does not restart from
-  scratch — prior conversation/context is preserved via checkpoint) and either
-  asks again or completes with DRAFT test cases.
-- Generated test cases remain DRAFT `PlatformTestCase` rows tied to the workflow,
-  exactly as today (no change to downstream review/approval lifecycle).
-- Skills, prompt overrides, attached files, and the full Q&A transcript are
-  recorded against the workflow for auditability.
+## 2. Resolved design decisions (from clarification)
+1. **Staging:** a **separate staging table** (`generated_test_case_proposals`), tied to the
+   generation run / workflow. Proposals are **not** in `platform_test_cases`. A proposal is written
+   to `platform_test_cases` (as `DRAFT`) only on accept.
+2. **Review actions:** **per-case accept / reject / refine**, plus batch **accept-all** and
+   **refine-all**.
+3. **Refine engine:** **continue the conversation** — reuse the existing resume/checkpoint
+   mechanism (`GenerationResumeService` + LangChain checkpointing) so the LLM keeps full context
+   (requirements, prior clarifications); the refine instruction is appended and the AI returns the
+   revised case(s), which **update the proposal in place** (status stays `PROPOSED`).
+4. **On accept:** the case enters the catalog as **`DRAFT`**; the existing
+   `DRAFT → UNDER_REVIEW → APPROVED → DEPRECATED` lifecycle continues unchanged afterwards.
 
-### Out of scope (this spec)
-- Changing the DRAFT → UNDER_REVIEW → APPROVED lifecycle or the Review Queue.
-- Streaming token output to the UI.
-- Cross-project/global skill sharing or skill versioning history (project-scoped,
-  last-write-wins for now).
-- Generating automation code (separate flow).
-- Editing ADO/work items (platform stays read-only on ADO).
+## 3. Core features & acceptance criteria
 
-## 2. Commands
+Each AC is independently testable.
 
-Build/run uses the existing monorepo toolchain. **Backend jars are prebuilt and
-COPYed into images**, so always `mvn package` before `docker compose build`.
+### F1 — Generation lands in staging, not the catalog
+- **AC1.1** When generation finishes, the generated cases are written to
+  `generated_test_case_proposals` (status `PROPOSED`), **not** to `platform_test_cases`.
+- **AC1.2** No `platform_test_cases` row exists for a generation run until the user accepts at least
+  one proposal. (Regression guard: a completed generation produces 0 catalog rows by itself.)
+- **AC1.3** The workflow ends in a **review-pending** state (reuse `AWAITING_REVIEW`, or a dedicated
+  generation state) rather than `COMPLETED`, so the UI knows to show the review panel.
+- **AC1.4** Each proposal records: project id, workflow/generation-run id, ordinal, title,
+  description, preconditions, expected result, priority, `sourceRequirementId`, the ordered steps
+  (action / expected / notes), and `status` (`PROPOSED` | `ACCEPTED` | `REJECTED`).
 
-```bash
-# JDK 21 required
-export JAVA_HOME="$(/usr/libexec/java_home -v 21)"
+### F2 — Review list
+- **AC2.1** `GET …/generations/{workflowId}/proposals` returns the proposals for that run with their
+  full content + status, ordered by ordinal.
+- **AC2.2** The frontend generation panel, on review-pending, renders the proposed cases (title,
+  priority, source requirement, expandable steps) with per-case **Accept / Reject / Refine** controls
+  and batch **Accept all** / **Refine all**.
 
-# Backend: build a module (+ deps) and run its tests
-mvn -q -pl platform-agent -am package                 # build agent + deps
-mvn -q -pl platform-agent -am test                    # run agent tests
-mvn -q -pl platform-core,platform-agent,platform-portal -am package -DskipTests
+### F3 — Accept (per-case and batch)
+- **AC3.1** Accepting a `PROPOSED` proposal creates one `platform_test_cases` row (status `DRAFT`,
+  `createdBy` = the **JWT principal**, `agentSessionId` = workflow id, `sourceRequirementId` +
+  linked requirement preserved) plus its `test_case_steps`, then marks the proposal `ACCEPTED` and
+  links `accepted_test_case_id`.
+- **AC3.2** Accept is **idempotent**: accepting an already-`ACCEPTED` proposal does not create a
+  duplicate catalog row.
+- **AC3.3** **Accept all** accepts every remaining `PROPOSED` proposal in one call.
+- **AC3.4** A `REJECTED` proposal cannot be accepted (409/400).
 
-# Frontend (platform-portal/frontend)
-cd platform-portal/frontend
-npm run format
-npx tsc -b            # typecheck
-npx vite build        # production build (bundled into platform-portal static)
+### F4 — Reject (per-case and batch)
+- **AC4.1** Rejecting a `PROPOSED` proposal marks it `REJECTED`; it is excluded from the active
+  review list and never enters the catalog.
+- **AC4.2** A rejected proposal stays rejected (no resurrection) — keep it simple.
 
-# Containers: rebuild only what changed, then recreate
-docker compose build platform-agent platform-portal
-docker compose up -d --force-recreate platform-agent platform-portal
+### F5 — Refine (continue the conversation)
+- **AC5.1** `POST …/generations/{workflowId}/proposals/{proposalId}/refine` with a free-text
+  `instruction` resumes the generation conversation (via the checkpoint), scoped to that proposal,
+  and the AI returns a revised version that **updates the proposal in place** (still `PROPOSED`).
+- **AC5.2** Refine preserves prior context — the LLM sees the original requirement(s), earlier
+  clarification answers, and the current proposal content; the instruction is additive.
+- **AC5.3** **Refine all** applies one instruction to all remaining `PROPOSED` proposals (batch
+  resume), updating each in place.
+- **AC5.4** Refinement is **async** and streams progress on the existing
+  `gen:progress:{workflowId}` channel / `/ws/generations/{workflowId}` socket; the panel reflects
+  "refining…" then shows the updated case.
+- **AC5.5** An `ACCEPTED`/`REJECTED` proposal cannot be refined (only `PROPOSED`).
 
-# Full consistency pass (all JVM services share Flyway version)
-mvn -q package -DskipTests && docker compose build && docker compose up -d
+### F6 — Authorization & audit
+- **AC6.1** Every new endpoint requires `OPERATE_QUALITY` on the `projectId` (platform RBAC model);
+  unauthenticated → 401/403, wrong-project tester → 403.
+- **AC6.2** Accept records the accepting user (`createdBy` from `CurrentUser`, never a header).
+
+### F7 — Backward compatibility
+- **AC7.1** The existing clarification-before-generation flow (`ask_user`, `AWAITING_INPUT`,
+  `…/answers`) is unchanged.
+- **AC7.2** The existing test-case lifecycle endpoints (`submit-review`, `approve`, `reject`) and the
+  Review Queue are unchanged; accepted drafts flow into them as before.
+
+## 4. Architecture & where it hooks in
+
+### Data model — Flyway `V8__generated_test_case_proposals.sql` (next version after V7)
 ```
+generated_test_case_proposals
+  id              UUID PK
+  workflow_id     UUID NOT NULL          -- FK agent_workflows / ai_generation_runs.workflow_id
+  project_id      UUID NOT NULL          -- FK projects
+  ordinal         INT  NOT NULL
+  title           TEXT NOT NULL
+  description     TEXT
+  preconditions   TEXT
+  expected_result TEXT
+  priority        VARCHAR(20)
+  source_requirement_id  VARCHAR
+  steps_json      TEXT NOT NULL          -- ordered [{action,expectedResult,notes}] as JSON;
+                                         --  expanded into test_case_steps rows on accept
+  status          VARCHAR(20) NOT NULL DEFAULT 'PROPOSED'  -- PROPOSED|ACCEPTED|REJECTED
+  accepted_test_case_id UUID             -- set on accept (link to platform_test_cases row)
+  created_at / updated_at TIMESTAMPTZ
+  UNIQUE (workflow_id, ordinal)
+```
+Steps are stored as JSON in staging for simplicity; they are expanded into real `test_case_steps`
+rows only on accept.
 
-Local verification: portal at `http://localhost:8085`, agent hub behind the
-portal BFF (`/api/portal/...` → `/hub/...`). Browser checks via chrome-devtools
-MCP.
+### Backend (platform-agent — generation lives here)
+- **`TestCaseGenerationNode.finishFromClaude()`**: change the terminal behavior — instead of
+  `testCaseRepo.save(DRAFT)` + steps, write `generated_test_case_proposals` rows and mark the
+  workflow review-pending. This is the **single most important change**.
+- **New `ProposalService`** (platform-agent): list / accept / accept-all / reject / refine /
+  refine-all. Accept creates the `PlatformTestCase` (DRAFT) + `TestCaseStep`s (reuse the existing
+  repos/mapping). Refine calls into the resume path.
+- **Refine via `GenerationResumeService`**: add a "refine proposal(s)" resume mode that injects the
+  instruction + the targeted proposal id(s) into the resumed conversation and routes the revised
+  output back to update proposals (not to create drafts).
+- **New endpoints** on `TestCaseGenerationController` (or a sibling controller), all
+  `@RequireCapability(OPERATE_QUALITY, scope="projectId")`:
+  - `GET    /hub/test-cases/{projectId}/generations/{workflowId}/proposals`
+  - `POST   …/proposals/{proposalId}/accept`
+  - `POST   …/proposals/{proposalId}/reject`
+  - `POST   …/proposals/{proposalId}/refine`        body `{ instruction }`
+  - `POST   …/proposals/accept-all`
+  - `POST   …/proposals/refine-all`                 body `{ instruction }`
 
-## 3. Project structure
+### Frontend (platform-portal/frontend)
+- **`GenerationProgress.tsx`**: when the run is review-pending, render a new **`ProposalsReview`**
+  component instead of the "New DRAFT test cases were created" banner.
+- **`ProposalsReview.tsx`** (new): the proposed list with per-case Accept / Reject / Refine (refine
+  opens a small instruction box) and batch Accept all / Refine all; reflects streaming refine
+  progress; on accept shows the case moving to the catalog.
+- **`lib/api.ts`** + **`lib/types.ts`**: `listProposals`, `acceptProposal`, `rejectProposal`,
+  `refineProposal`, `acceptAllProposals`, `refineAllProposals`, and a `Proposal` type.
+- **Portal BFF**: proxy the new `/hub/...` endpoints (the portal forwards the JWT already).
 
-New and changed code lives in the existing modules. **Vertical slices** — each
-capability spans domain → persistence → service → controller → portal BFF →
-frontend.
+## 5. Commands (this repo)
+- **Backend build/test (per module, deps not in .m2):**
+  `mvn -pl <module> -am "-Dtest=X" "-Dsurefire.failIfNoSpecifiedTests=false" test`
+  (PowerShell: quote the `-D` args). Full regression: `mvn test`.
+- **Frontend typecheck:** `cd platform-portal/frontend && npx tsc -b` (no JS test runner in repo —
+  tsc is the gate, plus browser smoke).
+- **DB migration** runs via the `db-migrate` Flyway job on `docker compose --profile services up`.
+- **Deploy/iterate locally:** host `mvn -pl <svc> -am -DskipTests package` →
+  `docker compose --profile services build <svc>` → `docker compose --profile services up -d <svc>`.
 
-### Backend — `platform-core` (domain + persistence + Flyway)
-- `domain/AiSkill.java` — project-scoped skill: `id, projectId, name,
-  description, instructions (TEXT), enabled, createdBy, createdAt, updatedAt`.
-- `domain/AiPromptTemplate.java` — project-scoped template: `id, projectId,
-  kind (SYSTEM|USER), name, body (TEXT), isDefault, updatedAt`.
-- `domain/GenerationClarification.java` — one Q&A turn for a workflow:
-  `id, workflowId, round, questionsJson (TEXT), answersJson (TEXT, nullable),
-  status (PENDING|ANSWERED|SKIPPED), createdAt, answeredAt`.
-- Extend `domain/AgentWorkflow.java` (or a new `GenerationRequest` side table)
-  to persist the run's resolved inputs: `skillIdsJson, systemPromptUsed,
-  userPromptUsed, freeTextInput, attachmentManifestJson`.
-- `repository/` — `AiSkillRepository`, `AiPromptTemplateRepository`,
-  `GenerationClarificationRepository` (Spring Data JPA).
-- Reuse existing `PlatformTestCase`, `TestCaseStep`, `AgentWorkflow`,
-  `AgentWorkflowStep`, `agent_checkpoints`, BlobStore (`ARTIFACTS` for uploaded
-  input files; `CHECKPOINTS` for conversation state).
-- `db/migration/` — **a single new forward migration** (e.g.
-  `V2__ai_skills_prompts_clarifications.sql`) adding `ai_skills`,
-  `ai_prompt_templates`, `generation_clarifications`, and the new columns on
-  `agent_workflows`. (Product is brand-new; if V1 has not shipped to any
-  non-resettable environment, fold into V1 instead — confirm at build time.
-  Flyway version must stay aligned across the db-migrate image and all services.)
+## 6. Project structure (where changes go)
+- `platform-core` — `GeneratedTestCaseProposal` entity + repository; `V8__…sql` migration.
+- `platform-agent` — node terminal change, `ProposalService`, resume "refine" mode, new endpoints,
+  DTOs.
+- `platform-portal` — BFF proxy controller methods; `frontend/src/components/ProposalsReview.tsx`,
+  edits to `GenerationProgress.tsx`, `lib/api.ts`, `lib/types.ts`.
 
-### Backend — `platform-agent` (orchestration + node)
-- `node/impl/TestCaseGenerationNode.java` — **modify**: build the prompt from
-  (resolved system template/override) + (skills) + (user template/override +
-  free text + requirement context + file excerpts); expose an `ask_user` tool so
-  the model can request clarification; on tool-call, return
-  `NodeResult.awaitingInput(questions, checkpointId)` instead of completing.
-- `node/AskUserTool` (or a tool spec within the node) — structured tool the model
-  calls to emit questions: `[{ id, question, kind (TEXT|CHOICE), options? }]`.
-- `workflow/AgentWorkflowService.java` — **modify**: handle the new
-  `AWAITING_INPUT` workflow state; persist `GenerationClarification`; emit the
-  Kafka `AWAITING_INPUT` event.
-- `workflow/GenerationResumeService.java` — **new**: given workflowId + answers,
-  rehydrate from checkpoint via `CheckpointService` + `orchestrator.resume(...)`,
-  inject the answers as the next user turn, and continue the node loop.
-- `api/TestCaseGenerationController.java` — **modify/extend**:
-  - `POST /hub/test-cases/{projectId}/generate` — accept the richer request DTO.
-  - `POST /hub/test-cases/{projectId}/generations/{workflowId}/answers` — submit
-    clarification answers and resume.
-  - `GET  /hub/test-cases/{projectId}/generations/{workflowId}` — run status +
-    pending questions + transcript.
-- `api/AiSkillController.java`, `api/AiPromptTemplateController.java` — **new**:
-  CRUD for skills and prompt templates under `/hub/...`.
+## 7. Code style
+- Match the surrounding code: Spring constructor injection; records for DTOs; `ResponseStatusException`
+  for 4xx; google-java-format (spotless) for Java; existing Tailwind/React patterns and the
+  `api`/react-query conventions on the frontend. Reuse existing helpers
+  (`CurrentUser.username()` for the actor, `@RequireCapability` for authz, the
+  `GenerationProgressPublisher` for streaming). No new frameworks.
 
-### Backend — `platform-common`
-- Extend `agent/NodeResult.java` with an `awaitingInput` variant (or reuse the
-  awaitingReview machinery with a distinct decision channel).
-- DTOs/records for the generation request, clarification questions/answers.
+## 8. Testing strategy (TDD per slice)
+- **Backend unit (Mockito):** `ProposalService` — accept creates a DRAFT + steps and marks
+  `ACCEPTED` (AC3.1), accept idempotency (AC3.2), reject (AC4.1), accept/refine guards on
+  rejected/accepted (AC3.4/AC5.5), accept-all (AC3.3). Node terminal change — finishing writes
+  proposals, not drafts (AC1.1/AC1.2) — assert `proposalRepo.save` and **no** `testCaseRepo.save`.
+- **Endpoint annotation tests:** the new endpoints carry `@RequireCapability(OPERATE_QUALITY,
+  "projectId")` (reflection test, matching the existing `*RbacAnnotationTest` pattern).
+- **Migration pre-flight:** apply `V8` against a seeded run in a rolled-back transaction.
+- **Frontend:** `npx tsc -b` green; browser smoke — generate → review panel → refine one case
+  (updates in place) → accept one (appears in catalog as DRAFT) → reject one (gone) → accept-all.
+- **Regression:** full `mvn test` green; existing clarification + lifecycle suites unaffected.
 
-### Backend — `platform-llm`
-- No new public API expected; multi-turn is already supported (message-list
-  accumulation + checkpoints). Confirm the `resume(checkpointId, node)` path
-  covers injecting a fresh user message (the answers turn).
+## 9. Boundaries
 
-### Backend — `platform-portal` (BFF proxy)
-- `api/PortalTestCaseController.java` — **modify**: proxy the enriched generate
-  call, the answers endpoint, and the generation-status GET; multipart
-  passthrough for input-file uploads (reuse the existing
-  ByteArrayResource/HttpEntity pattern used for execution evidence).
-- `api/PortalAiController.java` (or extend the existing AI settings controller) —
-  proxy skill + prompt-template CRUD.
+**Always**
+- Keep generated cases out of `platform_test_cases` until explicitly accepted.
+- Gate every new endpoint with `OPERATE_QUALITY` on the project; derive the actor from the JWT
+  (`CurrentUser`), never a header.
+- Reuse the existing generation conversation/checkpoint for refinement (no parallel LLM plumbing).
+- One Flyway migration, additive (`V8`); TDD with a passing test + its own commit per slice.
 
-### Frontend — `platform-portal/frontend/src`
-- `pages/TestCasesPage.tsx` — **modify** `GenerateTestCasesModal`: add skill
-  multi-select, system/user prompt fields (prefilled from default template,
-  editable), free-text input, file attach, plus the existing requirement select.
-- `pages/AiGenerationRunPage.tsx` (or a panel/modal) — **new**: shows run status;
-  when `AWAITING_INPUT`, renders questions with answer inputs and a "Submit
-  answers" action; shows the Q&A transcript and final result.
-- `pages/AiSettingsPage.tsx` — **extend**: Skills library CRUD + Prompt
-  Templates CRUD sections (project-scoped).
-- `lib/api.ts` — methods: skills CRUD, prompt-template CRUD, enriched
-  `generateTestCasesFromAI`, `getGeneration`, `submitGenerationAnswers`,
-  input-file upload.
-- `lib/types.ts` — `AiSkill`, `AiPromptTemplate`, `GenerationRequest`,
-  `GenerationStatus`, `ClarificationQuestion`, `ClarificationAnswer`.
+**Ask first**
+- Any change to the **status enum** of `platform_test_cases` or the existing lifecycle transitions.
+- Adding a brand-new workflow status vs. reusing `AWAITING_REVIEW`.
+- Auto-expiry / cleanup policy for old unaccepted proposals (if wanted, decide retention first).
+- Storing steps as a child table instead of `steps_json` in staging (if normalization is preferred).
 
-## 4. Code style
+**Never**
+- Never persist a proposal directly as `APPROVED` (accept = `DRAFT` only).
+- Never auto-accept or auto-reject on the user's behalf (no silent catalog writes).
+- Never break the existing clarification-before-generation flow, the lifecycle endpoints, or the
+  Review Queue.
+- Never trust a client-supplied actor/role; the backend remains the enforcement point.
 
-Follow the existing repo conventions (match surrounding code):
-
-- **Java 21 / Spring Boot 4**: constructor injection; records for DTOs;
-  package-by-feature under `com.platform.<module>`. Throw
-  `ResponseStatusException` with precise status codes for guard failures (e.g.
-  `409` for answering a run that isn't awaiting input, `404` unknown skill,
-  `400` empty input). Keep ADO read-only.
-- **Persistence**: JPA entities mirror existing ones; UUID PKs; JSON columns as
-  `TEXT` serialized with Jackson `ObjectMapper` (matching the defect/attachment
-  pattern). New migration is additive.
-- **Agent node**: keep the JSON-array output contract and
-  `parseGeneratedTestCases` approach. The `ask_user` tool must be a clean,
-  well-described tool spec so the model only calls it when context is genuinely
-  insufficient; cap clarification rounds (config, default 3) to prevent loops.
-- **Prompts**: a resolved prompt = template/override is data, never hardcoded
-  business specifics. Persist the exact `systemPromptUsed`/`userPromptUsed` for
-  audit/repro.
-- **Frontend**: React + TanStack Query + Tailwind + lucide-react; follow
-  existing modal/page idioms; run `npm run format` and keep `tsc -b` clean.
-- **Naming**: `AiSkill`, `AiPromptTemplate`, `GenerationClarification`,
-  `AWAITING_INPUT`. Reuse `AGENT` as `createdBy` for generated cases.
-
-## 5. Testing strategy
-
-TDD (JUnit5 + Mockito + AssertJ) per task; one commit per task; full suite +
-build before commit.
-
-### Backend unit tests
-- **Skills CRUD**: create/list/update/delete scoped by project; reject
-  cross-project access; unique name per project.
-- **Prompt templates**: default resolution; per-run override does not mutate the
-  saved template; SYSTEM vs USER kinds.
-- **Request validation**: at least one input source required (requirements OR
-  free-text OR files); unknown `skillId`/`fileId` → 400/404.
-- **Prompt assembly**: given skills + template + free text + requirements + file
-  excerpts, the composed system/user messages contain each part and are
-  persisted as `*Used`.
-- **Clarification loop** (the core):
-  - When the model calls `ask_user`, the node returns `awaitingInput`, a
-    `GenerationClarification` (round N, PENDING) is saved, workflow →
-    `AWAITING_INPUT`, Kafka event emitted, and **no test cases are persisted**.
-  - `GenerationResumeService` with answers → marks the clarification ANSWERED,
-    resumes from checkpoint, injects answers as the next user turn, continues.
-  - Multi-round: a second `ask_user` produces round N+1; answering completes.
-  - Answering a run not in `AWAITING_INPUT` → 409.
-  - Cap reached → node proceeds with best-effort generation, noting assumptions.
-- **Completion**: on final JSON, DRAFT `PlatformTestCase` + `TestCaseStep` rows
-  persist as today, tagged with workflowId; transcript saved.
-
-### Frontend
-- Type-level: `tsc -b` clean with new types.
-- Manual browser verification (chrome-devtools MCP): generate modal with skills
-  + prompts + free text + file; run reaching `AWAITING_INPUT` renders questions;
-  submitting answers resumes and yields DRAFT cases.
-
-### Regression
-- Existing one-shot path still works when no skills/prompts/questions are used
-  (backward compatible: empty skill list, default prompts, model asks nothing).
-- Existing `AgentWorkflow`/Review Queue behavior unchanged.
-
-## 6. Boundaries
-
-### Always
-- Keep ADO integration **read-only** (no work-item writes).
-- `mvn package` before `docker compose build`; keep Flyway version aligned across
-  the db-migrate image and every JVM service.
-- Persist exactly what was sent to the model (resolved prompts, skills, inputs,
-  file manifest) and the full Q&A transcript for audit/repro.
-- Make generation backward compatible: a request with only `requirementIds` and
-  no skills/overrides behaves like today.
-- Bound the clarification loop with a configurable max-round cap.
-- TDD with a failing test first; one focused commit per task using the required
-  trailer.
-- Keep `PLATFORM_CRED_KEY` and secrets in gitignored `.env`; never commit/log.
-
-### Ask first
-- Any change to the DRAFT→APPROVED lifecycle or the Review Queue.
-- Folding the new schema into V1 vs adding V2 (depends on whether V1 has shipped
-  to a non-resettable environment).
-- Adding a new Kafka topic vs extending `AGENT_WORKFLOW_EVENTS`.
-- Allowing skills/templates to reference KNOWLEDGE/RAG blobs (deferred; confirm
-  before pulling into context).
-- Per-run model/temperature selection exposure beyond current AI settings.
-
-### Never
-- Never write to ADO or any external system during generation.
-- Never auto-approve generated test cases (they stay DRAFT).
-- Never restart a clarified run from scratch — always resume from checkpoint so
-  prior context/cost isn't lost.
-- Never hardcode project/domain specifics into prompts — they come from
-  templates/skills/input data.
-- Never block the request thread on the LLM — generation stays async with status
-  polling/events.
-- Never let an unbounded clarification loop run (respect the cap).
-- Never `git add -A` blindly; stage only the files a task touched.
-
----
-
-## Confirmed decisions (from clarification)
-1. **Skills** = reusable, project-scoped **library (CRUD)**, selected per run.
-2. **Clarifying questions** = **pause → answer → resume**, multiple rounds.
-3. **Input** = **free-text + selected requirements + file attachments** (any
-   combination; ≥1 required).
-4. **Prompts** = **saved project templates (defaults) + per-run override** for
-   both system and user prompts.
+## 10. Out of scope (this iteration)
+- Editing proposal fields by hand in the UI before accept (refinement is via AI instruction only).
+- Resurrecting rejected proposals.
+- Bulk diff/compare views; proposal versioning history beyond "current content".
+- Changing how generation is triggered or how clarification rounds work.

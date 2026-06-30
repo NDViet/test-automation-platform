@@ -72,7 +72,8 @@ class PermissionEvaluatorTest {
   @Test
   void testerCanOperateNotConfigure() {
     grant("TESTER", "PROJECT", projectId);
-    assertThat(evaluator.has(user(), Capability.OPERATE_QUALITY, projectId)).isTrue(); // incl. agents
+    assertThat(evaluator.has(user(), Capability.OPERATE_QUALITY, projectId))
+        .isTrue(); // incl. agents
     assertThat(evaluator.has(user(), Capability.VIEW_RESULTS, projectId)).isTrue();
     assertThat(evaluator.has(user(), Capability.MANAGE_PROJECT, projectId)).isFalse();
   }

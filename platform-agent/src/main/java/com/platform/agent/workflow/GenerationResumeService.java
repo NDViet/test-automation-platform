@@ -7,9 +7,12 @@ import com.platform.common.agent.ContextBundle;
 import com.platform.common.agent.NodeResult;
 import com.platform.common.kafka.Topics;
 import com.platform.core.domain.AgentWorkflow;
+import com.platform.core.domain.AiGenerationRun;
+import com.platform.core.domain.GeneratedTestCaseProposal;
 import com.platform.core.domain.GenerationClarification;
 import com.platform.core.repository.AgentWorkflowRepository;
 import com.platform.core.repository.AiGenerationRunRepository;
+import com.platform.core.repository.GeneratedTestCaseProposalRepository;
 import com.platform.core.repository.GenerationClarificationRepository;
 import java.util.List;
 import java.util.Map;
@@ -37,6 +40,7 @@ public class GenerationResumeService {
   private final AgentWorkflowRepository workflowRepo;
   private final GenerationClarificationRepository clarificationRepo;
   private final AiGenerationRunRepository runRepo;
+  private final GeneratedTestCaseProposalRepository proposalRepo;
   private final ContextAssembler contextAssembler;
   private final TestCaseGenerationNode generationNode;
   private final KafkaTemplate<String, String> kafka;
@@ -46,6 +50,7 @@ public class GenerationResumeService {
       AgentWorkflowRepository workflowRepo,
       GenerationClarificationRepository clarificationRepo,
       AiGenerationRunRepository runRepo,
+      GeneratedTestCaseProposalRepository proposalRepo,
       ContextAssembler contextAssembler,
       TestCaseGenerationNode generationNode,
       KafkaTemplate<String, String> kafka,
@@ -53,6 +58,7 @@ public class GenerationResumeService {
     this.workflowRepo = workflowRepo;
     this.clarificationRepo = clarificationRepo;
     this.runRepo = runRepo;
+    this.proposalRepo = proposalRepo;
     this.contextAssembler = contextAssembler;
     this.generationNode = generationNode;
     this.kafka = kafka;
@@ -134,6 +140,171 @@ public class GenerationResumeService {
     return clarificationRepo.countByWorkflowId(workflowId) < maxRounds;
   }
 
+  /** What the async refine needs after validation. */
+  public record RefinePlan(
+      UUID projectId, UUID proposalId, String checkpointId, String instruction) {}
+
+  /**
+   * Validate a refine request synchronously (so the caller gets 4xx on a bad state) and flip the
+   * workflow to RUNNING. Returns the plan the async refine will execute.
+   */
+  @Transactional
+  public RefinePlan validateRefine(
+      UUID projectId, UUID workflowId, UUID proposalId, String instruction) {
+    if (instruction == null || instruction.isBlank()) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "instruction is required");
+    }
+    AgentWorkflow workflow =
+        workflowRepo
+            .findById(workflowId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Run not found"));
+    if (!workflow.getProjectId().equals(projectId)) {
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Run not found");
+    }
+    GeneratedTestCaseProposal p =
+        proposalRepo
+            .findByIdAndProjectId(proposalId, projectId)
+            .orElseThrow(
+                () -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Proposal not found"));
+    if (!p.isProposed()) {
+      throw new ResponseStatusException(HttpStatus.CONFLICT, "Only a proposed case can be refined");
+    }
+    String checkpoint =
+        runRepo
+            .findByWorkflowId(workflowId)
+            .map(AiGenerationRun::getReviewCheckpointId)
+            .orElse(null);
+    if (checkpoint == null) {
+      throw new ResponseStatusException(
+          HttpStatus.CONFLICT, "Refine is not available for this run (no resumable conversation)");
+    }
+    workflow.markRunning();
+    workflowRepo.save(workflow);
+    return new RefinePlan(projectId, proposalId, checkpoint, instruction);
+  }
+
+  /** Resume the conversation and let the node revise the proposal in place. */
+  @Async
+  public void refineAsync(UUID workflowId, RefinePlan plan) {
+    try {
+      ContextBundle bundle = contextAssembler.resume(workflowId, plan.checkpointId());
+      GeneratedTestCaseProposal p =
+          proposalRepo.findByIdAndProjectId(plan.proposalId(), plan.projectId()).orElseThrow();
+      NodeResult result =
+          generationNode.refineProposal(bundle, plan.checkpointId(), p, plan.instruction());
+      finishRefine(workflowId, result);
+    } catch (Exception e) {
+      log.error("refine failed for workflow {}", workflowId, e);
+      workflowRepo
+          .findById(workflowId)
+          .ifPresent(
+              w -> {
+                w.markFailed(e.getMessage());
+                workflowRepo.save(w);
+                publishEvent(workflowId, "FAILED");
+              });
+    }
+  }
+
+  private void finishRefine(UUID workflowId, NodeResult result) {
+    AgentWorkflow workflow = workflowRepo.findById(workflowId).orElse(null);
+    if (workflow == null) return;
+    if (result.hasFailed()) {
+      workflow.markFailed(result.errorMessage());
+      workflowRepo.save(workflow);
+      publishEvent(workflowId, "FAILED");
+      return;
+    }
+    // Back to review with the proposal updated in place.
+    workflow.markAwaitingReview();
+    workflowRepo.save(workflow);
+    publishEvent(workflowId, "AWAITING_REVIEW");
+  }
+
+  /** What the async refine-all needs after validation. */
+  public record RefineAllPlan(UUID projectId, UUID workflowId, String instruction) {}
+
+  /** Validate a refine-all request and flip the workflow to RUNNING. */
+  @Transactional
+  public RefineAllPlan validateRefineAll(UUID projectId, UUID workflowId, String instruction) {
+    if (instruction == null || instruction.isBlank()) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "instruction is required");
+    }
+    AgentWorkflow workflow =
+        workflowRepo
+            .findById(workflowId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Run not found"));
+    if (!workflow.getProjectId().equals(projectId)) {
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Run not found");
+    }
+    String checkpoint =
+        runRepo
+            .findByWorkflowId(workflowId)
+            .map(AiGenerationRun::getReviewCheckpointId)
+            .orElse(null);
+    if (checkpoint == null) {
+      throw new ResponseStatusException(
+          HttpStatus.CONFLICT, "Refine is not available for this run (no resumable conversation)");
+    }
+    long proposed =
+        proposalRepo
+            .findByWorkflowIdAndStatusOrderByOrdinalAsc(
+                workflowId, GeneratedTestCaseProposal.PROPOSED)
+            .stream()
+            .filter(p -> p.getProjectId().equals(projectId))
+            .count();
+    if (proposed == 0) {
+      throw new ResponseStatusException(HttpStatus.CONFLICT, "No proposed cases to refine");
+    }
+    workflow.markRunning();
+    workflowRepo.save(workflow);
+    return new RefineAllPlan(projectId, workflowId, instruction);
+  }
+
+  /** Refine every still-PROPOSED proposal in sequence, each continuing the conversation. */
+  @Async
+  public void refineAllAsync(RefineAllPlan plan) {
+    UUID workflowId = plan.workflowId();
+    try {
+      List<GeneratedTestCaseProposal> proposed =
+          proposalRepo
+              .findByWorkflowIdAndStatusOrderByOrdinalAsc(
+                  workflowId, GeneratedTestCaseProposal.PROPOSED)
+              .stream()
+              .filter(p -> p.getProjectId().equals(plan.projectId()))
+              .toList();
+      for (GeneratedTestCaseProposal p : proposed) {
+        String checkpoint =
+            runRepo
+                .findByWorkflowId(workflowId)
+                .map(AiGenerationRun::getReviewCheckpointId)
+                .orElse(null);
+        if (checkpoint == null) break;
+        GeneratedTestCaseProposal fresh =
+            proposalRepo.findByIdAndProjectId(p.getId(), plan.projectId()).orElse(null);
+        if (fresh == null || !fresh.isProposed()) continue;
+        ContextBundle bundle = contextAssembler.resume(workflowId, checkpoint);
+        generationNode.refineProposal(bundle, checkpoint, fresh, plan.instruction());
+      }
+      AgentWorkflow workflow = workflowRepo.findById(workflowId).orElse(null);
+      if (workflow != null) {
+        workflow.markAwaitingReview();
+        workflowRepo.save(workflow);
+        publishEvent(workflowId, "AWAITING_REVIEW");
+      }
+    } catch (Exception e) {
+      log.error("refine-all failed for workflow {}", workflowId, e);
+      workflowRepo
+          .findById(workflowId)
+          .ifPresent(
+              w -> {
+                w.markFailed(e.getMessage());
+                workflowRepo.save(w);
+                publishEvent(workflowId, "FAILED");
+              });
+    }
+  }
+
   private void handleResult(UUID workflowId, NodeResult result) {
     AgentWorkflow workflow = workflowRepo.findById(workflowId).orElse(null);
     if (workflow == null) return;
@@ -151,6 +322,14 @@ public class GenerationResumeService {
       workflow.markFailed(result.errorMessage());
       workflowRepo.save(workflow);
       publishEvent(workflowId, "FAILED");
+      return;
+    }
+    // Generation produced proposals — park for proposal review (handled by the proposals API),
+    // not COMPLETED. Catalog rows are only created when the user accepts.
+    if (result.needsReview()) {
+      workflow.markAwaitingReview();
+      workflowRepo.save(workflow);
+      publishEvent(workflowId, "AWAITING_REVIEW");
       return;
     }
     workflow.markCompleted();

@@ -41,8 +41,7 @@ public class CredentialController {
   }
 
   @PostMapping
-  public CredentialDto save(
-      @Valid @RequestBody SaveCredentialRequest req) {
+  public CredentialDto save(@Valid @RequestBody SaveCredentialRequest req) {
     String actor = CurrentUser.username();
     return service.save(req, actor != null ? actor : "portal");
   }

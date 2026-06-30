@@ -13,7 +13,10 @@ const ROLES = ['VIEWER', 'TESTER', 'PROJECT_ADMIN', 'ORG_ADMIN'] as const
  */
 export default function UsersPage() {
   const qc = useQueryClient()
-  const { data: users, isLoading } = useQuery({ queryKey: ['admin-users'], queryFn: api.adminUsers })
+  const { data: users, isLoading } = useQuery({
+    queryKey: ['admin-users'],
+    queryFn: api.adminUsers,
+  })
   const { data: orgs } = useQuery({ queryKey: ['organizations'], queryFn: api.organizations })
   const { data: projects } = useQuery({ queryKey: ['projects'], queryFn: () => api.projects() })
 
@@ -208,7 +211,9 @@ function UserCard({
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
           <span className="font-medium text-slate-800">{user.username}</span>
-          {user.displayName && <span className="ml-2 text-sm text-slate-500">{user.displayName}</span>}
+          {user.displayName && (
+            <span className="ml-2 text-sm text-slate-500">{user.displayName}</span>
+          )}
           {user.superAdmin && (
             <span className="ml-2 rounded bg-violet-100 px-1.5 py-0.5 text-[11px] font-medium text-violet-700">
               super-admin

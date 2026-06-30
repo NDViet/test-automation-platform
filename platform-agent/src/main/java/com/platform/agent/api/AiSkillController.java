@@ -30,17 +30,14 @@ public class AiSkillController {
 
   @PostMapping
   public ResponseEntity<AiSkillDto> create(
-      @PathVariable UUID projectId,
-      @RequestBody AiSkillRequest req) {
+      @PathVariable UUID projectId, @RequestBody AiSkillRequest req) {
     String actor = CurrentUser.username();
     return ResponseEntity.status(HttpStatus.CREATED).body(service.create(projectId, req, actor));
   }
 
   @PutMapping("/{skillId}")
   public AiSkillDto update(
-      @PathVariable UUID projectId,
-      @PathVariable UUID skillId,
-      @RequestBody AiSkillRequest req) {
+      @PathVariable UUID projectId, @PathVariable UUID skillId, @RequestBody AiSkillRequest req) {
     String actor = CurrentUser.username();
     return service.update(projectId, skillId, req, actor);
   }

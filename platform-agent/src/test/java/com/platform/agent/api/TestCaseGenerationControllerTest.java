@@ -40,6 +40,7 @@ class TestCaseGenerationControllerTest {
   @Mock com.platform.agent.workflow.GenerationResumeService resumeService;
   @Mock com.platform.agent.workflow.GenerationStatusService statusService;
   @Mock AgentResolutionService agentResolutionService;
+  @Mock com.platform.agent.proposals.ProposalService proposalService;
 
   TestCaseGenerationController controller;
   private final UUID projectId = UUID.randomUUID();
@@ -70,7 +71,8 @@ class TestCaseGenerationControllerTest {
             runRepo,
             resumeService,
             statusService,
-            agentResolutionService);
+            agentResolutionService,
+            proposalService);
     AgentWorkflow wf = mock(AgentWorkflow.class);
     when(wf.getId()).thenReturn(workflowId);
     when(workflowService.createWorkflow(eq(projectId), any())).thenReturn(wf);

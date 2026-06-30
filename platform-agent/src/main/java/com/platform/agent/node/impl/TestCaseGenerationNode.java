@@ -11,12 +11,13 @@ import com.platform.common.storage.BlobStore;
 import com.platform.core.domain.AiGenerationFile;
 import com.platform.core.domain.AiGenerationRun;
 import com.platform.core.domain.AiSkill;
+import com.platform.core.domain.GeneratedTestCaseProposal;
 import com.platform.core.domain.PlatformRequirement;
 import com.platform.core.domain.PlatformTestCase;
-import com.platform.core.domain.TestCaseStep;
 import com.platform.core.repository.AiGenerationFileRepository;
 import com.platform.core.repository.AiGenerationRunRepository;
 import com.platform.core.repository.AiSkillRepository;
+import com.platform.core.repository.GeneratedTestCaseProposalRepository;
 import com.platform.core.repository.PlatformRequirementRepository;
 import com.platform.core.repository.PlatformTestCaseRepository;
 import com.platform.core.repository.TestCaseStepRepository;
@@ -55,6 +56,7 @@ public class TestCaseGenerationNode implements AgentNode {
   private final AiSkillRepository skillRepo;
   private final AiGenerationFileRepository fileRepo;
   private final BlobStore blobStore;
+  private final GeneratedTestCaseProposalRepository proposalRepo;
 
   /** Max characters of an attached file's text pulled into the prompt (per file). */
   private static final int FILE_EXCERPT_LIMIT = 8000;
@@ -125,7 +127,8 @@ public class TestCaseGenerationNode implements AgentNode {
       AiPromptTemplateService promptTemplateService,
       AiSkillRepository skillRepo,
       AiGenerationFileRepository fileRepo,
-      BlobStore blobStore) {
+      BlobStore blobStore,
+      GeneratedTestCaseProposalRepository proposalRepo) {
     this.orchestrator = orchestrator;
     this.requirementRepo = requirementRepo;
     this.testCaseRepo = testCaseRepo;
@@ -136,6 +139,7 @@ public class TestCaseGenerationNode implements AgentNode {
     this.skillRepo = skillRepo;
     this.fileRepo = fileRepo;
     this.blobStore = blobStore;
+    this.proposalRepo = proposalRepo;
   }
 
   @Override
@@ -258,6 +262,106 @@ public class TestCaseGenerationNode implements AgentNode {
     return finishFromClaude(bundle, claudeResult);
   }
 
+  /**
+   * Refine a single proposal by continuing the generation conversation: resume from the run's
+   * checkpoint, apply the user's instruction to the named case, parse the revised case, and update
+   * the proposal in place (it stays PROPOSED). The conversation's new checkpoint is stored so a
+   * subsequent refine continues from here.
+   */
+  @Transactional
+  public NodeResult refineProposal(
+      ContextBundle bundle,
+      String checkpointId,
+      GeneratedTestCaseProposal proposal,
+      String instruction) {
+    AiGenerationRun run =
+        bundle.workflowId() == null
+            ? null
+            : runRepo.findByWorkflowId(bundle.workflowId()).orElse(null);
+    String modelOverride = run != null ? run.getResolvedModelId() : null;
+    TextOnlyNode shim = new TextOnlyNode(this, "", false, modelOverride);
+    NodeResult claudeResult =
+        orchestrator.resume(bundle, checkpointId, shim, buildRefineMessage(proposal, instruction));
+    if (claudeResult.needsInput() || claudeResult.hasFailed()) {
+      return claudeResult;
+    }
+
+    GeneratedTestCase revised =
+        parseSingleTestCase(claudeResult.summary() != null ? claudeResult.summary() : "");
+    if (revised != null && revised.title() != null) {
+      String stepsJson;
+      try {
+        stepsJson =
+            mapper.writeValueAsString(revised.steps() != null ? revised.steps() : List.of());
+      } catch (Exception e) {
+        stepsJson = proposal.getStepsJson();
+      }
+      proposal.refineContent(
+          revised.title(),
+          revised.description(),
+          revised.preconditions(),
+          revised.expectedResult(),
+          normalizePriority(revised.priority()),
+          revised.sourceRequirementId(),
+          stepsJson);
+      proposalRepo.save(proposal);
+    } else {
+      log.warn(
+          "TestCaseGenerationNode: refine produced no parseable case for proposal {}",
+          proposal.getId());
+    }
+
+    if (run != null && claudeResult.checkpointId() != null) {
+      run.recordReviewCheckpoint(claudeResult.checkpointId());
+      runRepo.save(run);
+    }
+    return NodeResult.awaitingReview(
+        bundle.sessionId(),
+        bundle.workflowId(),
+        nodeType(),
+        taskType(),
+        ArtifactManifest.empty(),
+        "Refined proposal " + proposal.getOrdinal() + ".",
+        claudeResult.checkpointId(),
+        claudeResult.tokenUsage());
+  }
+
+  private String buildRefineMessage(GeneratedTestCaseProposal p, String instruction) {
+    return "Refine the test case titled \""
+        + p.getTitle()
+        + "\" (case #"
+        + (p.getOrdinal() + 1)
+        + ").\nInstruction: "
+        + instruction
+        + "\n\n"
+        + "Return ONLY the single revised test case as a JSON object with this schema:\n"
+        + "{\"title\":\"...\",\"description\":\"...\",\"preconditions\":\"...\",\"priority\":\"HIGH\",\"sourceRequirementId\":\"...\",\"steps\":[{\"action\":\"...\",\"expectedResult\":\"...\",\"notes\":null}]}\n"
+        + "No prose, no markdown, no array — just the one JSON object.";
+  }
+
+  private GeneratedTestCase parseSingleTestCase(String text) {
+    if (text == null) return null;
+    // Refine returns a single test-case OBJECT. Prefer a top-level object (don't let
+    // parseGeneratedTestCases grab the inner `steps` array); fall back to the array form.
+    int objStart = text.indexOf('{');
+    int arrStart = text.indexOf('[');
+    if (objStart >= 0 && (arrStart < 0 || objStart < arrStart)) {
+      try {
+        int end = text.lastIndexOf('}');
+        if (end > objStart) {
+          JsonNode node = mapper.readTree(text.substring(objStart, end + 1));
+          if (node.isObject()) {
+            return parseTestCaseNode(node);
+          }
+        }
+      } catch (Exception e) {
+        log.warn("TestCaseGenerationNode: refine single-object parse failed: {}", e.getMessage());
+      }
+    }
+    List<GeneratedTestCase> arr = parseGeneratedTestCases(text);
+    return arr.isEmpty() ? null : arr.get(0);
+  }
+
   /** Parse the model's response and persist DRAFT test cases, or propagate pause/failure. */
   private NodeResult finishFromClaude(ContextBundle bundle, NodeResult claudeResult) {
     UUID projectId = bundle.projectId();
@@ -284,58 +388,58 @@ public class TestCaseGenerationNode implements AgentNode {
           claudeResult.tokenUsage());
     }
 
-    int savedCount = 0;
+    // Write the generated cases to the staging table as PROPOSED — they are NOT catalog test cases
+    // yet. The user reviews them (accept → DRAFT, reject, or refine) via the proposals API; the
+    // workflow parks at AWAITING_REVIEW. Nothing lands in platform_test_cases here.
+    int ordinal = 0;
+    int proposedCount = 0;
     for (GeneratedTestCase gen : generatedCases) {
       try {
-        PlatformTestCase tc =
-            new PlatformTestCase(projectId, gen.title(), List.of(), "AGENT", bundle.workflowId());
-        tc.setDescription(gen.description());
-        tc.setPreconditions(gen.preconditions());
-        tc.setExpectedResult(gen.expectedResult());
-        tc.setPriority(normalizePriority(gen.priority()));
-        if (gen.sourceRequirementId() != null) {
-          try {
-            UUID reqId = UUID.fromString(gen.sourceRequirementId());
-            tc.setSourceRequirementId(reqId);
-            tc.linkRequirement(reqId); // seed linked_requirement_ids
-          } catch (IllegalArgumentException e) {
-            log.debug(
-                "TestCaseGenerationNode: invalid sourceRequirementId '{}', ignoring",
-                gen.sourceRequirementId());
-          }
-        }
-        tc.setStatus("DRAFT");
-        PlatformTestCase saved = testCaseRepo.save(tc);
-
-        if (gen.steps() != null) {
-          int stepNum = 1;
-          for (GeneratedStep step : gen.steps()) {
-            TestCaseStep stepEntity =
-                new TestCaseStep(
-                    saved.getId(), stepNum++, step.action(), step.expectedResult(), step.notes());
-            stepRepo.save(stepEntity);
-          }
-        }
-        savedCount++;
+        String stepsJson = mapper.writeValueAsString(gen.steps() != null ? gen.steps() : List.of());
+        proposalRepo.save(
+            new GeneratedTestCaseProposal(
+                bundle.workflowId(),
+                projectId,
+                ordinal++,
+                gen.title(),
+                gen.description(),
+                gen.preconditions(),
+                gen.expectedResult(),
+                normalizePriority(gen.priority()),
+                gen.sourceRequirementId(),
+                stepsJson));
+        proposedCount++;
       } catch (Exception e) {
         log.error(
-            "TestCaseGenerationNode: failed to save test case '{}': {}",
+            "TestCaseGenerationNode: failed to stage proposed test case '{}': {}",
             gen.title(),
             e.getMessage(),
             e);
       }
     }
 
-    String summary = "Generated " + savedCount + " test cases.";
+    // Remember the conversation checkpoint so the user can refine these proposals by continuing it.
+    if (bundle.workflowId() != null && claudeResult.checkpointId() != null) {
+      runRepo
+          .findByWorkflowId(bundle.workflowId())
+          .ifPresent(
+              r -> {
+                r.recordReviewCheckpoint(claudeResult.checkpointId());
+                runRepo.save(r);
+              });
+    }
+
+    String summary = "Proposed " + proposedCount + " test cases for review.";
     log.info("TestCaseGenerationNode: {} for project {}", summary, projectId);
 
-    return NodeResult.completed(
+    return NodeResult.awaitingReview(
         bundle.sessionId(),
         bundle.workflowId(),
         nodeType(),
         taskType(),
         ArtifactManifest.empty(),
         summary,
+        claudeResult.checkpointId(),
         claudeResult.tokenUsage());
   }
 

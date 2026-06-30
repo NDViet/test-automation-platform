@@ -144,9 +144,14 @@ public class AgentWorkflowService {
           stepRepo.save(step);
           workflow.markAwaitingReview();
           workflowRepo.save(workflow);
-          reviewGateway.requestReview(result, bundle, step.getId());
+          // Test-case generation parks for proposal review, which is handled by the proposals API
+          // (accept/reject/refine) — NOT the Kafka artifact-approval gateway. Other nodes still
+          // route their review through the gateway.
+          if (result.taskType() != AgentTaskType.GENERATE_TEST_CASES) {
+            reviewGateway.requestReview(result, bundle, step.getId());
+          }
           publishEvent(workflowId, "AWAITING_REVIEW");
-          return; // pause; resume when decision comes back
+          return; // pause; resume when decision comes back / the user curates proposals
         }
 
         if (result.needsInput()) {

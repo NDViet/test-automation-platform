@@ -83,7 +83,8 @@ class AuthControllerTest {
         .thenReturn(Optional.of(userWithId(UUID.randomUUID(), "admin", "secretpw", false, false)));
 
     assertThatThrownBy(
-            () -> controller.login(new LoginRequest("admin", "wrong"), new MockHttpServletResponse()))
+            () ->
+                controller.login(new LoginRequest("admin", "wrong"), new MockHttpServletResponse()))
         .isInstanceOf(ResponseStatusException.class)
         .hasMessageContaining("Invalid username or password");
   }
@@ -129,7 +130,9 @@ class AuthControllerTest {
 
     MeResponse me =
         controller.changePassword(
-            new ChangePasswordRequest("oldpassw", "newpassword"), req, new MockHttpServletResponse());
+            new ChangePasswordRequest("oldpassw", "newpassword"),
+            req,
+            new MockHttpServletResponse());
 
     assertThat(me.mustChangePassword()).isFalse();
     assertThat(encoder.matches("newpassword", u.getPasswordHash())).isTrue();

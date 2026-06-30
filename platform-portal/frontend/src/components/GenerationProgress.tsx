@@ -1,15 +1,9 @@
 import { useState, useEffect, useRef } from 'react'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
-import {
-  Loader2,
-  Sparkles,
-  MessageCircleQuestion,
-  CheckCircle2,
-  AlertTriangle,
-  ClipboardCheck,
-} from 'lucide-react'
+import { Loader2, Sparkles, MessageCircleQuestion, CheckCircle2, AlertTriangle } from 'lucide-react'
 import { api } from '@/lib/api'
 import type { ClarificationAnswer, ClarificationRound } from '@/lib/types'
+import ProposalsReview from './ProposalsReview'
 
 const TERMINAL = new Set(['COMPLETED', 'FAILED'])
 
@@ -107,12 +101,7 @@ export default function GenerationProgress({
           body="The run did not finish. Check AI settings (LiteLLM) and try again."
         />
       ) : state === 'AWAITING_REVIEW' ? (
-        <Banner
-          icon={<ClipboardCheck className="text-amber-600" size={22} />}
-          tone="amber"
-          title="Awaiting review"
-          body="The run produced output that is paused for human review. Approve it in the Review Queue to finish."
-        />
+        <ProposalsReview projectId={projectId} workflowId={workflowId} />
       ) : (
         <>
           <Banner

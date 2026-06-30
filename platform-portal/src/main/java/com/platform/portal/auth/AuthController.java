@@ -86,9 +86,7 @@ public class AuthController {
 
   @PostMapping("/change-password")
   public MeResponse changePassword(
-      @RequestBody ChangePasswordRequest req,
-      HttpServletRequest request,
-      HttpServletResponse res) {
+      @RequestBody ChangePasswordRequest req, HttpServletRequest request, HttpServletResponse res) {
     User user = currentUser(request);
     if (user == null) {
       throw new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Not authenticated");

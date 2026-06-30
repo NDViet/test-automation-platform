@@ -234,9 +234,7 @@ class AdoBootstrapServiceTest {
         ArgumentCaptor.forClass(com.platform.core.domain.UserRole.class);
     verify(roleRepo, org.mockito.Mockito.times(2)).save(cap.capture());
     java.util.List<String> roles =
-        cap.getAllValues().stream()
-            .map(com.platform.core.domain.UserRole::getRole)
-            .toList();
+        cap.getAllValues().stream().map(com.platform.core.domain.UserRole::getRole).toList();
     assertThat(roles).containsExactlyInAnyOrder("ORG_ADMIN", "VIEWER");
     assertThat(cap.getAllValues())
         .allSatisfy(
@@ -284,7 +282,8 @@ class AdoBootstrapServiceTest {
             java.util.List.of(adoUser("alice@acme.com", "alice"), adoUser("bob@acme.com", "bob")));
     when(azureOrgService.resolveOwnerEmail(credId)).thenReturn("alice@acme.com");
     // both users already exist and already hold the grant being requested → no new save
-    com.platform.core.domain.User existing = org.mockito.Mockito.mock(com.platform.core.domain.User.class);
+    com.platform.core.domain.User existing =
+        org.mockito.Mockito.mock(com.platform.core.domain.User.class);
     when(existing.getId()).thenReturn(UUID.randomUUID());
     when(userRepo.findByUsername(any())).thenReturn(Optional.of(existing));
     when(roleRepo.findByUserIdAndRoleAndScopeAndScopeId(any(), any(), any(), any()))

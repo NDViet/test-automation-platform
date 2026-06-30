@@ -10,9 +10,9 @@ import org.junit.jupiter.api.Test;
 import org.springframework.aop.aspectj.annotation.AspectJProxyFactory;
 
 /**
- * Verifies the aspect resolves the effective {@link RequireCapability} from either the method or the
- * declaring class, with method-level precedence — the mechanism ingestion relies on to gate a whole
- * controller with one annotation while overriding individual mutating endpoints.
+ * Verifies the aspect resolves the effective {@link RequireCapability} from either the method or
+ * the declaring class, with method-level precedence — the mechanism ingestion relies on to gate a
+ * whole controller with one annotation while overriding individual mutating endpoints.
  */
 class RequireCapabilityAspectTest {
 

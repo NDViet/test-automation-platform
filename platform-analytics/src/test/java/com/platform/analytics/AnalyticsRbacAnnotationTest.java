@@ -51,7 +51,8 @@ class AnalyticsRbacAnnotationTest {
 
   @Test
   void orgRollupStaysUngated() {
-    assertThat(method(AnalyticsController.class, "orgSummary").getAnnotation(RequireCapability.class))
+    assertThat(
+            method(AnalyticsController.class, "orgSummary").getAnnotation(RequireCapability.class))
         .as("org/summary has no project scope to bind")
         .isNull();
   }

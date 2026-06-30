@@ -5,6 +5,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.lenient;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -124,12 +125,16 @@ class LangChainAgentRunnerTest {
             5);
     ChatResponse finalTurn = withTokens(AiMessage.from("final answer"), 10, 5);
     stubStream(toolTurn, finalTurn);
+    // Completion now checkpoints the conversation so it can be resumed for refinement.
+    when(checkpointService.save(any(), any(), any())).thenReturn("chk-done");
 
     FakeNode node = new FakeNode();
     NodeResult result = runner.run(AgentGridFixtures.bundle(), node);
 
     assertThat(result.status()).isEqualTo(NodeResultStatus.COMPLETED);
     assertThat(result.summary()).isEqualTo("final answer");
+    assertThat(result.checkpointId()).isEqualTo("chk-done"); // resumable at completion (C1)
+    verify(checkpointService).save(any(), any(), any());
     assertThat(node.dispatchCount).isEqualTo(1);
     assertThat(node.lastTool).isEqualTo("get_data");
     // Two turns, each 10 input / 5 output.

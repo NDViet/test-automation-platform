@@ -60,82 +60,114 @@ export default function App() {
       <AuthProvider>
         <AuthGate>
           <Routes>
-        <Route element={<AppLayout />}>
-          <Route index element={<OrgSelectPage />} />
+            <Route element={<AppLayout />}>
+              <Route index element={<OrgSelectPage />} />
 
-          {/* Global (non-project) routes — static segments outrank the dynamic
+              {/* Global (non-project) routes — static segments outrank the dynamic
               project route below, so these always win. */}
-          <Route path="alerts" element={<AlertsPage />} />
-          <Route
-            path="settings/api-keys"
-            element={<RequireCap cap="MANAGE_ORG"><ApiKeysPage /></RequireCap>}
-          />
-          <Route
-            path="settings/ai"
-            element={<RequireCap cap="MANAGE_AI_GATEWAY"><AiSettingsPage /></RequireCap>}
-          />
-          <Route
-            path="settings/agents"
-            element={<RequireCap cap="OPERATE_QUALITY"><AgentsPage /></RequireCap>}
-          />
-          <Route
-            path="settings/task-agents"
-            element={<RequireCap cap="OPERATE_QUALITY"><TaskAgentsPage /></RequireCap>}
-          />
-          <Route
-            path="settings/integrations"
-            element={<RequireCap cap="MANAGE_ORG"><AdminIntegrationsPage /></RequireCap>}
-          />
-          <Route
-            path="settings/mapping-rules"
-            element={<RequireCap cap="MANAGE_ORG"><MappingRulesPage /></RequireCap>}
-          />
-          <Route
-            path="settings/users"
-            element={<RequireCap cap="MANAGE_ORG"><UsersPage /></RequireCap>}
-          />
-          <Route
-            path="settings/organization"
-            element={<RequireCap cap="MANAGE_ORG"><OrgSettingsPage /></RequireCap>}
-          />
-          <Route path="runs/:runId" element={<RunDetail />} />
+              <Route path="alerts" element={<AlertsPage />} />
+              <Route
+                path="settings/api-keys"
+                element={
+                  <RequireCap cap="MANAGE_ORG">
+                    <ApiKeysPage />
+                  </RequireCap>
+                }
+              />
+              <Route
+                path="settings/ai"
+                element={
+                  <RequireCap cap="MANAGE_AI_GATEWAY">
+                    <AiSettingsPage />
+                  </RequireCap>
+                }
+              />
+              <Route
+                path="settings/agents"
+                element={
+                  <RequireCap cap="OPERATE_QUALITY">
+                    <AgentsPage />
+                  </RequireCap>
+                }
+              />
+              <Route
+                path="settings/task-agents"
+                element={
+                  <RequireCap cap="OPERATE_QUALITY">
+                    <TaskAgentsPage />
+                  </RequireCap>
+                }
+              />
+              <Route
+                path="settings/integrations"
+                element={
+                  <RequireCap cap="MANAGE_ORG">
+                    <AdminIntegrationsPage />
+                  </RequireCap>
+                }
+              />
+              <Route
+                path="settings/mapping-rules"
+                element={
+                  <RequireCap cap="MANAGE_ORG">
+                    <MappingRulesPage />
+                  </RequireCap>
+                }
+              />
+              <Route
+                path="settings/users"
+                element={
+                  <RequireCap cap="MANAGE_ORG">
+                    <UsersPage />
+                  </RequireCap>
+                }
+              />
+              <Route
+                path="settings/organization"
+                element={
+                  <RequireCap cap="MANAGE_ORG">
+                    <OrgSettingsPage />
+                  </RequireCap>
+                }
+              />
+              <Route path="runs/:runId" element={<RunDetail />} />
 
-          {/* Back-compat: legacy UUID URLs redirect to slug URLs */}
-          <Route path="projects/:projectId/*" element={<LegacyProjectRedirect />} />
+              {/* Back-compat: legacy UUID URLs redirect to slug URLs */}
+              <Route path="projects/:projectId/*" element={<LegacyProjectRedirect />} />
 
-          {/* Org-level overview: /:orgSlug */}
-          <Route path=":orgSlug" element={<OrgOverview />} />
+              {/* Org-level overview: /:orgSlug */}
+              <Route path=":orgSlug" element={<OrgOverview />} />
 
-          {/* Human-readable project workspace: /:orgSlug/:projectSlug/… */}
-          <Route path=":orgSlug/:projectSlug" element={<ProjectLayout />}>
-            <Route index element={<ProjectDetail />} />
-            <Route path="requirements" element={<RequirementsPage />} />
-            <Route path="teams" element={<AdoStructurePage />} />
-            <Route path="quality" element={<QualityDashboardPage />} />
-            <Route path="productivity" element={<ProductivityPage />} />
-            <Route path="coverage" element={<CoverageMatrixPage />} />
-            <Route path="pr-analyses" element={<PRAnalysesPage />} />
-            <Route path="impact-analyses" element={<ImpactAnalysesPage />} />
-            <Route path="impact-analyses/:analysisId" element={<ImpactAnalysesPage />} />
-            <Route path="settings" element={<ProjectSettingsPage />} />
-            <Route path="settings/:section" element={<ProjectSettingsPage />} />
-            <Route path="mapping" element={<AdoMappingPage />} />
-            <Route path="test-cases" element={<TestCasesPage />} />
-            <Route path="test-cases/:tcId" element={<TestCasesPage />} />
-            <Route path="test-suites" element={<SuitesPage />} />
-            <Route path="test-runs/:runId" element={<TestRunExecutionPage />} />
-            <Route path="test-execution" element={<TestExecutionPage />} />
-            <Route path="test-execution/manual/:runId" element={<TestRunExecutionPage />} />
-            <Route path="runs/:runId" element={<RunDetail />} />
-            <Route path="releases" element={<ReleasesPage />} />
-            <Route path="flaky-tests" element={<FlakyTestsPage />} />
-            <Route path="automated-tests" element={<AutomatedTestsPage />} />
-            <Route path="github-workflows" element={<GitHubWorkflowsPage />} />
-            <Route path="review-queue" element={<ReviewQueuePage />} />
-          </Route>
+              {/* Human-readable project workspace: /:orgSlug/:projectSlug/… */}
+              <Route path=":orgSlug/:projectSlug" element={<ProjectLayout />}>
+                <Route index element={<ProjectDetail />} />
+                <Route path="requirements" element={<RequirementsPage />} />
+                <Route path="teams" element={<AdoStructurePage />} />
+                <Route path="quality" element={<QualityDashboardPage />} />
+                <Route path="productivity" element={<ProductivityPage />} />
+                <Route path="coverage" element={<CoverageMatrixPage />} />
+                <Route path="pr-analyses" element={<PRAnalysesPage />} />
+                <Route path="impact-analyses" element={<ImpactAnalysesPage />} />
+                <Route path="impact-analyses/:analysisId" element={<ImpactAnalysesPage />} />
+                <Route path="settings" element={<ProjectSettingsPage />} />
+                <Route path="settings/:section" element={<ProjectSettingsPage />} />
+                <Route path="mapping" element={<AdoMappingPage />} />
+                <Route path="test-cases" element={<TestCasesPage />} />
+                <Route path="test-cases/:tcId" element={<TestCasesPage />} />
+                <Route path="test-suites" element={<SuitesPage />} />
+                <Route path="test-runs/:runId" element={<TestRunExecutionPage />} />
+                <Route path="test-execution" element={<TestExecutionPage />} />
+                <Route path="test-execution/manual/:runId" element={<TestRunExecutionPage />} />
+                <Route path="runs/:runId" element={<RunDetail />} />
+                <Route path="releases" element={<ReleasesPage />} />
+                <Route path="flaky-tests" element={<FlakyTestsPage />} />
+                <Route path="automated-tests" element={<AutomatedTestsPage />} />
+                <Route path="github-workflows" element={<GitHubWorkflowsPage />} />
+                <Route path="review-queue" element={<ReviewQueuePage />} />
+              </Route>
 
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Route>
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Route>
           </Routes>
           <ForbiddenToast />
         </AuthGate>

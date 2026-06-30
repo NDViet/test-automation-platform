@@ -44,9 +44,7 @@ public class AdoDiscoveryController {
   /** Drift of the live schema vs the captured baseline (captures a baseline if none exists). */
   @GetMapping("/work-item-types/{type}/drift")
   public SchemaDriftReport drift(
-      @PathVariable UUID projectId,
-      @PathVariable String type,
-      @RequestParam String adoProject) {
+      @PathVariable UUID projectId, @PathVariable String type, @RequestParam String adoProject) {
     String actor = CurrentUser.username();
     return driftService.report(projectId, adoProject, type, actor);
   }
@@ -54,9 +52,7 @@ public class AdoDiscoveryController {
   /** (Re)capture the baseline = accept the current upstream schema. */
   @PostMapping("/work-item-types/{type}/drift/baseline")
   public SchemaDriftReport captureBaseline(
-      @PathVariable UUID projectId,
-      @PathVariable String type,
-      @RequestParam String adoProject) {
+      @PathVariable UUID projectId, @PathVariable String type, @RequestParam String adoProject) {
     String actor = CurrentUser.username();
     return driftService.captureBaseline(projectId, adoProject, type, actor);
   }

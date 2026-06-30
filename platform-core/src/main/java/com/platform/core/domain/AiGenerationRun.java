@@ -64,6 +64,13 @@ public class AiGenerationRun {
   @Column(name = "resolved_model_id", columnDefinition = "TEXT")
   private String resolvedModelId;
 
+  /**
+   * Conversation checkpoint captured when the run finished, so proposals can be refined by resuming
+   * the same conversation. Updated after each refinement round.
+   */
+  @Column(name = "review_checkpoint_id", columnDefinition = "TEXT")
+  private String reviewCheckpointId;
+
   @Column(name = "created_at", nullable = false, updatable = false)
   private Instant createdAt = Instant.now();
 
@@ -91,6 +98,15 @@ public class AiGenerationRun {
   public void recordResolvedPrompts(String systemPromptUsed, String userPromptUsed) {
     this.systemPromptUsed = systemPromptUsed;
     this.userPromptUsed = userPromptUsed;
+  }
+
+  /** Save the conversation checkpoint to resume from when refining the run's proposals. */
+  public void recordReviewCheckpoint(String reviewCheckpointId) {
+    this.reviewCheckpointId = reviewCheckpointId;
+  }
+
+  public String getReviewCheckpointId() {
+    return reviewCheckpointId;
   }
 
   /** Record which agent (and sub-type / model) drove this run, for audit and node consumption. */

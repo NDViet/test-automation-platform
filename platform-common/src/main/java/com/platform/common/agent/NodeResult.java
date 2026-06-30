@@ -74,6 +74,36 @@ public record NodeResult(
         Instant.now());
   }
 
+  /**
+   * A completed result that also carries a {@code checkpointId} so the conversation can be resumed
+   * later (e.g. to refine the produced output). Used by the test-case generation flow, where the
+   * finished proposals can be iteratively refined by continuing the same conversation.
+   */
+  public static NodeResult completed(
+      UUID sessionId,
+      UUID workflowId,
+      NodeType nodeType,
+      AgentTaskType taskType,
+      ArtifactManifest artifacts,
+      String summary,
+      String checkpointId,
+      TokenUsage tokenUsage) {
+    return new NodeResult(
+        sessionId,
+        workflowId,
+        nodeType,
+        taskType,
+        NodeResultStatus.COMPLETED,
+        artifacts,
+        summary,
+        checkpointId,
+        tokenUsage,
+        null,
+        null,
+        List.of(),
+        Instant.now());
+  }
+
   /** Convenience factory for a result that pauses for human review. */
   public static NodeResult awaitingReview(
       UUID sessionId,

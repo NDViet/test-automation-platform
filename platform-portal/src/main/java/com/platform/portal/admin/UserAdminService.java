@@ -24,8 +24,8 @@ import org.springframework.web.server.ResponseStatusException;
  * User administration backing {@code /api/portal/admin/users}: list/create users, enable/disable,
  * reset password, and grant/revoke {@link UserRole} grants. Authorization is enforced here (the
  * portal owns auth): only super-admins and org-admins may manage users, a grantor can never grant a
- * role above their own tier at the target scope, and the last super-admin / last org-admin of an org
- * is protected from removal.
+ * role above their own tier at the target scope, and the last super-admin / last org-admin of an
+ * org is protected from removal.
  */
 @Service
 public class UserAdminService {
@@ -65,7 +65,8 @@ public class UserAdminService {
     }
     String username = req.username().trim();
     if (users.existsByUsername(username)) {
-      throw new ResponseStatusException(HttpStatus.CONFLICT, "Username already exists: " + username);
+      throw new ResponseStatusException(
+          HttpStatus.CONFLICT, "Username already exists: " + username);
     }
     // Admin-created users are normal users (never super) and must change the temp password.
     User user =
@@ -147,7 +148,8 @@ public class UserAdminService {
         roles.findByUserId(actor.userId()).stream()
             .anyMatch(r -> "ORG_ADMIN".equals(r.getRole()) && SCOPE_ORG.equals(r.getScope()));
     if (!orgAdmin) {
-      throw new ResponseStatusException(HttpStatus.FORBIDDEN, "User administration requires org-admin");
+      throw new ResponseStatusException(
+          HttpStatus.FORBIDDEN, "User administration requires org-admin");
     }
   }
 
@@ -175,7 +177,8 @@ public class UserAdminService {
             || (PROJECT_ROLES.contains(req.role()) && SCOPE_PROJECT.equals(req.scope()));
     if (!ok) {
       throw new ResponseStatusException(
-          HttpStatus.BAD_REQUEST, "Invalid role/scope combination: " + req.role() + "/" + req.scope());
+          HttpStatus.BAD_REQUEST,
+          "Invalid role/scope combination: " + req.role() + "/" + req.scope());
     }
   }
 
@@ -185,16 +188,15 @@ public class UserAdminService {
       case "TESTER" -> Tier.OPERATE;
       case "PROJECT_ADMIN" -> Tier.ADMIN_PROJECT;
       case "ORG_ADMIN" -> Tier.ADMIN_ORG;
-      default ->
-          throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown role: " + role);
+      default -> throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown role: " + role);
     };
   }
 
   private boolean isLastEnabledSuperAdmin(User candidate) {
     return users.findAllByOrderByUsernameAsc().stream()
-            .filter(u -> u.isSuperAdmin() && u.isEnabled() && !u.getId().equals(candidate.getId()))
-            .findAny()
-            .isEmpty();
+        .filter(u -> u.isSuperAdmin() && u.isEnabled() && !u.getId().equals(candidate.getId()))
+        .findAny()
+        .isEmpty();
   }
 
   private boolean isLastOrgAdmin(UUID orgId) {

@@ -7,9 +7,14 @@ package com.platform.security.authz;
 public enum Capability {
   /** Read results, dashboards, analyses, executions, reports. */
   VIEW_RESULTS(Tier.VIEW),
-  /** CRUD quality/business features: test cases, suites, runs, requirements ops, generation, agents. */
+  /**
+   * CRUD quality/business features: test cases, suites, runs, requirements ops, generation, agents.
+   */
   OPERATE_QUALITY(Tier.OPERATE),
-  /** Project config: integrations, credentials, GitHub config, mapping rules, in-project role grants. */
+  /**
+   * Project config: integrations, credentials, GitHub config, mapping rules, in-project role
+   * grants.
+   */
   MANAGE_PROJECT(Tier.ADMIN_PROJECT),
   /** Org config: create/delete projects, org settings, org-scope role grants. */
   MANAGE_ORG(Tier.ADMIN_ORG),

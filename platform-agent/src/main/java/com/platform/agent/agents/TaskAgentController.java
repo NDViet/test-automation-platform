@@ -1,10 +1,10 @@
 package com.platform.agent.agents;
 
 import com.platform.agent.agents.TaskAgentDtos.EffectiveAssignmentDto;
-import com.platform.security.web.CurrentUser;
 import com.platform.agent.agents.TaskAgentDtos.TaskAgentDto;
 import com.platform.agent.agents.TaskAgentDtos.TaskAgentRequest;
 import com.platform.agent.agents.TaskAgentDtos.TaskSubTypeDto;
+import com.platform.security.web.CurrentUser;
 import java.util.List;
 import java.util.UUID;
 import org.springframework.http.HttpStatus;
@@ -29,18 +29,14 @@ public class TaskAgentController {
 
   @PutMapping("/hub/{scope}/{scopeId}/ai/task-agents")
   public TaskAgentDto upsert(
-      @PathVariable String scope,
-      @PathVariable UUID scopeId,
-      @RequestBody TaskAgentRequest req) {
+      @PathVariable String scope, @PathVariable UUID scopeId, @RequestBody TaskAgentRequest req) {
     String actor = CurrentUser.username();
     return service.upsert(toScope(scope), scopeId, req, actor);
   }
 
   @DeleteMapping("/hub/{scope}/{scopeId}/ai/task-agents/{id}")
   public ResponseEntity<Void> delete(
-      @PathVariable String scope,
-      @PathVariable UUID scopeId,
-      @PathVariable UUID id) {
+      @PathVariable String scope, @PathVariable UUID scopeId, @PathVariable UUID id) {
     String actor = CurrentUser.username();
     service.delete(toScope(scope), scopeId, id, actor);
     return ResponseEntity.noContent().build();

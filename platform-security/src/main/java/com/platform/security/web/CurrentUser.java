@@ -20,8 +20,8 @@ public final class CurrentUser {
 
   /**
    * The current user's username for audit fields (e.g. {@code created_by}), or {@code null} when
-   * unauthenticated. Replaces the old {@code X-Actor} header — actor identity comes from the verified
-   * JWT, never a client-supplied header.
+   * unauthenticated. Replaces the old {@code X-Actor} header — actor identity comes from the
+   * verified JWT, never a client-supplied header.
    */
   public static String username() {
     AuthenticatedUser u = get();

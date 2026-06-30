@@ -38,8 +38,7 @@ public class AiPromptTemplateController {
 
   @PostMapping
   public ResponseEntity<AiPromptTemplateDto> create(
-      @PathVariable UUID projectId,
-      @RequestBody AiPromptTemplateRequest req) {
+      @PathVariable UUID projectId, @RequestBody AiPromptTemplateRequest req) {
     String actor = CurrentUser.username();
     return ResponseEntity.status(HttpStatus.CREATED).body(service.create(projectId, req, actor));
   }
