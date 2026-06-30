@@ -1,13 +1,83 @@
 @import 'tailwindcss';
 
+/* ──────────────────────────────────────────────────────────────────────────
+   Design tokens (Tailwind v4 @theme). Single source of truth for the portal's
+   palette, radii and shadows. Utilities are generated from these names:
+   e.g. --color-surface → bg-surface / text-surface / border-surface.
+   Tailwind's default palette (slate, blue, …) remains available alongside
+   these, so un-migrated pages keep working during the incremental rollout.
+   ────────────────────────────────────────────────────────────────────────── */
+@theme {
+  /* Neutrals — cool, low-chroma foundation */
+  --color-canvas: #f6f7f9; /* app background */
+  --color-surface: #ffffff; /* cards, panels */
+  --color-surface-muted: #f1f3f5; /* subtle fills, table stripes, hovers */
+  --color-border: #e4e7ec; /* default hairline */
+  --color-border-strong: #d0d5dd; /* inputs, emphasized dividers */
+  --color-fg: #111927; /* primary text */
+  --color-fg-muted: #5b6472; /* secondary text */
+  --color-fg-subtle: #8a93a3; /* tertiary / placeholder */
+
+  /* Primary — refined azure */
+  --color-primary: #1f6feb;
+  --color-primary-hover: #195fd0;
+  --color-primary-active: #154db0;
+  --color-primary-fg: #ffffff;
+  --color-primary-subtle: #eaf2fe; /* tinted background */
+  --color-primary-subtle-fg: #1550b8;
+
+  /* Status — semantic; conventional hues so meaning is unambiguous */
+  --color-success: #067647;
+  --color-success-bg: #ecfdf3;
+  --color-success-border: #abefc6;
+  --color-warning: #b54708;
+  --color-warning-bg: #fffaeb;
+  --color-warning-border: #fedf89;
+  --color-danger: #b42318;
+  --color-danger-bg: #fef3f2;
+  --color-danger-border: #fecdca;
+  --color-info: #175cd3;
+  --color-info-bg: #eff8ff;
+  --color-info-border: #b2ddff;
+  --color-neutral: #475467;
+  --color-neutral-bg: #f2f4f7;
+  --color-neutral-border: #e4e7ec;
+
+  /* Radii — one consistent scale (replaces ad-hoc rounded-xl/rounded-full mix) */
+  --radius-sm: 0.375rem;
+  --radius-md: 0.5rem;
+  --radius-lg: 0.625rem;
+  --radius-xl: 0.75rem;
+
+  /* Elevation — subtle; content over chrome */
+  --shadow-xs: 0 1px 2px 0 rgb(16 25 39 / 0.04);
+  --shadow-sm: 0 1px 3px 0 rgb(16 25 39 / 0.06), 0 1px 2px -1px rgb(16 25 39 / 0.05);
+  --shadow-md: 0 4px 12px -2px rgb(16 25 39 / 0.08), 0 2px 4px -2px rgb(16 25 39 / 0.05);
+}
+
 :root {
   font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
 }
 
 body {
   margin: 0;
-  background-color: #f8fafc;
-  color: #0f172a;
+  background-color: var(--color-canvas);
+  color: var(--color-fg);
+}
+
+/* Thin, unobtrusive scrollbars for in-app scroll regions. */
+.scrollbar-thin {
+  scrollbar-width: thin;
+}
+.scrollbar-thin::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: color-mix(in srgb, var(--color-fg-subtle) 45%, transparent);
+  border-radius: 9999px;
 }
 
 /* Rendered upstream rich text (sanitized HTML, e.g. ADO descriptions). Tailwind's
@@ -33,7 +103,7 @@ body {
   margin: 0.15em 0;
 }
 .rich-text a {
-  color: #2563eb;
+  color: var(--color-primary);
   text-decoration: underline;
 }
 .rich-text h1,
@@ -54,7 +124,7 @@ body {
   font-size: 0.95rem;
 }
 .rich-text code {
-  background: #f1f5f9;
+  background: var(--color-surface-muted);
   padding: 0.1em 0.3em;
   border-radius: 4px;
   font-size: 0.85em;
@@ -73,9 +143,9 @@ body {
   padding: 0;
 }
 .rich-text blockquote {
-  border-left: 3px solid #cbd5e1;
+  border-left: 3px solid var(--color-border-strong);
   padding-left: 0.8em;
-  color: #64748b;
+  color: var(--color-fg-muted);
   margin: 0.5em 0;
 }
 .rich-text table {
@@ -85,7 +155,7 @@ body {
 }
 .rich-text th,
 .rich-text td {
-  border: 1px solid #e2e8f0;
+  border: 1px solid var(--color-border);
   padding: 0.25em 0.5em;
   text-align: left;
 }
