@@ -1,150 +1,142 @@
-# Plan — Review & Iterative Refinement of AI-Generated Test Cases
+# Plan — Slim default `docker-compose.yml` + monitoring override
 
-Source spec: `SPEC.md`. Convention: TDD per task (RED → GREEN → regression → build → commit), one
-commit per task; stage only the task's files + its todo update. Next Flyway version is **V8**.
+Spec: `SPEC.md` (root). Infra/YAML-only change. The TDD gate for each task is
+`docker compose config -q` (parse/validate) plus targeted assertions on the rendered config
+(`docker compose config --services`). No application code, Dockerfiles, or images change.
 
-## Where this hooks into the existing flow
-- Generation is async in **platform-agent**: `POST /hub/test-cases/{projectId}/generate` →
-  `TestCaseGenerationNode`. The shared terminal `finishFromClaude()` **currently saves each case to
-  `platform_test_cases` as DRAFT** (the line we redirect).
-- Clarification-before-generation already exists (`ask_user` / `AWAITING_INPUT` /
-  `GenerationResumeService.resumeAsync` → `orchestrator.resume(bundle, checkpointId, …)`). **Refine
-  reuses exactly this resume/checkpoint machinery.**
-- Progress streams on `gen:progress:{workflowId}` (Redis) → `/ws/generations/{workflowId}` →
-  `GenerationProgress.tsx`. The portal BFF proxies `/hub/...` and forwards the JWT.
+## Decisions locked (from spec §2)
+1. Default `docker-compose.yml` starts the whole platform with one `docker compose up -d` (drop
+   `profiles: [services]`).
+2. Keep OpenSearch + Logstash in the default; remove only the Grafana stack
+   (grafana, prometheus, loki, promtail).
+3. `docker-compose-full.yml` is an additive override re-adding those 4 services.
 
 ## Dependency graph
+- T1 (slim default) is the foundation. T2 (override) depends on T1 (the volumes/services it re-adds
+  must have been removed from the base first). T3 (scripts/docs) depends on T1 (new run model).
+  T4 (live smoke) depends on T1–T3. Order: T1 → T2 → T3 → T4.
+
+---
+
+## T1 — Slim the default `docker-compose.yml`
+**Vertical slice:** the default file becomes the full platform minus the Grafana stack, one-command up.
+
+Changes:
+- Remove services: `grafana`, `prometheus`, `loki`, `promtail`.
+- Remove the `profiles: [services]` block from: `litellm`, `platform-analytics`,
+  `platform-integration`, `platform-ai`, `platform-ingestion`, `platform-portal`, `platform-agent`.
+- Remove the now-unused volumes: data — `grafana_data`, `prometheus_data`, `loki_data`,
+  `promtail_positions`; config — `loki_config`, `prometheus_config`, `promtail_config`,
+  `grafana_provisioning`, `grafana_dashboards`.
+- Keep `logstash` (+ `logstash_data`, `logstash_pipeline`) and `opensearch` (+ `opensearch_data`)
+  and everything else untouched (anchor, env, healthchecks, ports, binds).
+
+**Acceptance (AC1, AC2):**
+- `docker compose config -q` exits 0 (no undefined service/volume errors).
+- `docker compose config --services` lists `postgres kafka redis opensearch minio minio-init logstash
+  db-migrate litellm platform-analytics platform-integration platform-ai platform-ingestion
+  platform-portal platform-agent` and does **not** list `grafana prometheus loki promtail`.
+- No `depends_on` in the rendered config references a removed service.
+
+**Verify:**
 ```
-A1 data model (V8 + entity + repo)
-   └─> A2 node terminal → proposals + review-pending  ── CHECKPOINT A
-          ├─> B1 list proposals (GET + BFF + UI shell)
-          │      ├─> B2 accept + accept-all
-          │      └─> B3 reject                          ── CHECKPOINT B
-          └─> C1 capture a resumable checkpoint at completion (refine prerequisite)
-                 └─> C2 refine (per-case, continue conversation)
-                        └─> C3 refine-all                ── CHECKPOINT C
-D1 final regression + per-role browser E2E + deploy      ── CHECKPOINT D
+docker compose config -q
+docker compose config --services | sort
 ```
-Vertical slices: each B/C task carries its backend endpoint + test + portal BFF proxy + the matching
-`ProposalsReview` UI control, so every task is a usable end-to-end path. RBAC (`OPERATE_QUALITY` on
-`projectId`) + a reflection annotation test ships **with each endpoint task** (spec F6), not as a
-separate phase.
 
 ---
 
-## Phase A — Staging foundation (generation stops writing the catalog)
+## T2 — Add `docker-compose-full.yml` (monitoring override)
+**Vertical slice:** layering the override restores the full original stack.
 
-### A1 — `V8` migration + `GeneratedTestCaseProposal` entity + repository
-- New table `generated_test_case_proposals` (see SPEC §4): id, workflow_id, project_id, ordinal,
-  title, description, preconditions, expected_result, priority, source_requirement_id, steps_json,
-  status (`PROPOSED|ACCEPTED|REJECTED`, default PROPOSED), accepted_test_case_id, timestamps,
-  `UNIQUE(workflow_id, ordinal)`. Entity in `platform-core.domain`, repo with
-  `findByWorkflowIdOrderByOrdinal`, `findByIdAndProjectId`, status helpers.
-- **AC:** AC1.4. Migration applies; `ddl-auto: validate` passes for the entity.
-- **Verify:** `V8` pre-flight in a rolled-back txn; `mvn -pl platform-core -am test`.
+Changes:
+- New `docker-compose-full.yml` with a `services:` block defining `grafana`, `prometheus`, `loki`,
+  `promtail` exactly as they were (images, ports, command, env, depends_on among themselves), and a
+  `volumes:` block declaring `grafana_data`, `prometheus_data`, `loki_data`, `promtail_positions`,
+  `loki_config`, `prometheus_config`, `promtail_config`, `grafana_provisioning`, `grafana_dashboards`
+  with the same bind definitions.
+- Header comment documenting `docker compose -f docker-compose.yml -f docker-compose-full.yml up -d`.
 
-### A2 — Generation terminal writes proposals + review-pending (not DRAFT)
-- Change `TestCaseGenerationNode.finishFromClaude()`: instead of `testCaseRepo.save(DRAFT)` + steps,
-  write `GeneratedTestCaseProposal` rows (status PROPOSED, ordered, steps as JSON) and return a
-  result that maps the workflow to **review-pending** (reuse `AWAITING_REVIEW`). Update **both**
-  completion handlers (initial-run path and `GenerationResumeService.handleResult`) so a completed
-  generation → `AWAITING_REVIEW`, not `COMPLETED`. Clarification-before-generation is unchanged.
-- **AC:** AC1.1, AC1.2, AC1.3, AC7.1.
-- **Verify (RED→GREEN):** node test — finishing writes `proposalRepo.save` N times and **never**
-  `testCaseRepo.save`; workflow ends review-pending. Regression: agent suite green.
+**Acceptance (AC4):**
+- `docker compose -f docker-compose.yml -f docker-compose-full.yml config -q` exits 0.
+- Merged `config --services` includes `grafana prometheus loki promtail` in addition to the base set.
+- Merged config has no undefined-volume errors.
 
-### CHECKPOINT A — deploy/verify
-Generate from a requirement → rows in `generated_test_case_proposals` (PROPOSED), **zero** new
-`platform_test_cases`, workflow `AWAITING_REVIEW`. Clarification flow still works.
+**Verify:**
+```
+docker compose -f docker-compose.yml -f docker-compose-full.yml config -q
+docker compose -f docker-compose.yml -f docker-compose-full.yml config --services | sort
+```
 
 ---
 
-## Phase B — Review, accept, reject (curation MVP)
+## T3 — Update `scripts/dev-up.sh` + `README.md`
+**Vertical slice:** docs/tooling match the new run model.
 
-### B1 — List proposals (read path end-to-end)
-- `GET /hub/test-cases/{projectId}/generations/{workflowId}/proposals` →
-  `@RequireCapability(OPERATE_QUALITY, "projectId")`; returns proposals (full content + status,
-  ordered). Portal BFF proxy + `api.listProposals` + `Proposal` type. New `ProposalsReview.tsx`
-  (read-only list: title, priority, source requirement, expandable steps, status); wired into
-  `GenerationProgress.tsx` for the review-pending state (replaces the "DRAFT created" banner).
-- **AC:** AC2.1, AC2.2, AC6.1.
-- **Verify:** endpoint annotation reflection test; `npx tsc -b`; browser — review-pending shows the
-  proposed list.
+Changes:
+- `scripts/dev-up.sh`: refresh the usage comment (default now brings the whole platform — no
+  `--profile services`); add an opt-in `--full`/`COMPOSE_FULL=1` passthrough that layers
+  `-f docker-compose-full.yml`. Keep the volume-dir pre-create + path-cache warmup + retry logic, and
+  keep parsing `volume_data/` dirs from the base file.
+- `README.md`: replace the `docker compose --profile services {pull,up,down}` commands with the
+  plain forms; add a short "Full stack with monitoring" note using the override; adjust the service
+  URL table so Grafana/Prometheus/Loki are listed under the full-stack note, not the default.
 
-### B2 — Accept (per-case) + Accept all
-- `POST …/proposals/{proposalId}/accept` and `POST …/proposals/accept-all` (both OPERATE_QUALITY).
-  New `ProposalService.accept`: create `PlatformTestCase` (DRAFT, `createdBy` = `CurrentUser`,
-  `agentSessionId` = workflowId, source requirement preserved) + `TestCaseStep`s from steps_json,
-  mark proposal ACCEPTED + set `accepted_test_case_id`; **idempotent**; reject `REJECTED` (409).
-  `acceptAll` accepts all remaining PROPOSED. BFF + UI buttons (accept / accept-all).
-- **AC:** AC3.1, AC3.2, AC3.3, AC3.4, AC6.2.
-- **Verify:** `ProposalServiceTest` (accept creates DRAFT+steps+ACCEPTED; idempotent; rejected→409;
-  acceptAll) + annotation test; browser — accept one → appears in catalog as DRAFT.
+**Acceptance (AC5):**
+- No live (non-archive) script/doc instructs `--profile services` for the default run.
+- `scripts/dev-up.sh` (no args) maps to `docker compose up -d`; `--full` maps to the merged form.
+- `bash -n scripts/dev-up.sh` passes (syntax) and the dir-parsing grep still matches base volumes.
 
-### B3 — Reject (per-case)
-- `POST …/proposals/{proposalId}/reject` (OPERATE_QUALITY) → mark REJECTED; excluded from the active
-  list; never enters the catalog. BFF + UI button.
-- **AC:** AC4.1, AC4.2.
-- **Verify:** `ProposalServiceTest` reject case + annotation test; browser — reject → gone, no
-  catalog row.
-
-### CHECKPOINT B — deploy/verify
-Generate → review list → accept some (catalog DRAFTs appear, lifecycle intact) → reject some (gone).
+**Verify:**
+```
+bash -n scripts/dev-up.sh
+grep -n "profile services" README.md   # expect no matches in run instructions
+```
 
 ---
 
-## Phase C — Iterative refinement (continue the conversation)
+## T5 — Make LiteLLM external by default (move bundled litellm to the override)
+**Vertical slice:** the default platform talks to an external LiteLLM; the bundled gateway is
+self-contained-only.
 
-### C1 — Capture a resumable checkpoint at generation completion (refine prerequisite)
-- Today checkpoints are persisted on **pause** (`needsInput`). Refine needs to resume from the
-  **completed** conversation. Ensure the orchestrator persists/returns a checkpoint id at completion
-  and store it on the run (`AiGenerationRun`) or per-proposal so `orchestrator.resume(...)` can
-  continue. **This is the key technical risk** — investigate `LangChainAgentRunner` checkpointing;
-  if completion checkpoints aren't already available, add them.
-- **AC:** after a generation completes, `orchestrator.resume(bundle, completionCheckpointId, …)`
-  rehydrates the same conversation (verified by a follow-up turn producing coherent output).
-- **Verify:** unit/integration on the resume path; manual resume produces a sensible revision.
+Changes:
+- `docker-compose.yml`: remove the `litellm` service; set `LITELLM_BASE_URL`/`LITELLM_API_KEY`
+  defaults to empty (`${VAR:-}`) on `platform-ai` + `platform-agent`; drop their `depends_on: litellm`.
+- `docker-compose-full.yml`: add the `litellm` service (+ inline config bind); add merge blocks for
+  `platform-ai` + `platform-agent` that set `LITELLM_BASE_URL` default to `http://litellm:4000/v1`
+  (operator `.env` still wins) and re-add `depends_on: litellm (service_healthy)`.
+- README `.env`/config + full-stack subsection: document external-by-default and the bundled option.
 
-### C2 — Refine (per-case) — update proposal in place
-- `POST …/proposals/{proposalId}/refine` body `{ instruction }` (OPERATE_QUALITY). Add a **refine
-  resume mode** to `GenerationResumeService`/node: resume the conversation from the completion
-  checkpoint, inject the instruction scoped to that proposal (reference it by ordinal/content), parse
-  the revised single case, and **update the proposal in place** (stays PROPOSED). Async; stream on
-  the existing `gen:progress` channel. UI: per-case "Refine" opens an instruction box; shows
-  "refining…" then the updated case.
-- **AC:** AC5.1, AC5.2, AC5.4, AC5.5, AC6.1.
-- **Verify:** service test (refine updates the proposal, no new catalog row, guard on
-  accepted/rejected) + annotation test; browser — refine one → content changes in place.
+**Acceptance:**
+- Default `config -q` ok; no `litellm` service; `platform-ai`/`agent` `LITELLM_BASE_URL` renders empty
+  and neither `depends_on` litellm.
+- Merged `config -q` ok; `litellm` present; `platform-ai`/`agent` `LITELLM_BASE_URL` =
+  `http://litellm:4000/v1` and both `depends_on` litellm.
 
-### C3 — Refine all (batch)
-- `POST …/proposals/refine-all` body `{ instruction }` (OPERATE_QUALITY): apply one instruction to
-  all remaining PROPOSED proposals (batch resume), update each in place. BFF + UI "Refine all".
-- **AC:** AC5.3.
-- **Verify:** service test (all PROPOSED updated, ACCEPTED/REJECTED untouched) + annotation test;
-  browser — refine-all updates the set.
-
-### CHECKPOINT C — deploy/verify
-Full loop: generate → refine one (and refine-all) → accept the good ones (DRAFTs) → reject the rest.
+**Verify:**
+```
+docker compose config --format json   # assert no litellm, empty LITELLM_BASE_URL, no litellm dep
+docker compose -f docker-compose.yml -f docker-compose-full.yml config --format json  # inverse
+```
 
 ---
 
-## Phase D — Hardening & sign-off
+## T4 — Live bring-up smoke (checkpoint — requires Docker running)
+**Vertical slice:** prove the restructured stack actually runs.
 
-### D1 — Full regression + per-role browser E2E + deploy
-- Full `mvn test` green; `npx tsc -b` green; rebuild + redeploy all touched services. Browser E2E as
-  a **Tester** (OPERATE_QUALITY): the whole loop; and a negative check (a viewer / wrong-project user
-  is denied the proposal endpoints, 403). Confirm the existing clarification flow, lifecycle
-  endpoints, and Review Queue are unaffected.
-- **AC:** AC7.1, AC7.2, plus the full matrix from F1–F6.
-- **Verify:** regression + image build + deploy + browser E2E.
+Steps (AC3, AC6):
+- `docker compose up -d` → wait for health; `docker compose ps` shows the platform up and **no**
+  grafana/prometheus/loki/promtail containers.
+- Portal `/actuator/health` 200 and login works; AI generation → proposals path still works (spot).
+- `docker compose -f docker-compose.yml -f docker-compose-full.yml up -d` → Grafana reachable on
+  :3000 (AC4 live).
 
-### CHECKPOINT D — feature complete, deployed, verified.
+**Note:** T4 mutates the running local stack (recreates containers). Per the build skill this is the
+checkpoint to confirm before executing — I'll pause for sign-off and offer to run it (or leave it as
+a manual step). T1–T3 are pure file edits validated by `compose config` and need no running Docker.
 
 ---
 
-## Risks / decisions to confirm during build (from SPEC §9 "ask first")
-- **Workflow state**: reuse `AWAITING_REVIEW` vs. a dedicated generation state (plan assumes reuse).
-- **Completion checkpoint (C1)**: the one real unknown — whether the orchestrator already checkpoints
-  at completion. If not, C1 grows; surface early.
-- **Proposal retention**: no auto-expiry of un-accepted proposals in this iteration (flag if wanted).
-- **Steps storage**: `steps_json` in staging (plan assumes JSON; normalize only if asked).
+## Out of scope (spec §10)
+App code, Dockerfiles, images, new monitoring tooling, LiteLLM/model config, a standalone (non-override)
+full file. Archive docs under `spec/archive` and `tasks/archive` are left as historical record.

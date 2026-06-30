@@ -83,56 +83,76 @@ Commit `b4640398780f0f339bb3a9bf5e83b271ab4e1b01` initializes the v2.0 platform 
 | Integration API | http://localhost:8083/swagger-ui.html | Jira lifecycle service |
 | AI API | http://localhost:8084/swagger-ui.html | Failure analysis and provider settings |
 | Agent Hub | http://localhost:8087 | Host port maps to container port `8086` |
-| Grafana | http://localhost:3000 | `admin` / `admin` |
-| Prometheus | http://localhost:9090 | Metrics |
 | OpenSearch | http://localhost:9200 | Log search backend |
 | MinIO Console | http://localhost:9001 | `platform` / `platform123` |
 | PostgreSQL | localhost:5432 | db `platform`, user `platform`, password `platform` |
 | Kafka | localhost:9092 | KRaft mode |
 | Redis | localhost:6379 | Agent checkpoints |
-| Loki | http://localhost:3100 | Log aggregation |
-| Prometheus | http://localhost:9090 | Metrics + k6 real-time (remote write) |
+
+> The Grafana monitoring stack is **not** part of the default `docker compose up`. Start it with the
+> override (see [Full stack with monitoring](#full-stack-with-monitoring)) to also get Grafana
+> (http://localhost:3000, `admin`/`admin`), Prometheus (http://localhost:9090, metrics + k6
+> remote-write), Loki (http://localhost:3100), and Promtail.
 
 ## Quick start with Docker
 
-No Java or Maven is required for the pre-built image path. Docker Compose starts infrastructure, runs Flyway through the `db-migrate` one-shot container, and then starts the platform services.
+No Java or Maven is required for the pre-built image path. The default `docker-compose.yml` is the
+full operational platform — a single `docker compose up -d` starts the data pipeline, storage, cache,
+log-search backend, and the LiteLLM gateway, runs Flyway through the `db-migrate` one-shot container,
+and then starts all backend services and the portal.
 
 ```bash
 git clone https://github.com/ndviet/test-automation-platform.git
 cd test-automation-platform
 
-docker compose --profile services pull
-docker compose --profile services up -d
+docker compose pull
+docker compose up -d
 docker compose ps
 ```
 
 Stop the stack:
 
 ```bash
-docker compose --profile services down
+docker compose down
 
-# Wipes database, Kafka, Redis, OpenSearch, MinIO, Grafana, Loki, and Prometheus data.
-docker compose --profile services down -v
+# Wipes database, Kafka, Redis, OpenSearch, and MinIO data.
+docker compose down -v
 ```
+
+### Full stack with monitoring
+
+`docker-compose-full.yml` is an additive override holding the self-contained extras: a **bundled
+LiteLLM** container (the default stack expects an external endpoint) and the **Grafana observability
+stack** (Grafana, Prometheus, Loki, Promtail). With the override present, platform-ai/agent default to
+the bundled `litellm`. Layer it on the default to run the full stack:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose-full.yml up -d
+docker compose -f docker-compose.yml -f docker-compose-full.yml down   # stop it all
+```
+
+`scripts/dev-up.sh --full` (or `COMPOSE_FULL=1 scripts/dev-up.sh`) does the same with the
+bind-volume warmup.
 
 ## Configuration
 
 Create a `.env` file in the project root when you need non-default settings. Docker Compose reads it automatically.
 
 ```bash
-# LiteLLM gateway — single OpenAI-compatible endpoint for all models
+# LiteLLM gateway — the single OpenAI-compatible endpoint the platform talks to
 # (Claude/GPT/Gemini/etc. are routed by model id inside LiteLLM).
 #
-# Easiest path: the bundled `litellm` container proxies to the Claude API — just
-# provide your Anthropic key (and optionally a proxy key). platform-ai/agent then
-# default to LITELLM_BASE_URL=http://litellm:4000/v1 with this master key.
-ANTHROPIC_API_KEY=sk-ant-...
-LITELLM_MASTER_KEY=sk-platform-local
-#
-# Or point at an external LiteLLM instead (overrides the bundled container):
+# The DEFAULT stack uses an EXTERNAL LiteLLM: platform-ai/agent start with these
+# unset (empty), so the platform comes up from scratch without a gateway. Point them
+# at your LiteLLM when ready — here, or per Org/Team/Project in the Portal (/settings/ai):
 # LITELLM_BASE_URL=https://your-litellm/v1
 # LITELLM_API_KEY=sk-...
-# Models are also configurable per Org/Team/Project in the Portal at /settings/ai.
+#
+# Prefer a bundled gateway? Run the full stack (-f docker-compose-full.yml) — it adds a
+# `litellm` container that proxies to the Claude API, and platform-ai/agent then default to
+# LITELLM_BASE_URL=http://litellm:4000/v1. Provide your Anthropic key (and optional proxy key):
+ANTHROPIC_API_KEY=sk-ant-...
+LITELLM_MASTER_KEY=sk-platform-local
 
 # Ingestion auth, disabled by default for local development
 API_KEY_AUTH_ENABLED=false
@@ -216,7 +236,7 @@ Or with Compose (build the base once first, then the services):
 
 ```bash
 docker buildx bake base                       # creates platform-base:local
-docker compose --profile services up -d --build
+docker compose up -d --build
 ```
 
 CI builds the base once and publishes it to `ghcr.io/<owner>/platform-base`; the

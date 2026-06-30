@@ -1,220 +1,139 @@
-# SPEC — Review & Iterative Refinement of AI-Generated Test Cases
+# SPEC — Slim default `docker-compose.yml` + monitoring override
 
 > Status: **DRAFT — awaiting confirmation**
-> Scope: `platform-core`, `platform-agent`, `platform-portal` (+ frontend).
-> Prior specs archived under `spec/archive/` (interactive AI generation, LiteLLM
-> gateway, manual test execution — all implemented).
+> Scope: `docker-compose.yml`, new `docker-compose-full.yml`, `scripts/dev-up.sh` (+ any docs that
+> reference `--profile services`). No application code, Dockerfiles, or images change.
+> Prior specs archived under `spec/archive/`.
 
 ## 1. Objective
 
-Today, when AI manual test-case generation finishes, `TestCaseGenerationNode.finishFromClaude()`
-**immediately writes every generated case into `platform_test_cases` as `DRAFT`**. The user never
-gets to review the output, refine it, or accept cases selectively — the catalog is populated whether
-the results are good or not.
+Today `docker-compose.yml` is one large file: an always-on infra block (postgres, kafka, redis,
+opensearch, minio, **plus the Grafana observability stack — grafana, prometheus, loki, promtail —
+and logstash**) and a `profiles: [services]`-gated block (litellm + the 6 platform apps). Running the
+platform is a two-step `docker compose --profile services up`, and the Grafana/Prometheus/Loki/
+Promtail monitoring stack starts every time even though it isn't used right now.
 
-This feature inserts a **post-generation review & refinement stage**. After the AI finishes, the
-generated cases land in a **separate staging area as "proposals"** (never in the catalog yet). The
-user reviews the proposed list and, **per case**, can **accept** (→ becomes a `DRAFT` in the
-catalog), **reject** (discarded), or **refine** (give a free-text instruction; the AI revises that
-case by **continuing the same generation conversation**). Batch **Accept all** / **Refine all** are
-also available. Only accepted proposals ever become real test cases.
-
-This is distinct from, and complementary to, the existing **clarification rounds** (`ask_user` /
-`AWAITING_INPUT`) which happen *before* generation. This new stage happens *after* generation.
+Restructure so the **default `docker-compose.yml` is the runnable platform** — backend + frontend,
+data pipeline (Kafka), storage (Postgres, MinIO), cache (Redis), the LLM gateway (LiteLLM), and the
+log-search backend (OpenSearch + Logstash) — startable with a single `docker compose up -d`. Move the
+unused Grafana monitoring stack into **`docker-compose-full.yml`, a Compose override** that layers it
+back for full/custom deploys.
 
 ### Target users
-- **Testers** (capability `OPERATE_QUALITY` on the project) — the people who trigger generation and
-  curate the results. All new endpoints are gated to `OPERATE_QUALITY` scoped to the project,
-  consistent with the existing generation endpoints.
+- **Developers** running the platform locally (want one command, minimal footprint).
+- **Ops / custom deploys** who occasionally want the full stack incl. dashboards.
 
-## 2. Resolved design decisions (from clarification)
-1. **Staging:** a **separate staging table** (`generated_test_case_proposals`), tied to the
-   generation run / workflow. Proposals are **not** in `platform_test_cases`. A proposal is written
-   to `platform_test_cases` (as `DRAFT`) only on accept.
-2. **Review actions:** **per-case accept / reject / refine**, plus batch **accept-all** and
-   **refine-all**.
-3. **Refine engine:** **continue the conversation** — reuse the existing resume/checkpoint
-   mechanism (`GenerationResumeService` + LangChain checkpointing) so the LLM keeps full context
-   (requirements, prior clarifications); the refine instruction is appended and the AI returns the
-   revised case(s), which **update the proposal in place** (status stays `PROPOSED`).
-4. **On accept:** the case enters the catalog as **`DRAFT`**; the existing
-   `DRAFT → UNDER_REVIEW → APPROVED → DEPRECATED` lifecycle continues unchanged afterwards.
+## 2. Resolved decisions (from clarification)
+1. **One-command default:** remove `profiles: [services]` so `docker compose up -d` starts data +
+   storage + cache + pipeline + LLM gateway **and** all 6 platform services together.
+2. **Keep OpenSearch + Logstash** (the log-search data path the analytics service uses) in the
+   default; remove **only the Grafana observability stack: Grafana, Prometheus, Loki, Promtail**.
+3. **`docker-compose-full.yml` is an override** (not a standalone copy) that adds the monitoring
+   services back: `docker compose -f docker-compose.yml -f docker-compose-full.yml up -d`.
+4. **LiteLLM is EXTERNAL by default** — the bundled `litellm` container is removed from the default
+   stack and moved into `docker-compose-full.yml`. `platform-ai`/`platform-agent` start with empty
+   `LITELLM_BASE_URL`/`LITELLM_API_KEY` (configure later via `.env` or the Portal `/settings/ai`);
+   the full override re-points them at the bundled `litellm` and re-adds the dependency.
 
-## 3. Core features & acceptance criteria
+## 3. Exact changes
 
-Each AC is independently testable.
+### `docker-compose.yml` (slim default)
+- **Remove `profiles: [services]`** from: `litellm`, `platform-analytics`, `platform-integration`,
+  `platform-ai`, `platform-ingestion`, `platform-portal`, `platform-agent`.
+- **Remove services:** `grafana`, `prometheus`, `loki`, `promtail`.
+- **Remove the volumes only those services use:** `grafana_data`, `prometheus_data`, `loki_data`,
+  `promtail_positions` (data) and `grafana_provisioning`, `grafana_dashboards`, `prometheus_config`,
+  `loki_config`, `promtail_config` (config binds).
+- **Keep** everything else: `postgres`, `kafka`, `redis`, `opensearch`, `minio`, `minio-init`,
+  `logstash`, `db-migrate`, `litellm`, the 6 platform services — and their volumes (incl.
+  `opensearch_data`, `logstash_data`, `logstash_pipeline`).
+- **Leave untouched:** the `x-security-env` anchor, all env wiring, healthchecks, ports, image tags,
+  and the named-volume bind pattern.
+- `platform-analytics` keeps `OPENSEARCH_HOST`/`depends_on: opensearch` (OpenSearch stays in default).
 
-### F1 — Generation lands in staging, not the catalog
-- **AC1.1** When generation finishes, the generated cases are written to
-  `generated_test_case_proposals` (status `PROPOSED`), **not** to `platform_test_cases`.
-- **AC1.2** No `platform_test_cases` row exists for a generation run until the user accepts at least
-  one proposal. (Regression guard: a completed generation produces 0 catalog rows by itself.)
-- **AC1.3** The workflow ends in a **review-pending** state (reuse `AWAITING_REVIEW`, or a dedicated
-  generation state) rather than `COMPLETED`, so the UI knows to show the review panel.
-- **AC1.4** Each proposal records: project id, workflow/generation-run id, ordinal, title,
-  description, preconditions, expected result, priority, `sourceRequirementId`, the ordered steps
-  (action / expected / notes), and `status` (`PROPOSED` | `ACCEPTED` | `REJECTED`).
+### `docker-compose-full.yml` (new — monitoring override)
+- Defines exactly the removed services — `grafana`, `prometheus`, `loki`, `promtail` — with their
+  current configuration (images, ports, command, depends_on: grafana→prometheus+loki, promtail→loki,
+  logstash dependency stays in the base since logstash itself stays).
+- Declares the monitoring volumes it needs: `grafana_data`, `prometheus_data`, `loki_data`,
+  `promtail_positions`, `grafana_provisioning`, `grafana_dashboards`, `prometheus_config`,
+  `loki_config`, `promtail_config` (same bind-to-`./infrastructure/...` definitions).
+- **Usage:** `docker compose -f docker-compose.yml -f docker-compose-full.yml up -d`.
 
-### F2 — Review list
-- **AC2.1** `GET …/generations/{workflowId}/proposals` returns the proposals for that run with their
-  full content + status, ordered by ordinal.
-- **AC2.2** The frontend generation panel, on review-pending, renders the proposed cases (title,
-  priority, source requirement, expandable steps) with per-case **Accept / Reject / Refine** controls
-  and batch **Accept all** / **Refine all**.
+### `scripts/dev-up.sh` (+ docs)
+- Update so it no longer requires `--profile services` (the default now brings the whole platform).
+  Keep the volume-dir pre-creation + Docker-Desktop path-cache warmup logic. Optionally accept an
+  extra `-f docker-compose-full.yml` for the full variant.
 
-### F3 — Accept (per-case and batch)
-- **AC3.1** Accepting a `PROPOSED` proposal creates one `platform_test_cases` row (status `DRAFT`,
-  `createdBy` = the **JWT principal**, `agentSessionId` = workflow id, `sourceRequirementId` +
-  linked requirement preserved) plus its `test_case_steps`, then marks the proposal `ACCEPTED` and
-  links `accepted_test_case_id`.
-- **AC3.2** Accept is **idempotent**: accepting an already-`ACCEPTED` proposal does not create a
-  duplicate catalog row.
-- **AC3.3** **Accept all** accepts every remaining `PROPOSED` proposal in one call.
-- **AC3.4** A `REJECTED` proposal cannot be accepted (409/400).
+## 4. Acceptance criteria
+- **AC1** `docker compose config -q` on the default succeeds; the rendered config lists the 6 platform
+  services + `postgres/kafka/redis/opensearch/minio/minio-init/logstash/db-migrate/litellm`, and does
+  **not** list `grafana/prometheus/loki/promtail`.
+- **AC2** No service in the default has a `depends_on` on a removed service, and the default has no
+  reference to a removed (now-undefined) volume — `docker compose config` does not error.
+- **AC3** `docker compose up -d` (no `--profile`, no `-f`) brings the platform up in one command; the
+  portal answers `/actuator/health` and login works; `grafana`/`prometheus` are **not** running.
+- **AC4** `docker compose -f docker-compose.yml -f docker-compose-full.yml config -q` succeeds and the
+  **merged** config **includes** `grafana/prometheus/loki/promtail` + their volumes; bringing it up
+  makes Grafana reachable on `:3000`.
+- **AC5** `scripts/dev-up.sh` (and any README/docs) no longer depend on `--profile services`.
+- **AC6** Smoke: the previously-verified platform behaviour (auth/login, AI generation → proposals)
+  still works under the new default compose.
 
-### F4 — Reject (per-case and batch)
-- **AC4.1** Rejecting a `PROPOSED` proposal marks it `REJECTED`; it is excluded from the active
-  review list and never enters the catalog.
-- **AC4.2** A rejected proposal stays rejected (no resurrection) — keep it simple.
+## 5. Commands
+- **Run the platform (default):** `docker compose up -d`  (or `scripts/dev-up.sh`).
+- **Run with monitoring:** `docker compose -f docker-compose.yml -f docker-compose-full.yml up -d`.
+- **Validate:** `docker compose config -q` and `docker compose -f docker-compose.yml -f
+  docker-compose-full.yml config -q`.
+- **Stop:** `docker compose down` (default) / add `-f docker-compose-full.yml` to also stop monitoring.
 
-### F5 — Refine (continue the conversation)
-- **AC5.1** `POST …/generations/{workflowId}/proposals/{proposalId}/refine` with a free-text
-  `instruction` resumes the generation conversation (via the checkpoint), scoped to that proposal,
-  and the AI returns a revised version that **updates the proposal in place** (still `PROPOSED`).
-- **AC5.2** Refine preserves prior context — the LLM sees the original requirement(s), earlier
-  clarification answers, and the current proposal content; the instruction is additive.
-- **AC5.3** **Refine all** applies one instruction to all remaining `PROPOSED` proposals (batch
-  resume), updating each in place.
-- **AC5.4** Refinement is **async** and streams progress on the existing
-  `gen:progress:{workflowId}` channel / `/ws/generations/{workflowId}` socket; the panel reflects
-  "refining…" then shows the updated case.
-- **AC5.5** An `ACCEPTED`/`REJECTED` proposal cannot be refined (only `PROPOSED`).
-
-### F6 — Authorization & audit
-- **AC6.1** Every new endpoint requires `OPERATE_QUALITY` on the `projectId` (platform RBAC model);
-  unauthenticated → 401/403, wrong-project tester → 403.
-- **AC6.2** Accept records the accepting user (`createdBy` from `CurrentUser`, never a header).
-
-### F7 — Backward compatibility
-- **AC7.1** The existing clarification-before-generation flow (`ask_user`, `AWAITING_INPUT`,
-  `…/answers`) is unchanged.
-- **AC7.2** The existing test-case lifecycle endpoints (`submit-review`, `approve`, `reject`) and the
-  Review Queue are unchanged; accepted drafts flow into them as before.
-
-## 4. Architecture & where it hooks in
-
-### Data model — Flyway `V8__generated_test_case_proposals.sql` (next version after V7)
+## 6. Project structure (touched files)
 ```
-generated_test_case_proposals
-  id              UUID PK
-  workflow_id     UUID NOT NULL          -- FK agent_workflows / ai_generation_runs.workflow_id
-  project_id      UUID NOT NULL          -- FK projects
-  ordinal         INT  NOT NULL
-  title           TEXT NOT NULL
-  description     TEXT
-  preconditions   TEXT
-  expected_result TEXT
-  priority        VARCHAR(20)
-  source_requirement_id  VARCHAR
-  steps_json      TEXT NOT NULL          -- ordered [{action,expectedResult,notes}] as JSON;
-                                         --  expanded into test_case_steps rows on accept
-  status          VARCHAR(20) NOT NULL DEFAULT 'PROPOSED'  -- PROPOSED|ACCEPTED|REJECTED
-  accepted_test_case_id UUID             -- set on accept (link to platform_test_cases row)
-  created_at / updated_at TIMESTAMPTZ
-  UNIQUE (workflow_id, ordinal)
+docker-compose.yml            # slim default — platform + data/storage/cache/pipeline/LLM + log-search
+docker-compose-full.yml       # NEW — override adding grafana/prometheus/loki/promtail back
+scripts/dev-up.sh             # updated: default no longer needs --profile services
+infrastructure/{grafana,prometheus,loki,promtail}/   # config dirs — KEPT (the override binds them)
+.env                          # unchanged
 ```
-Steps are stored as JSON in staging for simplicity; they are expanded into real `test_case_steps`
-rows only on accept.
 
-### Backend (platform-agent — generation lives here)
-- **`TestCaseGenerationNode.finishFromClaude()`**: change the terminal behavior — instead of
-  `testCaseRepo.save(DRAFT)` + steps, write `generated_test_case_proposals` rows and mark the
-  workflow review-pending. This is the **single most important change**.
-- **New `ProposalService`** (platform-agent): list / accept / accept-all / reject / refine /
-  refine-all. Accept creates the `PlatformTestCase` (DRAFT) + `TestCaseStep`s (reuse the existing
-  repos/mapping). Refine calls into the resume path.
-- **Refine via `GenerationResumeService`**: add a "refine proposal(s)" resume mode that injects the
-  instruction + the targeted proposal id(s) into the resumed conversation and routes the revised
-  output back to update proposals (not to create drafts).
-- **New endpoints** on `TestCaseGenerationController` (or a sibling controller), all
-  `@RequireCapability(OPERATE_QUALITY, scope="projectId")`:
-  - `GET    /hub/test-cases/{projectId}/generations/{workflowId}/proposals`
-  - `POST   …/proposals/{proposalId}/accept`
-  - `POST   …/proposals/{proposalId}/reject`
-  - `POST   …/proposals/{proposalId}/refine`        body `{ instruction }`
-  - `POST   …/proposals/accept-all`
-  - `POST   …/proposals/refine-all`                 body `{ instruction }`
+## 7. Code style / conventions
+- Compose v2 (no top-level `version:` key — matches the current file). Preserve the named-volume bind
+  pattern (`driver: local`, `driver_opts: {type: none, o: bind, device: ${PWD}/...}`). Keep the
+  per-service comment headers, healthchecks, and `depends_on` conditions. The override file mirrors
+  the same conventions and only adds; it never redefines base services.
 
-### Frontend (platform-portal/frontend)
-- **`GenerationProgress.tsx`**: when the run is review-pending, render a new **`ProposalsReview`**
-  component instead of the "New DRAFT test cases were created" banner.
-- **`ProposalsReview.tsx`** (new): the proposed list with per-case Accept / Reject / Refine (refine
-  opens a small instruction box) and batch Accept all / Refine all; reflects streaming refine
-  progress; on accept shows the case moving to the catalog.
-- **`lib/api.ts`** + **`lib/types.ts`**: `listProposals`, `acceptProposal`, `rejectProposal`,
-  `refineProposal`, `acceptAllProposals`, `refineAllProposals`, and a `Proposal` type.
-- **Portal BFF**: proxy the new `/hub/...` endpoints (the portal forwards the JWT already).
-
-## 5. Commands (this repo)
-- **Backend build/test (per module, deps not in .m2):**
-  `mvn -pl <module> -am "-Dtest=X" "-Dsurefire.failIfNoSpecifiedTests=false" test`
-  (PowerShell: quote the `-D` args). Full regression: `mvn test`.
-- **Frontend typecheck:** `cd platform-portal/frontend && npx tsc -b` (no JS test runner in repo —
-  tsc is the gate, plus browser smoke).
-- **DB migration** runs via the `db-migrate` Flyway job on `docker compose --profile services up`.
-- **Deploy/iterate locally:** host `mvn -pl <svc> -am -DskipTests package` →
-  `docker compose --profile services build <svc>` → `docker compose --profile services up -d <svc>`.
-
-## 6. Project structure (where changes go)
-- `platform-core` — `GeneratedTestCaseProposal` entity + repository; `V8__…sql` migration.
-- `platform-agent` — node terminal change, `ProposalService`, resume "refine" mode, new endpoints,
-  DTOs.
-- `platform-portal` — BFF proxy controller methods; `frontend/src/components/ProposalsReview.tsx`,
-  edits to `GenerationProgress.tsx`, `lib/api.ts`, `lib/types.ts`.
-
-## 7. Code style
-- Match the surrounding code: Spring constructor injection; records for DTOs; `ResponseStatusException`
-  for 4xx; google-java-format (spotless) for Java; existing Tailwind/React patterns and the
-  `api`/react-query conventions on the frontend. Reuse existing helpers
-  (`CurrentUser.username()` for the actor, `@RequireCapability` for authz, the
-  `GenerationProgressPublisher` for streaming). No new frameworks.
-
-## 8. Testing strategy (TDD per slice)
-- **Backend unit (Mockito):** `ProposalService` — accept creates a DRAFT + steps and marks
-  `ACCEPTED` (AC3.1), accept idempotency (AC3.2), reject (AC4.1), accept/refine guards on
-  rejected/accepted (AC3.4/AC5.5), accept-all (AC3.3). Node terminal change — finishing writes
-  proposals, not drafts (AC1.1/AC1.2) — assert `proposalRepo.save` and **no** `testCaseRepo.save`.
-- **Endpoint annotation tests:** the new endpoints carry `@RequireCapability(OPERATE_QUALITY,
-  "projectId")` (reflection test, matching the existing `*RbacAnnotationTest` pattern).
-- **Migration pre-flight:** apply `V8` against a seeded run in a rolled-back transaction.
-- **Frontend:** `npx tsc -b` green; browser smoke — generate → review panel → refine one case
-  (updates in place) → accept one (appears in catalog as DRAFT) → reject one (gone) → accept-all.
-- **Regression:** full `mvn test` green; existing clarification + lifecycle suites unaffected.
+## 8. Testing strategy
+- **Lint/validate:** `docker compose config -q` (default) and the merged `-f … -f …` form both parse
+  with no undefined-service/volume errors.
+- **Default bring-up smoke:** `docker compose up -d` → all kept services healthy; portal
+  `/actuator/health` 200 + login; confirm `docker compose ps` shows no grafana/prometheus/loki/
+  promtail; analytics log-search still backed by OpenSearch+Logstash.
+- **Merged bring-up smoke:** `-f docker-compose.yml -f docker-compose-full.yml up -d` → Grafana
+  reachable on `:3000`, Prometheus on `:9090`.
+- No unit tests apply (infra/YAML only); verification is `compose config` + bring-up.
 
 ## 9. Boundaries
 
 **Always**
-- Keep generated cases out of `platform_test_cases` until explicitly accepted.
-- Gate every new endpoint with `OPERATE_QUALITY` on the project; derive the actor from the JWT
-  (`CurrentUser`), never a header.
-- Reuse the existing generation conversation/checkpoint for refinement (no parallel LLM plumbing).
-- One Flyway migration, additive (`V8`); TDD with a passing test + its own commit per slice.
+- Keep the default self-runnable with a single `docker compose up -d`.
+- Preserve persistence + config volumes for every kept service (postgres/kafka/redis/minio/opensearch/
+  logstash data must survive the restructure).
+- Keep healthchecks and `depends_on` conditions correct after removing services.
+- Make the override purely additive (define only the monitoring services + their volumes).
 
 **Ask first**
-- Any change to the **status enum** of `platform_test_cases` or the existing lifecycle transitions.
-- Adding a brand-new workflow status vs. reusing `AWAITING_REVIEW`.
-- Auto-expiry / cleanup policy for old unaccepted proposals (if wanted, decide retention first).
-- Storing steps as a child table instead of `steps_json` in staging (if normalization is preferred).
+- Changing any image tag, published port, resource limit, or the named-volume bind strategy.
+- Removing OpenSearch or Logstash (decided to keep), or moving Kafka/MinIO/Redis out of the default.
+- Editing `.env` or the `x-security-env` anchor / security or DB env wiring.
 
 **Never**
-- Never persist a proposal directly as `APPROVED` (accept = `DRAFT` only).
-- Never auto-accept or auto-reject on the user's behalf (no silent catalog writes).
-- Never break the existing clarification-before-generation flow, the lifecycle endpoints, or the
-  Review Queue.
-- Never trust a client-supplied actor/role; the backend remains the enforcement point.
+- Delete the `infrastructure/{grafana,prometheus,loki,promtail}` config directories — the full
+  override still binds them.
+- Break the data volumes (no rename/retarget of postgres/kafka/minio/opensearch volumes).
+- Change application images, Dockerfiles, app config, or migrations as part of this restructure.
 
-## 10. Out of scope (this iteration)
-- Editing proposal fields by hand in the UI before accept (refinement is via AI instruction only).
-- Resurrecting rejected proposals.
-- Bulk diff/compare views; proposal versioning history beyond "current content".
-- Changing how generation is triggered or how clarification rounds work.
+## 10. Out of scope
+- Any application-code, Dockerfile, or image changes.
+- Introducing new monitoring/observability tooling or dashboards.
+- Changing LiteLLM/Anthropic configuration or model routing.
+- A standalone (non-override) full compose file (we chose the override approach).

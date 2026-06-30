@@ -1,3 +1,17 @@
+# Default platform stack — everything needed to OPERATE the platform comes up with a single
+# `docker compose up -d`: data pipeline (Kafka), storage (Postgres, MinIO), cache (Redis),
+# log-search backend (OpenSearch + Logstash), the one-shot init jobs (db-migrate, minio-init),
+# and all six backend services + the portal (frontend).
+#
+# The platform talks to an EXTERNAL LiteLLM gateway by default — set LITELLM_BASE_URL /
+# LITELLM_API_KEY in .env (or configure per Org/Team/Project in the Portal at /settings/ai).
+# A bundled litellm container is available via docker-compose-full.yml for self-contained runs.
+#
+# The Grafana observability stack (grafana / prometheus / loki / promtail) is also NOT part of the
+# default — it lives in docker-compose-full.yml as an additive override. Bring up the full stack
+# (bundled LiteLLM + monitoring) with:
+#   docker compose -f docker-compose.yml -f docker-compose-full.yml up -d
+#
 # Shared auth/RBAC env injected into every Spring service (portal + backends).
 # PLATFORM_JWT_SECRET MUST be identical across services so a token minted by the portal
 # verifies everywhere; if unset, each service derives its own random secret and cross-service
@@ -135,6 +149,8 @@ services:
       "
     restart: "no"
 
+  # Ships application logs (logstash-logback-encoder over TCP 5044) into OpenSearch, which backs
+  # the analytics log-search feature. Kept in the default stack alongside OpenSearch.
   logstash:
     image: opensearchproject/logstash-oss-with-opensearch-output-plugin:8.9.0
     container_name: platform-logstash
@@ -160,62 +176,6 @@ services:
       timeout: 10s
       retries: 10
 
-  loki:
-    image: grafana/loki:3.6.12
-    container_name: platform-loki
-    ports:
-      - "3100:3100"
-    volumes:
-      - loki_config:/etc/loki:ro
-      - loki_data:/loki
-    command: -config.file=/etc/loki/loki-config.yml
-    # No healthcheck: the loki 3.6.x image is distroless (no shell/wget/curl), so
-    # there is no in-container way to probe /ready. Dependents gate on service_started.
-
-  promtail:
-    image: grafana/promtail:3.6.11
-    container_name: platform-promtail
-    volumes:
-      - promtail_config:/etc/promtail:ro
-      - promtail_positions:/var/lib/promtail
-      - /var/run/docker.sock:/var/run/docker.sock
-    command: -config.file=/etc/promtail/promtail-config.yml
-    depends_on:
-      loki:
-        condition: service_started
-
-  grafana:
-    image: grafana/grafana:13.1.0
-    container_name: platform-grafana
-    ports:
-      - "3000:3000"
-    environment:
-      GF_SECURITY_ADMIN_PASSWORD: admin
-      GF_USERS_ALLOW_SIGN_UP: "false"
-      GF_FEATURE_TOGGLES_ENABLE: "publicDashboards"
-      GF_INSTALL_PLUGINS: "grafana-opensearch-datasource"
-    volumes:
-      - grafana_data:/var/lib/grafana
-      - grafana_provisioning:/etc/grafana/provisioning:ro
-      - grafana_dashboards:/var/lib/grafana/dashboards:ro
-    depends_on:
-      - prometheus
-      - loki
-
-  prometheus:
-    image: prom/prometheus:v3.12.0
-    container_name: platform-prometheus
-    ports:
-      - "9090:9090"
-    volumes:
-      - prometheus_config:/etc/prometheus:ro
-      - prometheus_data:/prometheus
-    command:
-      - '--config.file=/etc/prometheus/prometheus.yml'
-      - '--storage.tsdb.retention.time=30d'
-      # Receives k6 real-time metrics via `k6 run -o experimental-prometheus-rw`
-      - '--web.enable-remote-write-receiver'
-
   # Runs all Flyway migrations before any platform service starts.
   # Idempotent — safe to run on every `docker compose up`.
   # First-time users get the full schema without needing to start the Spring Boot services.
@@ -236,31 +196,6 @@ services:
       postgres:
         condition: service_healthy
     restart: "no"
-
-  # LiteLLM proxy — the single OpenAI-compatible gateway the platform talks to.
-  # Backed by the Anthropic (Claude) API here so you can test end-to-end with a real
-  # model; add more model_name routes (gpt-4o, gemini, …) in infrastructure/litellm/config.yaml.
-  # Requires ANTHROPIC_API_KEY in the environment (e.g. in .env).
-  litellm:
-    image: ghcr.io/berriai/litellm:main-stable
-    container_name: platform-litellm
-    command: ["--config", "/etc/litellm/config.yaml", "--port", "4000", "--num_workers", "1"]
-    ports:
-      - "4000:4000"   # OpenAI-compatible API — http://localhost:4000/v1
-    environment:
-      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
-      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:-sk-platform-local}
-    volumes:
-      - ./infrastructure/litellm/config.yaml:/etc/litellm/config.yaml:ro
-    healthcheck:
-      test:
-        - CMD-SHELL
-        - "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:4000/health/liveliness').status==200 else 1)\""
-      interval: 10s
-      timeout: 5s
-      retries: 12
-    profiles:
-      - services
 
   # Platform services
   platform-analytics:
@@ -287,8 +222,6 @@ services:
         condition: service_healthy
       opensearch:
         condition: service_healthy
-    profiles:
-      - services
 
   platform-integration:
     image: ghcr.io/ndviet/platform-integration:main
@@ -314,8 +247,6 @@ services:
         condition: service_completed_successfully
       kafka:
         condition: service_healthy
-    profiles:
-      - services
 
   platform-ai:
     image: ghcr.io/ndviet/platform-ai:main
@@ -331,11 +262,12 @@ services:
       DATASOURCE_USERNAME: platform
       DATASOURCE_PASSWORD: platform
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
-      # LiteLLM gateway — single OpenAI-compatible endpoint for every model.
-      # Defaults to the bundled litellm container; override to use an external LiteLLM.
-      # Also configurable per Org/Team/Project in the Portal (/settings/ai).
-      LITELLM_BASE_URL: ${LITELLM_BASE_URL:-http://litellm:4000/v1}
-      LITELLM_API_KEY: ${LITELLM_API_KEY:-${LITELLM_MASTER_KEY:-sk-platform-local}}
+      # LiteLLM gateway — external OpenAI-compatible endpoint. Empty by default so the stack starts
+      # from scratch without a gateway; set LITELLM_BASE_URL/LITELLM_API_KEY in .env, or configure
+      # per Org/Team/Project in the Portal (/settings/ai). The bundled litellm container is available
+      # via docker-compose-full.yml.
+      LITELLM_BASE_URL: ${LITELLM_BASE_URL:-}
+      LITELLM_API_KEY: ${LITELLM_API_KEY:-}
       PLATFORM_STORAGE_TYPE: minio
       PLATFORM_STORAGE_ENDPOINT: http://minio:9000
       PLATFORM_STORAGE_ACCESS_KEY: platform
@@ -348,10 +280,6 @@ services:
         condition: service_healthy
       minio-init:
         condition: service_completed_successfully
-      litellm:
-        condition: service_healthy
-    profiles:
-      - services
 
   platform-ingestion:
     image: ghcr.io/ndviet/platform-ingestion:main
@@ -386,8 +314,6 @@ services:
         condition: service_completed_successfully
       kafka:
         condition: service_healthy
-    profiles:
-      - services   # only start with: docker compose --profile services up
 
   platform-portal:
     image: ghcr.io/ndviet/platform-portal:main
@@ -424,8 +350,6 @@ services:
         condition: service_started
       redis:
         condition: service_healthy
-    profiles:
-      - services
 
   platform-agent:
     image: ghcr.io/ndviet/platform-agent:main
@@ -443,10 +367,11 @@ services:
       KAFKA_BOOTSTRAP_SERVERS: kafka:29092
       REDIS_HOST: redis
       REDIS_PORT: "6379"
-      # LiteLLM gateway — agents route all tiers (standard/complex/summarizer) through this.
-      # Defaults to the bundled litellm container; override to use an external LiteLLM.
-      LITELLM_BASE_URL: ${LITELLM_BASE_URL:-http://litellm:4000/v1}
-      LITELLM_API_KEY: ${LITELLM_API_KEY:-${LITELLM_MASTER_KEY:-sk-platform-local}}
+      # LiteLLM gateway — external OpenAI-compatible endpoint agents route all tiers
+      # (standard/complex/summarizer) through. Empty by default (configure LITELLM_BASE_URL/
+      # LITELLM_API_KEY in .env later, or use the bundled litellm from docker-compose-full.yml).
+      LITELLM_BASE_URL: ${LITELLM_BASE_URL:-}
+      LITELLM_API_KEY: ${LITELLM_API_KEY:-}
       PLATFORM_CRED_KEY: ${PLATFORM_CRED_KEY:-}
       PLATFORM_STORAGE_TYPE: minio
       PLATFORM_STORAGE_ENDPOINT: http://minio:9000
@@ -462,10 +387,6 @@ services:
         condition: service_healthy
       minio-init:
         condition: service_completed_successfully
-      litellm:
-        condition: service_healthy
-    profiles:
-      - services
 
 # Named volumes pinned to ./volume_data/<name> inside the project folder via the
 # local driver's bind option. Data lives in the project tree, so backing up /
@@ -519,76 +440,22 @@ volumes:
       type: none
       o: bind
       device: ${PWD}/volume_data/minio
-  grafana_data:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ${PWD}/volume_data/grafana
-  prometheus_data:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ${PWD}/volume_data/prometheus
-  loki_data:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ${PWD}/volume_data/loki
   logstash_data:
     driver: local
     driver_opts:
       type: none
       o: bind
       device: ${PWD}/volume_data/logstash
-  promtail_positions:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ${PWD}/volume_data/promtail
 
 # Config volumes — bound (read-only at mount) to tracked files under ./infrastructure
 # (and the Flyway migrations). Same named-volume style as the data volumes above, but
 # these point at repo sources, not volume_data, so they are NOT part of a data backup.
-  loki_config:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ${PWD}/infrastructure/loki
-  prometheus_config:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ${PWD}/infrastructure/prometheus
-  promtail_config:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ${PWD}/infrastructure/promtail
   logstash_pipeline:
     driver: local
     driver_opts:
       type: none
       o: bind
       device: ${PWD}/infrastructure/logstash/pipeline
-  grafana_provisioning:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ${PWD}/infrastructure/grafana/provisioning
-  grafana_dashboards:
-    driver: local
-    driver_opts:
-      type: none
-      o: bind
-      device: ${PWD}/infrastructure/grafana/dashboards
   db_migration:
     driver: local
     driver_opts:

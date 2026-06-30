@@ -1,0 +1,172 @@
+# Full-stack override — the self-contained / custom-deploy extras that are NOT in the default
+# docker-compose.yml:
+#   * a bundled LiteLLM gateway (the default stack expects an EXTERNAL LiteLLM endpoint), and
+#   * the Grafana observability stack (Loki, Grafana, Prometheus) + Promtail log shipping.
+#
+# This file is ADDITIVE and meant to be layered on top of the default, never run alone:
+#
+#   docker compose -f docker-compose.yml -f docker-compose-full.yml up -d        # full stack
+#   docker compose -f docker-compose.yml -f docker-compose-full.yml down         # stop it all
+#
+# The default docker-compose.yml already provides postgres/kafka/redis/opensearch/minio,
+# logstash (log-search backend), and all platform services. When this override is present the
+# platform-ai/agent services are pointed at the bundled litellm (unless LITELLM_BASE_URL is
+# already set in .env).
+
+services:
+
+  # Bundled LiteLLM gateway — the single OpenAI-compatible endpoint, backed by the Anthropic
+  # (Claude) API. Part of the full/self-contained stack; the default docker-compose.yml expects
+  # an EXTERNAL LiteLLM instead. Requires ANTHROPIC_API_KEY in the environment (e.g. .env).
+  litellm:
+    image: ghcr.io/berriai/litellm:main-stable
+    container_name: platform-litellm
+    command: ["--config", "/etc/litellm/config.yaml", "--port", "4000", "--num_workers", "1"]
+    ports:
+      - "4000:4000"   # OpenAI-compatible API — http://localhost:4000/v1
+    environment:
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      LITELLM_MASTER_KEY: ${LITELLM_MASTER_KEY:-sk-platform-local}
+    volumes:
+      - ./infrastructure/litellm/config.yaml:/etc/litellm/config.yaml:ro
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - "python -c \"import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://localhost:4000/health/liveliness').status==200 else 1)\""
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  # Point the AI/agent services at the bundled litellm and gate startup on it. These blocks MERGE
+  # onto the base service definitions in docker-compose.yml; an operator-set LITELLM_BASE_URL /
+  # LITELLM_API_KEY in .env still wins via the ${VAR:-default} fallbacks.
+  platform-ai:
+    environment:
+      LITELLM_BASE_URL: ${LITELLM_BASE_URL:-http://litellm:4000/v1}
+      LITELLM_API_KEY: ${LITELLM_API_KEY:-${LITELLM_MASTER_KEY:-sk-platform-local}}
+    depends_on:
+      litellm:
+        condition: service_healthy
+
+  platform-agent:
+    environment:
+      LITELLM_BASE_URL: ${LITELLM_BASE_URL:-http://litellm:4000/v1}
+      LITELLM_API_KEY: ${LITELLM_API_KEY:-${LITELLM_MASTER_KEY:-sk-platform-local}}
+    depends_on:
+      litellm:
+        condition: service_healthy
+
+  loki:
+    image: grafana/loki:3.6.12
+    container_name: platform-loki
+    ports:
+      - "3100:3100"
+    volumes:
+      - loki_config:/etc/loki:ro
+      - loki_data:/loki
+    command: -config.file=/etc/loki/loki-config.yml
+    # No healthcheck: the loki 3.6.x image is distroless (no shell/wget/curl), so
+    # there is no in-container way to probe /ready. Dependents gate on service_started.
+
+  promtail:
+    image: grafana/promtail:3.6.11
+    container_name: platform-promtail
+    volumes:
+      - promtail_config:/etc/promtail:ro
+      - promtail_positions:/var/lib/promtail
+      - /var/run/docker.sock:/var/run/docker.sock
+    command: -config.file=/etc/promtail/promtail-config.yml
+    depends_on:
+      loki:
+        condition: service_started
+
+  grafana:
+    image: grafana/grafana:13.1.0
+    container_name: platform-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: "false"
+      GF_FEATURE_TOGGLES_ENABLE: "publicDashboards"
+      GF_INSTALL_PLUGINS: "grafana-opensearch-datasource"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - grafana_provisioning:/etc/grafana/provisioning:ro
+      - grafana_dashboards:/var/lib/grafana/dashboards:ro
+    depends_on:
+      - prometheus
+      - loki
+
+  prometheus:
+    image: prom/prometheus:v3.12.0
+    container_name: platform-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - prometheus_config:/etc/prometheus:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.retention.time=30d'
+      # Receives k6 real-time metrics via `k6 run -o experimental-prometheus-rw`
+      - '--web.enable-remote-write-receiver'
+
+# Data + config volumes for the monitoring services, same ./volume_data / ./infrastructure
+# bind style as the default stack. Declared here so this override is self-contained.
+# (The bundled litellm uses an inline bind for its config, so it needs no named volume.)
+volumes:
+  grafana_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/volume_data/grafana
+  prometheus_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/volume_data/prometheus
+  loki_data:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/volume_data/loki
+  promtail_positions:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/volume_data/promtail
+  loki_config:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/infrastructure/loki
+  prometheus_config:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/infrastructure/prometheus
+  promtail_config:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/infrastructure/promtail
+  grafana_provisioning:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/infrastructure/grafana/provisioning
+  grafana_dashboards:
+    driver: local
+    driver_opts:
+      type: none
+      o: bind
+      device: ${PWD}/infrastructure/grafana/dashboards
