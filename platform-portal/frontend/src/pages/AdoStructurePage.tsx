@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils'
 import Badge from '@/components/Badge'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import ErrorMessage from '@/components/ErrorMessage'
+import { Button, Input } from '@/components/ui'
 import {
   Users,
   Loader2,
@@ -31,14 +32,14 @@ function SlugChip({ value }: { value: string }) {
     })
   }
   return (
-    <span className="inline-flex items-center gap-1 bg-slate-100 rounded px-2 py-0.5 font-mono text-xs text-slate-600">
+    <span className="inline-flex items-center gap-1 bg-surface-muted rounded px-2 py-0.5 font-mono text-xs text-fg-muted">
       {value}
       <button
         onClick={copy}
         title="Copy slug"
-        className="text-slate-400 hover:text-slate-700 transition-colors"
+        className="text-fg-subtle hover:text-fg transition-colors"
       >
-        {copied ? <Check size={11} className="text-green-600" /> : <Copy size={11} />}
+        {copied ? <Check size={11} className="text-success" /> : <Copy size={11} />}
       </button>
     </span>
   )
@@ -84,59 +85,51 @@ export default function AdoStructurePage() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="flex items-start justify-between">
+      <div className="flex items-start justify-between gap-4">
         <div>
           <div className="flex items-center gap-3">
-            <Layers size={20} className="text-slate-400" />
-            <h1 className="text-2xl font-bold text-slate-900">Teams &amp; Structure</h1>
+            <Layers size={20} className="text-fg-muted" />
+            <h1 className="text-xl font-semibold tracking-tight text-fg">Teams &amp; Structure</h1>
           </div>
-          <p className="text-sm text-slate-500 mt-1">
+          <p className="text-sm text-fg-muted mt-1">
             Azure DevOps teams, area paths, iterations, and people synced for this project.
           </p>
-          <p className="text-xs text-slate-400 mt-1">
+          <p className="text-xs text-fg-subtle mt-1">
             Adapter config:{' '}
-            <code className="font-mono text-slate-600">
-              PLATFORM_ORG_SLUG=<span className="text-blue-600">{project.orgSlug}</span>
+            <code className="font-mono text-fg-muted">
+              PLATFORM_ORG_SLUG=<span className="text-primary">{project.orgSlug}</span>
             </code>{' '}
             ·{' '}
-            <code className="font-mono text-slate-600">
-              PLATFORM_PROJECT_SLUG=<span className="text-blue-600">{project.slug}</span>
+            <code className="font-mono text-fg-muted">
+              PLATFORM_PROJECT_SLUG=<span className="text-primary">{project.slug}</span>
             </code>{' '}
-            · <code className="font-mono text-slate-500">PLATFORM_TEAM_SLUG</code> ·{' '}
-            <code className="font-mono text-slate-500">PLATFORM_AREA_SLUG</code> — pick team &amp;
-            area slugs from the lists below.
+            · <code className="font-mono text-fg-muted">PLATFORM_TEAM_SLUG</code> ·{' '}
+            <code className="font-mono text-fg-muted">PLATFORM_AREA_SLUG</code> — pick team &amp; area
+            slugs from the lists below.
           </p>
         </div>
-        <button
-          onClick={() => sync.mutate()}
-          disabled={sync.isPending}
-          className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
-        >
-          {sync.isPending ? (
-            <Loader2 size={14} className="animate-spin" />
-          ) : (
-            <RefreshCw size={14} />
-          )}
+        <Button className="shrink-0" onClick={() => sync.mutate()} loading={sync.isPending}>
+          {sync.isPending ? <Loader2 size={14} className="animate-spin" /> : <RefreshCw size={14} />}
           {sync.isPending ? 'Syncing…' : 'Sync from ADO'}
-        </button>
+        </Button>
       </div>
 
       {error && <ErrorMessage message={error} />}
       {sync.data?.success && (
-        <div className="rounded-lg bg-green-50 border border-green-200 px-3 py-2 text-sm text-green-700">
-          Synced {sync.data.teams} teams, {sync.data.areas} areas, {sync.data.iterations}{' '}
-          iterations, {sync.data.users} users.
+        <div className="rounded-lg bg-success-bg border border-success-border px-3 py-2 text-sm text-success">
+          Synced {sync.data.teams} teams, {sync.data.areas} areas, {sync.data.iterations} iterations,{' '}
+          {sync.data.users} users.
         </div>
       )}
       {empty && !sync.isPending && (
-        <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2.5 text-sm text-amber-800">
-          Nothing synced yet — click <strong>Sync from ADO</strong> to pull teams, areas,
-          iterations, and users.
+        <div className="rounded-lg bg-warning-bg border border-warning-border px-3 py-2.5 text-sm text-warning">
+          Nothing synced yet — click <strong>Sync from ADO</strong> to pull teams, areas, iterations,
+          and users.
         </div>
       )}
 
       {/* Tabs */}
-      <div className="flex gap-1 border-b border-slate-200">
+      <div className="flex gap-1 border-b border-border">
         {tabs.map(({ key, label, icon: Icon, count }) => (
           <button
             key={key}
@@ -144,17 +137,17 @@ export default function AdoStructurePage() {
             className={cn(
               'flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors',
               tab === key
-                ? 'border-blue-600 text-blue-700'
-                : 'border-transparent text-slate-500 hover:text-slate-800',
+                ? 'border-primary text-primary'
+                : 'border-transparent text-fg-muted hover:text-fg',
             )}
           >
             <Icon size={14} /> {label}
-            {count != null && <span className="text-xs text-slate-400">({count})</span>}
+            {count != null && <span className="text-xs text-fg-subtle">({count})</span>}
           </button>
         ))}
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
+      <div className="bg-surface rounded-lg border border-border shadow-xs">
         {tab === 'teams' && <TeamsTab projectId={projectId} />}
         {tab === 'areas' && <AreasTab projectId={projectId} />}
         {tab === 'iterations' && <IterationsTab projectId={projectId} />}
@@ -183,21 +176,21 @@ function TeamsTab({ projectId }: { projectId: string }) {
   const teams = data ?? []
   if (!teams.length) return <Empty text="No teams synced." />
   return (
-    <div className="divide-y divide-slate-50">
+    <div className="divide-y divide-border">
       {teams.map((t: AdoTeam) => (
         <div key={t.id} className="px-5 py-3.5">
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-sm font-medium text-slate-900">{t.name}</span>
+            <span className="text-sm font-medium text-fg">{t.name}</span>
             {t.slug && <SlugChip value={t.slug} />}
             <Badge
               label={`${t.memberCount} member${t.memberCount !== 1 ? 's' : ''}`}
-              colorClass="text-slate-600 bg-slate-100"
+              colorClass="text-neutral bg-neutral-bg"
             />
           </div>
-          {t.description && <p className="text-xs text-slate-500 mt-0.5">{t.description}</p>}
+          {t.description && <p className="text-xs text-fg-muted mt-0.5">{t.description}</p>}
           {t.defaultAreaPath && (
-            <p className="text-xs text-slate-500 mt-1">
-              Default area: <span className="font-mono text-slate-600">{t.defaultAreaPath}</span>
+            <p className="text-xs text-fg-muted mt-1">
+              Default area: <span className="font-mono text-fg">{t.defaultAreaPath}</span>
             </p>
           )}
           {t.areaPaths?.length > 0 && (
@@ -205,7 +198,7 @@ function TeamsTab({ projectId }: { projectId: string }) {
               {t.areaPaths.map(p => (
                 <span
                   key={p}
-                  className="text-xs font-mono bg-slate-50 text-slate-600 rounded px-1.5 py-0.5"
+                  className="text-xs font-mono bg-surface-muted text-fg-muted rounded px-1.5 py-0.5"
                 >
                   {p}
                 </span>
@@ -228,17 +221,17 @@ function AreasTab({ projectId }: { projectId: string }) {
   const areas = data ?? []
   if (!areas.length) return <Empty text="No area paths synced." />
   return (
-    <div className="divide-y divide-slate-50">
+    <div className="divide-y divide-border">
       {areas.map((a: AdoArea) => (
         <div
           key={a.id}
           className="py-2 flex items-center gap-2"
           style={{ paddingLeft: `${20 + indent(a.path) * 18}px`, paddingRight: '20px' }}
         >
-          <FolderTree size={13} className="text-slate-300 shrink-0" />
-          <span className="text-sm text-slate-700">{leaf(a.path)}</span>
+          <FolderTree size={13} className="text-fg-subtle shrink-0" />
+          <span className="text-sm text-fg">{leaf(a.path)}</span>
           {a.slug && <SlugChip value={a.slug} />}
-          <span className="text-xs font-mono text-slate-400 truncate ml-auto">{a.path}</span>
+          <span className="text-xs font-mono text-fg-subtle truncate ml-auto">{a.path}</span>
         </div>
       ))}
     </div>
@@ -257,17 +250,17 @@ function IterationsTab({ projectId }: { projectId: string }) {
   if (!iters.length) return <Empty text="No iterations synced." />
   const fmt = (d: string | null) => (d ? new Date(d).toLocaleDateString() : '—')
   return (
-    <div className="divide-y divide-slate-50">
+    <div className="divide-y divide-border">
       {iters.map((it: AdoIteration) => (
         <div
           key={it.id}
           className="py-2 flex items-center gap-3"
           style={{ paddingLeft: `${20 + indent(it.path) * 18}px`, paddingRight: '20px' }}
         >
-          <CalendarRange size={13} className="text-slate-300 shrink-0" />
-          <span className="text-sm text-slate-700 flex-1 min-w-0 truncate">{leaf(it.path)}</span>
+          <CalendarRange size={13} className="text-fg-subtle shrink-0" />
+          <span className="text-sm text-fg flex-1 min-w-0 truncate">{leaf(it.path)}</span>
           {(it.startDate || it.finishDate) && (
-            <span className="text-xs text-slate-500 shrink-0">
+            <span className="text-xs text-fg-muted shrink-0">
               {fmt(it.startDate)} → {fmt(it.finishDate)}
             </span>
           )}
@@ -281,13 +274,13 @@ const QUALITY_ROLES = ['QA', 'QE', 'SDET']
 function qualityColor(role: string | null) {
   switch (role) {
     case 'QA':
-      return 'text-emerald-700 bg-emerald-100'
+      return 'text-success bg-success-bg'
     case 'QE':
-      return 'text-teal-700 bg-teal-100'
+      return 'text-info bg-info-bg'
     case 'SDET':
-      return 'text-violet-700 bg-violet-100'
+      return 'text-primary-subtle-fg bg-primary-subtle'
     default:
-      return 'text-slate-600 bg-slate-100'
+      return 'text-neutral bg-neutral-bg'
   }
 }
 
@@ -324,35 +317,36 @@ function UsersTab({ projectId }: { projectId: string }) {
 
   return (
     <div>
-      <div className="px-5 py-3 border-b border-slate-100 flex items-center gap-3">
-        <input
+      <div className="px-5 py-3 border-b border-border flex items-center gap-3">
+        <Input
           value={search}
           onChange={e => setSearch(e.target.value)}
           placeholder="Search users…"
-          className="flex-1 text-sm border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          aria-label="Search users"
+          className="flex-1"
         />
-        <label className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer select-none">
+        <label className="flex items-center gap-2 text-xs text-fg-muted cursor-pointer select-none">
           <input
             type="checkbox"
             checked={qualityOnly}
             onChange={e => setQualityOnly(e.target.checked)}
-            className="accent-blue-600"
+            className="accent-primary"
           />
           Quality roles only
         </label>
       </div>
-      <div className="divide-y divide-slate-50">
+      <div className="divide-y divide-border">
         {users.map((u: AdoUser) => (
           <div key={u.id} className="px-5 py-2.5 flex items-center gap-3">
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium text-slate-800 truncate">
+              <p className="text-sm font-medium text-fg truncate">
                 {u.displayName ?? u.uniqueName}
               </p>
-              {u.email && <p className="text-xs text-slate-400 truncate">{u.email}</p>}
+              {u.email && <p className="text-xs text-fg-subtle truncate">{u.email}</p>}
             </div>
             <div className="flex items-center gap-2 shrink-0">
               {u.teamMember && (
-                <span className="text-xs bg-blue-50 text-blue-700 rounded px-1.5 py-0.5">
+                <span className="text-xs bg-primary-subtle text-primary-subtle-fg rounded px-1.5 py-0.5">
                   Team member
                 </span>
               )}
@@ -367,7 +361,7 @@ function UsersTab({ projectId }: { projectId: string }) {
                       'text-xs rounded px-1.5 py-0.5 transition-colors',
                       u.qualityRole === role
                         ? qualityColor(role)
-                        : 'text-slate-400 bg-slate-50 hover:bg-slate-100',
+                        : 'text-fg-subtle bg-surface-muted hover:bg-border',
                     )}
                   >
                     {role}
@@ -383,5 +377,5 @@ function UsersTab({ projectId }: { projectId: string }) {
 }
 
 function Empty({ text }: { text: string }) {
-  return <p className="px-5 py-8 text-sm text-slate-400 text-center">{text}</p>
+  return <p className="px-5 py-8 text-sm text-fg-subtle text-center">{text}</p>
 }
