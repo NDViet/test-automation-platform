@@ -6,7 +6,8 @@ import type { Release, CreateReleaseForm } from '@/lib/types'
 import Badge from '@/components/Badge'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import ErrorMessage from '@/components/ErrorMessage'
-import { Plus, Pencil, Trash2, X, Loader2, Rocket, Link2 } from 'lucide-react'
+import { Button, PageHeader } from '@/components/ui'
+import { Plus, Pencil, Trash2, X, Rocket, Link2 } from 'lucide-react'
 
 const STATES = ['PLANNED', 'IN_PROGRESS', 'RELEASED', 'ARCHIVED']
 const TYPES = ['VERSION', 'SPRINT', 'MILESTONE']
@@ -14,23 +15,26 @@ const TYPES = ['VERSION', 'SPRINT', 'MILESTONE']
 function stateColor(s: string): string {
   switch (s) {
     case 'IN_PROGRESS':
-      return 'text-blue-700 bg-blue-100'
+      return 'text-info bg-info-bg'
     case 'RELEASED':
-      return 'text-green-700 bg-green-100'
+      return 'text-success bg-success-bg'
     case 'ARCHIVED':
-      return 'text-slate-500 bg-slate-100'
+      return 'text-neutral bg-neutral-bg'
     default:
-      return 'text-amber-700 bg-amber-100'
+      return 'text-warning bg-warning-bg'
   }
 }
 
 function MapChip({ label }: { label: string }) {
   return (
-    <span className="inline-block text-xs font-mono bg-slate-100 text-slate-600 rounded px-1.5 py-0.5 mr-1 mb-1">
+    <span className="inline-block text-xs font-mono bg-surface-muted text-fg-muted rounded px-1.5 py-0.5 mr-1 mb-1">
       {label}
     </span>
   )
 }
+
+const inputCls =
+  'w-full border border-border-strong rounded-md px-3 py-2 text-sm bg-surface text-fg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary'
 
 function ReleaseModal({
   projectId,
@@ -93,24 +97,19 @@ function ReleaseModal({
     mutation.mutate({ ...form, name: form.name.trim() })
   }
 
-  const inputCls =
-    'w-full border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500'
-
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[90vh] flex flex-col">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200">
-          <h2 className="font-semibold text-slate-900">
-            {existing ? 'Edit Release' : 'New Release'}
-          </h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+      <div className="bg-surface rounded-xl shadow-md w-full max-w-lg mx-4 max-h-[90vh] flex flex-col">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+          <h2 className="font-semibold text-fg">{existing ? 'Edit Release' : 'New Release'}</h2>
+          <button onClick={onClose} className="text-fg-subtle hover:text-fg" aria-label="Close">
             <X size={18} />
           </button>
         </div>
         <form onSubmit={submit} className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
           {error && <ErrorMessage message={error} />}
           <div>
-            <label className="block text-xs font-medium text-slate-700 mb-1">Name *</label>
+            <label className="block text-xs font-medium text-fg mb-1">Name *</label>
             <input
               className={inputCls}
               value={form.name}
@@ -121,7 +120,7 @@ function ReleaseModal({
           </div>
           <div className="grid grid-cols-3 gap-3">
             <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1">Type</label>
+              <label className="block text-xs font-medium text-fg mb-1">Type</label>
               <select
                 className={inputCls}
                 value={form.releaseType}
@@ -135,7 +134,7 @@ function ReleaseModal({
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1">State</label>
+              <label className="block text-xs font-medium text-fg mb-1">State</label>
               <select
                 className={inputCls}
                 value={form.state}
@@ -149,7 +148,7 @@ function ReleaseModal({
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1">Target date</label>
+              <label className="block text-xs font-medium text-fg mb-1">Target date</label>
               <input
                 type="date"
                 className={inputCls}
@@ -159,19 +158,17 @@ function ReleaseModal({
             </div>
           </div>
 
-          <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-3 space-y-3">
-            <div className="flex items-center gap-1.5 text-xs font-semibold text-slate-600">
+          <div className="rounded-lg border border-border bg-surface-muted/60 p-3 space-y-3">
+            <div className="flex items-center gap-1.5 text-xs font-semibold text-fg-muted">
               <Link2 size={13} /> Scope mapping (optional · narrows what's in this release)
             </div>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-fg-muted">
               A release lives in a Sprint but is narrowed by Area/Team. Set any combination —
               they're AND-combined. Leave all blank for a standalone release.
             </p>
             <div className="grid grid-cols-1 gap-3">
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">
-                  Iteration (Sprint)
-                </label>
+                <label className="block text-xs font-medium text-fg mb-1">Iteration (Sprint)</label>
                 <select
                   className={inputCls}
                   value={form.mapIterationPath}
@@ -187,7 +184,7 @@ function ReleaseModal({
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">Team</label>
+                  <label className="block text-xs font-medium text-fg mb-1">Team</label>
                   <select
                     className={inputCls}
                     value={form.mapTeamId}
@@ -202,7 +199,7 @@ function ReleaseModal({
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">Area</label>
+                  <label className="block text-xs font-medium text-fg mb-1">Area</label>
                   <select
                     className={inputCls}
                     value={form.mapAreaPath}
@@ -220,14 +217,14 @@ function ReleaseModal({
               <button
                 type="button"
                 onClick={() => setShowAdvanced(v => !v)}
-                className="text-xs text-blue-600 hover:text-blue-700 w-fit"
+                className="text-xs text-primary hover:underline w-fit"
               >
                 {showAdvanced ? '− Hide advanced matchers' : '+ Advanced (tag / field)'}
               </button>
               {showAdvanced && (
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-medium text-slate-700 mb-1">Tag</label>
+                    <label className="block text-xs font-medium text-fg mb-1">Tag</label>
                     <input
                       className={inputCls}
                       value={form.mapTag ?? ''}
@@ -237,7 +234,7 @@ function ReleaseModal({
                   </div>
                   <div className="grid grid-cols-2 gap-2">
                     <div>
-                      <label className="block text-xs font-medium text-slate-700 mb-1">Field</label>
+                      <label className="block text-xs font-medium text-fg mb-1">Field</label>
                       <input
                         className={inputCls}
                         value={form.mappingField ?? ''}
@@ -246,9 +243,7 @@ function ReleaseModal({
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-slate-700 mb-1">
-                        = Value
-                      </label>
+                      <label className="block text-xs font-medium text-fg mb-1">= Value</label>
                       <input
                         className={inputCls}
                         value={form.mappingValue ?? ''}
@@ -262,21 +257,16 @@ function ReleaseModal({
             </div>
           </div>
         </form>
-        <div className="px-5 py-4 border-t border-slate-200 flex justify-end gap-2">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50"
-          >
+        <div className="px-5 py-4 border-t border-border flex justify-end gap-2">
+          <Button variant="secondary" onClick={onClose}>
             Cancel
-          </button>
-          <button
+          </Button>
+          <Button
             onClick={submit as unknown as React.MouseEventHandler}
-            disabled={mutation.isPending}
-            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+            loading={mutation.isPending}
           >
-            {mutation.isPending && <Loader2 size={14} className="animate-spin" />}
             {existing ? 'Save' : 'Create'}
-          </button>
+          </Button>
         </div>
       </div>
     </div>
@@ -324,34 +314,30 @@ export default function ReleasesPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Releases</h1>
-          <p className="text-sm text-slate-500 mt-0.5">
-            {releases.length}
-            {releases.length !== allReleases.length ? ` of ${allReleases.length}` : ''} releases · a
-            sprint can hold several (one per team)
-          </p>
-        </div>
-        <button
-          onClick={() => setModal({ open: true })}
-          className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700"
-        >
-          <Plus size={15} /> New Release
-        </button>
-      </div>
+      <PageHeader
+        title="Releases"
+        icon={<Rocket size={20} />}
+        description={`${releases.length}${
+          releases.length !== allReleases.length ? ` of ${allReleases.length}` : ''
+        } releases · a sprint can hold several (one per team)`}
+        actions={
+          <Button onClick={() => setModal({ open: true })}>
+            <Plus size={15} /> New Release
+          </Button>
+        }
+      />
 
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="bg-surface rounded-lg border border-border shadow-xs overflow-hidden">
         {releases.length === 0 && (
           <div className="py-16 text-center">
-            <Rocket size={32} className="mx-auto text-slate-300 mb-3" />
-            <p className="text-sm text-slate-500">No releases yet.</p>
+            <Rocket size={32} className="mx-auto text-fg-subtle mb-3" />
+            <p className="text-sm text-fg-muted">No releases yet.</p>
           </div>
         )}
         {releases.length > 0 && (
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-xs text-slate-500 border-b border-slate-100">
+              <tr className="text-left text-xs text-fg-muted border-b border-border">
                 <th className="px-4 py-2.5 font-medium">Release</th>
                 <th className="px-4 py-2.5 font-medium">State</th>
                 <th className="px-4 py-2.5 font-medium">Scope mapping</th>
@@ -360,12 +346,12 @@ export default function ReleasesPage() {
                 <th className="px-4 py-2.5"></th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-50">
+            <tbody className="divide-y divide-border">
               {releases.map(r => (
-                <tr key={r.id} className="hover:bg-slate-50">
+                <tr key={r.id} className="hover:bg-surface-muted">
                   <td className="px-4 py-2.5">
-                    <div className="font-medium text-slate-800">{r.name}</div>
-                    <div className="text-xs text-slate-400">
+                    <div className="font-medium text-fg">{r.name}</div>
+                    <div className="text-xs text-fg-subtle">
                       {r.releaseType}
                       {r.targetDate ? ` · ${r.targetDate}` : ''}
                     </div>
@@ -379,7 +365,7 @@ export default function ReleasesPage() {
                     !r.mapTeamId &&
                     !r.mapTag &&
                     !r.mappingField ? (
-                      <span className="text-slate-400">standalone</span>
+                      <span className="text-fg-subtle">standalone</span>
                     ) : (
                       <div className="flex flex-wrap">
                         {r.mapIterationPath && (
@@ -388,31 +374,29 @@ export default function ReleasesPage() {
                         {r.mapTeamName && <MapChip label={`team: ${r.mapTeamName}`} />}
                         {r.mapAreaPath && <MapChip label={`area: ${shortPath(r.mapAreaPath)}`} />}
                         {r.mapTag && <MapChip label={`tag: ${r.mapTag}`} />}
-                        {r.mappingField && (
-                          <MapChip label={`${r.mappingField}=${r.mappingValue}`} />
-                        )}
+                        {r.mappingField && <MapChip label={`${r.mappingField}=${r.mappingValue}`} />}
                       </div>
                     )}
                   </td>
-                  <td className="px-4 py-2.5 text-right tabular-nums text-slate-700">
+                  <td className="px-4 py-2.5 text-right tabular-nums text-fg">
                     {r.mappedRequirementCount}
                   </td>
-                  <td className="px-4 py-2.5 text-right tabular-nums text-slate-700">
-                    {r.linkedRunCount}
-                  </td>
+                  <td className="px-4 py-2.5 text-right tabular-nums text-fg">{r.linkedRunCount}</td>
                   <td className="px-4 py-2.5">
                     <div className="flex items-center justify-end gap-1">
                       <button
                         onClick={() => setModal({ open: true, release: r })}
                         title="Edit"
-                        className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg"
+                        aria-label={`Edit ${r.name}`}
+                        className="p-1.5 text-fg-subtle hover:text-primary hover:bg-primary-subtle rounded-md"
                       >
                         <Pencil size={14} />
                       </button>
                       <button
                         onClick={() => deleteMutation.mutate(r.id)}
                         title="Delete"
-                        className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg"
+                        aria-label={`Delete ${r.name}`}
+                        className="p-1.5 text-fg-subtle hover:text-danger hover:bg-danger-bg rounded-md"
                       >
                         <Trash2 size={14} />
                       </button>
