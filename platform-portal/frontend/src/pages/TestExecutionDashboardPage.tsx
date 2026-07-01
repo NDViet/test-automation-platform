@@ -1,13 +1,15 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useProject, useProjectFilter } from '@/components/layout/ProjectLayout'
+import { usePageWidth } from '@/components/layout/PageWidth'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { cn, relativeTime } from '@/lib/utils'
 import type { ExecDimensionGroup, ReleaseCard } from '@/lib/types'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import ErrorMessage from '@/components/ErrorMessage'
-import { X, Rocket, CalendarRange, LayoutGrid, Users } from 'lucide-react'
+import { PageHeader } from '@/components/ui'
+import { X, Rocket, CalendarRange, LayoutGrid, Users, ClipboardCheck } from 'lucide-react'
 
 type Dim = 'release' | 'sprint' | 'area' | 'team'
 
@@ -27,12 +29,19 @@ function shortPath(p: string | null): string {
   return parts[parts.length - 1]
 }
 
+/** Segmented-control button classes. */
+const seg = (active: boolean) =>
+  cn(
+    'flex items-center gap-1.5 px-4 py-1.5 text-sm font-medium rounded-md transition-colors',
+    active ? 'bg-surface text-fg shadow-xs' : 'text-fg-muted hover:text-fg',
+  )
+
 function Kpi({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm px-4 py-3">
-      <p className="text-xs text-slate-500">{label}</p>
-      <p className="text-xl font-bold text-slate-900 mt-0.5">{value}</p>
-      {sub && <p className="text-xs text-slate-400 mt-0.5">{sub}</p>}
+    <div className="bg-surface rounded-lg border border-border shadow-xs px-4 py-3">
+      <p className="text-xs text-fg-muted">{label}</p>
+      <p className="text-xl font-bold text-fg mt-0.5">{value}</p>
+      {sub && <p className="text-xs text-fg-subtle mt-0.5">{sub}</p>}
     </div>
   )
 }
@@ -65,48 +74,48 @@ function RunsModal({
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-xl shadow-xl w-full max-w-2xl mx-4 max-h-[85vh] flex flex-col"
+        className="bg-surface rounded-xl shadow-md w-full max-w-2xl mx-4 max-h-[85vh] flex flex-col"
         onClick={e => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
           <div>
-            <h2 className="font-semibold text-slate-900">{title}</h2>
-            <p className="text-xs text-slate-500 mt-0.5">{subtitle}</p>
+            <h2 className="font-semibold text-fg">{title}</h2>
+            <p className="text-xs text-fg-muted mt-0.5">{subtitle}</p>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+          <button onClick={onClose} className="text-fg-subtle hover:text-fg" aria-label="Close">
             <X size={18} />
           </button>
         </div>
         <div className="flex-1 overflow-y-auto">
-          {isLoading && <div className="py-10 text-center text-sm text-slate-400">Loading…</div>}
+          {isLoading && <div className="py-10 text-center text-sm text-fg-subtle">Loading…</div>}
           {!isLoading && runs.length === 0 && (
-            <div className="py-10 text-center text-sm text-slate-500">No runs.</div>
+            <div className="py-10 text-center text-sm text-fg-muted">No runs.</div>
           )}
           {runs.length > 0 && (
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-xs text-slate-500 border-b border-slate-100">
+                <tr className="text-left text-xs text-fg-muted border-b border-border">
                   <th className="px-4 py-2 font-medium">Run</th>
                   <th className="px-4 py-2 font-medium">Status</th>
                   <th className="px-4 py-2 font-medium text-right">Pass/Total</th>
                   <th className="px-4 py-2 font-medium">Created</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-50">
+              <tbody className="divide-y divide-border">
                 {runs.map(r => (
                   <tr
                     key={r.id}
-                    className="hover:bg-slate-50 cursor-pointer"
+                    className="hover:bg-surface-muted cursor-pointer"
                     onClick={() => navigate(`${base}/test-runs/${r.id}`)}
                   >
-                    <td className="px-4 py-2 font-medium text-slate-800">{r.name}</td>
-                    <td className="px-4 py-2 text-slate-600">{r.status.replace('_', ' ')}</td>
+                    <td className="px-4 py-2 font-medium text-fg">{r.name}</td>
+                    <td className="px-4 py-2 text-fg-muted">{r.status.replace('_', ' ')}</td>
                     <td className="px-4 py-2 text-right tabular-nums">
-                      <span className="text-green-600 font-medium">{r.passed}</span>
-                      <span className="text-slate-400"> / {r.total}</span>
-                      {r.failed > 0 && <span className="text-red-600 ml-2">{r.failed}✕</span>}
+                      <span className="text-success font-medium">{r.passed}</span>
+                      <span className="text-fg-subtle"> / {r.total}</span>
+                      {r.failed > 0 && <span className="text-danger ml-2">{r.failed}✕</span>}
                     </td>
-                    <td className="px-4 py-2 text-slate-500">{relativeTime(r.createdAt)}</td>
+                    <td className="px-4 py-2 text-fg-muted">{relativeTime(r.createdAt)}</td>
                   </tr>
                 ))}
               </tbody>
@@ -124,17 +133,17 @@ function Card({ c, onOpen }: { c: ReleaseCard; onOpen: () => void }) {
   return (
     <button
       onClick={onOpen}
-      className="text-left bg-white rounded-xl border border-slate-200 shadow-sm p-4 hover:border-blue-300 hover:shadow transition-all"
+      className="text-left bg-surface rounded-lg border border-border shadow-xs p-4 hover:border-primary/40 hover:shadow-md transition-all"
     >
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
-          <div className="font-semibold text-slate-900 truncate">{c.releaseName}</div>
-          <div className="text-xs text-slate-400 mt-0.5">
+          <div className="font-semibold text-fg truncate">{c.releaseName}</div>
+          <div className="text-xs text-fg-subtle mt-0.5">
             {c.iterationPath ? shortPath(c.iterationPath) : 'no sprint'}
             {c.areaPath ? ` · ${shortPath(c.areaPath)}` : ''}
           </div>
         </div>
-        <span className="text-[10px] uppercase tracking-wide text-slate-400 shrink-0">
+        <span className="text-[10px] uppercase tracking-wide text-fg-subtle shrink-0">
           {c.state.replace('_', ' ')}
         </span>
       </div>
@@ -142,18 +151,18 @@ function Card({ c, onOpen }: { c: ReleaseCard; onOpen: () => void }) {
       {/* pass-rate bar */}
       <div className="mt-3">
         <div className="flex justify-between text-xs mb-1">
-          <span className="text-slate-500">Pass rate</span>
+          <span className="text-fg-muted">Pass rate</span>
           <span className="font-semibold tabular-nums" style={{ color: rateColor(c.passRate) }}>
             {c.passRate}%
           </span>
         </div>
-        <div className="flex h-2 rounded-full overflow-hidden bg-slate-100">
+        <div className="flex h-2 rounded-full overflow-hidden bg-surface-muted">
           {c.total > 0 && (
             <>
-              <div className="bg-green-500" style={{ width: `${(c.passed / c.total) * 100}%` }} />
-              <div className="bg-red-500" style={{ width: `${(c.failed / c.total) * 100}%` }} />
-              <div className="bg-orange-400" style={{ width: `${(c.blocked / c.total) * 100}%` }} />
-              <div className="bg-slate-300" style={{ width: `${(c.skipped / c.total) * 100}%` }} />
+              <div className="bg-success" style={{ width: `${(c.passed / c.total) * 100}%` }} />
+              <div className="bg-danger" style={{ width: `${(c.failed / c.total) * 100}%` }} />
+              <div className="bg-warning" style={{ width: `${(c.blocked / c.total) * 100}%` }} />
+              <div className="bg-border-strong" style={{ width: `${(c.skipped / c.total) * 100}%` }} />
             </>
           )}
         </div>
@@ -162,20 +171,20 @@ function Card({ c, onOpen }: { c: ReleaseCard; onOpen: () => void }) {
       {/* coverage */}
       <div className="mt-3">
         <div className="flex justify-between text-xs mb-1">
-          <span className="text-slate-500">Coverage</span>
+          <span className="text-fg-muted">Coverage</span>
           <span className="font-semibold tabular-nums" style={{ color: rateColor(c.coveragePct) }}>
             {c.coveragePct}%{' '}
-            <span className="text-slate-400 font-normal">
+            <span className="text-fg-subtle font-normal">
               ({c.coveredReqs}/{c.mappedReqs})
             </span>
           </span>
         </div>
-        <div className="h-2 rounded-full overflow-hidden bg-slate-100">
-          <div className="bg-blue-500 h-full" style={{ width: `${c.coveragePct}%` }} />
+        <div className="h-2 rounded-full overflow-hidden bg-surface-muted">
+          <div className="bg-primary h-full" style={{ width: `${c.coveragePct}%` }} />
         </div>
       </div>
 
-      <div className="mt-3 flex items-center gap-3 text-xs text-slate-400">
+      <div className="mt-3 flex items-center gap-3 text-xs text-fg-subtle">
         <span>{c.runs} runs</span>
         <span>
           {executed}/{c.total} executed
@@ -215,7 +224,7 @@ function BoardView({ projectId }: { projectId: string }) {
       </div>
 
       {data.groups.length === 0 && (
-        <div className="bg-white rounded-xl border border-slate-200 py-16 text-center text-sm text-slate-500">
+        <div className="bg-surface rounded-lg border border-border py-16 text-center text-sm text-fg-muted">
           No releases yet. Create releases (mapped to a sprint/team/area) to populate the board.
         </div>
       )}
@@ -223,9 +232,9 @@ function BoardView({ projectId }: { projectId: string }) {
       {data.groups.map(g => (
         <div key={g.teamId ?? 'none'}>
           <div className="flex items-center gap-2 mb-2">
-            <Users size={14} className="text-slate-400" />
-            <h3 className="text-sm font-semibold text-slate-700">{g.teamName}</h3>
-            <span className="text-xs text-slate-400">{g.releases.length} releases</span>
+            <Users size={14} className="text-fg-muted" />
+            <h3 className="text-sm font-semibold text-fg">{g.teamName}</h3>
+            <span className="text-xs text-fg-subtle">{g.releases.length} releases</span>
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {g.releases.map(c => (
@@ -265,20 +274,11 @@ function PivotView({ projectId }: { projectId: string }) {
   })
   return (
     <div className="space-y-4">
-      <div className="flex gap-1 bg-slate-100 p-1 rounded-lg w-fit">
+      <div className="flex gap-1 bg-surface-muted p-1 rounded-lg w-fit">
         {DIMS.map(d => {
           const Icon = d.icon
           return (
-            <button
-              key={d.key}
-              onClick={() => setDim(d.key)}
-              className={cn(
-                'flex items-center gap-1.5 px-4 py-1.5 text-sm font-medium rounded-md transition-colors',
-                dim === d.key
-                  ? 'bg-white text-slate-900 shadow-sm'
-                  : 'text-slate-500 hover:text-slate-700',
-              )}
-            >
+            <button key={d.key} onClick={() => setDim(d.key)} className={seg(dim === d.key)}>
               <Icon size={14} /> {d.label}
             </button>
           )
@@ -287,10 +287,10 @@ function PivotView({ projectId }: { projectId: string }) {
       {isLoading && <LoadingSpinner message="Loading…" />}
       {error && <ErrorMessage message="Failed to load." onRetry={() => void refetch()} />}
       {data && (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="bg-surface rounded-lg border border-border shadow-xs overflow-hidden">
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-xs text-slate-500 border-b border-slate-100">
+              <tr className="text-left text-xs text-fg-muted border-b border-border">
                 <th className="px-4 py-2.5 font-medium">{DIMS.find(d => d.key === dim)?.label}</th>
                 <th className="px-4 py-2.5 font-medium text-right">Runs</th>
                 <th className="px-4 py-2.5 font-medium text-right">Total</th>
@@ -298,10 +298,10 @@ function PivotView({ projectId }: { projectId: string }) {
                 <th className="px-4 py-2.5 font-medium">Last run</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-50">
+            <tbody className="divide-y divide-border">
               {data.groups.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-10 text-center text-slate-500">
+                  <td colSpan={5} className="px-4 py-10 text-center text-fg-muted">
                     No tagged runs.
                   </td>
                 </tr>
@@ -309,24 +309,21 @@ function PivotView({ projectId }: { projectId: string }) {
               {data.groups.map(g => (
                 <tr
                   key={g.key ?? '∅'}
-                  className="hover:bg-slate-50 cursor-pointer"
+                  className="hover:bg-surface-muted cursor-pointer"
                   onClick={() => setDrill(g)}
                 >
-                  <td
-                    className="px-4 py-2.5 font-medium text-slate-800 max-w-xs truncate"
-                    title={g.label}
-                  >
+                  <td className="px-4 py-2.5 font-medium text-fg max-w-xs truncate" title={g.label}>
                     {g.label}
                   </td>
-                  <td className="px-4 py-2.5 text-right tabular-nums text-blue-600">{g.runs}</td>
-                  <td className="px-4 py-2.5 text-right tabular-nums text-slate-700">{g.total}</td>
+                  <td className="px-4 py-2.5 text-right tabular-nums text-primary">{g.runs}</td>
+                  <td className="px-4 py-2.5 text-right tabular-nums text-fg">{g.total}</td>
                   <td
                     className="px-4 py-2.5 text-right tabular-nums font-semibold"
                     style={{ color: rateColor(g.passRate) }}
                   >
                     {g.passRate}%
                   </td>
-                  <td className="px-4 py-2.5 text-slate-500">
+                  <td className="px-4 py-2.5 text-fg-muted">
                     {g.lastExecutedAt ? relativeTime(g.lastExecutedAt) : '—'}
                   </td>
                 </tr>
@@ -350,43 +347,27 @@ function PivotView({ projectId }: { projectId: string }) {
 }
 
 export default function TestExecutionDashboardPage() {
+  usePageWidth('wide')
   const { projectId } = useProject()
   const [view, setView] = useState<'board' | 'pivot'>('board')
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Test Execution</h1>
-          <p className="text-sm text-slate-500 mt-0.5">
-            Release readiness by team, and flat rollups by dimension.
-          </p>
-        </div>
-        <div className="flex gap-1 bg-slate-100 p-1 rounded-lg">
-          <button
-            onClick={() => setView('board')}
-            className={cn(
-              'px-4 py-1.5 text-sm font-medium rounded-md',
-              view === 'board'
-                ? 'bg-white text-slate-900 shadow-sm'
-                : 'text-slate-500 hover:text-slate-700',
-            )}
-          >
-            Release board
-          </button>
-          <button
-            onClick={() => setView('pivot')}
-            className={cn(
-              'px-4 py-1.5 text-sm font-medium rounded-md',
-              view === 'pivot'
-                ? 'bg-white text-slate-900 shadow-sm'
-                : 'text-slate-500 hover:text-slate-700',
-            )}
-          >
-            Pivot
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        title="Test Execution"
+        icon={<ClipboardCheck size={20} />}
+        description="Release readiness by team, and flat rollups by dimension."
+        actions={
+          <div className="flex gap-1 bg-surface-muted p-1 rounded-lg">
+            <button onClick={() => setView('board')} className={seg(view === 'board')}>
+              Release board
+            </button>
+            <button onClick={() => setView('pivot')} className={seg(view === 'pivot')}>
+              Pivot
+            </button>
+          </div>
+        }
+      />
 
       {projectId &&
         (view === 'board' ? (
