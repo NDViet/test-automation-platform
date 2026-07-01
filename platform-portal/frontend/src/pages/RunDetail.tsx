@@ -6,6 +6,7 @@ import { formatDuration, statusColor, relativeTime, cn } from '@/lib/utils'
 import Badge from '@/components/Badge'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import ErrorMessage from '@/components/ErrorMessage'
+import { Button } from '@/components/ui'
 import type { TestCase } from '@/lib/types'
 import {
   ChevronRight,
@@ -87,57 +88,43 @@ export default function RunDetail() {
   return (
     <div className="space-y-6">
       {/* Breadcrumb */}
-      <div className="flex items-center gap-2 text-sm text-slate-500">
-        <button onClick={() => navigate('/')} className="hover:text-blue-600">
+      <div className="flex items-center gap-2 text-sm text-fg-muted">
+        <button onClick={() => navigate('/')} className="hover:text-primary">
           Overview
         </button>
         <ChevronRight size={14} />
-        <button onClick={() => navigate(projectHref)} className="hover:text-blue-600">
+        <button onClick={() => navigate(projectHref)} className="hover:text-primary">
           {s.projectName}
         </button>
         <ChevronRight size={14} />
-        <span className="font-mono text-slate-700">{runId?.slice(0, 16)}…</span>
+        <span className="font-mono text-fg">{runId?.slice(0, 16)}…</span>
       </div>
 
       {/* Run summary */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+      <div className="bg-surface rounded-lg border border-border shadow-xs p-5">
         <div className="flex flex-wrap items-start gap-6">
-          <div>
-            <p className="text-xs text-slate-500 uppercase tracking-wide">Run ID</p>
-            <p className="font-mono text-sm text-slate-800 mt-0.5">{s.runId}</p>
-          </div>
-          <div>
-            <p className="text-xs text-slate-500 uppercase tracking-wide">Branch</p>
-            <p className="text-sm text-slate-800 mt-0.5">{s.branch ?? '—'}</p>
-          </div>
-          <div>
-            <p className="text-xs text-slate-500 uppercase tracking-wide">Environment</p>
-            <p className="text-sm text-slate-800 mt-0.5">{s.environment ?? '—'}</p>
-          </div>
-          <div>
-            <p className="text-xs text-slate-500 uppercase tracking-wide">CI Provider</p>
-            <p className="text-sm text-slate-800 mt-0.5">{s.ciProvider ?? '—'}</p>
-          </div>
-          <div>
-            <p className="text-xs text-slate-500 uppercase tracking-wide">Mode</p>
-            <p className="text-sm text-slate-800 mt-0.5">{s.executionMode ?? 'UNKNOWN'}</p>
-          </div>
-          <div>
-            <p className="text-xs text-slate-500 uppercase tracking-wide">Duration</p>
-            <p className="text-sm text-slate-800 mt-0.5">{formatDuration(s.durationMs)}</p>
-          </div>
-          <div>
-            <p className="text-xs text-slate-500 uppercase tracking-wide">Executed</p>
-            <p className="text-sm text-slate-800 mt-0.5">{relativeTime(s.executedAt)}</p>
-          </div>
+          {[
+            ['Run ID', <span className="font-mono">{s.runId}</span>],
+            ['Branch', s.branch ?? '—'],
+            ['Environment', s.environment ?? '—'],
+            ['CI Provider', s.ciProvider ?? '—'],
+            ['Mode', s.executionMode ?? 'UNKNOWN'],
+            ['Duration', formatDuration(s.durationMs)],
+            ['Executed', relativeTime(s.executedAt)],
+          ].map(([label, value], i) => (
+            <div key={i}>
+              <p className="text-xs text-fg-muted uppercase tracking-wide">{label}</p>
+              <p className="text-sm text-fg mt-0.5">{value}</p>
+            </div>
+          ))}
           {s.ciRunUrl && (
             <div>
-              <p className="text-xs text-slate-500 uppercase tracking-wide">CI Run</p>
+              <p className="text-xs text-fg-muted uppercase tracking-wide">CI Run</p>
               <a
                 href={s.ciRunUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="text-sm text-blue-600 hover:underline flex items-center gap-1 mt-0.5"
+                className="text-sm text-primary hover:underline flex items-center gap-1 mt-0.5"
               >
                 View <ExternalLink size={12} />
               </a>
@@ -149,58 +136,40 @@ export default function RunDetail() {
         <div className="mt-4 flex items-center gap-1 h-2 rounded-full overflow-hidden">
           {s.totalTests > 0 && (
             <>
-              <div
-                className="bg-green-500 h-full"
-                style={{ width: `${(s.passed / s.totalTests) * 100}%` }}
-              />
-              <div
-                className="bg-red-500 h-full"
-                style={{ width: `${(s.failed / s.totalTests) * 100}%` }}
-              />
-              <div
-                className="bg-orange-400 h-full"
-                style={{ width: `${(s.broken / s.totalTests) * 100}%` }}
-              />
-              <div
-                className="bg-slate-300 h-full"
-                style={{ width: `${(s.skipped / s.totalTests) * 100}%` }}
-              />
+              <div className="bg-success h-full" style={{ width: `${(s.passed / s.totalTests) * 100}%` }} />
+              <div className="bg-danger h-full" style={{ width: `${(s.failed / s.totalTests) * 100}%` }} />
+              <div className="bg-warning h-full" style={{ width: `${(s.broken / s.totalTests) * 100}%` }} />
+              <div className="bg-border-strong h-full" style={{ width: `${(s.skipped / s.totalTests) * 100}%` }} />
             </>
           )}
         </div>
-        <div className="mt-2 flex gap-4 text-xs text-slate-600">
-          <span className="text-green-700">✓ {s.passed} passed</span>
-          <span className="text-red-700">✗ {s.failed} failed</span>
-          {s.broken > 0 && <span className="text-orange-700">⚠ {s.broken} broken</span>}
-          {s.skipped > 0 && <span className="text-slate-500">◌ {s.skipped} skipped</span>}
-          <span className="text-slate-400 ml-auto">{s.totalTests} total</span>
+        <div className="mt-2 flex gap-4 text-xs text-fg-muted">
+          <span className="text-success">✓ {s.passed} passed</span>
+          <span className="text-danger">✗ {s.failed} failed</span>
+          {s.broken > 0 && <span className="text-warning">⚠ {s.broken} broken</span>}
+          {s.skipped > 0 && <span className="text-fg-muted">◌ {s.skipped} skipped</span>}
+          <span className="text-fg-subtle ml-auto">{s.totalTests} total</span>
         </div>
       </div>
 
       {/* Filter tabs */}
       <div className="flex items-center gap-2">
         {(['ALL', 'FAILED', 'BROKEN', 'PASSED', 'SKIPPED'] as StatusFilter[]).map(f => (
-          <button
+          <Button
             key={f}
+            size="sm"
+            variant={statusFilter === f ? 'primary' : 'secondary'}
             onClick={() => setStatusFilter(f)}
-            className={cn(
-              'px-3 py-1.5 text-xs font-medium rounded-lg transition-colors',
-              statusFilter === f
-                ? 'bg-blue-600 text-white'
-                : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50',
-            )}
           >
             {f} {f !== 'ALL' && statusCounts[f] ? `(${statusCounts[f]})` : ''}
-          </button>
+          </Button>
         ))}
       </div>
 
       {/* Test cases */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm divide-y divide-slate-50">
+      <div className="bg-surface rounded-lg border border-border shadow-xs divide-y divide-border">
         {filtered.length === 0 && (
-          <p className="px-5 py-8 text-center text-sm text-slate-500">
-            No tests match this filter.
-          </p>
+          <p className="px-5 py-8 text-center text-sm text-fg-muted">No tests match this filter.</p>
         )}
         {filtered.map((tc: TestCase) => {
           const isOpen = expanded.has(tc.id)
@@ -215,24 +184,24 @@ export default function RunDetail() {
             <div
               key={tc.id}
               id={`result-${tc.id}`}
-              className={cn('group', isTarget && 'ring-2 ring-inset ring-blue-400 rounded-sm')}
+              className={cn('group', isTarget && 'ring-2 ring-inset ring-primary rounded-sm')}
             >
               {/* ── Row header ── */}
               <div
                 onClick={() => isExpandable && toggle(tc.id)}
                 className={cn(
                   'w-full text-left px-5 py-3.5 flex items-center gap-3',
-                  isExpandable ? 'cursor-pointer hover:bg-slate-50' : 'cursor-default',
+                  isExpandable ? 'cursor-pointer hover:bg-surface-muted' : 'cursor-default',
                   'transition-colors',
-                  isTarget && !isOpen && 'bg-blue-50',
+                  isTarget && !isOpen && 'bg-primary-subtle',
                 )}
               >
                 {/* Expand chevron */}
                 {isExpandable ? (
                   isOpen ? (
-                    <ChevronDown size={14} className="text-slate-400 shrink-0" />
+                    <ChevronDown size={14} className="text-fg-subtle shrink-0" />
                   ) : (
-                    <ChevronRight size={14} className="text-slate-400 shrink-0" />
+                    <ChevronRight size={14} className="text-fg-subtle shrink-0" />
                   )
                 ) : (
                   <div className="w-3.5 shrink-0" />
@@ -242,34 +211,34 @@ export default function RunDetail() {
 
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <p className="text-sm font-medium text-slate-900 truncate">{tc.displayName}</p>
+                    <p className="text-sm font-medium text-fg truncate">{tc.displayName}</p>
                     {tc.hasScreenshot && (
                       <span title="Has screenshot">
-                        <Camera size={12} className="text-slate-400 shrink-0" />
+                        <Camera size={12} className="text-fg-subtle shrink-0" />
                       </span>
                     )}
                     {tc.hasVideo && (
                       <span title="Has video">
-                        <Video size={12} className="text-slate-400 shrink-0" />
+                        <Video size={12} className="text-fg-subtle shrink-0" />
                       </span>
                     )}
                   </div>
                   <div className="flex items-center gap-2 mt-0.5">
-                    <p className="text-xs text-slate-400 truncate">{tc.className}</p>
+                    <p className="text-xs text-fg-subtle truncate">{tc.className}</p>
                     {tc.browser && (
-                      <span className="inline-flex items-center gap-0.5 text-[10px] text-slate-400">
+                      <span className="inline-flex items-center gap-0.5 text-[10px] text-fg-subtle">
                         <Globe size={9} /> {tc.browser}
                       </span>
                     )}
                     {tc.retryCount > 0 && (
-                      <span className="text-[10px] text-amber-600 font-medium">
+                      <span className="text-[10px] text-warning font-medium">
                         {tc.retryCount} retr{tc.retryCount === 1 ? 'y' : 'ies'}
                       </span>
                     )}
                   </div>
                 </div>
 
-                <span className="text-xs text-slate-400 shrink-0">
+                <span className="text-xs text-fg-subtle shrink-0">
                   {formatDuration(tc.durationMs)}
                 </span>
 
@@ -285,8 +254,8 @@ export default function RunDetail() {
                       rel="noopener noreferrer"
                       title="Open in Playwright Trace Viewer"
                       className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium
-                                 bg-violet-50 text-violet-700 border border-violet-200
-                                 hover:bg-violet-100 transition-colors"
+                                 bg-primary-subtle text-primary-subtle-fg border border-primary-subtle
+                                 hover:brightness-95 transition-all"
                     >
                       <Play size={10} />
                       Trace
@@ -296,8 +265,8 @@ export default function RunDetail() {
                       download={`trace-${tc.id}.zip`}
                       title="Download trace ZIP"
                       className="flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium
-                                 bg-slate-100 text-slate-500 border border-slate-200
-                                 hover:bg-slate-200 transition-colors"
+                                 bg-surface-muted text-fg-muted border border-border
+                                 hover:bg-border transition-colors"
                     >
                       <Download size={10} />
                     </a>
@@ -307,14 +276,16 @@ export default function RunDetail() {
 
               {/* ── Expanded detail ── */}
               {isOpen && (
-                <div className="px-5 pb-5 space-y-3 border-t border-slate-50 pt-3">
+                <div className="px-5 pb-5 space-y-3 border-t border-border pt-3">
                   {/* Trace viewer — shown prominently at the top of the expanded section */}
                   {hasTrace && (
-                    <div className="flex items-center gap-2 p-3 bg-violet-50 border border-violet-200 rounded-lg">
-                      <Play size={14} className="text-violet-600 shrink-0" />
+                    <div className="flex items-center gap-2 p-3 bg-primary-subtle border border-primary-subtle rounded-lg">
+                      <Play size={14} className="text-primary shrink-0" />
                       <div className="flex-1 min-w-0">
-                        <p className="text-xs font-semibold text-violet-800">Playwright Trace</p>
-                        <p className="text-[11px] text-violet-600 truncate font-mono mt-0.5">
+                        <p className="text-xs font-semibold text-primary-subtle-fg">
+                          Playwright Trace
+                        </p>
+                        <p className="text-[11px] text-primary-subtle-fg/80 truncate font-mono mt-0.5">
                           {tc.specFile ?? tc.displayName}
                         </p>
                       </div>
@@ -324,7 +295,7 @@ export default function RunDetail() {
                           target="_blank"
                           rel="noopener noreferrer"
                           className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold
-                                     bg-violet-600 text-white hover:bg-violet-700 transition-colors"
+                                     bg-primary text-primary-fg hover:bg-primary-hover transition-colors"
                         >
                           <Play size={11} />
                           Open Trace
@@ -334,8 +305,8 @@ export default function RunDetail() {
                           download={`trace-${tc.id}.zip`}
                           title="Download trace ZIP — view with: npx playwright show-trace trace.zip"
                           className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium
-                                     bg-white border border-violet-200 text-violet-700
-                                     hover:bg-violet-50 transition-colors"
+                                     bg-surface border border-border text-primary
+                                     hover:bg-surface-muted transition-colors"
                         >
                           <Download size={11} />
                           .zip
@@ -346,9 +317,9 @@ export default function RunDetail() {
 
                   {/* Failure message */}
                   {tc.failureMessage && (
-                    <div className="bg-red-50 border border-red-100 rounded-lg p-3">
-                      <p className="text-xs font-semibold text-red-700 mb-1">Failure message</p>
-                      <p className="text-xs text-red-700 font-mono whitespace-pre-wrap break-words">
+                    <div className="bg-danger-bg border border-danger-border rounded-lg p-3">
+                      <p className="text-xs font-semibold text-danger mb-1">Failure message</p>
+                      <p className="text-xs text-danger font-mono whitespace-pre-wrap break-words">
                         {tc.failureMessage}
                       </p>
                     </div>
