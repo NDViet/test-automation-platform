@@ -18,15 +18,15 @@ import {
 import type { PrAnalysis } from '@/lib/types'
 
 const STATUS_META: Record<string, { color: string; icon: React.ReactNode }> = {
-  COMPLETED: { color: 'text-green-700 bg-green-100', icon: <CheckCircle size={13} /> },
-  FAILED: { color: 'text-red-700 bg-red-100', icon: <XCircle size={13} /> },
-  RUNNING: { color: 'text-blue-700 bg-blue-100', icon: <Clock size={13} /> },
-  PENDING: { color: 'text-slate-600 bg-slate-100', icon: <Clock size={13} /> },
-  AWAITING_REVIEW: { color: 'text-yellow-700 bg-yellow-100', icon: <AlertCircle size={13} /> },
+  COMPLETED: { color: 'text-success bg-success-bg', icon: <CheckCircle size={13} /> },
+  FAILED: { color: 'text-danger bg-danger-bg', icon: <XCircle size={13} /> },
+  RUNNING: { color: 'text-info bg-info-bg', icon: <Clock size={13} /> },
+  PENDING: { color: 'text-neutral bg-neutral-bg', icon: <Clock size={13} /> },
+  AWAITING_REVIEW: { color: 'text-warning bg-warning-bg', icon: <AlertCircle size={13} /> },
 }
 
 function statusMeta(s: string) {
-  return STATUS_META[s] ?? { color: 'text-slate-600 bg-slate-100', icon: null }
+  return STATUS_META[s] ?? { color: 'text-neutral bg-neutral-bg', icon: null }
 }
 
 function prLabel(refUrl: string | null): string {
@@ -67,22 +67,22 @@ export default function PRAnalysesPage() {
     <div className="space-y-6">
       {/* Breadcrumb */}
       <div>
-        <div className="flex items-center gap-2 text-sm text-slate-500 mb-1">
-          <button onClick={() => navigate('/')} className="hover:text-blue-600">
+        <div className="flex items-center gap-2 text-sm text-fg-muted mb-1">
+          <button onClick={() => navigate('/')} className="hover:text-primary">
             Overview
           </button>
           <ChevronRight size={14} />
-          <button onClick={() => navigate(base)} className="hover:text-blue-600">
+          <button onClick={() => navigate(base)} className="hover:text-primary">
             {projectId}
           </button>
           <ChevronRight size={14} />
-          <span className="text-slate-700">PR Analyses</span>
+          <span className="text-fg">PR Analyses</span>
         </div>
         <div className="flex items-center gap-3">
-          <GitPullRequest size={20} className="text-slate-400" />
-          <h1 className="text-2xl font-bold text-slate-900">PR Analyses</h1>
+          <GitPullRequest size={20} className="text-fg-muted" />
+          <h1 className="text-xl font-semibold tracking-tight text-fg">PR Analyses</h1>
         </div>
-        <p className="text-sm text-slate-500 mt-1">
+        <p className="text-sm text-fg-muted mt-1">
           GitHub pull requests analyzed by the AnalysisNode — coverage gaps, TIA risk, and test
           recommendations.
         </p>
@@ -92,15 +92,15 @@ export default function PRAnalysesPage() {
       {items.length > 0 && (
         <div className="grid grid-cols-3 gap-4">
           {[
-            { label: 'Completed', value: completed, color: 'text-green-600' },
-            { label: 'Failed', value: failed, color: 'text-red-600' },
-            { label: 'Running', value: running, color: 'text-blue-600' },
+            { label: 'Completed', value: completed, color: 'text-success' },
+            { label: 'Failed', value: failed, color: 'text-danger' },
+            { label: 'Running', value: running, color: 'text-info' },
           ].map(s => (
             <div
               key={s.label}
-              className="bg-white rounded-xl border border-slate-200 shadow-sm px-5 py-4"
+              className="bg-surface rounded-lg border border-border shadow-xs px-5 py-4"
             >
-              <p className="text-xs text-slate-500">{s.label}</p>
+              <p className="text-xs text-fg-muted">{s.label}</p>
               <p className={cn('text-2xl font-bold', s.color)}>{s.value}</p>
             </div>
           ))}
@@ -108,18 +108,18 @@ export default function PRAnalysesPage() {
       )}
 
       {/* Table */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
-        <div className="px-5 py-4 border-b border-slate-100">
-          <h2 className="font-semibold text-slate-900">Recent PR Analyses</h2>
+      <div className="bg-surface rounded-lg border border-border shadow-xs">
+        <div className="px-5 py-4 border-b border-border">
+          <h2 className="font-semibold text-fg">Recent PR Analyses</h2>
         </div>
 
         {items.length === 0 ? (
-          <p className="px-5 py-12 text-sm text-slate-500 text-center">
+          <p className="px-5 py-12 text-sm text-fg-muted text-center">
             No PR analyses yet. Connect a GitHub integration and push a pull request to trigger the
             AnalysisNode.
           </p>
         ) : (
-          <div className="divide-y divide-slate-50">
+          <div className="divide-y divide-border">
             {items.map(a => {
               const { color: sc } = statusMeta(a.status)
               return (
@@ -134,31 +134,31 @@ export default function PRAnalysesPage() {
                             href={a.refUrl}
                             target="_blank"
                             rel="noreferrer"
-                            className="flex items-center gap-1 text-sm font-medium text-blue-700 hover:underline truncate"
+                            className="flex items-center gap-1 text-sm font-medium text-primary hover:underline truncate"
                           >
                             {prLabel(a.refUrl)}
                             <ExternalLink size={11} className="shrink-0" />
                           </a>
                         ) : (
-                          <span className="text-sm font-medium text-slate-500">Unknown PR</span>
+                          <span className="text-sm font-medium text-fg-muted">Unknown PR</span>
                         )}
                       </div>
 
                       {a.summary ? (
-                        <p className="text-xs text-slate-600 leading-relaxed line-clamp-3">
+                        <p className="text-xs text-fg-muted leading-relaxed line-clamp-3">
                           {a.summary}
                         </p>
                       ) : (
-                        <p className="text-xs text-slate-400 italic">No summary available.</p>
+                        <p className="text-xs text-fg-subtle italic">No summary available.</p>
                       )}
                     </div>
 
                     {/* Right: meta */}
                     <div className="shrink-0 text-right space-y-1">
-                      <p className="text-xs text-slate-500">{relativeTime(a.createdAt)}</p>
-                      <p className="text-xs text-slate-400">Duration: {durationLabel(a)}</p>
+                      <p className="text-xs text-fg-muted">{relativeTime(a.createdAt)}</p>
+                      <p className="text-xs text-fg-subtle">Duration: {durationLabel(a)}</p>
                       {(a.totalInputTokens > 0 || a.totalOutputTokens > 0) && (
-                        <p className="text-xs text-slate-400">
+                        <p className="text-xs text-fg-subtle">
                           {(a.totalInputTokens + a.totalOutputTokens).toLocaleString()} tokens
                         </p>
                       )}

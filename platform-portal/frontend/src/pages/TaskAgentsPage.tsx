@@ -4,6 +4,7 @@ import { ListChecks } from 'lucide-react'
 import { api } from '@/lib/api'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import ErrorMessage from '@/components/ErrorMessage'
+import { PageHeader, Select } from '@/components/ui'
 import type { Agent, AgentScope, TaskAgentAssignment } from '@/lib/types'
 
 /** Task types exposed for assignment, grouped by flow, with their sub-types (seed-aligned). */
@@ -93,54 +94,44 @@ export default function TaskAgentsPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-4xl h-full min-h-0 overflow-y-auto pr-1">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-          <ListChecks size={22} /> Task → Agent assignments
-        </h1>
-        <p className="text-sm text-slate-500 mt-1">
-          Choose the default agent for each task (and sub-type). Leave blank to inherit the org
-          default, or the built-in seed. Users can still override per run.
-        </p>
-      </div>
+    <div className="space-y-6 max-w-4xl h-full min-h-0 overflow-y-auto scrollbar-thin pr-1">
+      <PageHeader
+        title="Task → Agent assignments"
+        icon={<ListChecks size={20} />}
+        description="Choose the default agent for each task (and sub-type). Leave blank to inherit the org default, or the built-in seed. Users can still override per run."
+      />
 
-      <div className="flex flex-wrap items-end gap-3 bg-white rounded-xl border border-slate-200 p-4">
+      <div className="flex flex-wrap items-end gap-3 bg-surface rounded-lg border border-border p-4">
         <label className="text-sm">
-          <span className="block text-slate-600 mb-1">Scope</span>
-          <select
+          <span className="block text-fg-muted mb-1">Scope</span>
+          <Select
+            containerClassName="w-auto min-w-[10rem]"
             value={scopeKind}
             onChange={e => {
               setScopeKind(e.target.value as AgentScope)
               setScopeId('')
             }}
-            className="border border-slate-200 rounded-lg px-3 py-2 text-sm"
           >
             <option value="projects">Project</option>
             <option value="orgs">Organization</option>
-          </select>
+          </Select>
         </label>
         <label className="text-sm flex-1 min-w-56">
-          <span className="block text-slate-600 mb-1">
+          <span className="block text-fg-muted mb-1">
             {scopeKind === 'orgs' ? 'Organization' : 'Project'}
           </span>
-          <select
-            value={scopeId}
-            onChange={e => setScopeId(e.target.value)}
-            className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
-          >
+          <Select value={scopeId} onChange={e => setScopeId(e.target.value)}>
             <option value="">Select…</option>
             {ownerOptions.map(o => (
               <option key={o.id} value={o.id}>
                 {o.label}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
       </div>
 
-      {!scopeId && (
-        <p className="text-sm text-slate-400">Pick a scope and owner to assign agents.</p>
-      )}
+      {!scopeId && <p className="text-sm text-fg-subtle">Pick a scope and owner to assign agents.</p>}
 
       {scopeId && (agentsQuery.isLoading || assignmentsQuery.isLoading) && (
         <LoadingSpinner message="Loading…" />
@@ -155,31 +146,31 @@ export default function TaskAgentsPage() {
       {scopeId && agentsQuery.data && assignmentsQuery.data && (
         <div className="space-y-5">
           {agents.length === 0 && (
-            <p className="text-sm text-amber-700 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
+            <p className="text-sm text-warning bg-warning-bg border border-warning-border rounded-lg px-3 py-2">
               No agents available in this scope yet — create one on the Agents page first.
             </p>
           )}
           {TASK_CATALOG.map(group => (
-            <div key={group.group} className="bg-white rounded-xl border border-slate-200">
-              <div className="px-5 py-3 border-b border-slate-100 text-sm font-semibold text-slate-700">
+            <div key={group.group} className="bg-surface rounded-lg border border-border">
+              <div className="px-5 py-3 border-b border-border text-sm font-semibold text-fg">
                 {group.group}
               </div>
-              <div className="divide-y divide-slate-100">
+              <div className="divide-y divide-border">
                 {group.tasks.flatMap(task =>
                   task.subTypes.map(sub => {
                     const cell = byCell.get(`${task.key}|${sub}`)
                     return (
                       <div key={`${task.key}|${sub}`} className="px-5 py-3 flex items-center gap-3">
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm text-slate-800">{task.label}</p>
+                          <p className="text-sm text-fg">{task.label}</p>
                           {sub !== 'DEFAULT' && (
-                            <p className="text-xs text-slate-500">{sub.toLowerCase()}</p>
+                            <p className="text-xs text-fg-muted">{sub.toLowerCase()}</p>
                           )}
                         </div>
-                        <select
+                        <Select
+                          containerClassName="w-64"
                           value={cell?.agentId ?? ''}
                           onChange={e => onSelect(task.key, sub, e.target.value)}
-                          className="w-64 border border-slate-200 rounded-lg px-3 py-2 text-sm"
                         >
                           <option value="">(inherit / seed)</option>
                           {agents.map(a => (
@@ -188,7 +179,7 @@ export default function TaskAgentsPage() {
                               {a.inherited ? ' (org)' : ''}
                             </option>
                           ))}
-                        </select>
+                        </Select>
                       </div>
                     )
                   }),
