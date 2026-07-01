@@ -4,7 +4,8 @@ import { api } from '@/lib/api'
 import { relativeTime } from '@/lib/utils'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import ErrorMessage from '@/components/ErrorMessage'
-import { Plus, Trash2, Copy, Check } from 'lucide-react'
+import { Button, Input, PageHeader } from '@/components/ui'
+import { Plus, Trash2, Copy, Check, KeyRound } from 'lucide-react'
 
 export default function ApiKeysPage() {
   const qc = useQueryClient()
@@ -44,27 +45,26 @@ export default function ApiKeysPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">API Keys</h1>
-        <p className="text-sm text-slate-500 mt-1">
-          Manage authentication keys for CI/CD pipelines. Keys are not restricted to any project or
-          team.
-        </p>
-      </div>
+      <PageHeader
+        title="API Keys"
+        icon={<KeyRound size={20} />}
+        description="Manage authentication keys for CI/CD pipelines. Keys are not restricted to any project or team."
+      />
 
       {/* New key created banner */}
       {createdKey && (
-        <div className="bg-green-50 border border-green-200 rounded-xl p-4">
-          <p className="text-sm font-semibold text-green-800 mb-2">
+        <div className="bg-success-bg border border-success-border rounded-lg p-4">
+          <p className="text-sm font-semibold text-success mb-2">
             New API key created — copy it now, it won&apos;t be shown again.
           </p>
           <div className="flex items-center gap-2">
-            <code className="flex-1 bg-white border border-green-200 rounded px-3 py-2 text-sm font-mono text-green-900 break-all">
+            <code className="flex-1 bg-surface border border-success-border rounded px-3 py-2 text-sm font-mono text-success break-all">
               {createdKey}
             </code>
             <button
               onClick={() => void copyKey(createdKey)}
-              className="p-2 rounded-lg bg-green-600 text-white hover:bg-green-700 transition-colors"
+              className="p-2 rounded-md bg-success text-white hover:opacity-90 transition-opacity"
+              aria-label="Copy API key"
             >
               {copied ? <Check size={16} /> : <Copy size={16} />}
             </button>
@@ -73,27 +73,27 @@ export default function ApiKeysPage() {
       )}
 
       {/* Create new key form */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
-        <h2 className="font-semibold text-slate-900 mb-4">Create New Key</h2>
+      <div className="bg-surface rounded-lg border border-border shadow-xs p-5">
+        <h2 className="font-semibold text-fg mb-4">Create New Key</h2>
         <div className="flex items-center gap-3">
-          <input
+          <Input
             type="text"
             placeholder="Key name (e.g. github-actions-prod)"
+            aria-label="Key name"
             value={newKeyName}
             onChange={e => setNewKeyName(e.target.value)}
-            className="flex-1 text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
-          <button
+          <Button
             onClick={() => void createMutation.mutate()}
-            disabled={!newKeyName.trim() || createMutation.isPending}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+            disabled={!newKeyName.trim()}
+            loading={createMutation.isPending}
           >
             <Plus size={16} />
             {createMutation.isPending ? 'Creating…' : 'Create Key'}
-          </button>
+          </Button>
         </div>
         {createMutation.isError && (
-          <p className="text-xs text-red-600 mt-2">Failed to create key. Please try again.</p>
+          <p className="text-xs text-danger mt-2">Failed to create key. Please try again.</p>
         )}
       </div>
 
@@ -101,40 +101,37 @@ export default function ApiKeysPage() {
       {isLoading && <LoadingSpinner message="Loading API keys…" />}
       {error && <ErrorMessage message="Failed to load API keys." onRetry={() => void refetch()} />}
       {!isLoading && !error && (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
-          <div className="px-5 py-4 border-b border-slate-100">
-            <h2 className="font-semibold text-slate-900">Active Keys</h2>
+        <div className="bg-surface rounded-lg border border-border shadow-xs">
+          <div className="px-5 py-4 border-b border-border">
+            <h2 className="font-semibold text-fg">Active Keys</h2>
           </div>
-          <div className="divide-y divide-slate-50">
+          <div className="divide-y divide-border">
             {(!keys || keys.length === 0) && (
-              <p className="px-5 py-8 text-center text-sm text-slate-500">No API keys yet.</p>
+              <p className="px-5 py-8 text-center text-sm text-fg-muted">No API keys yet.</p>
             )}
             {(keys ?? []).map(k => (
               <div key={k.id} className="px-5 py-4 flex items-center justify-between gap-4">
                 <div>
-                  <p className="text-sm font-medium text-slate-900">{k.name}</p>
+                  <p className="text-sm font-medium text-fg">{k.name}</p>
                   <div className="flex items-center gap-3 mt-0.5">
-                    <code className="text-xs text-slate-500 font-mono">{k.prefix}…</code>
-                    <span className="text-xs text-slate-400">
-                      Created {relativeTime(k.createdAt)}
-                    </span>
+                    <code className="text-xs text-fg-muted font-mono">{k.prefix}…</code>
+                    <span className="text-xs text-fg-subtle">Created {relativeTime(k.createdAt)}</span>
                     {k.lastUsedAt && (
-                      <span className="text-xs text-slate-400">
+                      <span className="text-xs text-fg-subtle">
                         Last used {relativeTime(k.lastUsedAt)}
                       </span>
                     )}
                     {k.expiresAt && (
-                      <span className="text-xs text-orange-600">
-                        Expires {relativeTime(k.expiresAt)}
-                      </span>
+                      <span className="text-xs text-warning">Expires {relativeTime(k.expiresAt)}</span>
                     )}
                   </div>
                 </div>
                 <button
                   onClick={() => void revokeMutation.mutate(k.id)}
                   disabled={revokeMutation.isPending}
-                  className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                  className="p-2 text-fg-subtle hover:text-danger hover:bg-danger-bg rounded-md transition-colors"
                   title="Revoke key"
+                  aria-label={`Revoke ${k.name}`}
                 >
                   <Trash2 size={16} />
                 </button>
