@@ -1,139 +1,118 @@
-# SPEC — Slim default `docker-compose.yml` + monitoring override
+# SPEC — Portal UI: unified design system + page migration
 
-> Status: **DRAFT — awaiting confirmation**
-> Scope: `docker-compose.yml`, new `docker-compose-full.yml`, `scripts/dev-up.sh` (+ any docs that
-> reference `--profile services`). No application code, Dockerfiles, or images change.
-> Prior specs archived under `spec/archive/`.
+> Status: **DRAFT — awaiting confirmation.** Auto-generated to formalize the in-flight Portal UI
+> refactor so the remaining pages migrate against a real spec. Prior specs archived under
+> `spec/archive/` (incl. the AWS ECS deployment spec).
 
 ## 1. Objective
 
-Today `docker-compose.yml` is one large file: an always-on infra block (postgres, kafka, redis,
-opensearch, minio, **plus the Grafana observability stack — grafana, prometheus, loki, promtail —
-and logstash**) and a `profiles: [services]`-gated block (litellm + the 6 platform apps). Running the
-platform is a two-step `docker compose --profile services up`, and the Grafana/Prometheus/Loki/
-Promtail monitoring stack starts every time even though it isn't used right now.
-
-Restructure so the **default `docker-compose.yml` is the runnable platform** — backend + frontend,
-data pipeline (Kafka), storage (Postgres, MinIO), cache (Redis), the LLM gateway (LiteLLM), and the
-log-search backend (OpenSearch + Logstash) — startable with a single `docker compose up -d`. Move the
-unused Grafana monitoring stack into **`docker-compose-full.yml`, a Compose override** that layers it
-back for full/custom deploys.
+Unify the Portal SPA (`platform-portal/frontend`, React 19 + Vite + **Tailwind v4** + cva) under a
+single **design-token system** and a **reusable `components/ui/` primitive kit**, on a **refreshed
+palette**, with **better space utilization**, and **migrate all 35 pages** onto it — so the portal
+reads as one intentional product, not 35 hand-rolled pages.
 
 ### Target users
-- **Developers** running the platform locally (want one command, minimal footprint).
-- **Ops / custom deploys** who occasionally want the full stack incl. dashboards.
+- **Portal users** (QA engineers, leads) — get a consistent, denser, easier-to-scan UI.
+- **Frontend maintainers** — build new pages from primitives instead of copy-pasting Tailwind soup.
 
-## 2. Resolved decisions (from clarification)
-1. **One-command default:** remove `profiles: [services]` so `docker compose up -d` starts data +
-   storage + cache + pipeline + LLM gateway **and** all 6 platform services together.
-2. **Keep OpenSearch + Logstash** (the log-search data path the analytics service uses) in the
-   default; remove **only the Grafana observability stack: Grafana, Prometheus, Loki, Promtail**.
-3. **`docker-compose-full.yml` is an override** (not a standalone copy) that adds the monitoring
-   services back: `docker compose -f docker-compose.yml -f docker-compose-full.yml up -d`.
-4. **LiteLLM is EXTERNAL by default** — the bundled `litellm` container is removed from the default
-   stack and moved into `docker-compose-full.yml`. `platform-ai`/`platform-agent` start with empty
-   `LITELLM_BASE_URL`/`LITELLM_API_KEY` (configure later via `.env` or the Portal `/settings/ai`);
-   the full override re-points them at the bundled `litellm` and re-adds the dependency.
+## 2. Resolved decisions (locked this session)
+1. **Refreshed palette** via Tailwind v4 `@theme` tokens in `src/index.css`: cool-neutral canvas,
+   **azure primary `#1f6feb`** (deliberately *not* purple/indigo — avoids the "AI aesthetic"; green/
+   amber/red stay reserved for QA status), semantic status ramp (success/warning/danger/info/neutral,
+   each fg+bg+border), one radius scale, subtle elevation.
+2. **In-house `ui/` kit** (cva + `cn()`, **no** shadcn/new dependency): `Button`, `Card`(+parts),
+   `PageHeader`, `StatusBadge`, `Input`, `Select`, `Table`. Accessible, `forwardRef`.
+3. **Responsive width**: `AppLayout` + `PageWidth` context → per-page `default` (1280px, forms) /
+   `wide` (1600px, tables/dashboards) / `full`; opt in with `usePageWidth('wide')`.
+4. **Status coloring centralized**: `lib/status.ts` (typed `StatusVariant` mappings) + tokenized
+   `lib/utils` color helpers — replacing per-page `statusColor`/`priorityColor` copies.
+5. **Incremental, per-page migration**: one page per commit; verification gate is `npx tsc -b`
+   (the SPA has **no unit-test runner**); presentation-only (no behavior/logic/data changes).
+6. **Kill the AI aesthetic**: no purple/indigo primary, flat surfaces + subtle shadows, consistent
+   8px radius, tighter padding, denser tables.
 
-## 3. Exact changes
+## 3. Scope & status
 
-### `docker-compose.yml` (slim default)
-- **Remove `profiles: [services]`** from: `litellm`, `platform-analytics`, `platform-integration`,
-  `platform-ai`, `platform-ingestion`, `platform-portal`, `platform-agent`.
-- **Remove services:** `grafana`, `prometheus`, `loki`, `promtail`.
-- **Remove the volumes only those services use:** `grafana_data`, `prometheus_data`, `loki_data`,
-  `promtail_positions` (data) and `grafana_provisioning`, `grafana_dashboards`, `prometheus_config`,
-  `loki_config`, `promtail_config` (config binds).
-- **Keep** everything else: `postgres`, `kafka`, `redis`, `opensearch`, `minio`, `minio-init`,
-  `logstash`, `db-migrate`, `litellm`, the 6 platform services — and their volumes (incl.
-  `opensearch_data`, `logstash_data`, `logstash_pipeline`).
-- **Leave untouched:** the `x-security-env` anchor, all env wiring, healthchecks, ports, image tags,
-  and the named-volume bind pattern.
-- `platform-analytics` keeps `OPENSEARCH_HOST`/`depends_on: opensearch` (OpenSearch stays in default).
+### Foundation — DONE
+- `src/index.css` `@theme` tokens; `components/ui/` kit + barrel; `lib/status.ts`.
+- Responsive `AppLayout` + `components/layout/PageWidth.tsx`.
+- Shared chrome tokenized (re-skins every page): `EmptyState`, `ErrorMessage`, `LoadingSpinner`,
+  `StatCard`, `ProjectLayout` filter bar, and `lib/utils` color helpers.
 
-### `docker-compose-full.yml` (new — monitoring override)
-- Defines exactly the removed services — `grafana`, `prometheus`, `loki`, `promtail` — with their
-  current configuration (images, ports, command, depends_on: grafana→prometheus+loki, promtail→loki,
-  logstash dependency stays in the base since logstash itself stays).
-- Declares the monitoring volumes it needs: `grafana_data`, `prometheus_data`, `loki_data`,
-  `promtail_positions`, `grafana_provisioning`, `grafana_dashboards`, `prometheus_config`,
-  `loki_config`, `promtail_config` (same bind-to-`./infrastructure/...` definitions).
-- **Usage:** `docker compose -f docker-compose.yml -f docker-compose-full.yml up -d`.
+### Page migration — 19 / 35 done
+- **Done:** Users, QualityDashboard, TestCases *(scoped: header+badges)*, Login, Alerts, OrgSelect,
+  ChangePassword, MappingRules, ApiKeys, PRAnalyses, TaskAgents, OrgOverview, RunDetail,
+  CoverageMatrix, Releases, TestExecutionDashboard, AdoStructure, GitHubWorkflows, ReviewQueue.
+- **Remaining (~15/16):** AdminIntegrations, AdoMapping, Agents, AiSettings, AutomatedTests,
+  FlakyTests, ImpactAnalyses, Productivity, ProjectDetail, ProjectSettings, Requirements, Suites,
+  TestExecution (TestExecutionPage), TestRunExecution, TestRuns — plus completing **TestCases** deep
+  internals (create/edit + AI-generation modals).
 
-### `scripts/dev-up.sh` (+ docs)
-- Update so it no longer requires `--profile services` (the default now brings the whole platform).
-  Keep the volume-dir pre-creation + Docker-Desktop path-cache warmup logic. Optionally accept an
-  extra `-f docker-compose-full.yml` for the full variant.
-
-## 4. Acceptance criteria
-- **AC1** `docker compose config -q` on the default succeeds; the rendered config lists the 6 platform
-  services + `postgres/kafka/redis/opensearch/minio/minio-init/logstash/db-migrate/litellm`, and does
-  **not** list `grafana/prometheus/loki/promtail`.
-- **AC2** No service in the default has a `depends_on` on a removed service, and the default has no
-  reference to a removed (now-undefined) volume — `docker compose config` does not error.
-- **AC3** `docker compose up -d` (no `--profile`, no `-f`) brings the platform up in one command; the
-  portal answers `/actuator/health` and login works; `grafana`/`prometheus` are **not** running.
-- **AC4** `docker compose -f docker-compose.yml -f docker-compose-full.yml config -q` succeeds and the
-  **merged** config **includes** `grafana/prometheus/loki/promtail` + their volumes; bringing it up
-  makes Grafana reachable on `:3000`.
-- **AC5** `scripts/dev-up.sh` (and any README/docs) no longer depend on `--profile services`.
-- **AC6** Smoke: the previously-verified platform behaviour (auth/login, AI generation → proposals)
-  still works under the new default compose.
+## 4. Per-page migration checklist (acceptance)
+For each page:
+- [ ] Title uses `PageHeader` (icon + description + `actions` slot).
+- [ ] Buttons → `Button`; inputs → `Input`; selects → `Select`; status pills → `StatusBadge`
+      (variant via `lib/status`); surfaces → `Card`/token classes.
+- [ ] **No raw `slate-*/blue-*/green-*/red-*/amber-*/purple-*` chrome classes** — semantic tokens
+      only (`bg-surface`, `border-border`, `text-fg/-muted/-subtle`, `text-primary`, status tokens).
+- [ ] **No purple/indigo** accents (moved to azure `primary`/`subtle`).
+- [ ] Data-dense pages call `usePageWidth('wide')`; wide tables scroll in their own container.
+- [ ] Accessible: labelled inputs, `aria-label` on icon-only buttons, visible focus rings.
+- [ ] `npx tsc -b` clean; presentation-only (no logic/data change); one commit for the page.
 
 ## 5. Commands
-- **Run the platform (default):** `docker compose up -d`  (or `scripts/dev-up.sh`).
-- **Run with monitoring:** `docker compose -f docker-compose.yml -f docker-compose-full.yml up -d`.
-- **Validate:** `docker compose config -q` and `docker compose -f docker-compose.yml -f
-  docker-compose-full.yml config -q`.
-- **Stop:** `docker compose down` (default) / add `-f docker-compose-full.yml` to also stop monitoring.
+- **Type gate (per page):** `cd platform-portal/frontend && npx tsc -b`
+- **Visual check:** `npm run dev` (Vite dev server; do **not** run `vite build` casually — its
+  `emptyOutDir` wipes the deployed `pw-trace` assets under `src/main/resources/static`).
+- **Full build:** `npm run build` (`tsc -b && vite build`).
+- **Format/lint:** `npm run format`, `npm run lint`.
 
-## 6. Project structure (touched files)
+## 6. Project structure (touched)
 ```
-docker-compose.yml            # slim default — platform + data/storage/cache/pipeline/LLM + log-search
-docker-compose-full.yml       # NEW — override adding grafana/prometheus/loki/promtail back
-scripts/dev-up.sh             # updated: default no longer needs --profile services
-infrastructure/{grafana,prometheus,loki,promtail}/   # config dirs — KEPT (the override binds them)
-.env                          # unchanged
+platform-portal/frontend/src/
+  index.css                       # @theme design tokens
+  components/ui/                   # Button, Card, PageHeader, StatusBadge, Input, Select, Table, index
+  components/layout/               # AppLayout, PageWidth, ProjectLayout, Sidebar
+  components/{EmptyState,ErrorMessage,LoadingSpinner,StatCard}.tsx   # tokenized
+  lib/{status.ts,utils.ts}         # StatusVariant mapping + tokenized color helpers
+  pages/*.tsx                      # 35 pages migrated incrementally
+tailwind.config.js                 # v4-ignored (kept, inert); tokens live in index.css
 ```
 
 ## 7. Code style / conventions
-- Compose v2 (no top-level `version:` key — matches the current file). Preserve the named-volume bind
-  pattern (`driver: local`, `driver_opts: {type: none, o: bind, device: ${PWD}/...}`). Keep the
-  per-service comment headers, healthchecks, and `depends_on` conditions. The override file mirrors
-  the same conventions and only adds; it never redefines base services.
+- **Tailwind v4**: tokens in `@theme`; use **semantic token utilities**, never raw palette, for
+  chrome. Variants via **cva**; compose classes with `cn()` (`clsx` + `tailwind-merge`).
+- Composition over configuration for primitives; keep components focused (< ~200 lines).
+- **WCAG 2.1 AA**: real `<button>`s, labelled inputs, focus-visible rings, meaningful empty/error/
+  loading states.
+- One page per commit; stage only that page's file(s); commit message `Portal UI: migrate <Page> …`.
 
 ## 8. Testing strategy
-- **Lint/validate:** `docker compose config -q` (default) and the merged `-f … -f …` form both parse
-  with no undefined-service/volume errors.
-- **Default bring-up smoke:** `docker compose up -d` → all kept services healthy; portal
-  `/actuator/health` 200 + login; confirm `docker compose ps` shows no grafana/prometheus/loki/
-  promtail; analytics log-search still backed by OpenSearch+Logstash.
-- **Merged bring-up smoke:** `-f docker-compose.yml -f docker-compose-full.yml up -d` → Grafana
-  reachable on `:3000`, Prometheus on `:9090`.
-- No unit tests apply (infra/YAML only); verification is `compose config` + bring-up.
+- **Type gate**: `npx tsc -b` must pass after every page (the established gate — no Jest/Vitest here).
+- **Visual pass**: `npm run dev` to confirm the refreshed palette + layout render correctly (Tailwind
+  v4 does **not** error on a mistyped token utility, so type-check alone is insufficient — a human/dev
+  visual check is required before relying on it).
+- **Final**: `npm run build` (full `tsc -b && vite build`) once migration completes.
+- Optional: axe-core / keyboard tab-through on key pages.
 
 ## 9. Boundaries
-
 **Always**
-- Keep the default self-runnable with a single `docker compose up -d`.
-- Preserve persistence + config volumes for every kept service (postgres/kafka/redis/minio/opensearch/
-  logstash data must survive the restructure).
-- Keep healthchecks and `depends_on` conditions correct after removing services.
-- Make the override purely additive (define only the monitoring services + their volumes).
+- Use design tokens + `ui/` primitives; keep per-page commit + `tsc` gate.
+- Presentation-only — preserve every page's behavior, data flow, and query keys exactly.
+- Keep it accessible; keep the azure/cool-slate direction consistent.
 
 **Ask first**
-- Changing any image tag, published port, resource limit, or the named-volume bind strategy.
-- Removing OpenSearch or Logstash (decided to keep), or moving Kafka/MinIO/Redis out of the default.
-- Editing `.env` or the `x-security-env` anchor / security or DB env wiring.
+- Changing token **values** (palette/radii/spacing) or the primary hue.
+- Adding a dependency (e.g. shadcn/ui, a component lib) or a new primitive's API shape.
+- Restructuring a page's **logic/state** (vs. restyling), or touching non-portal / backend code.
+- Running `vite build` against the real `outDir` (wipes `pw-trace`).
 
 **Never**
-- Delete the `infrastructure/{grafana,prometheus,loki,promtail}` config directories — the full
-  override still binds them.
-- Break the data volumes (no rename/retarget of postgres/kafka/minio/opensearch volumes).
-- Change application images, Dockerfiles, app config, or migrations as part of this restructure.
+- Introduce a purple/indigo primary or the generic "AI aesthetic".
+- Change application logic, API calls, or DB/data while restyling.
+- `git add -A` blindly; break `tsc`; commit unsigned without permission.
 
 ## 10. Out of scope
-- Any application-code, Dockerfile, or image changes.
-- Introducing new monitoring/observability tooling or dashboards.
-- Changing LiteLLM/Anthropic configuration or model routing.
-- A standalone (non-override) full compose file (we chose the override approach).
+- Backend / other frontends (adapters, testkit).
+- Functional/behavioral changes, new features, or new pages.
+- Deep re-architecture of page state management.
