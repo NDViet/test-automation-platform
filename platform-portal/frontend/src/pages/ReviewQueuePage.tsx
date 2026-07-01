@@ -7,6 +7,7 @@ import { cn, relativeTime } from '@/lib/utils'
 import type { WorkItem, WorkItemType } from '@/lib/types'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import ErrorMessage from '@/components/ErrorMessage'
+import { Button } from '@/components/ui'
 import {
   Inbox,
   ChevronRight,
@@ -25,33 +26,39 @@ import {
   User,
 } from 'lucide-react'
 
+// Outline action-button classes for reject/approve affordances.
+const rejectBtn =
+  'flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-danger border border-danger-border rounded-md hover:bg-danger-bg disabled:opacity-50'
+const approveBtn =
+  'flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-success border border-success-border rounded-md hover:bg-success-bg disabled:opacity-50'
+
 // ── Type metadata ─────────────────────────────────────────────────────────────
 
 const TYPE_META: Record<WorkItemType, { label: string; color: string; icon: React.ReactNode }> = {
   TEST_CASE_REVIEW: {
     label: 'Test Case Review',
-    color: 'text-blue-700 bg-blue-100',
-    icon: <FileText size={14} className="text-blue-500" />,
+    color: 'text-info bg-info-bg',
+    icon: <FileText size={14} className="text-info" />,
   },
   AUTOMATION_PR: {
     label: 'Automation PR',
-    color: 'text-purple-700 bg-purple-100',
-    icon: <GitPullRequest size={14} className="text-purple-500" />,
+    color: 'text-primary-subtle-fg bg-primary-subtle',
+    icon: <GitPullRequest size={14} className="text-primary" />,
   },
   AGENT_REVIEW: {
     label: 'Agent Review',
-    color: 'text-amber-700 bg-amber-100',
-    icon: <Sparkles size={14} className="text-amber-500" />,
+    color: 'text-warning bg-warning-bg',
+    icon: <Sparkles size={14} className="text-warning" />,
   },
   WORKFLOW: {
     label: 'Workflow',
-    color: 'text-slate-600 bg-slate-100',
-    icon: <Loader2 size={14} className="text-slate-500" />,
+    color: 'text-neutral bg-neutral-bg',
+    icon: <Loader2 size={14} className="text-fg-muted" />,
   },
   IMPACT_ANALYSIS: {
     label: 'Impact Analysis',
-    color: 'text-green-700 bg-green-100',
-    icon: <CheckCircle size={14} className="text-green-500" />,
+    color: 'text-success bg-success-bg',
+    icon: <CheckCircle size={14} className="text-success" />,
   },
 }
 
@@ -61,12 +68,12 @@ function typeMeta(t: WorkItemType): { label: string; color: string; icon: React.
 
 function statusIcon(status: string, itemType: WorkItemType): React.ReactNode {
   if (itemType === 'WORKFLOW') {
-    if (status === 'RUNNING') return <Loader2 size={13} className="animate-spin text-blue-500" />
-    if (status === 'AWAITING_REVIEW') return <AlertCircle size={13} className="text-amber-500" />
-    if (status === 'PENDING') return <Clock size={13} className="text-slate-400" />
+    if (status === 'RUNNING') return <Loader2 size={13} className="animate-spin text-primary" />
+    if (status === 'AWAITING_REVIEW') return <AlertCircle size={13} className="text-warning" />
+    if (status === 'PENDING') return <Clock size={13} className="text-fg-subtle" />
   }
-  if (status === 'PENDING') return <Clock size={13} className="text-amber-500" />
-  if (status === 'COMPLETED') return <CheckCircle size={13} className="text-green-500" />
+  if (status === 'PENDING') return <Clock size={13} className="text-warning" />
+  if (status === 'COMPLETED') return <CheckCircle size={13} className="text-success" />
   return null
 }
 
@@ -118,55 +125,46 @@ function DecideModal({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md">
-        <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
-          <h2 className="font-semibold text-slate-900">
+      <div className="bg-surface rounded-xl shadow-md w-full max-w-md">
+        <div className="px-6 py-5 border-b border-border flex items-center justify-between">
+          <h2 className="font-semibold text-fg">
             {action === 'approve' ? 'Approve' : 'Reject'} Review Request
           </h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-700">
+          <button onClick={onClose} className="text-fg-subtle hover:text-fg" aria-label="Close">
             <X size={18} />
           </button>
         </div>
         <div className="px-6 py-5 space-y-4">
-          <p className="text-sm text-slate-600 leading-relaxed">{item.title}</p>
+          <p className="text-sm text-fg-muted leading-relaxed">{item.title}</p>
           <div>
-            <label className="text-xs font-medium text-slate-500 block mb-1">
+            <label className="text-xs font-medium text-fg-muted block mb-1">
               Your name (optional)
             </label>
-            <div className="flex items-center gap-2 border border-slate-200 rounded-lg px-3 py-2">
-              <User size={14} className="text-slate-400" />
+            <div className="flex items-center gap-2 border border-border-strong rounded-md px-3 py-2">
+              <User size={14} className="text-fg-subtle" />
               <input
                 value={decidedBy}
                 onChange={e => setDecidedBy(e.target.value)}
                 placeholder="e.g. John Smith"
-                className="flex-1 text-sm outline-none"
+                className="flex-1 text-sm outline-none bg-transparent text-fg"
               />
             </div>
           </div>
           {mutation.isError && (
-            <p className="text-xs text-red-600">Failed to submit decision. Please try again.</p>
+            <p className="text-xs text-danger">Failed to submit decision. Please try again.</p>
           )}
         </div>
-        <div className="px-6 py-4 border-t border-slate-100 flex gap-3 justify-end">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50"
-          >
+        <div className="px-6 py-4 border-t border-border flex gap-3 justify-end">
+          <Button variant="secondary" onClick={onClose}>
             Cancel
-          </button>
-          <button
+          </Button>
+          <Button
+            variant={action === 'approve' ? 'primary' : 'danger'}
             onClick={() => mutation.mutate()}
-            disabled={mutation.isPending}
-            className={cn(
-              'flex items-center gap-2 px-4 py-2 text-sm text-white rounded-lg disabled:opacity-50',
-              action === 'approve'
-                ? 'bg-green-600 hover:bg-green-700'
-                : 'bg-red-600 hover:bg-red-700',
-            )}
+            loading={mutation.isPending}
           >
-            {mutation.isPending && <Loader2 size={13} className="animate-spin" />}
             {action === 'approve' ? 'Approve' : 'Reject'}
-          </button>
+          </Button>
         </div>
       </div>
     </div>
@@ -192,11 +190,7 @@ function TestCaseActions({ item, projectId }: { item: WorkItem; projectId: strin
 
   return (
     <div className="flex gap-2">
-      <button
-        onClick={() => rejectMutation.mutate()}
-        disabled={busy}
-        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-700 border border-red-200 rounded-lg hover:bg-red-50 disabled:opacity-50"
-      >
+      <button onClick={() => rejectMutation.mutate()} disabled={busy} className={rejectBtn}>
         {rejectMutation.isPending ? (
           <Loader2 size={11} className="animate-spin" />
         ) : (
@@ -204,11 +198,7 @@ function TestCaseActions({ item, projectId }: { item: WorkItem; projectId: strin
         )}
         Reject
       </button>
-      <button
-        onClick={() => approveMutation.mutate()}
-        disabled={busy}
-        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-green-700 border border-green-200 rounded-lg hover:bg-green-50 disabled:opacity-50"
-      >
+      <button onClick={() => approveMutation.mutate()} disabled={busy} className={approveBtn}>
         {approveMutation.isPending ? (
           <Loader2 size={11} className="animate-spin" />
         ) : (
@@ -253,7 +243,7 @@ function WorkItemCard({
   }
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-3">
+    <div className="bg-surface rounded-lg border border-border shadow-xs p-5 space-y-3">
       {/* Header */}
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-2 min-w-0 flex-1">
@@ -261,18 +251,18 @@ function WorkItemCard({
           <span className={cn('text-xs px-2 py-0.5 rounded-full font-medium shrink-0', color)}>
             {label}
           </span>
-          <span className="text-xs text-slate-400 shrink-0">{relativeTime(item.createdAt)}</span>
+          <span className="text-xs text-fg-subtle shrink-0">{relativeTime(item.createdAt)}</span>
         </div>
         <div className="flex items-center gap-1 shrink-0">
           {statusIcon(item.status, item.itemType)}
-          <span className="text-xs text-slate-500">{item.status.replace('_', ' ')}</span>
+          <span className="text-xs text-fg-muted">{item.status.replace('_', ' ')}</span>
         </div>
       </div>
 
       {/* Title + description */}
       <div>
-        <p className="text-sm font-medium text-slate-800 leading-snug">{item.title}</p>
-        <p className="text-xs text-slate-500 mt-1 leading-relaxed">{item.description}</p>
+        <p className="text-sm font-medium text-fg leading-snug">{item.title}</p>
+        <p className="text-xs text-fg-muted mt-1 leading-relaxed">{item.description}</p>
       </div>
 
       {/* Actions */}
@@ -282,7 +272,7 @@ function WorkItemCard({
             <TestCaseActions item={item} projectId={projectId} />
             <button
               onClick={() => navigate(`${base}/test-cases`)}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 ml-1"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-fg border border-border-strong rounded-md hover:bg-surface-muted ml-1"
             >
               <ArrowRight size={11} />
               View Details
@@ -292,17 +282,11 @@ function WorkItemCard({
 
         {item.itemType === 'AGENT_REVIEW' && (
           <>
-            <button
-              onClick={() => onDecide(item, 'reject')}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-700 border border-red-200 rounded-lg hover:bg-red-50"
-            >
+            <button onClick={() => onDecide(item, 'reject')} className={rejectBtn}>
               <XCircle size={11} />
               Reject
             </button>
-            <button
-              onClick={() => onDecide(item, 'approve')}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-green-700 border border-green-200 rounded-lg hover:bg-green-50"
-            >
+            <button onClick={() => onDecide(item, 'approve')} className={approveBtn}>
               <CheckCircle size={11} />
               Approve
             </button>
@@ -314,7 +298,7 @@ function WorkItemCard({
             href={item.actionUrl}
             target="_blank"
             rel="noreferrer"
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-50"
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-primary border border-primary-subtle rounded-md hover:bg-primary-subtle"
           >
             <ExternalLink size={11} />
             Review on GitHub
@@ -322,17 +306,14 @@ function WorkItemCard({
         )}
 
         {item.itemType === 'IMPACT_ANALYSIS' && (
-          <button
-            onClick={primaryAction}
-            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-green-700 border border-green-200 rounded-lg hover:bg-green-50"
-          >
+          <button onClick={primaryAction} className={approveBtn}>
             <ArrowRight size={11} />
             View Suggestions
           </button>
         )}
 
         {item.itemType === 'WORKFLOW' && (
-          <span className="text-xs text-slate-400 italic">
+          <span className="text-xs text-fg-subtle italic">
             {item.status === 'RUNNING'
               ? 'AI is working…'
               : item.status === 'AWAITING_REVIEW'
@@ -344,9 +325,9 @@ function WorkItemCard({
 
       {/* Agent review artifact manifest preview */}
       {item.itemType === 'AGENT_REVIEW' && item.metadata.artifactManifest != null && (
-        <div className="bg-slate-50 border border-slate-200 rounded-lg px-3 py-2">
-          <p className="text-xs font-medium text-slate-600 mb-1">Artifacts</p>
-          <pre className="text-xs text-slate-500 whitespace-pre-wrap break-all">
+        <div className="bg-surface-muted border border-border rounded-lg px-3 py-2">
+          <p className="text-xs font-medium text-fg-muted mb-1">Artifacts</p>
+          <pre className="text-xs text-fg-muted whitespace-pre-wrap break-all">
             {JSON.stringify(item.metadata.artifactManifest as object, null, 2).slice(0, 400)}
           </pre>
         </div>
@@ -398,36 +379,37 @@ export default function ReviewQueuePage() {
     <div className="space-y-6">
       {/* Header */}
       <div>
-        <div className="flex items-center gap-2 text-sm text-slate-500 mb-1">
-          <button onClick={() => navigate('/')} className="hover:text-blue-600">
+        <div className="flex items-center gap-2 text-sm text-fg-muted mb-1">
+          <button onClick={() => navigate('/')} className="hover:text-primary">
             Overview
           </button>
           <ChevronRight size={14} />
-          <button onClick={() => navigate(base)} className="hover:text-blue-600">
+          <button onClick={() => navigate(base)} className="hover:text-primary">
             {project.name}
           </button>
           <ChevronRight size={14} />
-          <span className="text-slate-700">Review Queue</span>
+          <span className="text-fg">Review Queue</span>
         </div>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Inbox size={20} className="text-slate-400" />
-            <h1 className="text-2xl font-bold text-slate-900">Review Queue</h1>
+            <Inbox size={20} className="text-fg-muted" />
+            <h1 className="text-xl font-semibold tracking-tight text-fg">Review Queue</h1>
             {pendingCount > 0 && (
-              <span className="inline-flex items-center justify-center w-6 h-6 text-xs font-bold text-white bg-red-500 rounded-full">
+              <span className="inline-flex items-center justify-center w-6 h-6 text-xs font-bold text-white bg-danger rounded-full">
                 {pendingCount}
               </span>
             )}
           </div>
           <button
             onClick={() => refetch()}
-            className="p-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg"
+            className="p-2 text-fg-muted hover:text-fg hover:bg-surface-muted rounded-md"
             title="Refresh"
+            aria-label="Refresh"
           >
             <RefreshCw size={16} />
           </button>
         </div>
-        <p className="text-sm text-slate-500 mt-1">
+        <p className="text-sm text-fg-muted mt-1">
           Everything that needs your attention — test case approvals, PRs to review, agent
           decisions, and more.
         </p>
@@ -440,10 +422,10 @@ export default function ReviewQueuePage() {
             key={f.value}
             onClick={() => setFilter(f.value)}
             className={cn(
-              'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium transition-colors',
+              'flex items-center gap-1.5 px-3 py-1.5 rounded-md text-sm font-medium transition-colors',
               filter === f.value
-                ? 'bg-blue-600 text-white'
-                : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50',
+                ? 'bg-primary text-primary-fg'
+                : 'bg-surface border border-border text-fg-muted hover:bg-surface-muted',
             )}
           >
             {f.label}
@@ -451,7 +433,9 @@ export default function ReviewQueuePage() {
               <span
                 className={cn(
                   'text-xs px-1.5 py-0.5 rounded-full font-medium',
-                  filter === f.value ? 'bg-blue-500 text-white' : 'bg-slate-100 text-slate-600',
+                  filter === f.value
+                    ? 'bg-primary-hover text-white'
+                    : 'bg-surface-muted text-fg-muted',
                 )}
               >
                 {counts[f.value]}
@@ -463,14 +447,14 @@ export default function ReviewQueuePage() {
 
       {/* Items */}
       {filtered.length === 0 ? (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm px-5 py-20 text-center">
-          <Inbox size={36} className="mx-auto mb-3 text-slate-300" />
-          <p className="text-sm font-medium text-slate-500">
+        <div className="bg-surface rounded-lg border border-border shadow-xs px-5 py-20 text-center">
+          <Inbox size={36} className="mx-auto mb-3 text-fg-subtle" />
+          <p className="text-sm font-medium text-fg-muted">
             {filter === 'ALL'
               ? 'No work items right now'
               : `No items in "${FILTERS.find(f => f.value === filter)?.label}"`}
           </p>
-          <p className="text-xs text-slate-400 mt-1">
+          <p className="text-xs text-fg-subtle mt-1">
             {filter === 'ALL'
               ? 'Trigger an impact analysis, generate test cases, or run a flaky fix to see items here.'
               : 'Try a different filter.'}
