@@ -6,8 +6,12 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.platform.agent.node.tools.GitHubApiClient;
 import com.platform.core.domain.ImpactAnalysis;
 import com.platform.core.domain.ProjectIntegrationConfig;
+import com.platform.core.domain.ProjectRepoAssignment;
 import com.platform.core.repository.ImpactAnalysisRepository;
 import com.platform.core.repository.ProjectIntegrationConfigRepository;
+import com.platform.core.repository.ProjectRepoAssignmentRepository;
+import com.platform.core.service.CredentialResolver;
+import com.platform.core.service.ResolvedCredential;
 import java.util.*;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -29,6 +33,8 @@ public class ImpactAnalysisController {
 
   private final ImpactAnalysisRepository impactRepo;
   private final ProjectIntegrationConfigRepository configRepo;
+  private final ProjectRepoAssignmentRepository assignmentRepo;
+  private final CredentialResolver credentialResolver;
   private final GitHubApiClient gitHubApiClient;
   private final ImpactAnalysisService impactAnalysisService;
   private final ObjectMapper mapper;
@@ -36,11 +42,15 @@ public class ImpactAnalysisController {
   public ImpactAnalysisController(
       ImpactAnalysisRepository impactRepo,
       ProjectIntegrationConfigRepository configRepo,
+      ProjectRepoAssignmentRepository assignmentRepo,
+      CredentialResolver credentialResolver,
       GitHubApiClient gitHubApiClient,
       ImpactAnalysisService impactAnalysisService,
       ObjectMapper mapper) {
     this.impactRepo = impactRepo;
     this.configRepo = configRepo;
+    this.assignmentRepo = assignmentRepo;
+    this.credentialResolver = credentialResolver;
     this.gitHubApiClient = gitHubApiClient;
     this.impactAnalysisService = impactAnalysisService;
     this.mapper = mapper;
@@ -57,45 +67,87 @@ public class ImpactAnalysisController {
 
   @GetMapping("/{projectId}/prs")
   public ResponseEntity<List<Map<String, Object>>> listOpenPrs(@PathVariable UUID projectId) {
+    List<Map<String, Object>> result = new ArrayList<>();
+    // A repo can be tagged Codebase in two independent surfaces; de-dupe by repoFullName so a repo
+    // present in both is listed once.
+    Set<String> seen = new HashSet<>();
+
+    // Source 1 — GITHUB integrations tagged repoType=CODEBASE (Project Settings → Integrations).
+    // Token comes from the config's own params (existing behaviour, unchanged).
     List<ProjectIntegrationConfig> configs =
         configRepo.findByProjectIdAndIntegrationTypeAndRepoTypeAndEnabled(
             projectId, "GITHUB", "CODEBASE", true);
-
-    List<Map<String, Object>> result = new ArrayList<>();
     for (ProjectIntegrationConfig config : configs) {
       String repoFullName = config.param("repoFullName");
-      String token = config.param("token");
       if (repoFullName == null || repoFullName.isBlank()) continue;
+      if (!seen.add(repoFullName)) continue;
+      fetchOpenPrs(repoFullName, config.param("token"), result);
+    }
 
-      String[] parts = repoFullName.split("/", 2);
-      if (parts.length != 2) continue;
-      String owner = parts[0];
-      String repo = parts[1];
-
-      try {
-        String json = gitHubApiClient.getOpenPRs(owner, repo, token);
-        List<JsonNode> prs = mapper.readValue(json, new TypeReference<List<JsonNode>>() {});
-        for (JsonNode pr : prs) {
-          Map<String, Object> entry = new LinkedHashMap<>();
-          entry.put("number", pr.path("number").asInt());
-          entry.put("title", pr.path("title").asText(""));
-          entry.put("html_url", pr.path("html_url").asText(""));
-          entry.put("state", pr.path("state").asText(""));
-          entry.put("user", pr.path("user").path("login").asText(""));
-          entry.put("updated_at", pr.path("updated_at").asText(""));
-          entry.put("head_ref", pr.path("head").path("ref").asText(""));
-          entry.put("base_ref", pr.path("base").path("ref").asText(""));
-          String body = pr.path("body").asText("");
-          entry.put("body", body.length() > 500 ? body.substring(0, 500) : body);
-          entry.put("repoFullName", repoFullName);
-          result.add(entry);
-        }
-      } catch (Exception e) {
-        log.warn("listOpenPrs: failed to fetch PRs for {}/{}: {}", owner, repo, e.getMessage());
+    // Source 2 — repos assigned role=CODEBASE via Project Settings → GitHub (ProjectRepoAssignment).
+    // The assignment stores no token; resolve the effective GitHub PAT via the Org→Project→Team
+    // credential cascade (resolved lazily, once, only if there is a Codebase assignment to fetch).
+    List<ProjectRepoAssignment> assignments =
+        assignmentRepo.findByProjectIdOrderByRepoFullName(projectId);
+    String assignedToken = null;
+    boolean tokenResolved = false;
+    for (ProjectRepoAssignment assignment : assignments) {
+      if (!"CODEBASE".equalsIgnoreCase(assignment.getRole())) continue;
+      String repoFullName = assignment.getRepoFullName();
+      if (repoFullName == null || repoFullName.isBlank()) continue;
+      if (!seen.add(repoFullName)) continue;
+      if (!tokenResolved) {
+        assignedToken = resolveGitHubToken(projectId);
+        tokenResolved = true;
       }
+      if (assignedToken == null || assignedToken.isBlank()) {
+        log.warn(
+            "listOpenPrs: no GitHub token resolved for project {} — skipping Codebase repo {}",
+            projectId,
+            repoFullName);
+        continue;
+      }
+      fetchOpenPrs(repoFullName, assignedToken, result);
     }
 
     return ResponseEntity.ok(result);
+  }
+
+  /** Fetch open PRs for one "owner/repo" and append mapped entries to {@code result}. */
+  private void fetchOpenPrs(String repoFullName, String token, List<Map<String, Object>> result) {
+    String[] parts = repoFullName.split("/", 2);
+    if (parts.length != 2) return;
+    String owner = parts[0];
+    String repo = parts[1];
+    try {
+      String json = gitHubApiClient.getOpenPRs(owner, repo, token);
+      List<JsonNode> prs = mapper.readValue(json, new TypeReference<List<JsonNode>>() {});
+      for (JsonNode pr : prs) {
+        Map<String, Object> entry = new LinkedHashMap<>();
+        entry.put("number", pr.path("number").asInt());
+        entry.put("title", pr.path("title").asText(""));
+        entry.put("html_url", pr.path("html_url").asText(""));
+        entry.put("state", pr.path("state").asText(""));
+        entry.put("user", pr.path("user").path("login").asText(""));
+        entry.put("updated_at", pr.path("updated_at").asText(""));
+        entry.put("head_ref", pr.path("head").path("ref").asText(""));
+        entry.put("base_ref", pr.path("base").path("ref").asText(""));
+        String body = pr.path("body").asText("");
+        entry.put("body", body.length() > 500 ? body.substring(0, 500) : body);
+        entry.put("repoFullName", repoFullName);
+        result.add(entry);
+      }
+    } catch (Exception e) {
+      log.warn("listOpenPrs: failed to fetch PRs for {}: {}", repoFullName, e.getMessage());
+    }
+  }
+
+  /** Effective GitHub PAT (pat, then token) via the Org→Project→Team cascade, or null. */
+  private String resolveGitHubToken(UUID projectId) {
+    ResolvedCredential cred = credentialResolver.resolve(projectId, "GITHUB").orElse(null);
+    if (cred == null) return null;
+    String pat = cred.secret("pat");
+    return (pat != null && !pat.isBlank()) ? pat : cred.secret("token");
   }
 
   // ── Create analysis + trigger async AI run ────────────────────────────────

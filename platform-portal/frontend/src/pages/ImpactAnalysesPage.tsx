@@ -218,6 +218,25 @@ function CreateModal({
     enabled: !!projectId,
   })
 
+  // Whether any Codebase repo is configured — via the GitHub tab (repo assignments) or the
+  // Integrations tab (GITHUB config, repoType=CODEBASE). Lets the empty state tell "not configured"
+  // apart from "configured, but no open PRs right now".
+  const { data: repoAssignments = [] } = useQuery({
+    queryKey: ['project-github-repos', projectId],
+    queryFn: () => api.projectGitHubRepos(projectId),
+    enabled: !!projectId,
+  })
+  const { data: projectIntegrations = [] } = useQuery({
+    queryKey: ['integrations', projectId],
+    queryFn: () => api.integrations(projectId),
+    enabled: !!projectId,
+  })
+  const codebaseConfigured =
+    repoAssignments.some(a => a.role === 'CODEBASE') ||
+    projectIntegrations.some(
+      c => c.integrationType === 'GITHUB' && c.repoType === 'CODEBASE' && c.enabled,
+    )
+
   // Auto-expand top-level nodes on first load
   const autoExpanded = useRef(false)
   useEffect(() => {
@@ -323,12 +342,25 @@ function CreateModal({
             ) : prList.length === 0 ? (
               <div className="text-center py-12 text-sm text-fg-muted">
                 <AlertTriangle size={32} className="mx-auto mb-3 text-warning" />
-                <p className="font-medium">No Codebase repos configured</p>
-                <p className="mt-1">
-                  Go to Project Settings and mark a GitHub repo as{' '}
-                  <span className="font-mono bg-surface-muted px-1 rounded">Codebase</span> to list
-                  PRs here.
-                </p>
+                {codebaseConfigured ? (
+                  <>
+                    <p className="font-medium">No open pull requests</p>
+                    <p className="mt-1">
+                      Codebase repos are configured for this project, but none have open PRs right
+                      now. Open a PR in a Codebase repo and it will appear here.
+                    </p>
+                  </>
+                ) : (
+                  <>
+                    <p className="font-medium">No Codebase repos configured</p>
+                    <p className="mt-1">
+                      In Project Settings, mark a GitHub repo as{' '}
+                      <span className="font-mono bg-surface-muted px-1 rounded">Codebase</span> —
+                      under the <span className="font-medium">GitHub</span> tab (repo roles) or the{' '}
+                      <span className="font-medium">Integrations</span> tab — to list its PRs here.
+                    </p>
+                  </>
+                )}
               </div>
             ) : (
               <div className="space-y-2">

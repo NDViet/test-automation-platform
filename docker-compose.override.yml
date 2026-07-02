@@ -1,0 +1,10 @@
+# Local dev override — trust the corporate Zscaler root CA so JVM services can make outbound
+# HTTPS calls (e.g. api.github.com) through the intercepting proxy. Not committed to shared config;
+# the truststore is JDK defaults + Zscaler root (infrastructure/certs/cacerts). Reversible: delete
+# this file + infrastructure/certs, then `docker compose up -d`.
+services:
+  platform-agent:
+    volumes:
+      - ./infrastructure/certs/cacerts:/certs/cacerts:ro
+    environment:
+      JAVA_TOOL_OPTIONS: "-Djavax.net.ssl.trustStore=/certs/cacerts -Djavax.net.ssl.trustStorePassword=changeit"

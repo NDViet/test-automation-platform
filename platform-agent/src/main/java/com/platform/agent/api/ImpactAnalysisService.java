@@ -10,6 +10,8 @@ import com.platform.core.domain.ProjectIntegrationConfig;
 import com.platform.core.repository.ImpactAnalysisRepository;
 import com.platform.core.repository.PlatformTestCaseRepository;
 import com.platform.core.repository.ProjectIntegrationConfigRepository;
+import com.platform.core.service.CredentialResolver;
+import com.platform.core.service.ResolvedCredential;
 import com.platform.llm.LlmChatModelProvider;
 import com.platform.llm.LlmSettings;
 import dev.langchain4j.data.message.SystemMessage;
@@ -65,6 +67,7 @@ public class ImpactAnalysisService {
   private final ProjectIntegrationConfigRepository configRepo;
   private final PlatformTestCaseRepository testCaseRepo;
   private final GitHubApiClient gitHubApiClient;
+  private final CredentialResolver credentialResolver;
   private final LlmChatModelProvider chatModelProvider;
   private final LlmSettings llmSettings;
   private final ObjectMapper mapper;
@@ -75,6 +78,7 @@ public class ImpactAnalysisService {
       ProjectIntegrationConfigRepository configRepo,
       PlatformTestCaseRepository testCaseRepo,
       GitHubApiClient gitHubApiClient,
+      CredentialResolver credentialResolver,
       LlmChatModelProvider chatModelProvider,
       LlmSettings llmSettings,
       ObjectMapper mapper,
@@ -83,6 +87,7 @@ public class ImpactAnalysisService {
     this.configRepo = configRepo;
     this.testCaseRepo = testCaseRepo;
     this.gitHubApiClient = gitHubApiClient;
+    this.credentialResolver = credentialResolver;
     this.chatModelProvider = chatModelProvider;
     this.llmSettings = llmSettings;
     this.mapper = mapper;
@@ -203,20 +208,28 @@ public class ImpactAnalysisService {
     List<ProjectIntegrationConfig> configs =
         configRepo.findByProjectIdAndIntegrationTypeAndRepoTypeAndEnabled(
             projectId, "GITHUB", "CODEBASE", true);
-    return configs.stream()
-        .filter(c -> repoFullName.equals(c.param("repoFullName")))
-        .map(c -> c.param("token"))
-        .filter(t -> t != null && !t.isBlank())
-        .findFirst()
-        // Fall back to any enabled GITHUB config token
-        .orElseGet(
-            () ->
-                configRepo.findByProjectId(projectId).stream()
-                    .filter(c -> "GITHUB".equals(c.getIntegrationType()) && c.isEnabled())
-                    .map(c -> c.param("token"))
-                    .filter(t -> t != null && !t.isBlank())
-                    .findFirst()
-                    .orElse(null));
+    String token =
+        configs.stream()
+            .filter(c -> repoFullName.equals(c.param("repoFullName")))
+            .map(c -> c.param("token"))
+            .filter(t -> t != null && !t.isBlank())
+            .findFirst()
+            // Fall back to any enabled GITHUB config token
+            .orElseGet(
+                () ->
+                    configRepo.findByProjectId(projectId).stream()
+                        .filter(c -> "GITHUB".equals(c.getIntegrationType()) && c.isEnabled())
+                        .map(c -> c.param("token"))
+                        .filter(t -> t != null && !t.isBlank())
+                        .findFirst()
+                        .orElse(null));
+    if (token != null && !token.isBlank()) return token;
+    // GitHub-tab repos (ProjectRepoAssignment) store no token on the config — resolve the effective
+    // GitHub PAT via the Org→Project→Team credential cascade, same as PR listing.
+    ResolvedCredential cred = credentialResolver.resolve(projectId, "GITHUB").orElse(null);
+    if (cred == null) return null;
+    String pat = cred.secret("pat");
+    return (pat != null && !pat.isBlank()) ? pat : cred.secret("token");
   }
 
   private List<Map<String, Object>> fetchRequirements(UUID projectId, List<String> linkedReqIds) {

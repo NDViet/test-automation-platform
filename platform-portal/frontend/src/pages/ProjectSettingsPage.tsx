@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useParams, Link } from 'react-router-dom'
 import { useProject } from '@/components/layout/ProjectLayout'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -1072,6 +1072,10 @@ function GitHubReposTab({ projectId, orgId }: { projectId: string; orgId: string
   const [assignments, setAssignments] = useState<Map<string, string>>(new Map())
   const [dirty, setDirty] = useState(false)
   const [saveOk, setSaveOk] = useState(false)
+  // View filter — repos are DB-cached; "Managed" narrows the (potentially large) list to the
+  // tagged/assigned repos so they're the managed working set. Defaults on once any repo is tagged.
+  const [managedOnly, setManagedOnly] = useState(false)
+  const managedDefaulted = useRef(false)
 
   // Sync interval local state
   const [syncInterval, setSyncInterval] = useState<number | null>(null)
@@ -1112,6 +1116,14 @@ function GitHubReposTab({ projectId, orgId }: { projectId: string; orgId: string
       setAssignments(m)
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [existingAssignments])
+
+  // Default to the "Managed" view on first load when the project already has tagged repos.
+  useEffect(() => {
+    if (!managedDefaulted.current && existingAssignments.length > 0) {
+      managedDefaulted.current = true
+      setManagedOnly(true)
+    }
   }, [existingAssignments])
 
   const syncMutation = useMutation({
@@ -1164,9 +1176,11 @@ function GitHubReposTab({ projectId, orgId }: { projectId: string; orgId: string
     setSaveOk(false)
   }
 
-  const visibleRepos = (cacheData?.repos ?? []).filter(
-    r => !search || r.fullName.toLowerCase().includes(search.toLowerCase()),
-  )
+  const visibleRepos = (cacheData?.repos ?? []).filter(r => {
+    if (managedOnly && !assignments.has(r.fullName)) return false
+    if (search && !r.fullName.toLowerCase().includes(search.toLowerCase())) return false
+    return true
+  })
 
   if (!allCreds.length && !githubCred) {
     return <LoadingSpinner message="Loading credentials…" />
@@ -1258,9 +1272,33 @@ function GitHubReposTab({ projectId, orgId }: { projectId: string; orgId: string
             onChange={e => setSearch(e.target.value)}
             className="flex-1 text-sm border border-border-strong rounded-lg px-3 py-1.5 bg-surface text-fg focus:outline-none focus:ring-2 focus:ring-primary/30"
           />
-          <span className="text-xs text-fg-subtle whitespace-nowrap shrink-0">
-            {assignments.size} assigned
-          </span>
+          {/* Managed / All view filter */}
+          <div className="inline-flex rounded-lg border border-border overflow-hidden shrink-0">
+            <button
+              type="button"
+              onClick={() => setManagedOnly(true)}
+              aria-pressed={managedOnly}
+              className={`px-3 py-1.5 text-xs font-medium transition-colors ${
+                managedOnly
+                  ? 'bg-primary text-primary-fg'
+                  : 'bg-surface text-fg-muted hover:bg-surface-muted'
+              }`}
+            >
+              Managed ({assignments.size})
+            </button>
+            <button
+              type="button"
+              onClick={() => setManagedOnly(false)}
+              aria-pressed={!managedOnly}
+              className={`px-3 py-1.5 text-xs font-medium border-l border-border transition-colors ${
+                !managedOnly
+                  ? 'bg-primary text-primary-fg'
+                  : 'bg-surface text-fg-muted hover:bg-surface-muted'
+              }`}
+            >
+              All{cacheData?.totalCount ? ` (${cacheData.totalCount})` : ''}
+            </button>
+          </div>
         </div>
 
         {cacheLoading ? (
@@ -1269,9 +1307,13 @@ function GitHubReposTab({ projectId, orgId }: { projectId: string; orgId: string
           </div>
         ) : visibleRepos.length === 0 ? (
           <p className="px-5 py-8 text-sm text-fg-muted text-center">
-            {!cacheData?.totalCount
-              ? 'No repos in cache — click Sync to fetch from GitHub.'
-              : 'No repos match the search.'}
+            {managedOnly
+              ? assignments.size === 0
+                ? 'No repos tagged yet — switch to All to tag repositories for this project.'
+                : 'No managed repos match the search.'
+              : !cacheData?.totalCount
+                ? 'No repos in cache — click Sync to fetch from GitHub.'
+                : 'No repos match the search.'}
           </p>
         ) : (
           <div className="max-h-[480px] overflow-y-auto divide-y divide-border">
