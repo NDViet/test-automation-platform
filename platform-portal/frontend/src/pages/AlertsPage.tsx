@@ -1,8 +1,10 @@
 import { useState } from 'react'
 import { useQuery } from '@tanstack/react-query'
+import { Bell } from 'lucide-react'
 import { api } from '@/lib/api'
-import { severityColor, relativeTime, cn } from '@/lib/utils'
-import Badge from '@/components/Badge'
+import { relativeTime } from '@/lib/utils'
+import { severityVariant } from '@/lib/status'
+import { Button, PageHeader, StatusBadge } from '@/components/ui'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import ErrorMessage from '@/components/ErrorMessage'
 
@@ -24,60 +26,47 @@ export default function AlertsPage() {
   if (error) return <ErrorMessage message="Failed to load alerts." onRetry={() => void refetch()} />
 
   const list = alerts ?? []
+  const sevTint = { CRITICAL: 'text-danger', HIGH: 'text-warning', MEDIUM: 'text-info' } as const
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Alerts</h1>
-          <p className="text-sm text-slate-500 mt-1">Organization-wide alert history</p>
-        </div>
-        <div className="flex items-center gap-2">
-          {[7, 14, 30].map(d => (
-            <button
-              key={d}
-              onClick={() => setDays(d)}
-              className={cn(
-                'px-3 py-1.5 text-xs font-medium rounded-lg transition-colors',
-                days === d
-                  ? 'bg-blue-600 text-white'
-                  : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50',
-              )}
-            >
-              {d}d
-            </button>
-          ))}
-        </div>
-      </div>
+      <PageHeader
+        title="Alerts"
+        icon={<Bell size={20} />}
+        description="Organization-wide alert history"
+        actions={
+          <div className="flex items-center gap-1.5">
+            {[7, 14, 30].map(d => (
+              <Button
+                key={d}
+                size="sm"
+                variant={days === d ? 'primary' : 'secondary'}
+                onClick={() => setDays(d)}
+              >
+                {d}d
+              </Button>
+            ))}
+          </div>
+        }
+      />
 
       {/* Summary */}
       <div className="grid grid-cols-3 gap-4">
         {(['CRITICAL', 'HIGH', 'MEDIUM'] as const).map(sev => {
           const count = list.filter(a => a.severity === sev).length
           return (
-            <div key={sev} className="bg-white rounded-xl border border-slate-200 shadow-sm p-4">
-              <p className="text-xs text-slate-500 uppercase tracking-wide">{sev}</p>
-              <p
-                className={cn(
-                  'text-3xl font-bold mt-1',
-                  sev === 'CRITICAL'
-                    ? 'text-red-600'
-                    : sev === 'HIGH'
-                      ? 'text-orange-600'
-                      : 'text-yellow-600',
-                )}
-              >
-                {count}
-              </p>
+            <div key={sev} className="bg-surface rounded-lg border border-border shadow-xs p-4">
+              <p className="text-xs text-fg-muted uppercase tracking-wide">{sev}</p>
+              <p className={`text-3xl font-bold mt-1 ${sevTint[sev]}`}>{count}</p>
             </div>
           )
         })}
       </div>
 
       {/* Alert list */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm divide-y divide-slate-50">
+      <div className="bg-surface rounded-lg border border-border shadow-xs divide-y divide-border">
         {list.length === 0 && (
-          <p className="px-5 py-12 text-center text-sm text-slate-500">
+          <p className="px-5 py-12 text-center text-sm text-fg-muted">
             No alerts in the last {days} days.
           </p>
         )}
@@ -86,29 +75,26 @@ export default function AlertsPage() {
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0 flex-1">
                 <div className="flex items-center gap-2 flex-wrap">
-                  <Badge label={a.severity} colorClass={severityColor(a.severity)} />
-                  <span className="text-sm font-semibold text-slate-900">{a.ruleName}</span>
+                  <StatusBadge variant={severityVariant(a.severity)}>{a.severity}</StatusBadge>
+                  <span className="text-sm font-semibold text-fg">{a.ruleName}</span>
                 </div>
-                <p className="text-sm text-slate-600 mt-1">{a.message}</p>
+                <p className="text-sm text-fg-muted mt-1">{a.message}</p>
                 <div className="flex items-center gap-3 mt-1">
                   {a.projectId && (
-                    <span className="text-xs text-slate-400">Project: {a.projectId}</span>
+                    <span className="text-xs text-fg-subtle">Project: {a.projectId}</span>
                   )}
                   {a.runId && (
-                    <span className="text-xs font-mono text-slate-400">
+                    <span className="text-xs font-mono text-fg-subtle">
                       Run: {a.runId.slice(0, 12)}…
                     </span>
                   )}
                 </div>
               </div>
-              <div className="shrink-0 text-right">
-                <p className="text-xs text-slate-400">{relativeTime(a.firedAt)}</p>
-                <Badge
-                  label={a.delivered ? 'Delivered' : 'Pending'}
-                  colorClass={
-                    a.delivered ? 'text-green-700 bg-green-100' : 'text-gray-600 bg-gray-100'
-                  }
-                />
+              <div className="shrink-0 text-right flex flex-col items-end gap-1">
+                <p className="text-xs text-fg-subtle">{relativeTime(a.firedAt)}</p>
+                <StatusBadge variant={a.delivered ? 'success' : 'neutral'}>
+                  {a.delivered ? 'Delivered' : 'Pending'}
+                </StatusBadge>
               </div>
             </div>
           </div>

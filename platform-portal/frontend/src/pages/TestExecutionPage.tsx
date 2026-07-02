@@ -7,13 +7,13 @@ import { cn, relativeTime } from '@/lib/utils'
 import type { UnifiedExecutionItem, CreateTestRunForm } from '@/lib/types'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import ErrorMessage from '@/components/ErrorMessage'
+import { Button } from '@/components/ui'
 import {
   Plus,
   Bot,
   User,
   GitBranch,
   Tag,
-  Loader2,
   ExternalLink,
   MonitorCheck,
   PlayCircle,
@@ -27,22 +27,22 @@ function statusColors(type: string, status: string): string {
   if (type === 'AUTOMATED') {
     switch (status) {
       case 'RUNNING':
-        return 'bg-blue-100 text-blue-700'
+        return 'bg-info-bg text-info'
       case 'COMPLETED':
-        return 'bg-green-100 text-green-700'
+        return 'bg-success-bg text-success'
       default:
-        return 'bg-slate-100 text-slate-500'
+        return 'bg-neutral-bg text-neutral'
     }
   }
   switch (status) {
     case 'IN_PROGRESS':
-      return 'bg-blue-100 text-blue-700'
+      return 'bg-info-bg text-info'
     case 'COMPLETED':
-      return 'bg-green-100 text-green-700'
+      return 'bg-success-bg text-success'
     case 'ABANDONED':
-      return 'bg-red-100 text-red-600'
+      return 'bg-danger-bg text-danger'
     default:
-      return 'bg-slate-100 text-slate-500'
+      return 'bg-neutral-bg text-neutral'
   }
 }
 
@@ -53,14 +53,14 @@ function statusLabel(status: string): string {
 function envColor(env: string | null): string {
   switch (env?.toUpperCase()) {
     case 'PROD':
-      return 'text-red-600 bg-red-50 border-red-200'
+      return 'text-danger bg-danger-bg border-danger-border'
     case 'STAGING':
-      return 'text-orange-600 bg-orange-50 border-orange-200'
+      return 'text-warning bg-warning-bg border-warning-border'
     case 'CI':
     case 'DEV':
-      return 'text-blue-600 bg-blue-50 border-blue-200'
+      return 'text-info bg-info-bg border-info-border'
     default:
-      return 'text-slate-500 bg-slate-50 border-slate-200'
+      return 'text-fg-muted bg-surface-muted border-border'
   }
 }
 
@@ -89,28 +89,28 @@ function shortSha(sha: string | null): string {
 
 function PassBar({ item }: { item: UnifiedExecutionItem }) {
   const { totalTests, passed, failed, blocked, skipped, broken, pending, passRate } = item
-  if (!totalTests) return <div className="h-1.5 bg-slate-100 rounded-full w-full" />
+  if (!totalTests) return <div className="h-1.5 bg-surface-muted rounded-full w-full" />
 
   const pct = (n: number) => `${((n / totalTests) * 100).toFixed(1)}%`
   const rateColor = passRate >= 0.9 ? '#16a34a' : passRate >= 0.75 ? '#ca8a04' : '#dc2626'
 
   return (
     <div className="space-y-1">
-      <div className="flex h-1.5 rounded-full overflow-hidden bg-slate-100">
-        <div className="bg-green-500" style={{ width: pct(passed) }} />
-        <div className="bg-red-500" style={{ width: pct(failed) }} />
-        {broken > 0 && <div className="bg-orange-400" style={{ width: pct(broken) }} />}
-        {blocked > 0 && <div className="bg-amber-400" style={{ width: pct(blocked) }} />}
-        {skipped > 0 && <div className="bg-slate-300" style={{ width: pct(skipped) }} />}
-        {pending > 0 && <div className="bg-slate-200" style={{ width: pct(pending) }} />}
+      <div className="flex h-1.5 rounded-full overflow-hidden bg-surface-muted">
+        <div className="bg-success" style={{ width: pct(passed) }} />
+        <div className="bg-danger" style={{ width: pct(failed) }} />
+        {broken > 0 && <div className="bg-warning" style={{ width: pct(broken) }} />}
+        {blocked > 0 && <div className="bg-warning/60" style={{ width: pct(blocked) }} />}
+        {skipped > 0 && <div className="bg-border-strong" style={{ width: pct(skipped) }} />}
+        {pending > 0 && <div className="bg-border" style={{ width: pct(pending) }} />}
       </div>
-      <div className="flex items-center gap-2 text-xs text-slate-500 flex-wrap">
-        <span className="text-green-600 font-medium">{passed}✓</span>
-        {failed > 0 && <span className="text-red-600">{failed}✗</span>}
-        {broken > 0 && <span className="text-orange-500">{broken} broken</span>}
-        {blocked > 0 && <span className="text-amber-600">{blocked} blocked</span>}
-        {pending > 0 && <span className="text-slate-400">{pending} pending</span>}
-        {skipped > 0 && <span className="text-slate-400">{skipped} skipped</span>}
+      <div className="flex items-center gap-2 text-xs text-fg-muted flex-wrap">
+        <span className="text-success font-medium">{passed}✓</span>
+        {failed > 0 && <span className="text-danger">{failed}✗</span>}
+        {broken > 0 && <span className="text-warning">{broken} broken</span>}
+        {blocked > 0 && <span className="text-warning">{blocked} blocked</span>}
+        {pending > 0 && <span className="text-fg-subtle">{pending} pending</span>}
+        {skipped > 0 && <span className="text-fg-subtle">{skipped} skipped</span>}
         <span className="ml-auto font-semibold tabular-nums" style={{ color: rateColor }}>
           {(passRate * 100).toFixed(0)}%
         </span>
@@ -159,8 +159,8 @@ function LinkSprintButton({
         className={cn(
           'flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded border transition-colors',
           current
-            ? 'text-indigo-600 bg-indigo-50 border-indigo-200 hover:bg-indigo-100'
-            : 'text-slate-400 border-slate-200 hover:text-indigo-500 hover:border-indigo-300 hover:bg-indigo-50',
+            ? 'text-primary bg-primary-subtle border-primary-subtle hover:brightness-95'
+            : 'text-fg-subtle border-border hover:text-primary hover:border-primary/40 hover:bg-primary-subtle',
         )}
       >
         <GitBranch size={9} />
@@ -168,20 +168,20 @@ function LinkSprintButton({
       </button>
 
       {open && (
-        <div className="absolute right-0 top-6 z-20 w-64 bg-white border border-slate-200 rounded-lg shadow-lg py-1">
-          <p className="px-3 py-1.5 text-[10px] font-semibold text-slate-400 uppercase tracking-wide">
+        <div className="absolute right-0 top-6 z-20 w-64 bg-surface border border-border rounded-lg shadow-md py-1">
+          <p className="px-3 py-1.5 text-[10px] font-semibold text-fg-subtle uppercase tracking-wide">
             Link to sprint
           </p>
           {current && (
             <button
               onClick={() => mutation.mutate('')}
-              className="w-full text-left px-3 py-1.5 text-xs text-red-500 hover:bg-red-50"
+              className="w-full text-left px-3 py-1.5 text-xs text-danger hover:bg-danger-bg"
             >
               ✕ Remove sprint link
             </button>
           )}
           {iterations.length === 0 && (
-            <p className="px-3 py-2 text-xs text-slate-400">No sprints configured.</p>
+            <p className="px-3 py-2 text-xs text-fg-subtle">No sprints configured.</p>
           )}
           {iterations.map(it => (
             <button
@@ -189,12 +189,12 @@ function LinkSprintButton({
               onClick={() => mutation.mutate(it.path)}
               disabled={mutation.isPending}
               className={cn(
-                'w-full text-left px-3 py-1.5 text-xs hover:bg-slate-50 flex items-center justify-between',
-                it.path === item.iterationPath ? 'text-indigo-600 font-medium' : 'text-slate-700',
+                'w-full text-left px-3 py-1.5 text-xs hover:bg-surface-muted flex items-center justify-between',
+                it.path === item.iterationPath ? 'text-primary font-medium' : 'text-fg',
               )}
             >
               <span className="truncate">{it.path.split('\\').pop()}</span>
-              {it.path === item.iterationPath && <span className="text-indigo-400">✓</span>}
+              {it.path === item.iterationPath && <span className="text-primary">✓</span>}
             </button>
           ))}
         </div>
@@ -221,15 +221,15 @@ function ExecutionRow({
   return (
     <div
       onClick={onClick}
-      className="px-5 py-3.5 hover:bg-slate-50 cursor-pointer transition-colors border-b border-slate-50 last:border-0"
+      className="px-5 py-3.5 hover:bg-surface-muted cursor-pointer transition-colors border-b border-border last:border-0"
     >
       <div className="flex items-start gap-3">
         {/* Type indicator */}
         <div className="mt-0.5 shrink-0">
           {isManual ? (
-            <User size={15} className="text-blue-500" />
+            <User size={15} className="text-info" />
           ) : (
-            <Bot size={15} className="text-violet-500" />
+            <Bot size={15} className="text-teal-600" />
           )}
         </div>
 
@@ -237,17 +237,15 @@ function ExecutionRow({
         <div className="flex-1 min-w-0 space-y-1.5">
           {/* Row 1: name + badges */}
           <div className="flex items-center gap-2 flex-wrap">
-            <span className="font-medium text-sm text-slate-900 truncate max-w-xs">
-              {item.name}
-            </span>
+            <span className="font-medium text-sm text-fg truncate max-w-xs">{item.name}</span>
 
             {/* Type badge */}
             <span
               className={cn(
                 'text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-full border',
                 isManual
-                  ? 'bg-blue-50 text-blue-600 border-blue-200'
-                  : 'bg-violet-50 text-violet-600 border-violet-200',
+                  ? 'bg-info-bg text-info border-info-border'
+                  : 'bg-teal-50 text-teal-700 border-teal-200',
               )}
             >
               {isManual ? 'Manual' : 'Automated'}
@@ -277,38 +275,38 @@ function ExecutionRow({
 
             {/* CI provider */}
             {!isManual && item.ciProvider && (
-              <span className="text-[10px] text-slate-400" title={item.ciProvider}>
+              <span className="text-[10px] text-fg-subtle" title={item.ciProvider}>
                 {ciProviderIcon(item.ciProvider)} {item.ciProvider}
               </span>
             )}
 
             {/* Trigger type */}
             {!isManual && item.triggerType && (
-              <span className="text-[10px] text-slate-400">
+              <span className="text-[10px] text-fg-subtle">
                 {item.triggerType.replace('_', ' ').toLowerCase()}
               </span>
             )}
           </div>
 
           {/* Row 2: scope tags */}
-          <div className="flex items-center gap-2 flex-wrap text-xs text-slate-400">
+          <div className="flex items-center gap-2 flex-wrap text-xs text-fg-subtle">
             {item.teamName && (
               <span className="flex items-center gap-1">
                 <Tag size={10} /> {item.teamName}
               </span>
             )}
-            {item.areaPath && <span className="text-slate-300 font-light">·</span>}
+            {item.areaPath && <span className="text-fg-subtle font-light">·</span>}
             {item.areaPath && <span>{item.areaPath.split('\\').pop()}</span>}
             {item.iterationPath && (
               <>
-                <span className="text-slate-300 font-light">·</span>
+                <span className="text-fg-subtle font-light">·</span>
                 <span>{item.iterationPath.split('\\').pop()}</span>
               </>
             )}
             {item.releaseName && (
               <>
-                <span className="text-slate-300 font-light">·</span>
-                <span className="text-slate-500">{item.releaseName}</span>
+                <span className="text-fg-subtle font-light">·</span>
+                <span className="text-fg-muted">{item.releaseName}</span>
               </>
             )}
             {/* Automated: branch / sha */}
@@ -318,11 +316,11 @@ function ExecutionRow({
               </span>
             )}
             {!isManual && item.commitSha && (
-              <span className="font-mono text-[10px] bg-slate-100 px-1 rounded">
+              <span className="font-mono text-[10px] bg-surface-muted px-1 rounded">
                 {shortSha(item.commitSha)}
               </span>
             )}
-            {item.triggeredBy && <span className="text-slate-400">by {item.triggeredBy}</span>}
+            {item.triggeredBy && <span className="text-fg-subtle">by {item.triggeredBy}</span>}
           </div>
 
           {/* Row 3: pass rate bar */}
@@ -332,7 +330,7 @@ function ExecutionRow({
             </div>
           )}
           {item.totalTests === 0 && (
-            <p className="text-xs text-slate-400 italic">No test results yet</p>
+            <p className="text-xs text-fg-subtle italic">No test results yet</p>
           )}
         </div>
 
@@ -343,9 +341,9 @@ function ExecutionRow({
               <LinkSprintButton item={item} projectId={projectId} onLinked={onLinked} />
             </div>
           )}
-          <p className="text-xs text-slate-400">{relativeTime(item.date)}</p>
+          <p className="text-xs text-fg-subtle">{relativeTime(item.date)}</p>
           {item.durationMs > 0 && (
-            <p className="text-[10px] text-slate-300">
+            <p className="text-[10px] text-fg-subtle">
               {item.durationMs < 60_000
                 ? `${(item.durationMs / 1000).toFixed(1)}s`
                 : `${Math.round(item.durationMs / 60_000)}m`}
@@ -357,7 +355,7 @@ function ExecutionRow({
               target="_blank"
               rel="noopener noreferrer"
               onClick={e => e.stopPropagation()}
-              className="text-[10px] text-blue-500 hover:underline flex items-center justify-end gap-0.5"
+              className="text-[10px] text-primary hover:underline flex items-center justify-end gap-0.5"
             >
               CI <ExternalLink size={9} />
             </a>
@@ -378,29 +376,29 @@ function StatsStrip({ items }: { items: UnifiedExecutionItem[] }) {
 
   const rateColor =
     avgRate == null
-      ? 'text-slate-400'
+      ? 'text-fg-subtle'
       : avgRate >= 0.9
-        ? 'text-green-600'
+        ? 'text-success'
         : avgRate >= 0.75
-          ? 'text-amber-600'
-          : 'text-red-600'
+          ? 'text-warning'
+          : 'text-danger'
 
   return (
-    <div className="flex items-center gap-6 text-sm text-slate-500">
+    <div className="flex items-center gap-6 text-sm text-fg-muted">
       <span>{items.length} total</span>
       {manual > 0 && (
         <span className="flex items-center gap-1">
-          <User size={13} className="text-blue-400" />
+          <User size={13} className="text-info" />
           {manual} manual
         </span>
       )}
       {automated > 0 && (
         <span className="flex items-center gap-1">
-          <Bot size={13} className="text-violet-400" />
+          <Bot size={13} className="text-teal-500" />
           {automated} automated
         </span>
       )}
-      {running > 0 && <span className="text-blue-500">{running} active</span>}
+      {running > 0 && <span className="text-info">{running} active</span>}
       {avgRate != null && (
         <span className={cn('font-semibold tabular-nums', rateColor)}>
           {(avgRate * 100).toFixed(0)}% avg pass
@@ -469,22 +467,19 @@ export default function TestExecutionPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Test Execution</h1>
-          <p className="text-sm text-slate-500 mt-0.5">
+          <h1 className="text-2xl font-bold text-fg">Test Execution</h1>
+          <p className="text-sm text-fg-muted mt-0.5">
             All manual runs and automated CI executions, newest first.
           </p>
         </div>
-        <button
-          onClick={() => setShowNewModal(true)}
-          className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
-        >
+        <Button onClick={() => setShowNewModal(true)}>
           <Plus size={15} /> New Manual Run
-        </button>
+        </Button>
       </div>
 
       {/* Type tabs */}
       <div className="flex items-center justify-between gap-4">
-        <div className="flex gap-1 bg-slate-100 p-1 rounded-lg">
+        <div className="flex gap-1 bg-surface-muted p-1 rounded-lg">
           {tabs.map(t => {
             const Icon = t.icon
             return (
@@ -494,8 +489,8 @@ export default function TestExecutionPage() {
                 className={cn(
                   'flex items-center gap-1.5 px-4 py-1.5 text-sm font-medium rounded-md transition-colors',
                   typeTab === t.key
-                    ? 'bg-white text-slate-900 shadow-sm'
-                    : 'text-slate-500 hover:text-slate-700',
+                    ? 'bg-surface text-fg shadow-xs'
+                    : 'text-fg-muted hover:text-fg',
                 )}
               >
                 <Icon size={13} />
@@ -508,12 +503,12 @@ export default function TestExecutionPage() {
       </div>
 
       {/* List */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="bg-surface rounded-xl border border-border shadow-sm overflow-hidden">
         {items.length === 0 && (
           <div className="py-16 text-center">
-            <PlayCircle size={32} className="mx-auto text-slate-300 mb-3" />
-            <p className="text-sm text-slate-500">No executions found.</p>
-            <p className="text-xs text-slate-400 mt-1">
+            <PlayCircle size={32} className="mx-auto text-fg-subtle mb-3" />
+            <p className="text-sm text-fg-muted">No executions found.</p>
+            <p className="text-xs text-fg-subtle mt-1">
               {typeTab === 'MANUAL'
                 ? 'Create a manual run to start executing test cases.'
                 : typeTab === 'AUTOMATED'
@@ -701,21 +696,23 @@ function NewManualRunModal({
   }
 
   const inp =
-    'w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500'
-  const lbl = 'block text-xs font-medium text-slate-700 mb-1'
+    'w-full border border-border-strong rounded-lg px-3 py-2 text-sm bg-surface text-fg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary'
+  const lbl = 'block text-xs font-medium text-fg-muted mb-1'
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-xl mx-4 max-h-[90vh] flex flex-col">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200">
-          <h2 className="font-semibold text-slate-900">New Manual Run</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+      <div className="bg-surface rounded-xl shadow-md w-full max-w-xl mx-4 max-h-[90vh] flex flex-col">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+          <h2 className="font-semibold text-fg">New Manual Run</h2>
+          <button onClick={onClose} className="text-fg-subtle hover:text-fg">
             ✕
           </button>
         </div>
 
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
-          {error && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
+          {error && (
+            <p className="text-sm text-danger bg-danger-bg rounded-lg px-3 py-2">{error}</p>
+          )}
 
           <div>
             <label className={lbl}>Run Name *</label>
@@ -780,17 +777,18 @@ function NewManualRunModal({
               type="text"
               value={newEnvName}
               onChange={e => setNewEnvName(e.target.value)}
-              className="flex-1 border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="flex-1 border border-border-strong rounded-lg px-3 py-1.5 text-sm bg-surface text-fg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
               placeholder="New named environment (e.g. PROD-EU)"
             />
-            <button
+            <Button
               type="button"
+              variant="secondary"
+              size="sm"
               onClick={() => newEnvName.trim() && createEnvMutation.mutate()}
               disabled={!newEnvName.trim() || createEnvMutation.isPending}
-              className="px-3 py-1.5 text-xs font-medium border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-50"
             >
               {createEnvMutation.isPending ? 'Adding…' : '+ Add env'}
-            </button>
+            </Button>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
@@ -818,15 +816,15 @@ function NewManualRunModal({
           </div>
 
           {/* Monitoring scope */}
-          <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-3 space-y-3">
-            <p className="text-xs font-semibold text-slate-600">Scope (optional)</p>
+          <div className="rounded-lg border border-border bg-surface-muted p-3 space-y-3">
+            <p className="text-xs font-semibold text-fg-muted">Scope (optional)</p>
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className={lbl}>Release</label>
                 <select
                   value={releaseId}
                   onChange={e => setReleaseId(e.target.value)}
-                  className={cn(inp, 'bg-white')}
+                  className={inp}
                 >
                   <option value="">— none —</option>
                   {releases.map(r => (
@@ -838,11 +836,7 @@ function NewManualRunModal({
               </div>
               <div>
                 <label className={lbl}>Team</label>
-                <select
-                  value={teamId}
-                  onChange={e => setTeamId(e.target.value)}
-                  className={cn(inp, 'bg-white')}
-                >
+                <select value={teamId} onChange={e => setTeamId(e.target.value)} className={inp}>
                   <option value="">— none —</option>
                   {teams.map(t => (
                     <option key={t.id} value={t.id}>
@@ -856,7 +850,7 @@ function NewManualRunModal({
                 <select
                   value={iterationPath}
                   onChange={e => setIterationPath(e.target.value)}
-                  className={cn(inp, 'bg-white')}
+                  className={inp}
                 >
                   <option value="">— none —</option>
                   {iterations.map(it => (
@@ -871,7 +865,7 @@ function NewManualRunModal({
                 <select
                   value={areaPath}
                   onChange={e => setAreaPath(e.target.value)}
-                  className={cn(inp, 'bg-white')}
+                  className={inp}
                 >
                   <option value="">— none —</option>
                   {areas.map(a => (
@@ -889,7 +883,7 @@ function NewManualRunModal({
             <div>
               <label className={lbl}>
                 From test suites{' '}
-                <span className="font-normal text-slate-400">
+                <span className="font-normal text-fg-subtle">
                   ({selectedSuiteIds.size} selected · +{suiteContributedIds.size} cases)
                 </span>
               </label>
@@ -902,23 +896,23 @@ function NewManualRunModal({
                   className={cn(inp, 'mb-1.5')}
                 />
               )}
-              <div className="border border-slate-200 rounded-lg max-h-36 overflow-y-auto divide-y divide-slate-50">
+              <div className="border border-border rounded-lg max-h-36 overflow-y-auto divide-y divide-border">
                 {filteredSuites.map(s => (
                   <label
                     key={s.id}
-                    className="flex items-center gap-2.5 px-3 py-1.5 cursor-pointer hover:bg-slate-50"
+                    className="flex items-center gap-2.5 px-3 py-1.5 cursor-pointer hover:bg-surface-muted"
                   >
                     <input
                       type="checkbox"
                       checked={selectedSuiteIds.has(s.id)}
                       onChange={() => toggleSuite(s.id)}
-                      className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 shrink-0"
+                      className="rounded border-border-strong accent-primary shrink-0"
                     />
-                    <span className="text-sm text-slate-800 flex-1 truncate">{s.name}</span>
+                    <span className="text-sm text-fg flex-1 truncate">{s.name}</span>
                     {s.selectionMode === 'SMART' && (
-                      <span className="text-[10px] text-blue-500 shrink-0">✦ smart</span>
+                      <span className="text-[10px] text-primary shrink-0">✦ smart</span>
                     )}
-                    <span className="text-xs text-slate-400 shrink-0">{s.caseCount}</span>
+                    <span className="text-xs text-fg-subtle shrink-0">{s.caseCount}</span>
                   </label>
                 ))}
               </div>
@@ -930,13 +924,13 @@ function NewManualRunModal({
             <div className="flex items-center justify-between mb-2">
               <label className={lbl}>
                 Test Cases{' '}
-                <span className="font-normal text-slate-400">({selectedTcIds.size} picked)</span>
+                <span className="font-normal text-fg-subtle">({selectedTcIds.size} picked)</span>
               </label>
               {testCases.length > 0 && (
                 <button
                   type="button"
                   onClick={toggleAll}
-                  className="text-xs text-blue-600 hover:text-blue-700"
+                  className="text-xs text-primary hover:underline"
                 >
                   {allVisibleSelected ? 'Deselect shown' : 'Select shown'}
                 </button>
@@ -949,61 +943,51 @@ function NewManualRunModal({
               className={cn(inp, 'mb-2')}
               placeholder="Search by title, ID, or requirement ID…"
             />
-            {tcLoading && <div className="text-sm text-slate-400 py-3 text-center">Loading…</div>}
+            {tcLoading && <div className="text-sm text-fg-subtle py-3 text-center">Loading…</div>}
             {!tcLoading && testCases.length === 0 && (
-              <div className="text-sm text-slate-500 py-3 text-center bg-slate-50 rounded-lg">
+              <div className="text-sm text-fg-muted py-3 text-center bg-surface-muted rounded-lg">
                 No approved test cases match.
               </div>
             )}
             {testCases.length > 0 && (
-              <div className="border border-slate-200 rounded-lg max-h-48 overflow-y-auto divide-y divide-slate-50">
+              <div className="border border-border rounded-lg max-h-48 overflow-y-auto divide-y divide-border">
                 {testCases.map(tc => (
                   <label
                     key={tc.id}
-                    className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-slate-50"
+                    className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-surface-muted"
                   >
                     <input
                       type="checkbox"
                       checked={selectedTcIds.has(tc.id) || suiteContributedIds.has(tc.id)}
                       onChange={() => toggleTc(tc.id)}
-                      className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 shrink-0"
+                      className="rounded border-border-strong accent-primary shrink-0"
                     />
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm text-slate-800 truncate">
+                      <div className="text-sm text-fg truncate">
                         {tc.title}
                         {suiteContributedIds.has(tc.id) && !selectedTcIds.has(tc.id) && (
-                          <span className="ml-2 text-[10px] text-blue-500">via suite</span>
+                          <span className="ml-2 text-[10px] text-primary">via suite</span>
                         )}
                       </div>
                     </div>
-                    <span className="text-xs text-slate-400 shrink-0">{tc.priority}</span>
+                    <span className="text-xs text-fg-subtle shrink-0">{tc.priority}</span>
                   </label>
                 ))}
               </div>
             )}
-            <p className="text-xs text-slate-500 mt-1">
+            <p className="text-xs text-fg-muted mt-1">
               {effectiveCount} case{effectiveCount === 1 ? '' : 's'} to run
             </p>
           </div>
         </form>
 
-        <div className="px-5 py-4 border-t border-slate-200 flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50"
-          >
+        <div className="px-5 py-4 border-t border-border flex justify-end gap-2">
+          <Button type="button" variant="secondary" onClick={onClose}>
             Cancel
-          </button>
-          <button
-            type="button"
-            onClick={() => handleSubmit()}
-            disabled={mutation.isPending}
-            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
-          >
-            {mutation.isPending && <Loader2 size={14} className="animate-spin" />}
+          </Button>
+          <Button type="button" onClick={() => handleSubmit()} loading={mutation.isPending}>
             Create Run
-          </button>
+          </Button>
         </div>
       </div>
     </div>

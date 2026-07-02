@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { KeyRound } from 'lucide-react'
 import { api } from '@/lib/api'
 import { useAuth } from '@/context/AuthContext'
+import { Button, Input } from '@/components/ui'
 
 /** Forced when the user must change their (bootstrap) password before continuing. */
 export default function ChangePasswordPage({ forced = false }: { forced?: boolean }) {
@@ -29,61 +30,66 @@ export default function ChangePasswordPage({ forced = false }: { forced?: boolea
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50 p-4">
+    <div className="min-h-screen flex items-center justify-center bg-canvas p-4">
       <form
         onSubmit={submit}
-        className="w-full max-w-sm bg-white rounded-xl border border-slate-200 shadow-sm p-6 space-y-4"
+        className="w-full max-w-sm bg-surface rounded-xl border border-border shadow-sm p-6 space-y-4"
       >
         <div className="text-center">
-          <h1 className="text-xl font-bold text-slate-900 flex items-center justify-center gap-2">
-            <KeyRound size={20} /> Change password
+          <h1 className="text-xl font-bold text-fg flex items-center justify-center gap-2">
+            <KeyRound size={20} className="text-primary" /> Change password
           </h1>
           {forced && (
-            <p className="text-sm text-amber-700 mt-1">
+            <p className="text-sm text-warning mt-1">
               You must set a new password before continuing.
             </p>
           )}
         </div>
         {error && (
-          <p className="text-sm text-red-700 bg-red-50 border border-red-200 rounded-lg px-3 py-2">
+          <p
+            role="alert"
+            className="text-sm text-danger bg-danger-bg border border-danger-border rounded-lg px-3 py-2"
+          >
             {error}
           </p>
         )}
-        <input
+        <Input
           type="password"
           placeholder="Current password"
+          aria-label="Current password"
           value={current}
           onChange={e => setCurrent(e.target.value)}
           autoComplete="current-password"
-          className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg"
         />
-        <input
+        <Input
           type="password"
           placeholder="New password (min 8 chars)"
+          aria-label="New password"
           value={next}
           onChange={e => setNext(e.target.value)}
           autoComplete="new-password"
-          className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg"
         />
-        <input
+        <Input
           type="password"
           placeholder="Confirm new password"
+          aria-label="Confirm new password"
           value={confirm}
           onChange={e => setConfirm(e.target.value)}
           autoComplete="new-password"
-          className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg"
         />
-        <button
+        <Button
           type="submit"
-          disabled={busy || !current || !next}
-          className="w-full px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50"
+          size="lg"
+          className="w-full"
+          disabled={!current || !next}
+          loading={busy}
         >
           {busy ? 'Saving…' : 'Change password'}
-        </button>
+        </Button>
         <button
           type="button"
           onClick={() => void logout()}
-          className="w-full text-xs text-slate-500 hover:text-slate-700"
+          className="w-full text-xs text-fg-muted hover:text-fg"
         >
           Sign out
         </button>

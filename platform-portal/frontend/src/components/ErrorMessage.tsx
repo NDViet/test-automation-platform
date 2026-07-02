@@ -12,7 +12,7 @@ export default function ErrorMessage({ message, title, onRetry }: ErrorMessagePr
   return (
     <div
       role="alert"
-      className="flex items-start gap-3 rounded-lg border border-red-200 bg-red-50 p-4 text-red-700"
+      className="flex items-start gap-3 rounded-lg border border-danger-border bg-danger-bg p-4 text-danger"
     >
       <AlertCircle size={18} className="mt-0.5 shrink-0" aria-hidden="true" />
       <div className="min-w-0 flex-1">
@@ -22,7 +22,7 @@ export default function ErrorMessage({ message, title, onRetry }: ErrorMessagePr
           <button
             type="button"
             onClick={onRetry}
-            className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-red-200 bg-white px-2.5 py-1 text-xs font-medium text-red-700 transition-colors hover:bg-red-50 focus:outline-none focus:ring-2 focus:ring-red-500/30"
+            className="mt-2 inline-flex items-center gap-1.5 rounded-md border border-danger-border bg-surface px-2.5 py-1 text-xs font-medium text-danger transition-colors hover:bg-danger-bg focus:outline-none focus:ring-2 focus:ring-danger/30"
           >
             <RotateCw size={13} aria-hidden="true" /> Try again
           </button>

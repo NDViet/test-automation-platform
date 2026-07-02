@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom'
 import { useProject, useProjectFilter } from '@/components/layout/ProjectLayout'
+import { usePageWidth } from '@/components/layout/PageWidth'
 import { useQuery } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { relativeTime, pathLeaf } from '@/lib/utils'
@@ -49,12 +50,12 @@ function Kpi({
   to?: string
 }) {
   const body = (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-4 h-full hover:border-blue-300 transition-colors">
-      <p className="text-xs text-slate-500">{label}</p>
+    <div className="bg-surface rounded-lg border border-border shadow-xs p-4 h-full hover:border-primary/40 transition-colors">
+      <p className="text-xs text-fg-muted">{label}</p>
       <p className="text-2xl font-bold mt-0.5" style={accent ? { color: accent } : undefined}>
         {value}
       </p>
-      {sub && <p className="text-xs text-slate-400 mt-0.5">{sub}</p>}
+      {sub && <p className="text-xs text-fg-subtle mt-0.5">{sub}</p>}
     </div>
   )
   return to ? <Link to={to}>{body}</Link> : body
@@ -62,7 +63,7 @@ function Kpi({
 
 function Bar({ pct, color }: { pct: number; color: string }) {
   return (
-    <div className="h-2 rounded-full bg-slate-100 overflow-hidden min-w-[80px]">
+    <div className="h-2 rounded-full bg-surface-muted overflow-hidden min-w-[80px]">
       <div
         className="h-full"
         style={{ width: `${Math.max(0, Math.min(100, pct))}%`, background: color }}
@@ -73,9 +74,9 @@ function Bar({ pct, color }: { pct: number; color: string }) {
 
 function SectionHeader({ title, to, linkLabel }: { title: string; to: string; linkLabel: string }) {
   return (
-    <div className="flex items-center justify-between px-5 py-3 border-b border-slate-100">
-      <h2 className="text-sm font-semibold text-slate-700">{title}</h2>
-      <Link to={to} className="text-xs text-blue-600 hover:text-blue-700 flex items-center gap-1">
+    <div className="flex items-center justify-between px-5 py-3 border-b border-border">
+      <h2 className="text-sm font-semibold text-fg">{title}</h2>
+      <Link to={to} className="text-xs text-primary hover:underline flex items-center gap-1">
         {linkLabel} <ArrowRight size={12} />
       </Link>
     </div>
@@ -121,46 +122,46 @@ function ExecutionRow({ exec, base }: { exec: ExecutionSummary; base: string }) 
   return (
     <Link
       to={`${base}/automated-tests`}
-      className="flex items-center gap-3 px-5 py-3 hover:bg-slate-50 transition-colors"
+      className="flex items-center gap-3 px-5 py-3 hover:bg-surface-muted transition-colors"
     >
       {/* Status icon */}
       <div className="shrink-0">
         {pr >= 80 ? (
-          <CheckCircle size={14} className="text-green-500" />
+          <CheckCircle size={14} className="text-success" />
         ) : pr >= 50 ? (
-          <AlertTriangle size={14} className="text-yellow-500" />
+          <AlertTriangle size={14} className="text-warning" />
         ) : (
-          <XCircle size={14} className="text-red-500" />
+          <XCircle size={14} className="text-danger" />
         )}
       </div>
 
       {/* Suite + branch + time */}
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-slate-800 truncate">
+        <p className="text-sm font-medium text-fg truncate">
           {exec.suiteName || exec.sourceFormat}
         </p>
         <div className="flex items-center gap-1.5 mt-0.5">
-          <GitBranch size={10} className="text-slate-400 shrink-0" />
-          <span className="text-[11px] text-slate-400 font-mono truncate max-w-[120px]">
+          <GitBranch size={10} className="text-fg-subtle shrink-0" />
+          <span className="text-[11px] text-fg-subtle font-mono truncate max-w-[120px]">
             {exec.branch || '—'}
           </span>
-          <span className="text-[11px] text-slate-300">·</span>
-          <span className="text-[11px] text-slate-400">{relativeTime(exec.executedAt)}</span>
+          <span className="text-[11px] text-fg-subtle">·</span>
+          <span className="text-[11px] text-fg-muted">{relativeTime(exec.executedAt)}</span>
         </div>
       </div>
 
       {/* Pass / Fail / Skip pill row */}
       <div className="shrink-0 flex items-center gap-1.5">
-        <span className="inline-flex items-center gap-0.5 text-[11px] font-medium tabular-nums px-1.5 py-0.5 rounded bg-green-50 text-green-700">
+        <span className="inline-flex items-center gap-0.5 text-[11px] font-medium tabular-nums px-1.5 py-0.5 rounded bg-success-bg text-success">
           <CheckCircle size={10} /> {exec.passed}
         </span>
         {failed > 0 && (
-          <span className="inline-flex items-center gap-0.5 text-[11px] font-medium tabular-nums px-1.5 py-0.5 rounded bg-red-50 text-red-600">
+          <span className="inline-flex items-center gap-0.5 text-[11px] font-medium tabular-nums px-1.5 py-0.5 rounded bg-danger-bg text-danger">
             <XCircle size={10} /> {failed}
           </span>
         )}
         {skipped > 0 && (
-          <span className="inline-flex items-center gap-0.5 text-[11px] font-medium tabular-nums px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">
+          <span className="inline-flex items-center gap-0.5 text-[11px] font-medium tabular-nums px-1.5 py-0.5 rounded bg-surface-muted text-fg-muted">
             {skipped} skip
           </span>
         )}
@@ -171,7 +172,7 @@ function ExecutionRow({ exec, base }: { exec: ExecutionSummary; base: string }) 
         <p className="text-sm font-bold tabular-nums" style={{ color: rateColor(pr) }}>
           {pr.toFixed(1)}%
         </p>
-        <p className="text-[10px] text-slate-400 tabular-nums">{exec.totalTests} total</p>
+        <p className="text-[10px] text-fg-subtle tabular-nums">{exec.totalTests} total</p>
       </div>
     </Link>
   )
@@ -179,7 +180,6 @@ function ExecutionRow({ exec, base }: { exec: ExecutionSummary; base: string }) 
 
 function TrendLineChart({ execs }: { execs: ExecutionSummary[] }) {
   if (execs.length < 2) return null
-  // Oldest → newest left-to-right
   const data = [...execs].reverse().map((e, i) => ({
     idx: i + 1,
     label: (e.suiteName || e.sourceFormat || `#${i + 1}`).split(/[/\\]/).pop()!.slice(0, 12),
@@ -188,11 +188,11 @@ function TrendLineChart({ execs }: { execs: ExecutionSummary[] }) {
     Skipped: e.skipped ?? 0,
   }))
   return (
-    <div className="px-5 pt-4 pb-3 border-t border-slate-100">
-      <p className="text-xs font-medium text-slate-500 mb-3">Trend — Pass / Fail / Skip</p>
+    <div className="px-5 pt-4 pb-3 border-t border-border">
+      <p className="text-xs font-medium text-fg-muted mb-3">Trend — Pass / Fail / Skip</p>
       <ResponsiveContainer width="100%" height={160}>
         <LineChart data={data} margin={{ top: 2, right: 8, bottom: 0, left: -24 }}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#f1f5f9" />
+          <CartesianGrid strokeDasharray="3 3" stroke="#eef0f3" />
           <XAxis
             dataKey="label"
             tick={{ fontSize: 9, fill: '#94a3b8' }}
@@ -205,7 +205,7 @@ function TrendLineChart({ execs }: { execs: ExecutionSummary[] }) {
             contentStyle={{
               fontSize: 11,
               borderRadius: 8,
-              border: '1px solid #e2e8f0',
+              border: '1px solid #e4e7ec',
               padding: '6px 10px',
             }}
             formatter={(value, name) => [(value ?? 0).toLocaleString(), name]}
@@ -243,6 +243,7 @@ function TrendLineChart({ execs }: { execs: ExecutionSummary[] }) {
 }
 
 export default function ProjectDetail() {
+  usePageWidth('wide')
   const { project, projectId, base } = useProject()
   const { filter, active } = useProjectFilter()
   const scope = {
@@ -251,7 +252,6 @@ export default function ProjectDetail() {
     iteration: filter.iteration || undefined,
   }
 
-  // Scoped quality signals
   const covQ = useQuery({
     queryKey: ['coverage', projectId, filter.area, filter.teamId, filter.iteration],
     queryFn: () => api.coverage(projectId!, scope),
@@ -267,7 +267,6 @@ export default function ProjectDetail() {
       }),
     enabled: !!projectId,
   })
-  // Project-wide quality signals
   const qualQ = useQuery({
     queryKey: ['qualityOverview', projectId],
     queryFn: () => api.qualityOverview(projectId!),
@@ -278,7 +277,6 @@ export default function ProjectDetail() {
     queryFn: () => api.productivityByArea(projectId!),
     enabled: !!projectId,
   })
-  // Test automation signals
   const detailQ = useQuery({
     queryKey: ['project', projectId],
     queryFn: () => api.projectDetail(projectId!),
@@ -318,7 +316,6 @@ export default function ProjectDetail() {
     ? Math.round((covered * 1000) / cov.totalRequirements) / 10
     : 0
 
-  // Flatten release board → release rows, worst coverage first
   const releases = (board?.groups ?? [])
     .flatMap(g => g.releases.map(r => ({ ...r, teamName: g.teamName })))
     .sort((a, b) => a.coveragePct - b.coveragePct)
@@ -328,15 +325,17 @@ export default function ProjectDetail() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <div className="flex items-center gap-2 text-sm text-slate-500 mb-1">
-            <Link to={`/${project.orgSlug}`} className="hover:text-blue-600">
+          <div className="flex items-center gap-2 text-sm text-fg-muted mb-1">
+            <Link to={`/${project.orgSlug}`} className="hover:text-primary">
               Overview
             </Link>
             <ChevronRight size={14} />
             <span>{project?.orgName ?? ''}</span>
           </div>
-          <h1 className="text-2xl font-bold text-slate-900">{project?.name ?? projectId}</h1>
-          <p className="text-sm text-slate-500 mt-1">
+          <h1 className="text-xl font-semibold tracking-tight text-fg">
+            {project?.name ?? projectId}
+          </h1>
+          <p className="text-sm text-fg-muted mt-1">
             Project quality at a glance{active ? ' · scoped' : ''}
           </p>
         </div>
@@ -381,7 +380,7 @@ export default function ProjectDetail() {
       </div>
 
       {/* ── Test Automation ── */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="bg-surface rounded-lg border border-border shadow-xs overflow-hidden">
         <SectionHeader
           title="Test Automation"
           to={`${base}/automated-tests`}
@@ -389,36 +388,34 @@ export default function ProjectDetail() {
         />
 
         {/* Automation KPIs */}
-        <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-y md:divide-y-0 divide-slate-100 border-b border-slate-100">
+        <div className="grid grid-cols-2 md:grid-cols-4 divide-x divide-y md:divide-y-0 divide-border border-b border-border">
           {/* Pass rate + sparkline */}
           <div className="px-5 py-4 flex items-center justify-between gap-3">
             <div>
-              <p className="text-xs text-slate-500">Avg pass rate</p>
+              <p className="text-xs text-fg-muted">Avg pass rate</p>
               <p
                 className="text-2xl font-bold mt-0.5"
                 style={{ color: avgAutoPass != null ? rateColor(avgAutoPass) : undefined }}
               >
                 {avgAutoPass != null ? `${avgAutoPass.toFixed(1)}%` : '—'}
               </p>
-              <p className="text-[11px] text-slate-400 mt-0.5">{recentExecs.length} recent runs</p>
+              <p className="text-[11px] text-fg-subtle mt-0.5">{recentExecs.length} recent runs</p>
             </div>
             {trendPoints.length >= 2 && <PassRateSparkline points={trendPoints.slice(-14)} />}
           </div>
 
           {/* Total tests */}
           <div className="px-5 py-4">
-            <p className="text-xs text-slate-500">Tests executed</p>
-            <p className="text-2xl font-bold text-slate-800 mt-0.5">
-              {totalAutoTests.toLocaleString()}
-            </p>
-            <p className="text-[11px] text-slate-400 mt-0.5">
-              <span className="text-green-600">{totalPassed.toLocaleString()} passed</span>
+            <p className="text-xs text-fg-muted">Tests executed</p>
+            <p className="text-2xl font-bold text-fg mt-0.5">{totalAutoTests.toLocaleString()}</p>
+            <p className="text-[11px] text-fg-subtle mt-0.5">
+              <span className="text-success">{totalPassed.toLocaleString()} passed</span>
               {' · '}
-              <span className="text-red-500">{totalFailed} failed</span>
+              <span className="text-danger">{totalFailed} failed</span>
               {totalSkipped > 0 && (
                 <>
                   <span> · </span>
-                  <span className="text-slate-400">{totalSkipped} skipped</span>
+                  <span className="text-fg-subtle">{totalSkipped} skipped</span>
                 </>
               )}
             </p>
@@ -427,30 +424,30 @@ export default function ProjectDetail() {
           {/* Flaky tests */}
           <Link
             to={`${base}/flaky-tests`}
-            className="px-5 py-4 hover:bg-slate-50 transition-colors block"
+            className="px-5 py-4 hover:bg-surface-muted transition-colors block"
           >
-            <p className="text-xs text-slate-500">Flaky tests</p>
+            <p className="text-xs text-fg-muted">Flaky tests</p>
             <p
               className="text-2xl font-bold mt-0.5"
               style={{ color: flakyCount > 0 ? '#ca8a04' : '#16a34a' }}
             >
               {flakyCount}
             </p>
-            <p className="text-[11px] text-slate-400 mt-0.5">
+            <p className="text-[11px] text-fg-subtle mt-0.5">
               {flakyItems.filter(f => f.classification === 'CRITICAL_FLAKY').length} critical
             </p>
           </Link>
 
           {/* Quality gate */}
           <div className="px-5 py-4">
-            <p className="text-xs text-slate-500">Quality gate</p>
+            <p className="text-xs text-fg-muted">Quality gate</p>
             {qualityGate ? (
               <>
                 <div className="flex items-center gap-1.5 mt-0.5">
                   {qualityGate.passed ? (
-                    <CheckCircle size={18} className="text-green-500 shrink-0" />
+                    <CheckCircle size={18} className="text-success shrink-0" />
                   ) : (
-                    <XCircle size={18} className="text-red-500 shrink-0" />
+                    <XCircle size={18} className="text-danger shrink-0" />
                   )}
                   <p
                     className="text-xl font-bold"
@@ -459,13 +456,13 @@ export default function ProjectDetail() {
                     {qualityGate.passed ? 'PASS' : 'FAIL'}
                   </p>
                 </div>
-                <p className="text-[11px] text-slate-400 mt-0.5">
+                <p className="text-[11px] text-fg-subtle mt-0.5">
                   {qualityGate.actualPassRate.toFixed(1)}% pass rate · {qualityGate.newFailures} new
                   failures
                 </p>
               </>
             ) : (
-              <p className="text-xl font-bold text-slate-300 mt-0.5">—</p>
+              <p className="text-xl font-bold text-fg-subtle mt-0.5">—</p>
             )}
           </div>
         </div>
@@ -475,12 +472,12 @@ export default function ProjectDetail() {
 
         {/* Recent executions */}
         {recentExecs.length === 0 ? (
-          <div className="flex items-center gap-3 px-5 py-8 text-sm text-slate-500">
-            <MonitorCheck size={18} className="text-slate-300" />
+          <div className="flex items-center gap-3 px-5 py-8 text-sm text-fg-muted">
+            <MonitorCheck size={18} className="text-fg-subtle" />
             No automated executions yet — push results via the ingestion API.
           </div>
         ) : (
-          <div className="divide-y divide-slate-50">
+          <div className="divide-y divide-border">
             {recentExecs.slice(0, 6).map(e => (
               <ExecutionRow key={e.id} exec={e} base={base} />
             ))}
@@ -490,31 +487,31 @@ export default function ProjectDetail() {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Release readiness */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="bg-surface rounded-lg border border-border shadow-xs overflow-hidden">
           <SectionHeader
             title="Release readiness"
             to={`${base}/test-execution`}
             linkLabel="Test Execution"
           />
           {releases.length === 0 ? (
-            <p className="px-5 py-10 text-center text-sm text-slate-500">
+            <p className="px-5 py-10 text-center text-sm text-fg-muted">
               No releases with runs in scope.
             </p>
           ) : (
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-xs text-slate-500 border-b border-slate-100">
+                <tr className="text-left text-xs text-fg-muted border-b border-border">
                   <th className="px-5 py-2 font-medium">Release</th>
                   <th className="px-3 py-2 font-medium w-28">Pass</th>
                   <th className="px-3 py-2 font-medium w-28">Coverage</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-50">
+              <tbody className="divide-y divide-border">
                 {releases.slice(0, 6).map(r => (
-                  <tr key={r.releaseId} className="hover:bg-slate-50">
+                  <tr key={r.releaseId} className="hover:bg-surface-muted">
                     <td className="px-5 py-2">
-                      <div className="font-medium text-slate-800 truncate">{r.releaseName}</div>
-                      <div className="text-xs text-slate-400 truncate">
+                      <div className="font-medium text-fg truncate">{r.releaseName}</div>
+                      <div className="text-xs text-fg-subtle truncate">
                         {r.teamName}
                         {r.iterationPath ? ` · ${pathLeaf(r.iterationPath)}` : ''}
                       </div>
@@ -532,10 +529,8 @@ export default function ProjectDetail() {
                     </td>
                     <td className="px-3 py-2">
                       <div className="flex items-center gap-1.5">
-                        <Bar pct={r.coveragePct} color="#3b82f6" />
-                        <span className="text-xs tabular-nums text-slate-500">
-                          {r.coveragePct}%
-                        </span>
+                        <Bar pct={r.coveragePct} color="#1f6feb" />
+                        <span className="text-xs tabular-nums text-fg-muted">{r.coveragePct}%</span>
                       </div>
                     </td>
                   </tr>
@@ -546,30 +541,30 @@ export default function ProjectDetail() {
         </div>
 
         {/* Coverage gaps by area */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="bg-surface rounded-lg border border-border shadow-xs overflow-hidden">
           <SectionHeader
             title="Coverage by area (lowest first)"
             to={`${base}/coverage`}
             linkLabel="Coverage"
           />
           {cov.byArea.length === 0 ? (
-            <p className="px-5 py-10 text-center text-sm text-slate-500">
+            <p className="px-5 py-10 text-center text-sm text-fg-muted">
               No requirements in scope.
             </p>
           ) : (
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-xs text-slate-500 border-b border-slate-100">
+                <tr className="text-left text-xs text-fg-muted border-b border-border">
                   <th className="px-5 py-2 font-medium">Area</th>
                   <th className="px-3 py-2 font-medium w-32">Coverage</th>
                   <th className="px-3 py-2 font-medium text-right w-16">Gaps</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-50">
+              <tbody className="divide-y divide-border">
                 {cov.byArea.slice(0, 6).map(a => (
-                  <tr key={a.label} className="hover:bg-slate-50">
+                  <tr key={a.label} className="hover:bg-surface-muted">
                     <td
-                      className="px-5 py-2 font-medium text-slate-800 max-w-[14rem] truncate"
+                      className="px-5 py-2 font-medium text-fg max-w-[14rem] truncate"
                       title={a.label}
                     >
                       {pathLeaf(a.label)}
@@ -585,9 +580,7 @@ export default function ProjectDetail() {
                         </span>
                       </div>
                     </td>
-                    <td className="px-3 py-2 text-right tabular-nums text-red-600">
-                      {a.uncovered}
-                    </td>
+                    <td className="px-3 py-2 text-right tabular-nums text-danger">{a.uncovered}</td>
                   </tr>
                 ))}
               </tbody>
@@ -596,34 +589,34 @@ export default function ProjectDetail() {
         </div>
 
         {/* Defects */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="bg-surface rounded-lg border border-border shadow-xs overflow-hidden">
           <SectionHeader title="Defects" to={`${base}/quality`} linkLabel="Quality" />
           {!qual ? (
-            <p className="px-5 py-10 text-center text-sm text-slate-500">No defect data.</p>
+            <p className="px-5 py-10 text-center text-sm text-fg-muted">No defect data.</p>
           ) : (
             <div className="p-5 space-y-4">
               <div className="grid grid-cols-3 gap-3">
                 <div>
-                  <p className="text-xs text-slate-500">Open</p>
-                  <p className="text-xl font-bold text-red-600">{qual.openDefects}</p>
+                  <p className="text-xs text-fg-muted">Open</p>
+                  <p className="text-xl font-bold text-danger">{qual.openDefects}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-slate-500">Blocked</p>
-                  <p className="text-xl font-bold text-orange-600">{qual.blockedDefects}</p>
+                  <p className="text-xs text-fg-muted">Blocked</p>
+                  <p className="text-xl font-bold text-warning">{qual.blockedDefects}</p>
                 </div>
                 <div>
-                  <p className="text-xs text-slate-500">Done</p>
-                  <p className="text-xl font-bold text-green-600">{qual.doneDefects}</p>
+                  <p className="text-xs text-fg-muted">Done</p>
+                  <p className="text-xl font-bold text-success">{qual.doneDefects}</p>
                 </div>
               </div>
               {qual.bySeverity.length > 0 && (
                 <div>
-                  <p className="text-xs text-slate-500 mb-1.5">By severity</p>
+                  <p className="text-xs text-fg-muted mb-1.5">By severity</p>
                   <div className="flex flex-wrap gap-2">
                     {qual.bySeverity.map(s => (
                       <span
                         key={s.label}
-                        className="text-xs px-2 py-0.5 rounded bg-slate-100 text-slate-600"
+                        className="text-xs px-2 py-0.5 rounded bg-surface-muted text-fg-muted"
                       >
                         {s.label}: <b>{s.value}</b>
                       </span>
@@ -631,7 +624,7 @@ export default function ProjectDetail() {
                   </div>
                 </div>
               )}
-              <p className="text-xs text-slate-400">
+              <p className="text-xs text-fg-subtle">
                 {qual.totalDefects} total · {qual.qualityEngineers} quality engineers
               </p>
             </div>
@@ -653,7 +646,7 @@ export default function ProjectDetail() {
             <Link
               key={l.to}
               to={l.to}
-              className="flex items-center gap-2 px-3 py-2.5 bg-white rounded-xl border border-slate-200 shadow-sm text-sm text-slate-600 hover:border-blue-300 hover:text-blue-700 transition-colors"
+              className="flex items-center gap-2 px-3 py-2.5 bg-surface rounded-lg border border-border shadow-xs text-sm text-fg-muted hover:border-primary/40 hover:text-primary transition-colors"
             >
               <Icon size={15} /> {l.label}
             </Link>

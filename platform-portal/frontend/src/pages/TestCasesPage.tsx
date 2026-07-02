@@ -15,6 +15,8 @@ import type {
   GenerateTestCasesRequestBody,
 } from '@/lib/types'
 import Badge from '@/components/Badge'
+import { Button, PageHeader } from '@/components/ui'
+import { usePageWidth } from '@/components/layout/PageWidth'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import ErrorMessage from '@/components/ErrorMessage'
 import Markdown from '@/components/Markdown'
@@ -49,61 +51,61 @@ import {
 
 // ── Color helpers ──────────────────────────────────────────────────────────────
 
+// Badge color helpers — return design-token class pairs (see lib/status.ts for the
+// shared StatusVariant mapping these mirror).
 function statusColor(status: string): string {
   switch (status) {
-    case 'DRAFT':
-      return 'text-slate-600 bg-slate-100'
     case 'UNDER_REVIEW':
-      return 'text-yellow-700 bg-yellow-100'
+      return 'text-warning bg-warning-bg'
     case 'APPROVED':
-      return 'text-green-700 bg-green-100'
+      return 'text-success bg-success-bg'
     case 'DEPRECATED':
-      return 'text-red-700 bg-red-100'
+      return 'text-danger bg-danger-bg'
+    case 'DRAFT':
     default:
-      return 'text-slate-600 bg-slate-100'
+      return 'text-neutral bg-neutral-bg'
   }
 }
 
 function priorityColor(priority: string): string {
   switch (priority) {
     case 'CRITICAL':
-      return 'text-red-700 bg-red-100'
+      return 'text-danger bg-danger-bg'
     case 'HIGH':
-      return 'text-orange-700 bg-orange-100'
+      return 'text-warning bg-warning-bg'
     case 'MEDIUM':
-      return 'text-yellow-700 bg-yellow-100'
+      return 'text-info bg-info-bg'
     case 'LOW':
-      return 'text-slate-600 bg-slate-100'
     default:
-      return 'text-slate-600 bg-slate-100'
+      return 'text-neutral bg-neutral-bg'
   }
 }
 
 function automationColor(automationStatus: string): string {
   switch (automationStatus) {
     case 'GENERATING':
-      return 'text-blue-700 bg-blue-100'
+      return 'text-info bg-info-bg'
     case 'PR_CREATED':
-      return 'text-purple-700 bg-purple-100'
+      return 'text-primary-subtle-fg bg-primary-subtle'
     case 'PR_MERGED':
-      return 'text-green-700 bg-green-100'
+      return 'text-success bg-success-bg'
     case 'FAILED':
-      return 'text-red-700 bg-red-100'
+      return 'text-danger bg-danger-bg'
     default:
-      return 'text-slate-500 bg-slate-100'
+      return 'text-neutral bg-neutral-bg'
   }
 }
 
 function coverageColor(status: string): string {
   switch (status) {
     case 'COVERED':
-      return 'text-green-700 bg-green-100'
+      return 'text-success bg-success-bg'
     case 'PARTIAL':
-      return 'text-yellow-700 bg-yellow-100'
+      return 'text-warning bg-warning-bg'
     case 'NOT_COVERED':
-      return 'text-red-700 bg-red-100'
+      return 'text-danger bg-danger-bg'
     default:
-      return 'text-slate-500 bg-slate-100'
+      return 'text-neutral bg-neutral-bg'
   }
 }
 
@@ -138,9 +140,9 @@ function StepEditor({
       {steps.map((step, i) => (
         <div
           key={i}
-          className="flex gap-2 items-start rounded-lg border border-slate-100 bg-slate-50/50 p-2"
+          className="flex gap-2 items-start rounded-lg border border-border bg-surface-muted/50 p-2"
         >
-          <span className="text-xs text-slate-400 font-mono mt-2 w-5 shrink-0 text-right">
+          <span className="text-xs text-fg-subtle font-mono mt-2 w-5 shrink-0 text-right">
             {i + 1}.
           </span>
           <div className="flex-1 space-y-1">
@@ -149,27 +151,27 @@ function StepEditor({
               placeholder="Action — what the tester does"
               value={step.action}
               onChange={e => updateStep(i, 'action', e.target.value)}
-              className="w-full border border-slate-200 rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-full border border-border rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-primary/30"
             />
             <input
               type="text"
               placeholder="Expected result"
               value={step.expectedResult}
               onChange={e => updateStep(i, 'expectedResult', e.target.value)}
-              className="w-full border border-slate-200 rounded px-2 py-1 text-xs text-slate-600 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-full border border-border rounded px-2 py-1 text-xs text-fg-muted focus:outline-none focus:ring-1 focus:ring-primary/30"
             />
             <input
               type="text"
               placeholder="Notes (optional)"
               value={step.notes}
               onChange={e => updateStep(i, 'notes', e.target.value)}
-              className="w-full border border-slate-200 rounded px-2 py-1 text-xs text-slate-400 focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="w-full border border-border rounded px-2 py-1 text-xs text-fg-subtle focus:outline-none focus:ring-1 focus:ring-primary/30"
             />
           </div>
           <button
             type="button"
             onClick={() => removeStep(i)}
-            className="mt-1.5 text-slate-400 hover:text-red-500 transition-colors"
+            className="mt-1.5 text-fg-subtle hover:text-danger transition-colors"
             title="Remove step"
           >
             <X size={14} />
@@ -179,7 +181,7 @@ function StepEditor({
       <button
         type="button"
         onClick={addStep}
-        className="text-xs text-blue-600 hover:text-blue-700 font-medium flex items-center gap-1 mt-1"
+        className="text-xs text-primary hover:text-primary font-medium flex items-center gap-1 mt-1"
       >
         <Plus size={12} /> Add step
       </button>
@@ -201,8 +203,8 @@ function FormSection({
   return (
     <div>
       <div className="mb-2">
-        <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wider">{title}</h3>
-        {hint && <p className="text-[11px] text-slate-400 mt-0.5">{hint}</p>}
+        <h3 className="text-xs font-semibold text-fg-muted uppercase tracking-wider">{title}</h3>
+        {hint && <p className="text-[11px] text-fg-subtle mt-0.5">{hint}</p>}
       </div>
       <div className="space-y-3">{children}</div>
     </div>
@@ -247,7 +249,7 @@ function RequirementMultiSelect({
     <div>
       <div className="flex flex-wrap gap-1 mb-1.5">
         {value.length === 0 && (
-          <span className="text-xs text-slate-400 italic">None linked (optional)</span>
+          <span className="text-xs text-fg-subtle italic">None linked (optional)</span>
         )}
         {ordered.map(id => {
           const r = byId.get(id)
@@ -257,7 +259,7 @@ function RequirementMultiSelect({
               key={id}
               className={cn(
                 'inline-flex items-center gap-1 text-xs rounded px-1.5 py-0.5',
-                isPrimary ? 'bg-blue-100 text-blue-800' : 'bg-blue-50 text-blue-700',
+                isPrimary ? 'bg-primary-subtle text-primary' : 'bg-primary-subtle text-primary',
               )}
             >
               <button
@@ -268,22 +270,22 @@ function RequirementMultiSelect({
                     ? 'Primary (source) requirement — click to unset'
                     : 'Mark as primary (source) requirement'
                 }
-                className={isPrimary ? 'text-amber-500' : 'text-slate-300 hover:text-amber-500'}
+                className={isPrimary ? 'text-warning' : 'text-fg-subtle hover:text-warning'}
               >
                 <Star size={11} fill={isPrimary ? 'currentColor' : 'none'} />
               </button>
               {r?.externalId && <span className="font-mono opacity-60">{r.externalId}</span>}
               <span className="truncate max-w-[170px]">{r?.title ?? id.slice(0, 8) + '…'}</span>
-              <button type="button" onClick={() => remove(id)} className="hover:text-red-500">
+              <button type="button" onClick={() => remove(id)} className="hover:text-danger">
                 <X size={10} />
               </button>
             </span>
           )
         })}
       </div>
-      <div className="border border-slate-200 rounded-lg">
-        <div className="flex items-center gap-1 px-2 py-1.5 border-b border-slate-100">
-          <Search size={12} className="text-slate-400" />
+      <div className="border border-border rounded-lg">
+        <div className="flex items-center gap-1 px-2 py-1.5 border-b border-border">
+          <Search size={12} className="text-fg-subtle" />
           <input
             value={search}
             onChange={e => setSearch(e.target.value)}
@@ -293,26 +295,26 @@ function RequirementMultiSelect({
         </div>
         <div className="max-h-40 overflow-y-auto">
           {filtered.length === 0 ? (
-            <p className="text-xs text-slate-400 px-3 py-2">No matching requirements</p>
+            <p className="text-xs text-fg-subtle px-3 py-2">No matching requirements</p>
           ) : (
             filtered.slice(0, 30).map(r => (
               <button
                 type="button"
                 key={r.id}
                 onClick={() => add(r.id)}
-                className="w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 hover:bg-blue-50"
+                className="w-full text-left px-3 py-1.5 text-xs flex items-center gap-2 hover:bg-primary-subtle"
               >
-                <Plus size={11} className="text-slate-300 shrink-0" />
+                <Plus size={11} className="text-fg-subtle shrink-0" />
                 {r.externalId && (
-                  <span className="text-slate-400 font-mono shrink-0">{r.externalId}</span>
+                  <span className="text-fg-subtle font-mono shrink-0">{r.externalId}</span>
                 )}
-                <span className="text-slate-700 truncate">{r.title}</span>
+                <span className="text-fg truncate">{r.title}</span>
               </button>
             ))
           )}
         </div>
       </div>
-      <p className="text-[11px] text-slate-400 mt-1">
+      <p className="text-[11px] text-fg-subtle mt-1">
         Click the ★ to mark one as the primary/source requirement (optional).
       </p>
     </div>
@@ -374,10 +376,10 @@ function AcceptanceCriteriaPicker({
                 .filter(Boolean),
             )
           }
-          className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
           placeholder="comma-separated, e.g. AC-1, AC-2"
         />
-        <p className="text-[11px] text-slate-400 mt-1">
+        <p className="text-[11px] text-fg-subtle mt-1">
           {linkedReqIds.length === 0
             ? 'Link a requirement above to pick its acceptance criteria; otherwise enter refs manually.'
             : 'The linked requirement(s) have no structured acceptance criteria — enter refs manually.'}
@@ -388,16 +390,16 @@ function AcceptanceCriteriaPicker({
   return (
     <div className="space-y-2">
       {groups.map(g => (
-        <div key={g.req.id} className="border border-slate-200 rounded-lg overflow-hidden">
-          <p className="px-2.5 py-1.5 bg-slate-50 text-[11px] font-medium text-slate-500 border-b border-slate-100">
+        <div key={g.req.id} className="border border-border rounded-lg overflow-hidden">
+          <p className="px-2.5 py-1.5 bg-surface-muted text-[11px] font-medium text-fg-muted border-b border-border">
             {g.req.externalId && <span className="font-mono mr-1">{g.req.externalId}</span>}
             {g.req.title}
           </p>
-          <div className="divide-y divide-slate-50">
+          <div className="divide-y divide-border">
             {g.acs.map((ac, i) => (
               <label
                 key={i}
-                className="flex items-start gap-2 px-2.5 py-1.5 text-xs cursor-pointer hover:bg-blue-50"
+                className="flex items-start gap-2 px-2.5 py-1.5 text-xs cursor-pointer hover:bg-primary-subtle"
               >
                 <input
                   type="checkbox"
@@ -405,7 +407,7 @@ function AcceptanceCriteriaPicker({
                   onChange={() => toggle(ac)}
                   className="mt-0.5 shrink-0"
                 />
-                <span className="text-slate-700">{ac}</span>
+                <span className="text-fg">{ac}</span>
               </label>
             ))}
           </div>
@@ -416,10 +418,10 @@ function AcceptanceCriteriaPicker({
           {custom.map(c => (
             <span
               key={c}
-              className="inline-flex items-center gap-1 text-xs bg-slate-100 text-slate-600 rounded px-1.5 py-0.5"
+              className="inline-flex items-center gap-1 text-xs bg-surface-muted text-fg-muted rounded px-1.5 py-0.5"
             >
               {c}
-              <button type="button" onClick={() => toggle(c)} className="hover:text-red-500">
+              <button type="button" onClick={() => toggle(c)} className="hover:text-danger">
                 <X size={10} />
               </button>
             </span>
@@ -545,16 +547,16 @@ function TestCaseFormModal({
   }
 
   const inputCls =
-    'w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500'
+    'w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30'
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl mx-4 max-h-[92vh] flex flex-col">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200">
-          <h2 className="font-semibold text-slate-900">
+      <div className="bg-surface rounded-xl shadow-md w-full max-w-2xl mx-4 max-h-[92vh] flex flex-col">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+          <h2 className="font-semibold text-fg">
             {isEdit ? `Edit ${editing!.externalId ?? 'Test Case'}` : 'New Test Case'}
           </h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+          <button onClick={onClose} className="text-fg-subtle hover:text-fg-muted">
             <X size={18} />
           </button>
         </div>
@@ -565,7 +567,7 @@ function TestCaseFormModal({
           {/* Details */}
           <FormSection title="Details">
             <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1">Title *</label>
+              <label className="block text-xs font-medium text-fg mb-1">Title *</label>
               <input
                 type="text"
                 value={title}
@@ -576,7 +578,7 @@ function TestCaseFormModal({
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1">Priority</label>
+              <label className="block text-xs font-medium text-fg mb-1">Priority</label>
               <select
                 value={priority}
                 onChange={e => setPriority(e.target.value)}
@@ -590,33 +592,33 @@ function TestCaseFormModal({
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1">
+              <label className="block text-xs font-medium text-fg mb-1">
                 Test Suites{' '}
-                <span className="font-normal text-slate-400">
+                <span className="font-normal text-fg-subtle">
                   ({selectedSuiteIds.size} selected · a case can be in many)
                 </span>
               </label>
               {staticSuites.length === 0 ? (
-                <p className="text-xs text-slate-500 bg-slate-50 rounded-lg px-3 py-2">
+                <p className="text-xs text-fg-muted bg-surface-muted rounded-lg px-3 py-2">
                   No static suites yet. Create suites in <strong>Test Suites</strong>. (Smart suites
                   assign cases automatically.)
                 </p>
               ) : (
-                <div className="border border-slate-200 rounded-lg max-h-36 overflow-y-auto divide-y divide-slate-50">
+                <div className="border border-border rounded-lg max-h-36 overflow-y-auto divide-y divide-border">
                   {staticSuites.map(s => (
                     <label
                       key={s.id}
-                      className="flex items-center gap-2.5 px-3 py-1.5 cursor-pointer hover:bg-slate-50"
+                      className="flex items-center gap-2.5 px-3 py-1.5 cursor-pointer hover:bg-surface-muted"
                     >
                       <input
                         type="checkbox"
                         checked={selectedSuiteIds.has(s.id)}
                         onChange={() => toggleSuite(s.id)}
-                        className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 shrink-0"
+                        className="rounded border-border-strong text-primary focus:ring-primary/30 shrink-0"
                       />
-                      <span className="text-sm text-slate-800 flex-1 truncate">{s.name}</span>
+                      <span className="text-sm text-fg flex-1 truncate">{s.name}</span>
                       {s.planType && (
-                        <span className="text-[10px] uppercase text-slate-400 shrink-0">
+                        <span className="text-[10px] uppercase text-fg-subtle shrink-0">
                           {s.planType}
                         </span>
                       )}
@@ -626,7 +628,7 @@ function TestCaseFormModal({
               )}
             </div>
             {!isEdit && (
-              <p className="text-[11px] text-slate-400">
+              <p className="text-[11px] text-fg-subtle">
                 New cases start as <strong>DRAFT</strong> — submit for review to confirm.
               </p>
             )}
@@ -638,7 +640,7 @@ function TestCaseFormModal({
             hint="Markdown supported — use the Preview tab to check formatting."
           >
             <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1">Preconditions</label>
+              <label className="block text-xs font-medium text-fg mb-1">Preconditions</label>
               <MarkdownEditor
                 value={preconditions}
                 onChange={setPreconditions}
@@ -647,7 +649,7 @@ function TestCaseFormModal({
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1">Description</label>
+              <label className="block text-xs font-medium text-fg mb-1">Description</label>
               <MarkdownEditor
                 value={description}
                 onChange={setDescription}
@@ -656,7 +658,7 @@ function TestCaseFormModal({
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1">
+              <label className="block text-xs font-medium text-fg mb-1">
                 Expected result (overall)
               </label>
               <MarkdownEditor
@@ -679,9 +681,9 @@ function TestCaseFormModal({
           {/* Traceability */}
           <FormSection title="Traceability">
             <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1">
+              <label className="block text-xs font-medium text-fg mb-1">
                 Linked requirements{' '}
-                <span className="text-slate-400 font-normal">
+                <span className="text-fg-subtle font-normal">
                   (optional · a test case may cover any number, or none)
                 </span>
               </label>
@@ -694,9 +696,9 @@ function TestCaseFormModal({
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1">
+              <label className="block text-xs font-medium text-fg mb-1">
                 Acceptance criteria{' '}
-                <span className="text-slate-400 font-normal">
+                <span className="text-fg-subtle font-normal">
                   (which ACs of the linked requirements this case validates)
                 </span>
               </label>
@@ -710,11 +712,11 @@ function TestCaseFormModal({
           </FormSection>
         </form>
 
-        <div className="px-5 py-4 border-t border-slate-200 flex justify-end gap-2">
+        <div className="px-5 py-4 border-t border-border flex justify-end gap-2">
           <button
             type="button"
             onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+            className="px-4 py-2 text-sm font-medium text-fg-muted bg-surface border border-border rounded-lg hover:bg-surface-muted transition-colors"
           >
             Cancel
           </button>
@@ -722,7 +724,7 @@ function TestCaseFormModal({
             type="button"
             onClick={handleSubmit as unknown as React.MouseEventHandler}
             disabled={mutation.isPending}
-            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center gap-2"
+            className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-lg hover:brightness-95 disabled:opacity-50 transition-colors flex items-center gap-2"
           >
             {mutation.isPending && <Loader2 size={14} className="animate-spin" />}
             {isEdit ? 'Save changes' : 'Create'}
@@ -736,14 +738,14 @@ function TestCaseFormModal({
 // ── Generate from AI Modal ─────────────────────────────────────────────────────
 
 const ISSUE_TYPE_COLOR: Record<string, string> = {
-  EPIC: 'text-purple-700 bg-purple-100',
-  STORY: 'text-blue-700 bg-blue-100',
-  BUG: 'text-red-700 bg-red-100',
-  TASK: 'text-slate-600 bg-slate-100',
+  EPIC: 'text-primary bg-primary-subtle',
+  STORY: 'text-primary bg-primary-subtle',
+  BUG: 'text-danger bg-danger-bg',
+  TASK: 'text-fg-muted bg-surface-muted',
   SUBTASK: 'text-teal-700 bg-teal-100',
 }
 function reqTypeColor(t: string) {
-  return ISSUE_TYPE_COLOR[t?.toUpperCase()] ?? 'text-slate-600 bg-slate-100'
+  return ISSUE_TYPE_COLOR[t?.toUpperCase()] ?? 'text-fg-muted bg-surface-muted'
 }
 
 // ── Tree helpers for GenerateAIModal ─────────────────────────────────────────
@@ -800,7 +802,7 @@ function TreeCheckbox({ state, onChange }: { state: CheckState; onChange: () => 
       type="checkbox"
       checked={state === 'checked'}
       onChange={onChange}
-      className="shrink-0 accent-purple-600 cursor-pointer"
+      className="shrink-0 accent-primary cursor-pointer"
     />
   )
 }
@@ -829,9 +831,9 @@ function ReqTreeRow({
     <>
       <div
         className={cn(
-          'flex items-center gap-2 py-2 pr-4 hover:bg-slate-50 transition-colors group',
-          isSelected && 'bg-purple-50 hover:bg-purple-50',
-          state === 'indeterminate' && 'bg-purple-50/50 hover:bg-purple-50/50',
+          'flex items-center gap-2 py-2 pr-4 hover:bg-surface-muted transition-colors group',
+          isSelected && 'bg-primary-subtle hover:bg-primary-subtle',
+          state === 'indeterminate' && 'bg-primary-subtle/50 hover:bg-primary-subtle/50',
         )}
         style={{ paddingLeft: `${12 + indent * 20}px` }}
       >
@@ -840,8 +842,8 @@ function ReqTreeRow({
           type="button"
           onClick={() => hasChildren && onToggleExpand(node.id)}
           className={cn(
-            'shrink-0 text-slate-400',
-            hasChildren ? 'hover:text-slate-600 cursor-pointer' : 'invisible',
+            'shrink-0 text-fg-subtle',
+            hasChildren ? 'hover:text-fg-muted cursor-pointer' : 'invisible',
           )}
           tabIndex={-1}
         >
@@ -854,13 +856,13 @@ function ReqTreeRow({
           <div className="flex items-center gap-2 flex-wrap">
             <Badge label={node.issueType} colorClass={reqTypeColor(node.issueType)} />
             {node.externalId && (
-              <span className="text-xs font-mono text-slate-400">{node.externalId}</span>
+              <span className="text-xs font-mono text-fg-subtle">{node.externalId}</span>
             )}
             {hasChildren && (
-              <span className="text-xs text-slate-400">({node.children.length})</span>
+              <span className="text-xs text-fg-subtle">({node.children.length})</span>
             )}
           </div>
-          <p className="text-sm text-slate-800 leading-snug">{node.title}</p>
+          <p className="text-sm text-fg leading-snug">{node.title}</p>
         </div>
       </div>
 
@@ -1050,14 +1052,14 @@ function GenerateAIModal({ projectId, onClose }: { projectId: string; onClose: (
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 flex flex-col max-h-[85vh]">
+      <div className="bg-surface rounded-xl shadow-md w-full max-w-lg mx-4 flex flex-col max-h-[85vh]">
         {/* Header */}
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200 shrink-0">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border shrink-0">
           <div className="flex items-center gap-2">
-            <Sparkles size={18} className="text-purple-600" />
-            <h2 className="font-semibold text-slate-900">Generate Test Cases with AI</h2>
+            <Sparkles size={18} className="text-primary" />
+            <h2 className="font-semibold text-fg">Generate Test Cases with AI</h2>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+          <button onClick={onClose} className="text-fg-subtle hover:text-fg-muted">
             <X size={18} />
           </button>
         </div>
@@ -1069,7 +1071,7 @@ function GenerateAIModal({ projectId, onClose }: { projectId: string; onClose: (
           /* ── Selection state ── */
           <>
             <div className="px-5 pt-4 pb-3 shrink-0 space-y-3">
-              <p className="text-sm text-slate-600">
+              <p className="text-sm text-fg-muted">
                 Select requirements for Claude to generate test cases from. Selecting an Epic
                 selects all its children. Generated cases appear in <strong>DRAFT</strong> status.
               </p>
@@ -1077,26 +1079,26 @@ function GenerateAIModal({ projectId, onClose }: { projectId: string; onClose: (
               <div className="relative">
                 <Search
                   size={13}
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                  className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-subtle"
                 />
                 <input
                   type="text"
                   value={search}
                   onChange={e => setSearch(e.target.value)}
                   placeholder="Search requirements…"
-                  className="w-full pl-8 pr-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  className="w-full pl-8 pr-3 py-1.5 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30"
                 />
               </div>
               {/* Select all / deselect */}
               <div className="flex items-center justify-between">
-                <span className="text-xs text-slate-500">
+                <span className="text-xs text-fg-muted">
                   {selected.size} of {allReqs.length} selected
                 </span>
                 <div className="flex gap-3 text-xs">
-                  <button onClick={selectAll} className="text-purple-600 hover:text-purple-800">
+                  <button onClick={selectAll} className="text-primary hover:brightness-110">
                     Select all
                   </button>
-                  <button onClick={deselectAll} className="text-slate-500 hover:text-slate-700">
+                  <button onClick={deselectAll} className="text-fg-muted hover:text-fg">
                     Deselect all
                   </button>
                 </div>
@@ -1104,29 +1106,29 @@ function GenerateAIModal({ projectId, onClose }: { projectId: string; onClose: (
             </div>
 
             {/* Requirement list */}
-            <div className="flex-1 overflow-y-auto border-t border-b border-slate-100 min-h-0">
+            <div className="flex-1 overflow-y-auto border-t border-b border-border min-h-0">
               {reqsLoading ? (
                 <div className="py-8 flex justify-center">
-                  <Loader2 size={20} className="animate-spin text-slate-400" />
+                  <Loader2 size={20} className="animate-spin text-fg-subtle" />
                 </div>
               ) : allReqs.length === 0 ? (
-                <p className="py-8 text-sm text-slate-500 text-center">
+                <p className="py-8 text-sm text-fg-muted text-center">
                   No requirements found. Sync an integration first.
                 </p>
               ) : isSearching ? (
                 /* Flat list when searching */
                 filtered.length === 0 ? (
-                  <p className="py-8 text-sm text-slate-500 text-center">
+                  <p className="py-8 text-sm text-fg-muted text-center">
                     No matching requirements.
                   </p>
                 ) : (
-                  <div className="divide-y divide-slate-50">
+                  <div className="divide-y divide-border">
                     {filtered.map((r: Requirement) => (
                       <label
                         key={r.id}
                         className={cn(
-                          'flex items-start gap-3 px-5 py-3 cursor-pointer hover:bg-slate-50 transition-colors',
-                          selected.has(r.id) && 'bg-purple-50 hover:bg-purple-50',
+                          'flex items-start gap-3 px-5 py-3 cursor-pointer hover:bg-surface-muted transition-colors',
+                          selected.has(r.id) && 'bg-primary-subtle hover:bg-primary-subtle',
                         )}
                       >
                         <input
@@ -1139,18 +1141,18 @@ function GenerateAIModal({ projectId, onClose }: { projectId: string; onClose: (
                               return next
                             })
                           }
-                          className="mt-0.5 shrink-0 accent-purple-600"
+                          className="mt-0.5 shrink-0 accent-primary"
                         />
                         <div className="min-w-0 flex-1">
                           <div className="flex items-center gap-2 flex-wrap">
                             <Badge label={r.issueType} colorClass={reqTypeColor(r.issueType)} />
                             {r.externalId && (
-                              <span className="text-xs font-mono text-slate-400">
+                              <span className="text-xs font-mono text-fg-subtle">
                                 {r.externalId}
                               </span>
                             )}
                           </div>
-                          <p className="text-sm text-slate-800 mt-0.5 leading-snug">{r.title}</p>
+                          <p className="text-sm text-fg mt-0.5 leading-snug">{r.title}</p>
                         </div>
                       </label>
                     ))}
@@ -1175,18 +1177,18 @@ function GenerateAIModal({ projectId, onClose }: { projectId: string; onClose: (
             </div>
 
             {/* Steering inputs */}
-            <div className="px-5 py-3 border-t border-slate-100 shrink-0 space-y-3 max-h-[38vh] overflow-y-auto">
+            <div className="px-5 py-3 border-t border-border shrink-0 space-y-3 max-h-[38vh] overflow-y-auto">
               {/* Agent + sub-type selection (pre-filled with the resolved default) */}
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">Type</label>
+                  <label className="block text-xs font-medium text-fg mb-1">Type</label>
                   <select
                     value={subType}
                     onChange={e => {
                       setSubType(e.target.value)
                       setAgentTouched(false) // re-resolve default agent for the new sub-type
                     }}
-                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30"
                   >
                     {(subTypeOptions ?? []).map(s => (
                       <option key={s.key} value={s.key}>
@@ -1196,10 +1198,10 @@ function GenerateAIModal({ projectId, onClose }: { projectId: string; onClose: (
                   </select>
                 </div>
                 <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">
+                  <label className="block text-xs font-medium text-fg mb-1">
                     Agent{' '}
                     {resolvedDefault && !agentTouched && (
-                      <span className="text-slate-400">(default: {resolvedDefault.agentName})</span>
+                      <span className="text-fg-subtle">(default: {resolvedDefault.agentName})</span>
                     )}
                   </label>
                   <select
@@ -1208,7 +1210,7 @@ function GenerateAIModal({ projectId, onClose }: { projectId: string; onClose: (
                       setAgentId(e.target.value)
                       setAgentTouched(true)
                     }}
-                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                    className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30"
                   >
                     <option value="">Default ({resolvedDefault?.agentName ?? 'seed'})</option>
                     {(agentOptions ?? []).map(a => (
@@ -1222,22 +1224,22 @@ function GenerateAIModal({ projectId, onClose }: { projectId: string; onClose: (
               </div>
               {/* Free text */}
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">
-                  Additional instructions <span className="text-slate-400">(optional)</span>
+                <label className="block text-xs font-medium text-fg mb-1">
+                  Additional instructions <span className="text-fg-subtle">(optional)</span>
                 </label>
                 <textarea
                   value={freeText}
                   onChange={e => setFreeText(e.target.value)}
                   rows={2}
                   placeholder="e.g. Focus on negative paths for the payment flow"
-                  className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                  className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30"
                 />
               </div>
 
               {/* Skills */}
               {skills && skills.filter(s => s.enabled).length > 0 && (
                 <div>
-                  <label className="block text-xs font-medium text-slate-700 mb-1">Skills</label>
+                  <label className="block text-xs font-medium text-fg mb-1">Skills</label>
                   <div className="flex flex-wrap gap-1.5">
                     {skills
                       .filter(s => s.enabled)
@@ -1249,8 +1251,8 @@ function GenerateAIModal({ projectId, onClose }: { projectId: string; onClose: (
                           className={cn(
                             'px-2.5 py-1 text-xs rounded-full border transition-colors',
                             skillIds.has(s.id)
-                              ? 'bg-purple-600 text-white border-purple-600'
-                              : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50',
+                              ? 'bg-primary text-white border-primary'
+                              : 'bg-surface text-fg-muted border-border hover:bg-surface-muted',
                           )}
                           title={s.description ?? s.instructions}
                         >
@@ -1263,8 +1265,8 @@ function GenerateAIModal({ projectId, onClose }: { projectId: string; onClose: (
 
               {/* Reference files */}
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">
-                  Reference files <span className="text-slate-400">(optional)</span>
+                <label className="block text-xs font-medium text-fg mb-1">
+                  Reference files <span className="text-fg-subtle">(optional)</span>
                 </label>
                 <input
                   ref={fileInputRef}
@@ -1280,13 +1282,13 @@ function GenerateAIModal({ projectId, onClose }: { projectId: string; onClose: (
                   {files.map(f => (
                     <span
                       key={f.id}
-                      className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded bg-slate-100 text-slate-600"
+                      className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded bg-surface-muted text-fg-muted"
                     >
                       <FileSpreadsheet size={12} />
                       {f.fileName}
                       <button
                         onClick={() => setFiles(prev => prev.filter(x => x.id !== f.id))}
-                        className="text-slate-400 hover:text-red-600"
+                        className="text-fg-subtle hover:text-danger"
                       >
                         <X size={12} />
                       </button>
@@ -1296,7 +1298,7 @@ function GenerateAIModal({ projectId, onClose }: { projectId: string; onClose: (
                     type="button"
                     onClick={() => fileInputRef.current?.click()}
                     disabled={uploadMutation.isPending}
-                    className="inline-flex items-center gap-1 px-2.5 py-1 text-xs rounded border border-dashed border-slate-300 text-slate-500 hover:bg-slate-50 disabled:opacity-50"
+                    className="inline-flex items-center gap-1 px-2.5 py-1 text-xs rounded border border-dashed border-border-strong text-fg-muted hover:bg-surface-muted disabled:opacity-50"
                   >
                     {uploadMutation.isPending ? (
                       <Loader2 size={12} className="animate-spin" />
@@ -1306,7 +1308,7 @@ function GenerateAIModal({ projectId, onClose }: { projectId: string; onClose: (
                     Attach file
                   </button>
                 </div>
-                {uploadError && <p className="text-xs text-red-600 mt-1">{uploadError}</p>}
+                {uploadError && <p className="text-xs text-danger mt-1">{uploadError}</p>}
               </div>
 
               {/* Advanced: prompts + rounds */}
@@ -1314,7 +1316,7 @@ function GenerateAIModal({ projectId, onClose }: { projectId: string; onClose: (
                 <button
                   type="button"
                   onClick={() => setShowAdvanced(v => !v)}
-                  className="inline-flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-slate-700"
+                  className="inline-flex items-center gap-1 text-xs font-medium text-fg-muted hover:text-fg"
                 >
                   {showAdvanced ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
                   Advanced: prompts &amp; clarification rounds
@@ -1322,29 +1324,27 @@ function GenerateAIModal({ projectId, onClose }: { projectId: string; onClose: (
                 {showAdvanced && (
                   <div className="mt-2 space-y-2">
                     <div>
-                      <label className="block text-xs font-medium text-slate-700 mb-1">
+                      <label className="block text-xs font-medium text-fg mb-1">
                         System prompt
                       </label>
                       <textarea
                         value={systemPrompt}
                         onChange={e => setSystemPrompt(e.target.value)}
                         rows={4}
-                        className="w-full px-3 py-2 text-xs font-mono border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                        className="w-full px-3 py-2 text-xs font-mono border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30"
                       />
                     </div>
                     <div>
-                      <label className="block text-xs font-medium text-slate-700 mb-1">
-                        User prompt
-                      </label>
+                      <label className="block text-xs font-medium text-fg mb-1">User prompt</label>
                       <textarea
                         value={userPrompt}
                         onChange={e => setUserPrompt(e.target.value)}
                         rows={2}
-                        className="w-full px-3 py-2 text-xs font-mono border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                        className="w-full px-3 py-2 text-xs font-mono border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30"
                       />
                     </div>
                     <div className="flex items-center gap-2">
-                      <label className="text-xs font-medium text-slate-700">
+                      <label className="text-xs font-medium text-fg">
                         Max clarification rounds
                       </label>
                       <input
@@ -1355,7 +1355,7 @@ function GenerateAIModal({ projectId, onClose }: { projectId: string; onClose: (
                         onChange={e =>
                           setMaxRounds(Math.max(1, Math.min(5, Number(e.target.value))))
                         }
-                        className="w-16 px-2 py-1 text-xs border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500"
+                        className="w-16 px-2 py-1 text-xs border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary/30"
                       />
                     </div>
                   </div>
@@ -1364,21 +1364,21 @@ function GenerateAIModal({ projectId, onClose }: { projectId: string; onClose: (
             </div>
 
             {/* Footer */}
-            <div className="px-5 py-4 shrink-0 flex items-center justify-between gap-3 border-t border-slate-200">
+            <div className="px-5 py-4 shrink-0 flex items-center justify-between gap-3 border-t border-border">
               {mutation.isError && (
-                <p className="text-xs text-red-600 flex-1">{(mutation.error as Error).message}</p>
+                <p className="text-xs text-danger flex-1">{(mutation.error as Error).message}</p>
               )}
               <div className="flex gap-2 ml-auto">
                 <button
                   onClick={onClose}
-                  className="px-4 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+                  className="px-4 py-2 text-sm font-medium text-fg-muted bg-surface border border-border rounded-lg hover:bg-surface-muted transition-colors"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={() => mutation.mutate()}
                   disabled={!hasInput || mutation.isPending}
-                  className="px-4 py-2 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700 disabled:opacity-50 transition-colors flex items-center gap-2"
+                  className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-lg hover:brightness-95 disabled:opacity-50 transition-colors flex items-center gap-2"
                 >
                   {mutation.isPending && <Loader2 size={14} className="animate-spin" />}
                   <Sparkles size={14} />
@@ -1435,13 +1435,13 @@ function AutomationTargetModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200">
+      <div className="bg-surface rounded-xl shadow-md w-full max-w-md mx-4">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
           <div className="flex items-center gap-2">
-            <GitBranch size={17} className="text-purple-600" />
-            <h2 className="font-semibold text-slate-900 text-sm">Generate Automation Code</h2>
+            <GitBranch size={17} className="text-primary" />
+            <h2 className="font-semibold text-fg text-sm">Generate Automation Code</h2>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+          <button onClick={onClose} className="text-fg-subtle hover:text-fg-muted">
             <X size={16} />
           </button>
         </div>
@@ -1449,12 +1449,12 @@ function AutomationTargetModal({
         <div className="px-5 py-4 space-y-4">
           {isLoading ? (
             <div className="py-4 flex justify-center">
-              <Loader2 size={18} className="animate-spin text-slate-400" />
+              <Loader2 size={18} className="animate-spin text-fg-subtle" />
             </div>
           ) : testAutomationRepos.length === 0 ? (
             /* No TEST_AUTOMATION repo linked */
             <div className="space-y-3">
-              <div className="flex gap-3 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-sm text-amber-800">
+              <div className="flex gap-3 bg-warning-bg border border-warning-border rounded-lg px-4 py-3 text-sm text-warning">
                 <AlertTriangle size={16} className="shrink-0 mt-0.5" />
                 <div>
                   <p className="font-medium">No test automation repo linked</p>
@@ -1466,7 +1466,7 @@ function AutomationTargetModal({
               </div>
               <button
                 onClick={() => navigate(`${base}/settings`)}
-                className="w-full py-2 text-sm font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors flex items-center justify-center gap-2"
+                className="w-full py-2 text-sm font-medium text-primary bg-primary-subtle border border-primary-subtle rounded-lg hover:bg-primary-subtle transition-colors flex items-center justify-center gap-2"
               >
                 <Link2 size={14} /> Go to Project Settings
               </button>
@@ -1474,21 +1474,21 @@ function AutomationTargetModal({
           ) : testAutomationRepos.length === 1 ? (
             /* Single repo — show confirmation */
             <div className="space-y-3">
-              <p className="text-sm text-slate-600">A pull request will be raised to:</p>
-              <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-lg px-4 py-3">
-                <GitBranch size={16} className="text-slate-500 shrink-0" />
+              <p className="text-sm text-fg-muted">A pull request will be raised to:</p>
+              <div className="flex items-center gap-3 bg-surface-muted border border-border rounded-lg px-4 py-3">
+                <GitBranch size={16} className="text-fg-muted shrink-0" />
                 <div>
-                  <p className="text-sm font-medium text-slate-900">
+                  <p className="text-sm font-medium text-fg">
                     {repoDisplayName(testAutomationRepos[0])}
                   </p>
                   {testAutomationRepos[0].connectionParams?.repo && (
-                    <p className="text-xs text-slate-500 font-mono mt-0.5">
+                    <p className="text-xs text-fg-muted font-mono mt-0.5">
                       {testAutomationRepos[0].connectionParams.repo}
                     </p>
                   )}
                 </div>
               </div>
-              <p className="text-xs text-slate-500">
+              <p className="text-xs text-fg-muted">
                 Claude will generate automation code for <strong>{tc.title}</strong> and open a PR
                 for review.
               </p>
@@ -1496,7 +1496,7 @@ function AutomationTargetModal({
           ) : (
             /* Multiple repos — let user pick */
             <div className="space-y-3">
-              <p className="text-sm text-slate-600">
+              <p className="text-sm text-fg-muted">
                 Select the test automation repository to raise the PR against:
               </p>
               <div className="space-y-2">
@@ -1506,8 +1506,8 @@ function AutomationTargetModal({
                     className={cn(
                       'flex items-center gap-3 px-4 py-3 rounded-lg border cursor-pointer transition-colors',
                       selectedRepo === cfg.id
-                        ? 'border-purple-400 bg-purple-50'
-                        : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50',
+                        ? 'border-primary/40 bg-primary-subtle'
+                        : 'border-border hover:border-border-strong hover:bg-surface-muted',
                     )}
                   >
                     <input
@@ -1516,12 +1516,12 @@ function AutomationTargetModal({
                       value={cfg.id}
                       checked={selectedRepo === cfg.id}
                       onChange={() => setSelectedRepo(cfg.id)}
-                      className="accent-purple-600"
+                      className="accent-primary"
                     />
                     <div className="min-w-0">
-                      <p className="text-sm font-medium text-slate-900">{repoDisplayName(cfg)}</p>
+                      <p className="text-sm font-medium text-fg">{repoDisplayName(cfg)}</p>
                       {cfg.connectionParams?.repo && (
-                        <p className="text-xs text-slate-500 font-mono">
+                        <p className="text-xs text-fg-muted font-mono">
                           {cfg.connectionParams.repo}
                         </p>
                       )}
@@ -1534,17 +1534,17 @@ function AutomationTargetModal({
         </div>
 
         {testAutomationRepos.length > 0 && (
-          <div className="px-5 py-4 border-t border-slate-200 flex justify-end gap-2">
+          <div className="px-5 py-4 border-t border-border flex justify-end gap-2">
             <button
               onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+              className="px-4 py-2 text-sm font-medium text-fg-muted bg-surface border border-border rounded-lg hover:bg-surface-muted transition-colors"
             >
               Cancel
             </button>
             <button
               onClick={() => selectedRepo && onConfirm(selectedRepo)}
               disabled={!selectedRepo}
-              className="px-4 py-2 text-sm font-medium text-white bg-purple-600 rounded-lg hover:bg-purple-700 disabled:opacity-50 transition-colors flex items-center gap-2"
+              className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-lg hover:brightness-95 disabled:opacity-50 transition-colors flex items-center gap-2"
             >
               <Sparkles size={14} />
               Generate &amp; Raise PR
@@ -1603,21 +1603,21 @@ function LinkedRequirementsSection({ tc, projectId }: { tc: ManagedTestCase; pro
   return (
     <div>
       <div className="flex items-center justify-between mb-1.5">
-        <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+        <p className="text-xs font-semibold text-fg-muted uppercase tracking-wider">
           Linked Requirements
         </p>
         <button
           onClick={() => setAdding(v => !v)}
-          className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-0.5"
+          className="text-xs text-primary hover:text-primary flex items-center gap-0.5"
         >
           <Plus size={11} /> Link
         </button>
       </div>
 
       {adding && (
-        <div className="mb-2 border border-slate-200 rounded-lg overflow-hidden">
-          <div className="flex items-center gap-1 px-2 py-1.5 border-b border-slate-100">
-            <Search size={12} className="text-slate-400" />
+        <div className="mb-2 border border-border rounded-lg overflow-hidden">
+          <div className="flex items-center gap-1 px-2 py-1.5 border-b border-border">
+            <Search size={12} className="text-fg-subtle" />
             <input
               autoFocus
               value={search}
@@ -1628,19 +1628,19 @@ function LinkedRequirementsSection({ tc, projectId }: { tc: ManagedTestCase; pro
           </div>
           <div className="max-h-36 overflow-y-auto">
             {filtered.length === 0 ? (
-              <p className="text-xs text-slate-400 px-3 py-2">No unlinked requirements found</p>
+              <p className="text-xs text-fg-subtle px-3 py-2">No unlinked requirements found</p>
             ) : (
               filtered.slice(0, 12).map(r => (
                 <button
                   key={r.id}
                   onClick={() => linkMutation.mutate(r.id)}
                   disabled={linkMutation.isPending}
-                  className="w-full text-left px-3 py-1.5 text-xs hover:bg-blue-50 flex items-center gap-2 disabled:opacity-50"
+                  className="w-full text-left px-3 py-1.5 text-xs hover:bg-primary-subtle flex items-center gap-2 disabled:opacity-50"
                 >
                   {r.externalId && (
-                    <span className="text-slate-400 font-mono shrink-0">{r.externalId}</span>
+                    <span className="text-fg-subtle font-mono shrink-0">{r.externalId}</span>
                   )}
-                  <span className="text-slate-700 truncate">{r.title}</span>
+                  <span className="text-fg truncate">{r.title}</span>
                 </button>
               ))
             )}
@@ -1649,7 +1649,7 @@ function LinkedRequirementsSection({ tc, projectId }: { tc: ManagedTestCase; pro
       )}
 
       {linkedIds.size === 0 ? (
-        <p className="text-xs text-slate-400 italic">No requirements linked</p>
+        <p className="text-xs text-fg-subtle italic">No requirements linked</p>
       ) : (
         <div className="space-y-1">
           {Array.from(linkedIds).map(reqId => {
@@ -1660,8 +1660,8 @@ function LinkedRequirementsSection({ tc, projectId }: { tc: ManagedTestCase; pro
                   className={cn(
                     'flex-1 text-xs truncate rounded px-1.5 py-0.5',
                     reqId === tc.sourceRequirementId
-                      ? 'bg-blue-50 text-blue-700'
-                      : 'bg-slate-50 text-slate-600',
+                      ? 'bg-primary-subtle text-primary'
+                      : 'bg-surface-muted text-fg-muted',
                   )}
                 >
                   {req?.externalId && (
@@ -1678,7 +1678,7 @@ function LinkedRequirementsSection({ tc, projectId }: { tc: ManagedTestCase; pro
                     target="_blank"
                     rel="noreferrer"
                     title="Open the requirement in Azure DevOps"
-                    className="text-slate-300 hover:text-blue-600 shrink-0"
+                    className="text-fg-subtle hover:text-primary shrink-0"
                   >
                     <ExternalLink size={11} />
                   </a>
@@ -1687,7 +1687,7 @@ function LinkedRequirementsSection({ tc, projectId }: { tc: ManagedTestCase; pro
                   <button
                     onClick={() => unlinkMutation.mutate(reqId)}
                     disabled={unlinkMutation.isPending}
-                    className="opacity-0 group-hover:opacity-100 text-slate-300 hover:text-red-400 transition-opacity"
+                    className="opacity-0 group-hover:opacity-100 text-fg-subtle hover:text-danger transition-opacity"
                   >
                     <X size={11} />
                   </button>
@@ -1742,16 +1742,16 @@ function TestCaseDetailPanel({
   const detailUrl = `${base}/test-cases/${tc.id}`
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col h-full overflow-hidden">
+    <div className="bg-surface rounded-xl border border-border shadow-sm flex flex-col h-full overflow-hidden">
       {/* ── Panel header ── */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 shrink-0 gap-2">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border shrink-0 gap-2">
         <div className="flex items-center gap-2 min-w-0">
           {tc.externalId && (
             <a
               href={detailUrl}
               target="_blank"
               rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 text-xs font-mono font-semibold text-blue-600 hover:text-blue-800 hover:underline shrink-0"
+              className="inline-flex items-center gap-1 text-xs font-mono font-semibold text-primary hover:text-primary hover:underline shrink-0"
               title="Open in new tab"
             >
               {tc.externalId}
@@ -1769,20 +1769,20 @@ function TestCaseDetailPanel({
             target="_blank"
             rel="noopener noreferrer"
             title="Open detail in new tab"
-            className="flex items-center gap-1 text-xs font-medium text-slate-500 hover:text-blue-600 px-2 py-1 rounded hover:bg-slate-100 transition-colors"
+            className="flex items-center gap-1 text-xs font-medium text-fg-muted hover:text-primary px-2 py-1 rounded hover:bg-surface-muted transition-colors"
           >
             <ArrowUpRight size={13} /> Open
           </a>
           <button
             onClick={() => onEdit(tc)}
             title="Edit test case"
-            className="flex items-center gap-1 text-xs font-medium text-slate-600 hover:text-blue-600 px-2 py-1 rounded hover:bg-slate-100 transition-colors"
+            className="flex items-center gap-1 text-xs font-medium text-fg-muted hover:text-primary px-2 py-1 rounded hover:bg-surface-muted transition-colors"
           >
             <Pencil size={13} /> Edit
           </button>
           <button
             onClick={onClose}
-            className="text-slate-400 hover:text-slate-600 p-1 rounded hover:bg-slate-100 transition-colors"
+            className="text-fg-subtle hover:text-fg-muted p-1 rounded hover:bg-surface-muted transition-colors"
           >
             <X size={16} />
           </button>
@@ -1792,7 +1792,7 @@ function TestCaseDetailPanel({
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5">
         {/* Title */}
         <div>
-          <h3 className="font-semibold text-slate-900 text-base leading-snug mb-2">{tc.title}</h3>
+          <h3 className="font-semibold text-fg text-base leading-snug mb-2">{tc.title}</h3>
           <div className="flex flex-wrap gap-1.5">
             {tc.coverageStatus && (
               <Badge
@@ -1809,7 +1809,7 @@ function TestCaseDetailPanel({
         {/* Description */}
         {tc.description && (
           <div>
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
+            <p className="text-xs font-semibold text-fg-muted uppercase tracking-wider mb-1">
               Description
             </p>
             <Markdown>{tc.description}</Markdown>
@@ -1819,7 +1819,7 @@ function TestCaseDetailPanel({
         {/* Preconditions */}
         {tc.preconditions && (
           <div>
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
+            <p className="text-xs font-semibold text-fg-muted uppercase tracking-wider mb-1">
               Preconditions
             </p>
             <Markdown>{tc.preconditions}</Markdown>
@@ -1829,7 +1829,7 @@ function TestCaseDetailPanel({
         {/* Expected result */}
         {tc.expectedResult && (
           <div>
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
+            <p className="text-xs font-semibold text-fg-muted uppercase tracking-wider mb-1">
               Expected result
             </p>
             <Markdown>{tc.expectedResult}</Markdown>
@@ -1839,19 +1839,19 @@ function TestCaseDetailPanel({
         {/* Steps */}
         {tc.steps && tc.steps.length > 0 && (
           <div>
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+            <p className="text-xs font-semibold text-fg-muted uppercase tracking-wider mb-2">
               Steps
             </p>
             <ol className="space-y-2">
               {tc.steps.map((step, i) => (
                 <li key={step.id ?? i} className="flex gap-2.5 text-sm">
-                  <span className="font-mono text-xs text-slate-400 shrink-0 mt-0.5 w-5 text-right">
+                  <span className="font-mono text-xs text-fg-subtle shrink-0 mt-0.5 w-5 text-right">
                     {i + 1}.
                   </span>
                   <div>
-                    <p className="text-slate-800">{step.action}</p>
+                    <p className="text-fg">{step.action}</p>
                     {step.expectedResult && (
-                      <p className="text-xs text-slate-500 mt-0.5">→ {step.expectedResult}</p>
+                      <p className="text-xs text-fg-muted mt-0.5">→ {step.expectedResult}</p>
                     )}
                   </div>
                 </li>
@@ -1862,12 +1862,12 @@ function TestCaseDetailPanel({
 
         {/* Automation */}
         <div>
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+          <p className="text-xs font-semibold text-fg-muted uppercase tracking-wider mb-2">
             Automation
           </p>
           <div className="flex items-center gap-2 flex-wrap">
             {tc.automationStatus === 'GENERATING' ? (
-              <span className="inline-flex items-center gap-1 text-xs text-blue-600">
+              <span className="inline-flex items-center gap-1 text-xs text-primary">
                 <Loader2 size={12} className="animate-spin" /> Generating…
               </span>
             ) : (
@@ -1882,7 +1882,7 @@ function TestCaseDetailPanel({
                   href={tc.automationPrUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-xs text-blue-600 hover:underline"
+                  className="inline-flex items-center gap-1 text-xs text-primary hover:underline"
                 >
                   View PR <ExternalLink size={11} />
                 </a>
@@ -1893,14 +1893,14 @@ function TestCaseDetailPanel({
         {/* acRefs */}
         {tc.acRefs && tc.acRefs.length > 0 && (
           <div>
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">
+            <p className="text-xs font-semibold text-fg-muted uppercase tracking-wider mb-1">
               Acceptance Criteria
             </p>
             <div className="flex flex-wrap gap-1">
               {tc.acRefs.map(ref => (
                 <span
                   key={ref}
-                  className="px-2 py-0.5 text-xs bg-slate-100 text-slate-600 rounded-full"
+                  className="px-2 py-0.5 text-xs bg-surface-muted text-fg-muted rounded-full"
                 >
                   {ref}
                 </span>
@@ -1917,11 +1917,11 @@ function TestCaseDetailPanel({
 
         {/* Impact Analysis attribution */}
         {tc.lastUpdatedByAnalysisId && (
-          <div className="flex items-start gap-2 bg-amber-50 border border-amber-200 rounded-lg px-3 py-2">
-            <Sparkles size={13} className="text-amber-500 shrink-0 mt-0.5" />
+          <div className="flex items-start gap-2 bg-warning-bg border border-warning-border rounded-lg px-3 py-2">
+            <Sparkles size={13} className="text-warning shrink-0 mt-0.5" />
             <div>
-              <p className="text-xs font-medium text-amber-800">Updated by Impact Analysis</p>
-              <p className="text-[11px] text-amber-600 mt-0.5 font-mono break-all">
+              <p className="text-xs font-medium text-warning">Updated by Impact Analysis</p>
+              <p className="text-[11px] text-warning mt-0.5 font-mono break-all">
                 {tc.lastUpdatedByAnalysisId.slice(0, 8)}…
               </p>
             </div>
@@ -1929,7 +1929,7 @@ function TestCaseDetailPanel({
         )}
 
         {/* Timestamps */}
-        <div className="text-xs text-slate-400 space-y-0.5 pt-2 border-t border-slate-100">
+        <div className="text-xs text-fg-subtle space-y-0.5 pt-2 border-t border-border">
           {tc.createdBy && (
             <p>
               Created by{' '}
@@ -1965,12 +1965,12 @@ function TestCaseDetailPanel({
       </div>
 
       {/* Actions */}
-      <div className="px-4 py-3 border-t border-slate-200 space-y-2">
+      <div className="px-4 py-3 border-t border-border space-y-2">
         {tc.status === 'DRAFT' && (
           <button
             onClick={() => submitMutation.mutate()}
             disabled={submitMutation.isPending}
-            className="w-full py-2 text-sm font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+            className="w-full py-2 text-sm font-medium text-primary bg-primary-subtle border border-primary-subtle rounded-lg hover:bg-primary-subtle disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
           >
             {submitMutation.isPending && <Loader2 size={14} className="animate-spin" />}
             Submit for Review
@@ -1981,7 +1981,7 @@ function TestCaseDetailPanel({
             <button
               onClick={() => approveMutation.mutate()}
               disabled={approveMutation.isPending}
-              className="flex-1 py-2 text-sm font-medium text-green-700 bg-green-50 border border-green-200 rounded-lg hover:bg-green-100 disabled:opacity-50 transition-colors flex items-center justify-center gap-1"
+              className="flex-1 py-2 text-sm font-medium text-success bg-success-bg border border-success-border rounded-lg hover:bg-success-bg disabled:opacity-50 transition-colors flex items-center justify-center gap-1"
             >
               {approveMutation.isPending && <Loader2 size={14} className="animate-spin" />}
               Approve
@@ -1989,7 +1989,7 @@ function TestCaseDetailPanel({
             <button
               onClick={() => rejectMutation.mutate()}
               disabled={rejectMutation.isPending}
-              className="flex-1 py-2 text-sm font-medium text-red-700 bg-red-50 border border-red-200 rounded-lg hover:bg-red-100 disabled:opacity-50 transition-colors flex items-center justify-center gap-1"
+              className="flex-1 py-2 text-sm font-medium text-danger bg-danger-bg border border-danger-border rounded-lg hover:bg-danger-bg disabled:opacity-50 transition-colors flex items-center justify-center gap-1"
             >
               {rejectMutation.isPending && <Loader2 size={14} className="animate-spin" />}
               Reject
@@ -2000,7 +2000,7 @@ function TestCaseDetailPanel({
           <button
             onClick={() => setShowAutomationModal(true)}
             disabled={automationMutation.isPending}
-            className="w-full py-2 text-sm font-medium text-purple-700 bg-purple-50 border border-purple-200 rounded-lg hover:bg-purple-100 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+            className="w-full py-2 text-sm font-medium text-primary bg-primary-subtle border border-primary-subtle rounded-lg hover:bg-primary-subtle disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
           >
             {automationMutation.isPending && <Loader2 size={14} className="animate-spin" />}
             <Sparkles size={14} />
@@ -2056,18 +2056,18 @@ function CaseTagsCard({ projectId, caseId }: { projectId: string; caseId: string
 
   return (
     <div>
-      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1.5">Tags</p>
+      <p className="text-xs font-semibold text-fg-muted uppercase tracking-wider mb-1.5">Tags</p>
       <div className="flex flex-wrap gap-1.5 mb-2">
-        {tags.length === 0 && <span className="text-xs text-slate-400">No tags yet.</span>}
+        {tags.length === 0 && <span className="text-xs text-fg-subtle">No tags yet.</span>}
         {tags.map(t => (
           <span
             key={t}
-            className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-slate-100 text-slate-700"
+            className="inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full bg-surface-muted text-fg"
           >
             {t}
             <button
               onClick={() => removeMutation.mutate(t)}
-              className="text-slate-400 hover:text-red-500"
+              className="text-fg-subtle hover:text-danger"
               title="Remove tag"
             >
               <X size={11} />
@@ -2087,7 +2087,7 @@ function CaseTagsCard({ projectId, caseId }: { projectId: string; caseId: string
             }
           }}
           placeholder="Add tag…"
-          className="flex-1 border border-slate-200 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+          className="flex-1 border border-border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary/30"
         />
         <datalist id={`tagsugg-${caseId}`}>
           {suggestions
@@ -2099,7 +2099,7 @@ function CaseTagsCard({ projectId, caseId }: { projectId: string; caseId: string
         <button
           onClick={submit}
           disabled={!input.trim() || addMutation.isPending}
-          className="text-xs px-2 py-1 border border-slate-200 rounded hover:bg-slate-50 disabled:opacity-50"
+          className="text-xs px-2 py-1 border border-border rounded hover:bg-surface-muted disabled:opacity-50"
         >
           Add
         </button>
@@ -2166,7 +2166,7 @@ function CasePropertiesSection({ projectId, caseId }: { projectId: string; caseI
 
   return (
     <div>
-      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+      <p className="text-xs font-semibold text-fg-muted uppercase tracking-wider mb-2">
         Parameters (matrix axes)
       </p>
       <div className="space-y-1.5">
@@ -2176,17 +2176,17 @@ function CasePropertiesSection({ projectId, caseId }: { projectId: string; caseI
               value={r.name}
               onChange={e => update(i, 'name', e.target.value)}
               placeholder="name (e.g. browser)"
-              className="flex-1 min-w-0 border border-slate-200 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="flex-1 min-w-0 border border-border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary/30"
             />
             <input
               value={r.value}
               onChange={e => update(i, 'value', e.target.value)}
               placeholder="value (e.g. Chrome)"
-              className="flex-1 min-w-0 border border-slate-200 rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-blue-500"
+              className="flex-1 min-w-0 border border-border rounded px-2 py-1 text-xs focus:outline-none focus:ring-1 focus:ring-primary/30"
             />
             <button
               onClick={() => removeRow(i)}
-              className="p-1 text-slate-300 hover:text-red-500"
+              className="p-1 text-fg-subtle hover:text-danger"
               title="Remove"
             >
               <X size={12} />
@@ -2197,11 +2197,11 @@ function CasePropertiesSection({ projectId, caseId }: { projectId: string; caseI
       <div className="flex items-center justify-between mt-2">
         <button
           onClick={addRow}
-          className="text-xs text-slate-500 hover:text-blue-600 flex items-center gap-1"
+          className="text-xs text-fg-muted hover:text-primary flex items-center gap-1"
         >
           <Plus size={12} /> add value
         </button>
-        <span className="text-[11px] text-slate-400">
+        <span className="text-[11px] text-fg-subtle">
           {combos > 0
             ? `Full matrix → ${combos} execution${combos === 1 ? '' : 's'}/run`
             : 'No parameters'}
@@ -2211,7 +2211,7 @@ function CasePropertiesSection({ projectId, caseId }: { projectId: string; caseI
         <button
           onClick={() => saveMutation.mutate()}
           disabled={saveMutation.isPending}
-          className="mt-2 w-full py-1.5 text-xs font-medium text-white bg-blue-600 rounded hover:bg-blue-700 disabled:opacity-50"
+          className="mt-2 w-full py-1.5 text-xs font-medium text-white bg-primary rounded hover:brightness-95 disabled:opacity-50"
         >
           {saveMutation.isPending ? 'Saving…' : 'Save parameters'}
         </button>
@@ -2227,6 +2227,7 @@ export default function TestCasesPage() {
   const { filter } = useProjectFilter()
   const queryClient = useQueryClient()
   const { tcId: tcIdParam } = useParams<{ tcId?: string }>()
+  usePageWidth('wide')
 
   const [selectedSuiteId, setSelectedSuiteId] = useState<string | null>(null)
   const [statusFilter, setStatusFilter] = useState('')
@@ -2348,54 +2349,36 @@ export default function TestCasesPage() {
   return (
     <div className="flex flex-col h-full overflow-hidden">
       {/* ── Header ── */}
-      <div className="flex items-center justify-between mb-4 shrink-0">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Test Cases</h1>
-          <p className="text-sm text-slate-500 mt-0.5">
-            {testCases.length} {testCases.length === 1 ? 'test case' : 'test cases'}
-            {selectedSuiteId ? ` · ${selectedSuiteName}` : ''}
-          </p>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            onClick={downloadTemplate}
-            className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
-            title="Download Excel template"
-          >
-            <Download size={15} />
-            Template
-          </button>
-          <button
-            onClick={() => exportTestCases(testCases, `test-cases-${projectId}.xlsx`)}
-            className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
-            title="Export test cases to Excel"
-          >
-            <FileSpreadsheet size={15} />
-            Export
-          </button>
-          <button
-            onClick={() => setShowImportModal(true)}
-            className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-green-700 bg-green-50 border border-green-200 rounded-lg hover:bg-green-100 transition-colors"
-          >
-            <Upload size={15} />
-            Import
-          </button>
-          <button
-            onClick={() => setShowAIModal(true)}
-            className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-purple-700 bg-purple-50 border border-purple-200 rounded-lg hover:bg-purple-100 transition-colors"
-          >
-            <Sparkles size={15} />
-            Generate from AI
-          </button>
-          <button
-            onClick={() => setShowNewModal(true)}
-            className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
-          >
-            <Plus size={15} />
-            New Test Case
-          </button>
-        </div>
-      </div>
+      <PageHeader
+        className="shrink-0"
+        title="Test Cases"
+        description={`${testCases.length} ${
+          testCases.length === 1 ? 'test case' : 'test cases'
+        }${selectedSuiteId ? ` · ${selectedSuiteName}` : ''}`}
+        actions={
+          <>
+            <Button variant="secondary" onClick={downloadTemplate} title="Download Excel template">
+              <Download size={15} /> Template
+            </Button>
+            <Button
+              variant="secondary"
+              onClick={() => exportTestCases(testCases, `test-cases-${projectId}.xlsx`)}
+              title="Export test cases to Excel"
+            >
+              <FileSpreadsheet size={15} /> Export
+            </Button>
+            <Button variant="secondary" onClick={() => setShowImportModal(true)}>
+              <Upload size={15} /> Import
+            </Button>
+            <Button variant="subtle" onClick={() => setShowAIModal(true)}>
+              <Sparkles size={15} /> Generate from AI
+            </Button>
+            <Button onClick={() => setShowNewModal(true)}>
+              <Plus size={15} /> New Test Case
+            </Button>
+          </>
+        }
+      />
 
       {/* ── Filter bar ── */}
       <div className="flex items-center gap-3 mb-3 shrink-0">
@@ -2404,7 +2387,7 @@ export default function TestCasesPage() {
           <select
             value={selectedSuiteId ?? ''}
             onChange={e => setSelectedSuiteId(e.target.value || null)}
-            className="appearance-none border border-slate-200 rounded-lg pl-3 pr-8 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-slate-700 min-w-[160px] cursor-pointer"
+            className="appearance-none border border-border rounded-lg pl-3 pr-8 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 bg-surface text-fg min-w-[160px] cursor-pointer"
           >
             <option value="">All suites</option>
             {suitesLoading && <option disabled>Loading…</option>}
@@ -2418,7 +2401,7 @@ export default function TestCasesPage() {
           </select>
           <ChevronDown
             size={13}
-            className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400"
+            className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-fg-subtle"
           />
         </div>
 
@@ -2427,7 +2410,7 @@ export default function TestCasesPage() {
           <select
             value={statusFilter}
             onChange={e => setStatusFilter(e.target.value)}
-            className="appearance-none border border-slate-200 rounded-lg pl-3 pr-8 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white text-slate-700 cursor-pointer"
+            className="appearance-none border border-border rounded-lg pl-3 pr-8 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30 bg-surface text-fg cursor-pointer"
           >
             <option value="">All statuses</option>
             <option value="DRAFT">Draft</option>
@@ -2437,7 +2420,7 @@ export default function TestCasesPage() {
           </select>
           <ChevronDown
             size={13}
-            className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400"
+            className="pointer-events-none absolute right-2.5 top-1/2 -translate-y-1/2 text-fg-subtle"
           />
         </div>
 
@@ -2445,14 +2428,14 @@ export default function TestCasesPage() {
         <div className="relative flex-1">
           <Search
             size={14}
-            className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"
+            className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-subtle pointer-events-none"
           />
           <input
             type="text"
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Search test cases…"
-            className="w-full border border-slate-200 rounded-lg pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full border border-border rounded-lg pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30"
           />
         </div>
       </div>
@@ -2462,23 +2445,23 @@ export default function TestCasesPage() {
         {/* List */}
         <div
           className={cn(
-            'flex flex-col bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden transition-all',
+            'flex flex-col bg-surface rounded-xl border border-border shadow-sm overflow-hidden transition-all',
             selectedTc ? 'w-[420px] shrink-0' : 'flex-1',
           )}
         >
           {tcLoading && (
-            <div className="py-8 text-center text-sm text-slate-400 shrink-0">Loading…</div>
+            <div className="py-8 text-center text-sm text-fg-subtle shrink-0">Loading…</div>
           )}
           {!tcLoading && testCases.length === 0 && (
             <div className="py-16 text-center flex-1 flex flex-col items-center justify-center">
-              <Layers size={32} className="text-slate-300 mb-3" />
-              <p className="text-sm text-slate-500">No test cases found.</p>
-              <p className="text-xs text-slate-400 mt-1">
+              <Layers size={32} className="text-fg-subtle mb-3" />
+              <p className="text-sm text-fg-muted">No test cases found.</p>
+              <p className="text-xs text-fg-subtle mt-1">
                 Create one manually or generate from AI.
               </p>
             </div>
           )}
-          <div className="flex-1 overflow-y-auto divide-y divide-slate-50">
+          <div className="flex-1 overflow-y-auto divide-y divide-border">
             {testCases.map(tc => {
               const isSelected = tc.id === selectedTcId
               const detailUrl = `${base}/test-cases/${tc.id}`
@@ -2487,9 +2470,9 @@ export default function TestCasesPage() {
                   key={tc.id}
                   onClick={() => setSelectedTcId(isSelected ? null : tc.id)}
                   className={cn(
-                    'flex items-start gap-3 px-4 py-3 cursor-pointer transition-colors hover:bg-slate-50 group',
+                    'flex items-start gap-3 px-4 py-3 cursor-pointer transition-colors hover:bg-surface-muted group',
                     isSelected
-                      ? 'bg-blue-50 border-l-2 border-blue-500'
+                      ? 'bg-primary-subtle border-l-2 border-primary'
                       : 'border-l-2 border-transparent',
                   )}
                 >
@@ -2510,7 +2493,7 @@ export default function TestCasesPage() {
                           target="_blank"
                           rel="noopener noreferrer"
                           onClick={e => e.stopPropagation()}
-                          className="inline-flex items-center gap-0.5 text-[11px] font-mono font-medium text-blue-600 hover:text-blue-800 hover:underline"
+                          className="inline-flex items-center gap-0.5 text-[11px] font-mono font-medium text-primary hover:text-primary hover:underline"
                           title="Open in new tab"
                         >
                           {tc.externalId}
@@ -2522,13 +2505,13 @@ export default function TestCasesPage() {
                     {/* Title */}
                     <p
                       className={cn(
-                        'text-sm font-medium text-slate-900 leading-snug',
+                        'text-sm font-medium text-fg leading-snug',
                         selectedTc ? 'line-clamp-2' : 'truncate',
                       )}
                     >
                       {tc.title}
                       {tc.createdBy === 'AGENT' && (
-                        <Bot size={12} className="inline ml-1.5 text-purple-400 shrink-0" />
+                        <Bot size={12} className="inline ml-1.5 text-primary shrink-0" />
                       )}
                     </p>
 
@@ -2552,9 +2535,9 @@ export default function TestCasesPage() {
                         </span>
                       )}
                       {tc.steps?.length > 0 && (
-                        <span className="text-[11px] text-slate-400">{tc.steps.length} steps</span>
+                        <span className="text-[11px] text-fg-subtle">{tc.steps.length} steps</span>
                       )}
-                      <span className="text-[11px] text-slate-400 ml-auto">
+                      <span className="text-[11px] text-fg-subtle ml-auto">
                         {relativeTime(tc.updatedAt)}
                       </span>
                     </div>
@@ -2568,7 +2551,7 @@ export default function TestCasesPage() {
                       rel="noopener noreferrer"
                       onClick={e => e.stopPropagation()}
                       title="Open in new tab"
-                      className="opacity-0 group-hover:opacity-100 shrink-0 text-slate-300 hover:text-blue-500 transition-all mt-0.5"
+                      className="opacity-0 group-hover:opacity-100 shrink-0 text-fg-subtle hover:text-primary transition-all mt-0.5"
                     >
                       <ArrowUpRight size={14} />
                     </a>
@@ -2670,21 +2653,21 @@ function SuiteFormModal({
   })
 
   const inputCls =
-    'w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500'
+    'w-full border border-border rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-primary/30'
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200">
-          <h2 className="font-semibold text-slate-900">Edit Suite / Plan</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+      <div className="bg-surface rounded-xl shadow-md w-full max-w-md mx-4">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+          <h2 className="font-semibold text-fg">Edit Suite / Plan</h2>
+          <button onClick={onClose} className="text-fg-subtle hover:text-fg-muted">
             <X size={18} />
           </button>
         </div>
         <div className="px-5 py-4 space-y-3">
           {error && <ErrorMessage message={error} />}
           <div>
-            <label className="block text-xs font-medium text-slate-700 mb-1">Name *</label>
+            <label className="block text-xs font-medium text-fg mb-1">Name *</label>
             <input
               value={name}
               onChange={e => setName(e.target.value)}
@@ -2694,7 +2677,7 @@ function SuiteFormModal({
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1">Plan type</label>
+              <label className="block text-xs font-medium text-fg mb-1">Plan type</label>
               <select
                 value={planType}
                 onChange={e => setPlanType(e.target.value)}
@@ -2708,7 +2691,7 @@ function SuiteFormModal({
               </select>
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1">Parent</label>
+              <label className="block text-xs font-medium text-fg mb-1">Parent</label>
               <select
                 value={parentId}
                 onChange={e => setParentId(e.target.value)}
@@ -2726,7 +2709,7 @@ function SuiteFormModal({
             </div>
           </div>
           <div>
-            <label className="block text-xs font-medium text-slate-700 mb-1">Description</label>
+            <label className="block text-xs font-medium text-fg mb-1">Description</label>
             <MarkdownEditor
               value={description}
               onChange={setDescription}
@@ -2734,22 +2717,22 @@ function SuiteFormModal({
               placeholder="What this plan covers"
             />
           </div>
-          <label className="flex items-center gap-2 text-sm text-slate-600">
+          <label className="flex items-center gap-2 text-sm text-fg-muted">
             <input type="checkbox" checked={active} onChange={e => setActive(e.target.checked)} />
             Active
           </label>
         </div>
-        <div className="px-5 py-4 border-t border-slate-200 flex justify-end gap-2">
+        <div className="px-5 py-4 border-t border-border flex justify-end gap-2">
           <button
             onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50"
+            className="px-4 py-2 text-sm font-medium text-fg-muted bg-surface border border-border rounded-lg hover:bg-surface-muted"
           >
             Cancel
           </button>
           <button
             onClick={() => name.trim() && save.mutate()}
             disabled={!name.trim() || save.isPending}
-            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+            className="px-4 py-2 text-sm font-medium text-white bg-primary rounded-lg hover:brightness-95 disabled:opacity-50 flex items-center gap-2"
           >
             {save.isPending && <Loader2 size={14} className="animate-spin" />} Save
           </button>

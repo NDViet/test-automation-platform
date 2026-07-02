@@ -7,6 +7,7 @@ import LoadingSpinner from '@/components/LoadingSpinner'
 import ErrorMessage from '@/components/ErrorMessage'
 import AdoOnboardWizard from '@/components/AdoOnboardWizard'
 import { OrganizationSelect, ProjectSelect, TeamSelect } from '@/components/ScopeSelectors'
+import { Button, PageHeader } from '@/components/ui'
 import {
   Plus,
   Trash2,
@@ -190,34 +191,35 @@ export default function AdminIntegrationsPage() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-            <Plug size={22} /> Integration Credentials
-          </h1>
-          <p className="text-sm text-slate-500 mt-1">
+      <PageHeader
+        icon={<Plug size={22} />}
+        title="Integration Credentials"
+        description={
+          <>
             Centralized credentials (Admin PAT) that projects and teams inherit. Secrets are
             encrypted at rest and resolved by precedence{' '}
             <strong>Team → Project → Organization</strong>.
-          </p>
-        </div>
-        <button
-          onClick={() => setShowAdoOnboard(true)}
-          title="Import another Azure DevOps organization (projects, teams, members) into the platform"
-          className="shrink-0 flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 text-slate-700 text-sm font-medium rounded-lg hover:bg-slate-50"
-        >
-          <RefreshCw size={15} /> Import Azure DevOps org
-        </button>
-      </div>
+          </>
+        }
+        actions={
+          <Button
+            variant="secondary"
+            onClick={() => setShowAdoOnboard(true)}
+            title="Import another Azure DevOps organization (projects, teams, members) into the platform"
+          >
+            <RefreshCw size={15} /> Import Azure DevOps org
+          </Button>
+        }
+      />
 
       {/* Scope selector */}
       <div className="flex items-center gap-3">
-        <div className="inline-flex rounded-lg border border-slate-200 overflow-hidden">
+        <div className="inline-flex rounded-lg border border-border overflow-hidden">
           {(['ORG', 'PROJECT', 'TEAM'] as CredentialScope[]).map(s => (
             <button
               key={s}
               onClick={() => setScope(s)}
-              className={`px-4 py-1.5 text-sm font-medium ${scope === s ? 'bg-blue-600 text-white' : 'bg-white text-slate-600 hover:bg-slate-50'}`}
+              className={`px-4 py-1.5 text-sm font-medium ${scope === s ? 'bg-primary text-primary-fg' : 'bg-surface text-fg-muted hover:bg-surface-muted'}`}
             >
               {s === 'ORG' ? 'Organization' : s === 'PROJECT' ? 'Project' : 'Team'}
             </button>
@@ -231,20 +233,20 @@ export default function AdminIntegrationsPage() {
             <TeamSelect projectId={projectId} value={teamId} onChange={setTeamId} />
           </>
         )}
-        <button
+        <Button
+          className="ml-auto"
           onClick={() => {
             setForm({ ...emptyForm(), scope })
             setShowForm(v => !v)
           }}
-          className="ml-auto flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700"
         >
           <Plus size={16} /> Add credential
-        </button>
+        </Button>
       </div>
 
       {/* Add/Edit form */}
       {showForm && (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-4">
+        <div className="bg-surface rounded-xl border border-border shadow-sm p-5 space-y-4">
           <div className="grid grid-cols-2 gap-4">
             <Field label="Type">
               <select
@@ -317,35 +319,37 @@ export default function AdminIntegrationsPage() {
           </div>
 
           <div className="flex items-center justify-between pt-2">
-            <label className="flex items-center gap-2 text-sm text-slate-600">
+            <label className="flex items-center gap-2 text-sm text-fg-muted">
               <input
                 type="checkbox"
+                className="accent-primary"
                 checked={form.enabled ?? true}
                 onChange={e => setForm(f => ({ ...f, enabled: e.target.checked }))}
               />
               Enabled
             </label>
             <div className="flex gap-2">
-              <button
+              <Button
+                variant="ghost"
                 onClick={() => {
                   setShowForm(false)
                   setForm(emptyForm())
                 }}
-                className="px-4 py-2 text-sm text-slate-600 rounded-lg hover:bg-slate-100"
               >
                 Cancel
-              </button>
-              <button
+              </Button>
+              <Button
                 onClick={() => void saveMutation.mutate()}
-                disabled={cannotSave || saveMutation.isPending}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50"
+                disabled={cannotSave}
+                loading={saveMutation.isPending}
               >
-                <ShieldCheck size={16} /> {saveMutation.isPending ? 'Saving…' : 'Save credential'}
-              </button>
+                {!saveMutation.isPending && <ShieldCheck size={16} />}
+                {saveMutation.isPending ? 'Saving…' : 'Save credential'}
+              </Button>
             </div>
           </div>
           {cannotSave && (
-            <p className="text-xs text-amber-600">
+            <p className="text-xs text-warning">
               {!effectiveScopeId &&
                 (scope === 'ORG'
                   ? 'Select an organization above — create one first in Settings → Organization if there are none. '
@@ -355,7 +359,7 @@ export default function AdminIntegrationsPage() {
             </p>
           )}
           {saveMutation.isError && (
-            <p className="text-xs text-red-600">
+            <p className="text-xs text-danger">
               Failed to save. Check fields and PLATFORM_CRED_KEY.
             </p>
           )}
@@ -368,9 +372,9 @@ export default function AdminIntegrationsPage() {
         <ErrorMessage message="Failed to load credentials." onRetry={() => void refetch()} />
       )}
       {!isLoading && !error && (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm divide-y divide-slate-50">
+        <div className="bg-surface rounded-xl border border-border shadow-sm divide-y divide-border">
           {(!creds || creds.length === 0) && (
-            <p className="px-5 py-8 text-center text-sm text-slate-500">
+            <p className="px-5 py-8 text-center text-sm text-fg-muted">
               No credentials at this scope. Add one — projects will inherit it.
             </p>
           )}
@@ -380,31 +384,31 @@ export default function AdminIntegrationsPage() {
               <div key={c.id} className="px-5 py-4 flex items-center justify-between gap-4">
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="text-sm font-medium text-slate-900">{c.displayName}</span>
-                    <span className="text-xs font-mono px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">
+                    <span className="text-sm font-medium text-fg">{c.displayName}</span>
+                    <span className="text-xs font-mono px-1.5 py-0.5 rounded bg-surface-muted text-fg-muted">
                       {c.integrationType}
                     </span>
                     {!c.enabled && (
-                      <span className="text-xs px-1.5 py-0.5 rounded bg-amber-100 text-amber-700">
+                      <span className="text-xs px-1.5 py-0.5 rounded bg-warning-bg text-warning">
                         disabled
                       </span>
                     )}
                   </div>
-                  <div className="flex items-center gap-3 mt-0.5 text-xs text-slate-400">
+                  <div className="flex items-center gap-3 mt-0.5 text-xs text-fg-subtle">
                     {c.baseUrl && <span className="truncate">{c.baseUrl}</span>}
                     <span>{c.hasSecret ? '🔒 secret set' : '⚠ no secret'}</span>
                     <span>updated {relativeTime(c.updatedAt)}</span>
                   </div>
                   {r && (
                     <div
-                      className={`flex items-center gap-1 mt-1 text-xs ${r.ok ? 'text-green-600' : 'text-red-600'}`}
+                      className={`flex items-center gap-1 mt-1 text-xs ${r.ok ? 'text-success' : 'text-danger'}`}
                     >
                       {r.ok ? <CheckCircle2 size={13} /> : <XCircle size={13} />} {r.message}
                     </div>
                   )}
                   {syncResult[c.id] && (
                     <div
-                      className={`flex items-center gap-1 mt-1 text-xs ${syncResult[c.id].ok ? 'text-green-600' : 'text-amber-600'}`}
+                      className={`flex items-center gap-1 mt-1 text-xs ${syncResult[c.id].ok ? 'text-success' : 'text-warning'}`}
                     >
                       {syncResult[c.id].ok ? <CheckCircle2 size={13} /> : <XCircle size={13} />}{' '}
                       {syncResult[c.id].message}
@@ -412,7 +416,7 @@ export default function AdminIntegrationsPage() {
                   )}
                   {adminResult[c.id] && (
                     <div
-                      className={`flex items-center gap-1 mt-1 text-xs ${adminResult[c.id].ok ? 'text-green-600' : 'text-red-600'}`}
+                      className={`flex items-center gap-1 mt-1 text-xs ${adminResult[c.id].ok ? 'text-success' : 'text-danger'}`}
                     >
                       {adminResult[c.id].ok ? <CheckCircle2 size={13} /> : <XCircle size={13} />}{' '}
                       {adminResult[c.id].message}
@@ -421,29 +425,24 @@ export default function AdminIntegrationsPage() {
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   {(c.integrationType === 'GITHUB' || c.integrationType === 'GITHUB_ISSUES') && (
-                    <button
-                      onClick={() => setRepoCred(c)}
-                      className="px-3 py-1.5 text-xs font-medium border border-slate-200 rounded-lg hover:bg-slate-50"
-                    >
+                    <Button variant="secondary" size="sm" onClick={() => setRepoCred(c)}>
                       Repositories
-                    </button>
+                    </Button>
                   )}
                   {c.integrationType === 'AZURE_DEVOPS_BOARDS' && (
-                    <button
-                      onClick={() => setOrgCred(c)}
-                      className="px-3 py-1.5 text-xs font-medium border border-slate-200 rounded-lg hover:bg-slate-50"
-                    >
+                    <Button variant="secondary" size="sm" onClick={() => setOrgCred(c)}>
                       Organizations
-                    </button>
+                    </Button>
                   )}
                   {c.integrationType === 'AZURE_DEVOPS_BOARDS' &&
                     c.scope === 'ORG' &&
                     c.scopeId && (
-                      <button
+                      <Button
+                        variant="secondary"
+                        size="sm"
                         onClick={() => void syncMutation.mutate(c)}
                         disabled={syncMutation.isPending && syncMutation.variables?.id === c.id}
                         title="Pull projects, teams, areas, users and roles from Azure DevOps into the platform"
-                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-50"
                       >
                         {syncMutation.isPending && syncMutation.variables?.id === c.id ? (
                           <>
@@ -454,16 +453,17 @@ export default function AdminIntegrationsPage() {
                             <RefreshCw size={13} /> Sync to platform
                           </>
                         )}
-                      </button>
+                      </Button>
                     )}
                   {c.integrationType === 'AZURE_DEVOPS_BOARDS' && (
-                    <button
+                    <Button
+                      variant="secondary"
+                      size="sm"
                       onClick={() => void claimAdminMutation.mutate(c)}
                       disabled={
                         claimAdminMutation.isPending && claimAdminMutation.variables?.id === c.id
                       }
                       title="Fetch your Azure DevOps profile (me) and make yourself an org admin"
-                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-50"
                     >
                       {claimAdminMutation.isPending && claimAdminMutation.variables?.id === c.id ? (
                         <>
@@ -474,20 +474,21 @@ export default function AdminIntegrationsPage() {
                           <UserCog size={13} /> Set me as admin
                         </>
                       )}
-                    </button>
+                    </Button>
                   )}
-                  <button
+                  <Button
+                    variant="secondary"
+                    size="sm"
                     onClick={() => void testMutation.mutate(c.id)}
                     disabled={testMutation.isPending}
-                    className="px-3 py-1.5 text-xs font-medium border border-slate-200 rounded-lg hover:bg-slate-50"
                   >
                     {testMutation.isPending && testMutation.variables === c.id
                       ? 'Testing…'
                       : 'Test connection'}
-                  </button>
+                  </Button>
                   <button
                     onClick={() => void deleteMutation.mutate(c.id)}
-                    className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg"
+                    className="p-2 text-fg-subtle hover:text-danger hover:bg-danger-bg rounded-lg"
                     title="Delete"
                   >
                     <Trash2 size={16} />
@@ -564,15 +565,15 @@ function OrgSelectModal({ credential, onClose }: { credential: Credential; onClo
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-xl mx-4 max-h-[90vh] flex flex-col">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200">
+      <div className="bg-surface rounded-xl shadow-md w-full max-w-xl mx-4 max-h-[90vh] flex flex-col">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
           <div>
-            <h2 className="font-semibold text-slate-900">Manage organizations</h2>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <h2 className="font-semibold text-fg">Manage organizations</h2>
+            <p className="text-xs text-fg-muted mt-0.5">
               {credential.displayName} · {selected.size} selected
             </p>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+          <button onClick={onClose} className="text-fg-subtle hover:text-fg">
             <X size={18} />
           </button>
         </div>
@@ -587,53 +588,46 @@ function OrgSelectModal({ credential, onClose }: { credential: Credential; onClo
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Filter organizations…"
-            className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className={inputCls}
           />
           {isLoading && (
-            <div className="py-8 text-center text-sm text-slate-400 flex items-center justify-center gap-2">
+            <div className="py-8 text-center text-sm text-fg-subtle flex items-center justify-center gap-2">
               <Loader2 size={14} className="animate-spin" /> Discovering organizations via the PAT…
             </div>
           )}
           {!isLoading && !error && shown.length === 0 && (
-            <div className="py-8 text-center text-sm text-slate-500">No organizations.</div>
+            <div className="py-8 text-center text-sm text-fg-muted">No organizations.</div>
           )}
           {shown.length > 0 && (
-            <div className="border border-slate-200 rounded-lg max-h-80 overflow-y-auto divide-y divide-slate-50">
+            <div className="border border-border rounded-lg max-h-80 overflow-y-auto divide-y divide-border">
               {shown.map(o => (
                 <label
                   key={o.accountName}
-                  className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-slate-50"
+                  className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-surface-muted"
                 >
                   <input
                     type="checkbox"
                     checked={selected.has(o.accountName)}
                     onChange={() => toggle(o.accountName)}
-                    className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 shrink-0"
+                    className="rounded border-border-strong accent-primary shrink-0"
                   />
-                  <span className="text-sm text-slate-800 flex-1 truncate">{o.accountName}</span>
+                  <span className="text-sm text-fg flex-1 truncate">{o.accountName}</span>
                 </label>
               ))}
             </div>
           )}
         </div>
-        <div className="px-5 py-4 border-t border-slate-200 flex justify-between items-center">
-          <span className="text-xs text-slate-400">
+        <div className="px-5 py-4 border-t border-border flex justify-between items-center">
+          <span className="text-xs text-fg-subtle">
             {orgs.length} accessible · {selected.size} managed
           </span>
           <div className="flex gap-2">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50"
-            >
+            <Button variant="secondary" onClick={onClose}>
               Cancel
-            </button>
-            <button
-              onClick={() => save.mutate()}
-              disabled={save.isPending || isLoading}
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
-            >
-              {save.isPending && <Loader2 size={14} className="animate-spin" />}Save selection
-            </button>
+            </Button>
+            <Button onClick={() => save.mutate()} disabled={isLoading} loading={save.isPending}>
+              Save selection
+            </Button>
           </div>
         </div>
       </div>
@@ -689,15 +683,15 @@ function RepoSelectModal({ credential, onClose }: { credential: Credential; onCl
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-xl mx-4 max-h-[90vh] flex flex-col">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200">
+      <div className="bg-surface rounded-xl shadow-md w-full max-w-xl mx-4 max-h-[90vh] flex flex-col">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
           <div>
-            <h2 className="font-semibold text-slate-900">Manage repositories</h2>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <h2 className="font-semibold text-fg">Manage repositories</h2>
+            <p className="text-xs text-fg-muted mt-0.5">
               {credential.displayName} · {selected.size} selected
             </p>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+          <button onClick={onClose} className="text-fg-subtle hover:text-fg">
             <X size={18} />
           </button>
         </div>
@@ -712,59 +706,52 @@ function RepoSelectModal({ credential, onClose }: { credential: Credential; onCl
             value={search}
             onChange={e => setSearch(e.target.value)}
             placeholder="Filter repositories…"
-            className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className={inputCls}
           />
           {isLoading && (
-            <div className="py-8 text-center text-sm text-slate-400 flex items-center justify-center gap-2">
+            <div className="py-8 text-center text-sm text-fg-subtle flex items-center justify-center gap-2">
               <Loader2 size={14} className="animate-spin" /> Discovering repositories via the PAT…
             </div>
           )}
           {!isLoading && !error && shown.length === 0 && (
-            <div className="py-8 text-center text-sm text-slate-500">No repositories.</div>
+            <div className="py-8 text-center text-sm text-fg-muted">No repositories.</div>
           )}
           {shown.length > 0 && (
-            <div className="border border-slate-200 rounded-lg max-h-80 overflow-y-auto divide-y divide-slate-50">
+            <div className="border border-border rounded-lg max-h-80 overflow-y-auto divide-y divide-border">
               {shown.map(r => (
                 <label
                   key={r.fullName}
-                  className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-slate-50"
+                  className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-surface-muted"
                 >
                   <input
                     type="checkbox"
                     checked={selected.has(r.fullName)}
                     onChange={() => toggle(r.fullName)}
-                    className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 shrink-0"
+                    className="rounded border-border-strong accent-primary shrink-0"
                   />
-                  <span className="text-sm text-slate-800 flex-1 truncate">{r.fullName}</span>
+                  <span className="text-sm text-fg flex-1 truncate">{r.fullName}</span>
                   {r.isPrivate && (
-                    <span className="text-[10px] uppercase text-slate-400 shrink-0">private</span>
+                    <span className="text-[10px] uppercase text-fg-subtle shrink-0">private</span>
                   )}
                   {r.defaultBranch && (
-                    <span className="text-[10px] text-slate-400 shrink-0">{r.defaultBranch}</span>
+                    <span className="text-[10px] text-fg-subtle shrink-0">{r.defaultBranch}</span>
                   )}
                 </label>
               ))}
             </div>
           )}
         </div>
-        <div className="px-5 py-4 border-t border-slate-200 flex justify-between items-center">
-          <span className="text-xs text-slate-400">
+        <div className="px-5 py-4 border-t border-border flex justify-between items-center">
+          <span className="text-xs text-fg-subtle">
             {repos.length} accessible · {selected.size} managed
           </span>
           <div className="flex gap-2">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50"
-            >
+            <Button variant="secondary" onClick={onClose}>
               Cancel
-            </button>
-            <button
-              onClick={() => save.mutate()}
-              disabled={save.isPending || isLoading}
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
-            >
-              {save.isPending && <Loader2 size={14} className="animate-spin" />}Save selection
-            </button>
+            </Button>
+            <Button onClick={() => save.mutate()} disabled={isLoading} loading={save.isPending}>
+              Save selection
+            </Button>
           </div>
         </div>
       </div>
@@ -773,12 +760,12 @@ function RepoSelectModal({ credential, onClose }: { credential: Credential; onCl
 }
 
 const inputCls =
-  'w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500'
+  'w-full text-sm border border-border-strong rounded-lg px-3 py-2 bg-surface text-fg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary'
 
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="block text-xs font-medium text-slate-700 mb-1">{label}</label>
+      <label className="block text-xs font-medium text-fg-muted mb-1">{label}</label>
       {children}
     </div>
   )

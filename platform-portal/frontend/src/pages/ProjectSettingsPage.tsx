@@ -195,6 +195,9 @@ function kvToMap(pairs: KvPair[]): Record<string, string> {
   return result
 }
 
+const inputCls =
+  'w-full text-sm border border-border-strong rounded-lg px-3 py-2 bg-surface text-fg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary'
+
 // ── Inline integration form (add or edit) ─────────────────────────────────────
 
 interface IntegrationFormProps {
@@ -254,26 +257,26 @@ function IntegrationForm({ initial, projectId, inherited, onDone }: IntegrationF
   const inheritedMatch = (inherited ?? []).find(c => c.integrationType === formType)
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5 space-y-4">
-      <h3 className="text-sm font-semibold text-slate-900">
+    <div className="bg-surface rounded-xl border border-border shadow-sm p-5 space-y-4">
+      <h3 className="text-sm font-semibold text-fg">
         {isEdit ? `Edit ${initial.integrationType}` : 'Add Integration'}
       </h3>
 
       {/* Inheritance notice — what this integration gets from the organization */}
       {inheritedMatch && (
-        <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 text-sm text-blue-900 space-y-1">
+        <div className="bg-info-bg border border-info-border rounded-lg px-4 py-3 text-sm text-fg space-y-1">
           <p className="flex items-center gap-1.5 font-medium">
             <Building2 size={14} /> Inherits from organization credential
             {inheritedMatch.displayName ? ` “${inheritedMatch.displayName}”` : ''}
           </p>
-          <p className="text-xs text-blue-700">
+          <p className="text-xs text-info">
             {inheritedMatch.hasSecret
               ? 'A PAT/token is already provided by the organization — leave secret fields blank to use it.'
               : 'The organization credential has no secret set; you may need to provide one here.'}
             {inheritedMatch.baseUrl ? ` Base URL: ${inheritedMatch.baseUrl}.` : ''}
           </p>
           {Object.keys(inheritedMatch.connectionParams ?? {}).length > 0 && (
-            <p className="text-xs text-blue-700 font-mono">
+            <p className="text-xs text-info font-mono">
               Inherited:{' '}
               {Object.entries(inheritedMatch.connectionParams)
                 .map(([k, v]) => `${k}=${v}`)
@@ -286,15 +289,11 @@ function IntegrationForm({ initial, projectId, inherited, onDone }: IntegrationF
 
       {/* Type — read-only when editing to preserve upsert key */}
       <div>
-        <label className="block text-xs font-medium text-slate-700 mb-1">Integration Type</label>
+        <label className="block text-xs font-medium text-fg-muted mb-1">Integration Type</label>
         {isEdit ? (
-          <p className="text-sm font-mono text-slate-800">{formType}</p>
+          <p className="text-sm font-mono text-fg">{formType}</p>
         ) : (
-          <select
-            value={formType}
-            onChange={e => setFormType(e.target.value)}
-            className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-          >
+          <select value={formType} onChange={e => setFormType(e.target.value)} className={inputCls}>
             {INTEGRATION_TYPES.map(t => (
               <option key={t} value={t}>
                 {t}
@@ -305,22 +304,22 @@ function IntegrationForm({ initial, projectId, inherited, onDone }: IntegrationF
       </div>
 
       <div>
-        <label className="block text-xs font-medium text-slate-700 mb-1">Display Name</label>
+        <label className="block text-xs font-medium text-fg-muted mb-1">Display Name</label>
         <input
           type="text"
           value={formDisplayName}
           onChange={e => setFormDisplayName(e.target.value)}
           placeholder="e.g. Acme Jira"
-          className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className={inputCls}
         />
       </div>
 
       <div>
-        <label className="block text-xs font-medium text-slate-700 mb-1">Sync Direction</label>
+        <label className="block text-xs font-medium text-fg-muted mb-1">Sync Direction</label>
         <select
           value={formSyncDir}
           onChange={e => setFormSyncDir(e.target.value)}
-          className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className={inputCls}
         >
           {SYNC_DIRECTIONS.map(d => (
             <option key={d} value={d}>
@@ -333,7 +332,7 @@ function IntegrationForm({ initial, projectId, inherited, onDone }: IntegrationF
       {/* Repo Role — only meaningful for GitHub */}
       {formType === 'GITHUB' && (
         <div>
-          <label className="block text-xs font-medium text-slate-700 mb-1">Repo Role</label>
+          <label className="block text-xs font-medium text-fg-muted mb-1">Repo Role</label>
           <div className="flex gap-2">
             {(
               [
@@ -348,15 +347,15 @@ function IntegrationForm({ initial, projectId, inherited, onDone }: IntegrationF
                 onClick={() => setFormRepoType(opt.value)}
                 className={`px-3 py-1.5 text-xs font-medium rounded-lg border transition-colors ${
                   formRepoType === opt.value
-                    ? 'bg-blue-600 text-white border-blue-600'
-                    : 'bg-white text-slate-700 border-slate-200 hover:border-blue-300'
+                    ? 'bg-primary text-primary-fg border-primary'
+                    : 'bg-surface text-fg-muted border-border hover:border-primary/40'
                 }`}
               >
                 {opt.label}
               </button>
             ))}
           </div>
-          <p className="text-xs text-slate-400 mt-1">
+          <p className="text-xs text-fg-subtle mt-1">
             {formRepoType === 'CODEBASE' && 'Source code read for test generation context.'}
             {formRepoType === 'TEST_AUTOMATION' && 'Automation code target — PRs are raised here.'}
             {formRepoType === 'GENERAL' && 'No specific role assigned.'}
@@ -365,7 +364,7 @@ function IntegrationForm({ initial, projectId, inherited, onDone }: IntegrationF
       )}
 
       <div>
-        <label className="block text-xs font-medium text-slate-700 mb-1">Connection Params</label>
+        <label className="block text-xs font-medium text-fg-muted mb-1">Connection Params</label>
         <div className="space-y-2">
           {formParams.map((pair, idx) => {
             const knownField = INTEGRATION_PARAMS[formType]?.find(f => f.key === pair.key)
@@ -375,20 +374,18 @@ function IntegrationForm({ initial, projectId, inherited, onDone }: IntegrationF
                 {knownField ? (
                   <div className="w-44 shrink-0 pt-1.5">
                     <div className="flex items-center gap-1.5">
-                      <span className="text-xs font-mono font-medium text-slate-800">
-                        {pair.key}
-                      </span>
+                      <span className="text-xs font-mono font-medium text-fg">{pair.key}</span>
                       <span
                         className={`text-[10px] font-medium px-1 py-0.5 rounded leading-none ${
                           knownField.required
-                            ? 'text-red-600 bg-red-50 border border-red-200'
-                            : 'text-slate-400 bg-slate-100 border border-slate-200'
+                            ? 'text-danger bg-danger-bg border border-danger-border'
+                            : 'text-fg-subtle bg-surface-muted border border-border'
                         }`}
                       >
                         {knownField.required ? 'required' : 'optional'}
                       </span>
                     </div>
-                    <p className="text-[10px] text-slate-400 leading-tight mt-0.5">
+                    <p className="text-[10px] text-fg-subtle leading-tight mt-0.5">
                       {knownField.desc}
                     </p>
                   </div>
@@ -398,20 +395,20 @@ function IntegrationForm({ initial, projectId, inherited, onDone }: IntegrationF
                     placeholder="key"
                     value={pair.key}
                     onChange={e => updateParam(idx, 'key', e.target.value)}
-                    className="w-36 shrink-0 text-sm border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+                    className="w-36 shrink-0 text-sm border border-border-strong rounded-lg px-3 py-1.5 bg-surface text-fg focus:outline-none focus:ring-2 focus:ring-primary/30 font-mono"
                   />
                 )}
 
                 {/* Value column */}
                 {pair.masked ? (
                   <>
-                    <span className="flex-1 text-sm text-slate-400 font-mono border border-slate-200 rounded-lg px-3 py-1.5 bg-slate-50 select-none">
+                    <span className="flex-1 text-sm text-fg-subtle font-mono border border-border rounded-lg px-3 py-1.5 bg-surface-muted select-none">
                       ••••••••
                     </span>
                     <button
                       type="button"
                       onClick={() => unmaskParam(idx)}
-                      className="shrink-0 text-xs text-blue-600 hover:text-blue-700 whitespace-nowrap border border-blue-200 rounded px-2 py-1.5"
+                      className="shrink-0 text-xs text-primary hover:brightness-110 whitespace-nowrap border border-primary-subtle rounded px-2 py-1.5"
                     >
                       Change
                     </button>
@@ -422,14 +419,14 @@ function IntegrationForm({ initial, projectId, inherited, onDone }: IntegrationF
                     placeholder="value"
                     value={pair.value}
                     onChange={e => updateParam(idx, 'value', e.target.value)}
-                    className="flex-1 text-sm border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    className="flex-1 text-sm border border-border-strong rounded-lg px-3 py-1.5 bg-surface text-fg focus:outline-none focus:ring-2 focus:ring-primary/30"
                   />
                 )}
 
                 <button
                   type="button"
                   onClick={() => setFormParams(prev => prev.filter((_, i) => i !== idx))}
-                  className="shrink-0 text-slate-400 hover:text-red-600 transition-colors pt-2"
+                  className="shrink-0 text-fg-subtle hover:text-danger transition-colors pt-2"
                 >
                   <X size={15} />
                 </button>
@@ -440,7 +437,7 @@ function IntegrationForm({ initial, projectId, inherited, onDone }: IntegrationF
         <button
           type="button"
           onClick={() => setFormParams(prev => [...prev, { key: '', value: '', masked: false }])}
-          className="mt-2 flex items-center gap-1 text-xs text-blue-600 hover:text-blue-700"
+          className="mt-2 flex items-center gap-1 text-xs text-primary hover:brightness-110"
         >
           <Plus size={13} /> Add param
         </button>
@@ -452,29 +449,29 @@ function IntegrationForm({ initial, projectId, inherited, onDone }: IntegrationF
           type="checkbox"
           checked={formEnabled}
           onChange={e => setFormEnabled(e.target.checked)}
-          className="rounded border-slate-300"
+          className="rounded border-border-strong accent-primary"
         />
-        <label htmlFor="form-enabled" className="text-sm text-slate-700">
+        <label htmlFor="form-enabled" className="text-sm text-fg-muted">
           Enabled
         </label>
       </div>
 
       {mutation.isError && (
-        <p className="text-xs text-red-600">Failed to save — please try again.</p>
+        <p className="text-xs text-danger">Failed to save — please try again.</p>
       )}
 
       <div className="flex items-center gap-3 pt-1">
         <button
           onClick={() => void mutation.mutate()}
           disabled={mutation.isPending}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+          className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-fg text-sm font-medium rounded-lg hover:brightness-95 disabled:opacity-50 transition-all"
         >
           <Save size={14} />
           {mutation.isPending ? 'Saving…' : 'Save Integration'}
         </button>
         <button
           onClick={onDone}
-          className="px-4 py-2 text-sm font-medium text-slate-700 border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
+          className="px-4 py-2 text-sm font-medium text-fg-muted border border-border rounded-lg hover:bg-surface-muted transition-colors"
         >
           Cancel
         </button>
@@ -601,8 +598,8 @@ export default function ProjectSettingsPage() {
     <div className="space-y-6 max-w-2xl">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-slate-900">{TAB_LABELS[tab]}</h1>
-        <p className="text-sm text-slate-500 mt-1">
+        <h1 className="text-2xl font-bold text-fg">{TAB_LABELS[tab]}</h1>
+        <p className="text-sm text-fg-muted mt-1">
           {project.name} · {project.slug}
         </p>
       </div>
@@ -610,25 +607,25 @@ export default function ProjectSettingsPage() {
       {/* ── General ── */}
       {tab === 'general' && (
         <div className="space-y-6">
-          <div className="bg-white rounded-xl border border-slate-200 shadow-sm divide-y divide-slate-100">
+          <div className="bg-surface rounded-xl border border-border shadow-sm divide-y divide-border">
             <div className="px-5 py-4 space-y-4">
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Name</label>
+                <label className="block text-sm font-medium text-fg-muted mb-1">Name</label>
                 <input
                   type="text"
                   value={editName}
                   onChange={e => setEditName(e.target.value)}
-                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className={inputCls}
                 />
               </div>
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Description</label>
+                <label className="block text-sm font-medium text-fg-muted mb-1">Description</label>
                 <textarea
                   value={editDescription}
                   onChange={e => setEditDescription(e.target.value)}
                   placeholder="Brief description of this project…"
                   rows={3}
-                  className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
+                  className={`${inputCls} resize-none`}
                 />
               </div>
             </div>
@@ -636,40 +633,40 @@ export default function ProjectSettingsPage() {
               <button
                 onClick={() => void saveMutation.mutate()}
                 disabled={saveMutation.isPending}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+                className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-fg text-sm font-medium rounded-lg hover:brightness-95 disabled:opacity-50 transition-all"
               >
                 <Save size={14} />
                 {saveMutation.isPending ? 'Saving…' : 'Save Changes'}
               </button>
               {saveSuccess && (
-                <span className="text-xs text-green-600 flex items-center gap-1">
+                <span className="text-xs text-success flex items-center gap-1">
                   <CheckCircle size={13} /> Saved
                 </span>
               )}
               {saveMutation.isError && (
-                <span className="text-xs text-red-600">Failed to save — please try again.</span>
+                <span className="text-xs text-danger">Failed to save — please try again.</span>
               )}
             </div>
           </div>
 
           {/* Danger zone */}
-          <div className="bg-white rounded-xl border border-red-200 shadow-sm">
-            <div className="px-5 py-4 border-b border-red-100">
-              <p className="text-sm font-semibold text-red-700 flex items-center gap-2">
+          <div className="bg-surface rounded-xl border border-danger-border shadow-sm">
+            <div className="px-5 py-4 border-b border-danger-border">
+              <p className="text-sm font-semibold text-danger flex items-center gap-2">
                 <AlertTriangle size={15} /> Danger Zone
               </p>
             </div>
             <div className="px-5 py-4 flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-slate-900">Delete this project</p>
-                <p className="text-xs text-slate-500 mt-0.5">
+                <p className="text-sm font-medium text-fg">Delete this project</p>
+                <p className="text-xs text-fg-muted mt-0.5">
                   Permanently removes all executions and data. This cannot be undone.
                 </p>
               </div>
               <button
                 onClick={handleDelete}
                 disabled={deleteMutation.isPending}
-                className="flex items-center gap-2 px-4 py-2 bg-red-600 text-white text-sm font-medium rounded-lg hover:bg-red-700 disabled:opacity-50 transition-colors"
+                className="flex items-center gap-2 px-4 py-2 bg-danger text-white text-sm font-medium rounded-lg hover:brightness-95 disabled:opacity-50 transition-all"
               >
                 <Trash2 size={14} />
                 {deleteMutation.isPending ? 'Deleting…' : 'Delete Project'}
@@ -687,17 +684,15 @@ export default function ProjectSettingsPage() {
         <div className="space-y-4">
           {/* Inherited from organization — read-only summary */}
           {(inherited ?? []).length > 0 && (
-            <div className="bg-white rounded-xl border border-blue-200 shadow-sm">
-              <div className="px-5 py-3 border-b border-blue-100 flex items-center gap-2">
-                <Building2 size={15} className="text-blue-500" />
-                <h3 className="text-sm font-semibold text-slate-900">
-                  Inherited from Organization
-                </h3>
-                <span className="text-xs text-slate-400">
+            <div className="bg-surface rounded-xl border border-info-border shadow-sm">
+              <div className="px-5 py-3 border-b border-info-border flex items-center gap-2">
+                <Building2 size={15} className="text-info" />
+                <h3 className="text-sm font-semibold text-fg">Inherited from Organization</h3>
+                <span className="text-xs text-fg-subtle">
                   used automatically unless overridden below
                 </span>
               </div>
-              <div className="divide-y divide-slate-50">
+              <div className="divide-y divide-border">
                 {(inherited ?? []).map(c => (
                   <div
                     key={c.integrationType}
@@ -705,15 +700,13 @@ export default function ProjectSettingsPage() {
                   >
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
-                        <Badge label={c.integrationType} colorClass="text-blue-700 bg-blue-100" />
-                        {c.displayName && (
-                          <span className="text-sm text-slate-700">{c.displayName}</span>
-                        )}
-                        <span className="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded bg-slate-100 text-slate-600">
+                        <Badge label={c.integrationType} colorClass="text-info bg-info-bg" />
+                        {c.displayName && <span className="text-sm text-fg">{c.displayName}</span>}
+                        <span className="inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded bg-surface-muted text-fg-muted">
                           <Lock size={11} /> {c.hasSecret ? 'secret set' : 'no secret'}
                         </span>
                       </div>
-                      <p className="text-xs text-slate-400 mt-0.5 truncate">
+                      <p className="text-xs text-fg-subtle mt-0.5 truncate">
                         {c.baseUrl && <span className="font-mono">{c.baseUrl}</span>}
                         {Object.keys(c.connectionParams ?? {}).length > 0 && (
                           <span className="font-mono">
@@ -727,7 +720,7 @@ export default function ProjectSettingsPage() {
                     </div>
                     <Link
                       to="/settings/integrations"
-                      className="text-xs text-blue-600 hover:text-blue-700 whitespace-nowrap shrink-0"
+                      className="text-xs text-primary hover:brightness-110 whitespace-nowrap shrink-0"
                     >
                       Manage at org →
                     </Link>
@@ -744,7 +737,7 @@ export default function ProjectSettingsPage() {
             )
             return (
               <div className="flex items-center justify-between">
-                <p className="text-xs text-slate-500">
+                <p className="text-xs text-fg-muted">
                   Configure which external systems feed requirements into this project.
                 </p>
                 {(intLoading || hasPollSupport) && (
@@ -755,7 +748,7 @@ export default function ProjectSettingsPage() {
                       void syncMutation.mutate()
                     }}
                     disabled={syncMutation.isPending || intLoading}
-                    className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-slate-700 border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-50 transition-colors"
+                    className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-fg-muted border border-border rounded-lg hover:bg-surface-muted disabled:opacity-50 transition-colors"
                   >
                     <RefreshCw size={13} className={syncMutation.isPending ? 'animate-spin' : ''} />
                     {syncMutation.isPending ? 'Syncing…' : 'Sync Now'}
@@ -767,18 +760,18 @@ export default function ProjectSettingsPage() {
 
           {/* Sync results */}
           {syncError && (
-            <p className="text-xs text-red-600 bg-red-50 border border-red-100 rounded-lg px-4 py-2">
+            <p className="text-xs text-danger bg-danger-bg border border-danger-border rounded-lg px-4 py-2">
               Sync failed: {syncError}
             </p>
           )}
           {syncResults && (
-            <div className="bg-slate-50 border border-slate-200 rounded-lg px-4 py-3 space-y-1">
+            <div className="bg-surface-muted border border-border rounded-lg px-4 py-3 space-y-1">
               {Object.entries(syncResults).map(([type, res]) => (
                 <div key={type} className="flex items-start gap-2 text-xs">
                   {res.success ? (
-                    <CheckCircle size={13} className="text-green-600 mt-0.5 shrink-0" />
+                    <CheckCircle size={13} className="text-success mt-0.5 shrink-0" />
                   ) : (
-                    <AlertTriangle size={13} className="text-amber-500 mt-0.5 shrink-0" />
+                    <AlertTriangle size={13} className="text-warning mt-0.5 shrink-0" />
                   )}
                   <span>
                     <span className="font-mono font-medium">{type}</span>
@@ -795,7 +788,7 @@ export default function ProjectSettingsPage() {
           ) : (
             <>
               {(integrations ?? []).length === 0 && activeForm !== 'new' && (
-                <p className="text-sm text-slate-500 text-center py-6">
+                <p className="text-sm text-fg-muted text-center py-6">
                   No integrations configured yet.
                 </p>
               )}
@@ -805,15 +798,12 @@ export default function ProjectSettingsPage() {
                 <div key={cfg.id}>
                   {/* Row */}
                   {activeForm !== cfg.id && (
-                    <div className="bg-white rounded-xl border border-slate-200 shadow-sm px-5 py-4 flex items-start justify-between gap-4">
+                    <div className="bg-surface rounded-xl border border-border shadow-sm px-5 py-4 flex items-start justify-between gap-4">
                       <div className="space-y-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <Badge
-                            label={cfg.integrationType}
-                            colorClass="text-blue-700 bg-blue-100"
-                          />
+                          <Badge label={cfg.integrationType} colorClass="text-info bg-info-bg" />
                           {cfg.displayName && (
-                            <span className="text-sm text-slate-700">{cfg.displayName}</span>
+                            <span className="text-sm text-fg">{cfg.displayName}</span>
                           )}
                           {cfg.integrationType === 'GITHUB' &&
                             cfg.repoType &&
@@ -826,7 +816,7 @@ export default function ProjectSettingsPage() {
                                 }
                                 colorClass={
                                   cfg.repoType === 'TEST_AUTOMATION'
-                                    ? 'text-purple-700 bg-purple-100'
+                                    ? 'text-teal-700 bg-teal-100'
                                     : 'text-amber-700 bg-amber-100'
                                 }
                               />
@@ -835,16 +825,16 @@ export default function ProjectSettingsPage() {
                             label={cfg.enabled ? 'enabled' : 'disabled'}
                             colorClass={
                               cfg.enabled
-                                ? 'text-green-700 bg-green-100'
-                                : 'text-slate-500 bg-slate-100'
+                                ? 'text-success bg-success-bg'
+                                : 'text-neutral bg-neutral-bg'
                             }
                           />
                         </div>
-                        <p className="text-xs text-slate-500">
+                        <p className="text-xs text-fg-muted">
                           Direction: {cfg.syncDirection}
                           {cfg.lastSyncedAt && ` · Last synced: ${relativeTime(cfg.lastSyncedAt)}`}
                           {cfg.consecutiveErrors > 0 && (
-                            <span className="text-red-600">
+                            <span className="text-danger">
                               {' '}
                               · {cfg.consecutiveErrors} error
                               {cfg.consecutiveErrors !== 1 ? 's' : ''}
@@ -852,7 +842,7 @@ export default function ProjectSettingsPage() {
                           )}
                         </p>
                         {!POLL_SUPPORTED.has(cfg.integrationType) && (
-                          <p className="text-xs text-slate-400 italic mt-0.5">
+                          <p className="text-xs text-fg-subtle italic mt-0.5">
                             Webhook-only — trigger from Linear → Settings → API → Webhooks to sync
                             immediately.
                           </p>
@@ -862,14 +852,14 @@ export default function ProjectSettingsPage() {
                         <button
                           title="Edit"
                           onClick={() => setActiveForm(cfg.id)}
-                          className="text-slate-400 hover:text-blue-600 transition-colors"
+                          className="text-fg-subtle hover:text-primary transition-colors"
                         >
                           <Pencil size={15} />
                         </button>
                         <button
                           title="Delete"
                           onClick={() => handleDeleteInt(cfg)}
-                          className="text-slate-400 hover:text-red-600 transition-colors"
+                          className="text-fg-subtle hover:text-danger transition-colors"
                         >
                           <Trash2 size={15} />
                         </button>
@@ -899,7 +889,7 @@ export default function ProjectSettingsPage() {
               ) : (
                 <button
                   onClick={() => setActiveForm('new')}
-                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium border border-dashed border-slate-300 rounded-lg text-slate-600 hover:border-blue-400 hover:text-blue-600 transition-colors w-full justify-center"
+                  className="flex items-center gap-2 px-4 py-2 text-sm font-medium border border-dashed border-border-strong rounded-lg text-fg-muted hover:border-primary/40 hover:text-primary transition-colors w-full justify-center"
                 >
                   <Plus size={15} /> Add Integration
                 </button>
@@ -912,7 +902,7 @@ export default function ProjectSettingsPage() {
       {/* ── Mapping ── */}
       {tab === 'mapping' && (
         <div className="space-y-3">
-          <p className="text-xs text-slate-500">
+          <p className="text-xs text-fg-muted">
             Mapping Suggester rules for this project. Overrides the organization default; resets
             fall back to it.
           </p>
@@ -977,15 +967,15 @@ function ProjectAiSettings({ projectId }: { projectId: string }) {
 
   return (
     <div className="space-y-6 max-w-2xl">
-      <div className="bg-blue-50 border border-blue-200 rounded-lg px-4 py-3 text-sm text-blue-800">
+      <div className="bg-info-bg border border-info-border rounded-lg px-4 py-3 text-sm text-fg">
         These override the organization defaults for this project only. Blank = inherit.
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm divide-y divide-slate-100">
+      <div className="bg-surface rounded-xl border border-border shadow-sm divide-y divide-border">
         <div className="px-5 py-4 flex items-center justify-between">
           <div>
-            <p className="text-sm font-medium text-slate-900">Enable AI analysis</p>
-            <p className="text-xs text-slate-500">Effective: {effective?.['ai.enabled'] ?? '—'}</p>
+            <p className="text-sm font-medium text-fg">Enable AI analysis</p>
+            <p className="text-xs text-fg-muted">Effective: {effective?.['ai.enabled'] ?? '—'}</p>
           </div>
           <select
             className={aiInputCls}
@@ -1000,8 +990,8 @@ function ProjectAiSettings({ projectId }: { projectId: string }) {
 
         <div className="px-5 py-4 flex items-center justify-between">
           <div>
-            <p className="text-sm font-medium text-slate-900">Real-time analysis</p>
-            <p className="text-xs text-slate-500">
+            <p className="text-sm font-medium text-fg">Real-time analysis</p>
+            <p className="text-xs text-fg-muted">
               Effective: {effective?.['ai.realtime.enabled'] ?? '—'}
             </p>
           </div>
@@ -1018,8 +1008,8 @@ function ProjectAiSettings({ projectId }: { projectId: string }) {
 
         <div className="px-5 py-4 flex items-center justify-between">
           <div>
-            <p className="text-sm font-medium text-slate-900">Provider</p>
-            <p className="text-xs text-slate-500">Effective: {effective?.['ai.provider'] ?? '—'}</p>
+            <p className="text-sm font-medium text-fg">Provider</p>
+            <p className="text-xs text-fg-muted">Effective: {effective?.['ai.provider'] ?? '—'}</p>
           </div>
           <select
             className={aiInputCls}
@@ -1034,8 +1024,8 @@ function ProjectAiSettings({ projectId }: { projectId: string }) {
 
         <div className="px-5 py-4 flex items-center justify-between">
           <div>
-            <p className="text-sm font-medium text-slate-900">Model</p>
-            <p className="text-xs text-slate-500">Effective: {effective?.['ai.model'] ?? '—'}</p>
+            <p className="text-sm font-medium text-fg">Model</p>
+            <p className="text-xs text-fg-muted">Effective: {effective?.['ai.model'] ?? '—'}</p>
           </div>
           <input
             className={aiInputCls}
@@ -1050,29 +1040,29 @@ function ProjectAiSettings({ projectId }: { projectId: string }) {
         <button
           onClick={() => void saveMutation.mutate()}
           disabled={Object.keys(draft).length === 0 || saveMutation.isPending}
-          className="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50"
+          className="px-4 py-2 bg-primary text-primary-fg text-sm font-medium rounded-lg hover:brightness-95 disabled:opacity-50"
         >
           {saveMutation.isPending ? 'Saving…' : 'Save overrides'}
         </button>
-        {saved && <span className="text-sm text-green-600">Saved.</span>}
-        {saveMutation.isError && <span className="text-sm text-red-600">Failed to save.</span>}
+        {saved && <span className="text-sm text-success">Saved.</span>}
+        {saveMutation.isError && <span className="text-sm text-danger">Failed to save.</span>}
       </div>
     </div>
   )
 }
 
 const aiInputCls =
-  'text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 min-w-[10rem]'
+  'text-sm border border-border-strong rounded-lg px-3 py-1.5 bg-surface text-fg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary min-w-[10rem]'
 
 // ── GitHub repo assignments ────────────────────────────────────────────────────
 
 const REPO_ROLES: { value: string; label: string; activeClass: string }[] = [
-  { value: 'GENERAL', label: 'General', activeClass: 'bg-slate-700 text-white border-slate-700' },
+  { value: 'GENERAL', label: 'General', activeClass: 'bg-fg text-surface border-fg' },
   { value: 'CODEBASE', label: 'Codebase', activeClass: 'bg-amber-600 text-white border-amber-600' },
   {
     value: 'TEST_AUTOMATION',
     label: 'Test Auto',
-    activeClass: 'bg-purple-600 text-white border-purple-600',
+    activeClass: 'bg-teal-600 text-white border-teal-600',
   },
 ]
 
@@ -1184,13 +1174,13 @@ function GitHubReposTab({ projectId, orgId }: { projectId: string; orgId: string
 
   if (!githubCred) {
     return (
-      <div className="bg-amber-50 border border-amber-200 rounded-xl px-5 py-8 text-center space-y-2">
-        <p className="text-sm font-medium text-amber-900">
+      <div className="bg-warning-bg border border-warning-border rounded-xl px-5 py-8 text-center space-y-2">
+        <p className="text-sm font-medium text-warning">
           No GitHub integration configured at org level
         </p>
-        <p className="text-xs text-amber-700">
+        <p className="text-xs text-warning">
           Go to{' '}
-          <Link to="/settings/integrations" className="underline hover:text-amber-900">
+          <Link to="/settings/integrations" className="underline hover:brightness-110">
             Admin → Integrations
           </Link>{' '}
           and add a GitHub credential with a Personal Access Token.
@@ -1202,23 +1192,23 @@ function GitHubReposTab({ projectId, orgId }: { projectId: string; orgId: string
   return (
     <div className="space-y-4">
       {/* Sync status + interval */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm divide-y divide-slate-100">
+      <div className="bg-surface rounded-xl border border-border shadow-sm divide-y divide-border">
         <div className="px-5 py-4 flex items-center justify-between gap-4">
           <div>
-            <p className="text-sm font-medium text-slate-900">GitHub Repo Cache</p>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <p className="text-sm font-medium text-fg">GitHub Repo Cache</p>
+            <p className="text-xs text-fg-muted mt-0.5">
               {cacheData?.syncedAt
                 ? `${cacheData.totalCount} repos cached · last synced ${relativeTime(cacheData.syncedAt)}`
                 : 'Cache is empty — click Sync to fetch repos from GitHub.'}
             </p>
             {syncMutation.isError && (
-              <p className="text-xs text-red-600 mt-1">Sync failed — check your PAT scopes.</p>
+              <p className="text-xs text-danger mt-1">Sync failed — check your PAT scopes.</p>
             )}
           </div>
           <button
             onClick={() => void syncMutation.mutate()}
             disabled={syncMutation.isPending}
-            className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-slate-700 border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-50 transition-colors whitespace-nowrap"
+            className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-fg-muted border border-border rounded-lg hover:bg-surface-muted disabled:opacity-50 transition-colors whitespace-nowrap"
           >
             <RefreshCw size={13} className={syncMutation.isPending ? 'animate-spin' : ''} />
             {syncMutation.isPending ? 'Syncing…' : 'Sync from GitHub'}
@@ -1228,8 +1218,8 @@ function GitHubReposTab({ projectId, orgId }: { projectId: string; orgId: string
         {/* Auto-sync interval */}
         <div className="px-5 py-4 flex items-center gap-4">
           <div className="flex-1">
-            <p className="text-sm font-medium text-slate-900">Auto-sync interval</p>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <p className="text-sm font-medium text-fg">Auto-sync interval</p>
+            <p className="text-xs text-fg-muted mt-0.5">
               Set to 0 to disable auto-sync. Applies to the org GitHub credential.
             </p>
           </div>
@@ -1240,35 +1230,35 @@ function GitHubReposTab({ projectId, orgId }: { projectId: string; orgId: string
               max={1440}
               value={syncInterval ?? 0}
               onChange={e => setSyncInterval(Math.max(0, parseInt(e.target.value) || 0))}
-              className="w-20 text-sm border border-slate-200 rounded-lg px-3 py-1.5 text-center focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="w-20 text-sm border border-border-strong rounded-lg px-3 py-1.5 text-center bg-surface text-fg focus:outline-none focus:ring-2 focus:ring-primary/30"
             />
-            <span className="text-xs text-slate-500">min</span>
+            <span className="text-xs text-fg-muted">min</span>
             <button
               onClick={() => void syncIntervalMutation.mutate()}
               disabled={
                 syncIntervalMutation.isPending ||
                 syncInterval === (githubCred?.syncIntervalMinutes ?? 0)
               }
-              className="px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+              className="px-3 py-1.5 text-sm font-medium text-primary-fg bg-primary rounded-lg hover:brightness-95 disabled:opacity-50 transition-all"
             >
               {syncIntervalMutation.isPending ? 'Saving…' : 'Save'}
             </button>
-            {syncIntervalSaved && <CheckCircle size={14} className="text-green-500 shrink-0" />}
+            {syncIntervalSaved && <CheckCircle size={14} className="text-success shrink-0" />}
           </div>
         </div>
       </div>
 
       {/* Repo picker */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="px-4 py-3 border-b border-slate-100 flex items-center gap-3">
+      <div className="bg-surface rounded-xl border border-border shadow-sm overflow-hidden">
+        <div className="px-4 py-3 border-b border-border flex items-center gap-3">
           <input
             type="search"
             placeholder="Search repos…"
             value={search}
             onChange={e => setSearch(e.target.value)}
-            className="flex-1 text-sm border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="flex-1 text-sm border border-border-strong rounded-lg px-3 py-1.5 bg-surface text-fg focus:outline-none focus:ring-2 focus:ring-primary/30"
           />
-          <span className="text-xs text-slate-400 whitespace-nowrap shrink-0">
+          <span className="text-xs text-fg-subtle whitespace-nowrap shrink-0">
             {assignments.size} assigned
           </span>
         </div>
@@ -1278,39 +1268,37 @@ function GitHubReposTab({ projectId, orgId }: { projectId: string; orgId: string
             <LoadingSpinner message="Loading cache…" />
           </div>
         ) : visibleRepos.length === 0 ? (
-          <p className="px-5 py-8 text-sm text-slate-500 text-center">
+          <p className="px-5 py-8 text-sm text-fg-muted text-center">
             {!cacheData?.totalCount
               ? 'No repos in cache — click Sync to fetch from GitHub.'
               : 'No repos match the search.'}
           </p>
         ) : (
-          <div className="max-h-[480px] overflow-y-auto divide-y divide-slate-50">
+          <div className="max-h-[480px] overflow-y-auto divide-y divide-border">
             {visibleRepos.map(repo => {
               const assigned = assignments.has(repo.fullName)
               const role = assignments.get(repo.fullName) ?? 'GENERAL'
               return (
                 <div
                   key={repo.fullName}
-                  className={`px-4 py-3 flex items-center gap-3 ${assigned ? 'bg-blue-50/40' : 'hover:bg-slate-50'}`}
+                  className={`px-4 py-3 flex items-center gap-3 ${assigned ? 'bg-primary-subtle' : 'hover:bg-surface-muted'}`}
                 >
                   <input
                     type="checkbox"
                     checked={assigned}
                     onChange={e => toggleRepo(repo.fullName, e.target.checked)}
-                    className="rounded border-slate-300 accent-blue-600 shrink-0"
+                    className="rounded border-border-strong accent-primary shrink-0"
                   />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-sm font-mono text-slate-900 truncate">
-                        {repo.fullName}
-                      </span>
+                      <span className="text-sm font-mono text-fg truncate">{repo.fullName}</span>
                       {repo.isPrivate && (
-                        <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-slate-100 text-slate-500 border border-slate-200 shrink-0">
+                        <span className="text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-surface-muted text-fg-muted border border-border shrink-0">
                           private
                         </span>
                       )}
                       {repo.defaultBranch && (
-                        <span className="text-[10px] text-slate-400 font-mono shrink-0">
+                        <span className="text-[10px] text-fg-subtle font-mono shrink-0">
                           {repo.defaultBranch}
                         </span>
                       )}
@@ -1326,7 +1314,7 @@ function GitHubReposTab({ projectId, orgId }: { projectId: string; orgId: string
                           className={`px-2 py-1 text-[11px] font-medium rounded-md border transition-colors ${
                             role === r.value
                               ? r.activeClass
-                              : 'bg-white text-slate-500 border-slate-200 hover:border-slate-300'
+                              : 'bg-surface text-fg-muted border-border hover:border-border-strong'
                           }`}
                         >
                           {r.label}
@@ -1346,21 +1334,21 @@ function GitHubReposTab({ projectId, orgId }: { projectId: string; orgId: string
         <button
           onClick={() => void saveMutation.mutate()}
           disabled={!dirty || saveMutation.isPending}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
+          className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-fg text-sm font-medium rounded-lg hover:brightness-95 disabled:opacity-50 transition-all"
         >
           <Save size={14} />
           {saveMutation.isPending ? 'Saving…' : 'Save Assignments'}
         </button>
         {saveOk && (
-          <span className="text-sm text-green-600 flex items-center gap-1">
+          <span className="text-sm text-success flex items-center gap-1">
             <CheckCircle size={13} /> Saved
           </span>
         )}
         {saveMutation.isError && (
-          <span className="text-sm text-red-600">Failed to save — please try again.</span>
+          <span className="text-sm text-danger">Failed to save — please try again.</span>
         )}
         {!dirty && assignments.size > 0 && (
-          <span className="text-xs text-slate-400">
+          <span className="text-xs text-fg-subtle">
             {assignments.size} repo{assignments.size !== 1 ? 's' : ''} assigned
           </span>
         )}
@@ -1394,12 +1382,12 @@ function ProjectTeams({ projectId }: { projectId: string }) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <p className="text-xs text-slate-500">
+        <p className="text-xs text-fg-muted">
           Teams partition this project for access control and credential overrides.
         </p>
         <button
           onClick={() => setShowCreate(true)}
-          className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 text-white text-xs font-medium rounded-lg hover:bg-blue-700 transition-colors"
+          className="flex items-center gap-1.5 px-3 py-1.5 bg-primary text-primary-fg text-xs font-medium rounded-lg hover:brightness-95 transition-all"
         >
           <Plus size={13} /> New Team
         </button>
@@ -1408,22 +1396,22 @@ function ProjectTeams({ projectId }: { projectId: string }) {
       {isLoading ? (
         <LoadingSpinner message="Loading teams…" />
       ) : (
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm divide-y divide-slate-50">
+        <div className="bg-surface rounded-xl border border-border shadow-sm divide-y divide-border">
           {(teams ?? []).length === 0 && (
-            <p className="px-5 py-8 text-sm text-slate-500 text-center">
+            <p className="px-5 py-8 text-sm text-fg-muted text-center">
               No teams in this project yet.
             </p>
           )}
           {(teams ?? []).map(t => (
             <div key={t.id} className="px-5 py-3.5 flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-slate-900">{t.name}</p>
-                <p className="text-xs text-slate-400 font-mono">{t.slug}</p>
+                <p className="text-sm font-medium text-fg">{t.name}</p>
+                <p className="text-xs text-fg-subtle font-mono">{t.slug}</p>
               </div>
               <button
                 title="Delete team"
                 onClick={() => handleDelete(t.id, t.name)}
-                className="text-slate-400 hover:text-red-600 transition-colors"
+                className="text-fg-subtle hover:text-danger transition-colors"
               >
                 <Trash2 size={14} />
               </button>

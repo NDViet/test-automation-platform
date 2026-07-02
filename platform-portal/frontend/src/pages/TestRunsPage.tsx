@@ -8,6 +8,7 @@ import type { TestRun, CreateTestRunForm } from '@/lib/types'
 import Badge from '@/components/Badge'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import ErrorMessage from '@/components/ErrorMessage'
+import { Button, Input, Select, PageHeader } from '@/components/ui'
 import { Plus, PlayCircle, Trash2, CheckCircle, X, Loader2 } from 'lucide-react'
 
 // ── Color helpers ─────────────────────────────────────────────────────────────
@@ -15,26 +16,26 @@ import { Plus, PlayCircle, Trash2, CheckCircle, X, Loader2 } from 'lucide-react'
 function runStatusColor(status: string): string {
   switch (status) {
     case 'IN_PROGRESS':
-      return 'text-blue-700 bg-blue-100'
+      return 'text-info bg-info-bg'
     case 'COMPLETED':
-      return 'text-green-700 bg-green-100'
+      return 'text-success bg-success-bg'
     case 'ABORTED':
-      return 'text-red-700 bg-red-100'
+      return 'text-danger bg-danger-bg'
     default:
-      return 'text-slate-600 bg-slate-100'
+      return 'text-neutral bg-neutral-bg'
   }
 }
 
 function envColor(env: string): string {
   switch (env?.toUpperCase()) {
     case 'PROD':
-      return 'text-red-700 bg-red-100'
+      return 'text-danger bg-danger-bg'
     case 'STAGING':
-      return 'text-orange-700 bg-orange-100'
+      return 'text-warning bg-warning-bg'
     case 'DEV':
-      return 'text-blue-700 bg-blue-100'
+      return 'text-info bg-info-bg'
     default:
-      return 'text-slate-600 bg-slate-100'
+      return 'text-neutral bg-neutral-bg'
   }
 }
 
@@ -42,24 +43,24 @@ function envColor(env: string): string {
 
 function RunProgressBar({ run }: { run: TestRun }) {
   const { totalTests, passed, failed, blocked, skipped } = run
-  if (!totalTests) return <div className="h-1.5 bg-slate-100 rounded-full w-full" />
+  if (!totalTests) return <div className="h-1.5 bg-surface-muted rounded-full w-full" />
 
   const pct = (n: number) => `${((n / totalTests) * 100).toFixed(1)}%`
   const passRate = passed / totalTests
 
   return (
     <div className="space-y-1">
-      <div className="flex h-2 rounded-full overflow-hidden bg-slate-100 w-full">
-        <div className="bg-green-500" style={{ width: pct(passed) }} />
-        <div className="bg-red-500" style={{ width: pct(failed) }} />
-        <div className="bg-orange-400" style={{ width: pct(blocked) }} />
-        <div className="bg-slate-300" style={{ width: pct(skipped) }} />
+      <div className="flex h-2 rounded-full overflow-hidden bg-surface-muted w-full">
+        <div className="bg-success" style={{ width: pct(passed) }} />
+        <div className="bg-danger" style={{ width: pct(failed) }} />
+        <div className="bg-warning" style={{ width: pct(blocked) }} />
+        <div className="bg-border-strong" style={{ width: pct(skipped) }} />
       </div>
-      <div className="flex items-center gap-3 text-xs text-slate-500">
-        <span className="text-green-600 font-medium">{passed} passed</span>
-        {failed > 0 && <span className="text-red-600">{failed} failed</span>}
-        {blocked > 0 && <span className="text-orange-600">{blocked} blocked</span>}
-        {skipped > 0 && <span className="text-slate-400">{skipped} skipped</span>}
+      <div className="flex items-center gap-3 text-xs text-fg-muted">
+        <span className="text-success font-medium">{passed} passed</span>
+        {failed > 0 && <span className="text-danger">{failed} failed</span>}
+        {blocked > 0 && <span className="text-warning">{blocked} blocked</span>}
+        {skipped > 0 && <span className="text-fg-subtle">{skipped} skipped</span>}
         <span
           className="ml-auto font-medium"
           style={{ color: passRate >= 0.9 ? '#16a34a' : passRate >= 0.8 ? '#ca8a04' : '#dc2626' }}
@@ -230,10 +231,10 @@ function NewTestRunModal({ projectId, onClose }: { projectId: string; onClose: (
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-xl mx-4 max-h-[90vh] flex flex-col">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200">
-          <h2 className="font-semibold text-slate-900">New Test Run</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+      <div className="bg-surface rounded-xl shadow-md w-full max-w-xl mx-4 max-h-[90vh] flex flex-col">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+          <h2 className="font-semibold text-fg">New Test Run</h2>
+          <button onClick={onClose} className="text-fg-subtle hover:text-fg">
             <X size={18} />
           </button>
         </div>
@@ -242,12 +243,11 @@ function NewTestRunModal({ projectId, onClose }: { projectId: string; onClose: (
           {error && <ErrorMessage message={error} />}
 
           <div>
-            <label className="block text-xs font-medium text-slate-700 mb-1">Run Name *</label>
-            <input
+            <label className="block text-xs font-medium text-fg-muted mb-1">Run Name *</label>
+            <Input
               type="text"
               value={name}
               onChange={e => setName(e.target.value)}
-              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               placeholder="e.g. Sprint 42 Regression"
               autoFocus
             />
@@ -255,21 +255,20 @@ function NewTestRunModal({ projectId, onClose }: { projectId: string; onClose: (
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1">
+              <label className="block text-xs font-medium text-fg-muted mb-1">
                 Release Version
               </label>
-              <input
+              <Input
                 type="text"
                 value={releaseVersion}
                 onChange={e => setReleaseVersion(e.target.value)}
-                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="e.g. v2.4.0"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1">Environment</label>
+              <label className="block text-xs font-medium text-fg-muted mb-1">Environment</label>
               {environments.length > 0 ? (
-                <select
+                <Select
                   value={environmentId || `label:${environment}`}
                   onChange={e => {
                     const v = e.target.value
@@ -282,7 +281,6 @@ function NewTestRunModal({ projectId, onClose }: { projectId: string; onClose: (
                       if (env) setEnvironment(env.name)
                     }
                   }}
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 >
                   <optgroup label="Named environments">
                     {environments.map(env => (
@@ -296,131 +294,110 @@ function NewTestRunModal({ projectId, onClose }: { projectId: string; onClose: (
                     <option value="label:STAGING">STAGING</option>
                     <option value="label:PROD">PROD</option>
                   </optgroup>
-                </select>
+                </Select>
               ) : (
-                <select
-                  value={environment}
-                  onChange={e => setEnvironment(e.target.value)}
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
+                <Select value={environment} onChange={e => setEnvironment(e.target.value)}>
                   <option value="DEV">DEV</option>
                   <option value="STAGING">STAGING</option>
                   <option value="PROD">PROD</option>
-                </select>
+                </Select>
               )}
             </div>
           </div>
 
           {/* Inline environment creator */}
           <div className="flex items-center gap-2">
-            <input
+            <Input
               type="text"
               value={newEnvName}
               onChange={e => setNewEnvName(e.target.value)}
-              className="flex-1 border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="flex-1"
               placeholder="New named environment (e.g. PROD-EU)"
             />
-            <button
+            <Button
               type="button"
+              variant="secondary"
+              size="sm"
               onClick={() => newEnvName.trim() && createEnvMutation.mutate()}
               disabled={!newEnvName.trim() || createEnvMutation.isPending}
-              className="px-3 py-1.5 text-xs font-medium border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-50"
             >
               {createEnvMutation.isPending ? 'Adding…' : '+ Add env'}
-            </button>
+            </Button>
           </div>
 
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1">Triggered By</label>
-              <input
+              <label className="block text-xs font-medium text-fg-muted mb-1">Triggered By</label>
+              <Input
                 type="text"
                 value={triggeredBy}
                 onChange={e => setTriggeredBy(e.target.value)}
-                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
                 placeholder="e.g. john.doe@example.com"
               />
             </div>
             <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1">
+              <label className="block text-xs font-medium text-fg-muted mb-1">
                 Matrix (parametrized cases)
               </label>
-              <select
+              <Select
                 value={matrixType}
                 onChange={e => setMatrixType(e.target.value as 'FULL' | 'PAIRWISE')}
-                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
                 <option value="FULL">Full (every combination)</option>
                 <option value="PAIRWISE">Pairwise (fewer runs)</option>
-              </select>
+              </Select>
             </div>
           </div>
 
           {/* Monitoring dimensions — used to roll up execution by Release / Sprint / Area / Team */}
-          <div className="rounded-lg border border-slate-200 bg-slate-50/60 p-3 space-y-3">
-            <p className="text-xs font-semibold text-slate-600">Monitoring scope (optional)</p>
+          <div className="rounded-lg border border-border bg-surface-muted p-3 space-y-3">
+            <p className="text-xs font-semibold text-fg-muted">Monitoring scope (optional)</p>
             <div className="grid grid-cols-2 gap-3">
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">Release</label>
-                <select
-                  value={releaseId}
-                  onChange={e => setReleaseId(e.target.value)}
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
+                <label className="block text-xs font-medium text-fg-muted mb-1">Release</label>
+                <Select value={releaseId} onChange={e => setReleaseId(e.target.value)}>
                   <option value="">— none —</option>
                   {releases.map(r => (
                     <option key={r.id} value={r.id}>
                       {r.name}
                     </option>
                   ))}
-                </select>
+                </Select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">Team</label>
-                <select
-                  value={teamId}
-                  onChange={e => setTeamId(e.target.value)}
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
+                <label className="block text-xs font-medium text-fg-muted mb-1">Team</label>
+                <Select value={teamId} onChange={e => setTeamId(e.target.value)}>
                   <option value="">— none —</option>
                   {teams.map(t => (
                     <option key={t.id} value={t.id}>
                       {t.name}
                     </option>
                   ))}
-                </select>
+                </Select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">
+                <label className="block text-xs font-medium text-fg-muted mb-1">
                   Sprint (Iteration)
                 </label>
-                <select
-                  value={iterationPath}
-                  onChange={e => setIterationPath(e.target.value)}
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
+                <Select value={iterationPath} onChange={e => setIterationPath(e.target.value)}>
                   <option value="">— none —</option>
                   {iterations.map(it => (
                     <option key={it.id} value={it.path}>
                       {it.path}
                     </option>
                   ))}
-                </select>
+                </Select>
               </div>
               <div>
-                <label className="block text-xs font-medium text-slate-700 mb-1">Area</label>
-                <select
-                  value={areaPath}
-                  onChange={e => setAreaPath(e.target.value)}
-                  className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
-                >
+                <label className="block text-xs font-medium text-fg-muted mb-1">Area</label>
+                <Select value={areaPath} onChange={e => setAreaPath(e.target.value)}>
                   <option value="">— none —</option>
                   {areas.map(a => (
                     <option key={a.id} value={a.path}>
                       {a.path}
                     </option>
                   ))}
-                </select>
+                </Select>
               </div>
             </div>
           </div>
@@ -428,48 +405,48 @@ function NewTestRunModal({ projectId, onClose }: { projectId: string; onClose: (
           {/* Reuse suites instead of re-picking cases — searchable, toggleable */}
           {suites.length > 0 && (
             <div>
-              <label className="block text-xs font-medium text-slate-700 mb-1">
+              <label className="block text-xs font-medium text-fg-muted mb-1">
                 From test suites{' '}
-                <span className="font-normal text-slate-400">
+                <span className="font-normal text-fg-subtle">
                   ({selectedSuiteIds.size} selected · +{suiteContributedIds.size} cases)
                 </span>
               </label>
               {suites.length > 6 && (
-                <input
+                <Input
                   type="text"
                   value={suiteSearch}
                   onChange={e => setSuiteSearch(e.target.value)}
                   placeholder="Filter suites…"
-                  className="w-full border border-slate-200 rounded-lg px-3 py-1.5 text-sm mb-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="mb-1.5"
                 />
               )}
-              <div className="border border-slate-200 rounded-lg max-h-40 overflow-y-auto divide-y divide-slate-50">
+              <div className="border border-border rounded-lg max-h-40 overflow-y-auto divide-y divide-border">
                 {filteredSuites.length === 0 && (
-                  <div className="px-3 py-2 text-xs text-slate-400 text-center">
+                  <div className="px-3 py-2 text-xs text-fg-subtle text-center">
                     No suites match.
                   </div>
                 )}
                 {filteredSuites.map(s => (
                   <label
                     key={s.id}
-                    className="flex items-center gap-2.5 px-3 py-1.5 cursor-pointer hover:bg-slate-50"
+                    className="flex items-center gap-2.5 px-3 py-1.5 cursor-pointer hover:bg-surface-muted"
                   >
                     <input
                       type="checkbox"
                       checked={selectedSuiteIds.has(s.id)}
                       onChange={() => toggleSuite(s.id)}
-                      className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 shrink-0"
+                      className="rounded border-border-strong accent-primary shrink-0"
                     />
-                    <span className="text-sm text-slate-800 flex-1 truncate">{s.name}</span>
+                    <span className="text-sm text-fg flex-1 truncate">{s.name}</span>
                     {s.selectionMode === 'SMART' && (
-                      <span className="text-[10px] text-blue-500 shrink-0">✦ smart</span>
+                      <span className="text-[10px] text-primary shrink-0">✦ smart</span>
                     )}
                     {s.planType && (
-                      <span className="text-[10px] uppercase text-slate-400 shrink-0">
+                      <span className="text-[10px] uppercase text-fg-subtle shrink-0">
                         {s.planType}
                       </span>
                     )}
-                    <span className="text-xs text-slate-400 shrink-0">{s.caseCount}</span>
+                    <span className="text-xs text-fg-subtle shrink-0">{s.caseCount}</span>
                   </label>
                 ))}
               </div>
@@ -478,9 +455,9 @@ function NewTestRunModal({ projectId, onClose }: { projectId: string; onClose: (
 
           <div>
             <div className="flex items-center justify-between mb-2">
-              <label className="block text-xs font-medium text-slate-700">
+              <label className="block text-xs font-medium text-fg-muted">
                 Test Cases{' '}
-                <span className="font-normal text-slate-400">
+                <span className="font-normal text-fg-subtle">
                   ({selectedTcIds.size} picked individually)
                 </span>
               </label>
@@ -488,7 +465,7 @@ function NewTestRunModal({ projectId, onClose }: { projectId: string; onClose: (
                 <button
                   type="button"
                   onClick={toggleAll}
-                  className="text-xs text-blue-600 hover:text-blue-700"
+                  className="text-xs text-primary hover:underline"
                 >
                   {allVisibleSelected ? 'Deselect shown' : 'Select shown'}
                 </button>
@@ -496,61 +473,61 @@ function NewTestRunModal({ projectId, onClose }: { projectId: string; onClose: (
             </div>
 
             {/* Search by test-case title/id or linked requirement id */}
-            <input
+            <Input
               type="text"
               value={caseSearch}
               onChange={e => setCaseSearch(e.target.value)}
-              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mb-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              className="mb-2"
               placeholder="Search by title, test-case id, or requirement id (e.g. 13849)…"
             />
             {(iterationPath || areaPath || teamId) && (
-              <p className="text-xs text-slate-400 mb-2">
+              <p className="text-xs text-fg-subtle mb-2">
                 Filtered to the monitoring scope above (sprint / area / team).
               </p>
             )}
 
             {tcLoading && (
-              <div className="text-sm text-slate-400 py-3 text-center">Loading test cases…</div>
+              <div className="text-sm text-fg-subtle py-3 text-center">Loading test cases…</div>
             )}
             {!tcLoading && testCases.length === 0 && (
-              <div className="text-sm text-slate-500 py-3 text-center bg-slate-50 rounded-lg">
+              <div className="text-sm text-fg-muted py-3 text-center bg-surface-muted rounded-lg">
                 No approved test cases match this scope/search.
               </div>
             )}
             {testCases.length > 0 && (
-              <div className="border border-slate-200 rounded-lg max-h-52 overflow-y-auto divide-y divide-slate-50">
+              <div className="border border-border rounded-lg max-h-52 overflow-y-auto divide-y divide-border">
                 {testCases.map(tc => (
                   <label
                     key={tc.id}
-                    className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-slate-50 transition-colors"
+                    className="flex items-center gap-3 px-3 py-2 cursor-pointer hover:bg-surface-muted transition-colors"
                   >
                     <input
                       type="checkbox"
                       checked={selectedTcIds.has(tc.id) || suiteContributedIds.has(tc.id)}
                       onChange={() => toggleTc(tc.id)}
-                      className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 shrink-0"
+                      className="rounded border-border-strong accent-primary shrink-0"
                     />
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm text-slate-800 truncate">
+                      <div className="text-sm text-fg truncate">
                         {tc.title}
                         {suiteContributedIds.has(tc.id) && !selectedTcIds.has(tc.id) && (
-                          <span className="ml-2 text-[10px] text-blue-500">via suite</span>
+                          <span className="ml-2 text-[10px] text-primary">via suite</span>
                         )}
                       </div>
                       {tc.requirementExternalIds.length > 0 && (
-                        <div className="text-xs text-slate-400 truncate">
+                        <div className="text-xs text-fg-subtle truncate">
                           req {tc.requirementExternalIds.slice(0, 6).join(', ')}
                         </div>
                       )}
                     </div>
-                    <span className="text-xs text-slate-400 shrink-0">{tc.priority}</span>
+                    <span className="text-xs text-fg-subtle shrink-0">{tc.priority}</span>
                   </label>
                 ))}
               </div>
             )}
-            <p className="text-xs text-slate-500 mt-1 font-medium">
+            <p className="text-xs text-fg-muted mt-1 font-medium">
               {effectiveCount} case{effectiveCount === 1 ? '' : 's'} to run
-              <span className="font-normal text-slate-400">
+              <span className="font-normal text-fg-subtle">
                 {' '}
                 · {selectedTcIds.size} individual + {suiteContributedIds.size} from suites · showing{' '}
                 {testCases.length}
@@ -559,23 +536,17 @@ function NewTestRunModal({ projectId, onClose }: { projectId: string; onClose: (
           </div>
         </form>
 
-        <div className="px-5 py-4 border-t border-slate-200 flex justify-end gap-2">
-          <button
-            type="button"
-            onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
-          >
+        <div className="px-5 py-4 border-t border-border flex justify-end gap-2">
+          <Button type="button" variant="secondary" onClick={onClose}>
             Cancel
-          </button>
-          <button
+          </Button>
+          <Button
             type="button"
             onClick={handleSubmit as unknown as React.MouseEventHandler}
-            disabled={mutation.isPending}
-            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center gap-2"
+            loading={mutation.isPending}
           >
-            {mutation.isPending && <Loader2 size={14} className="animate-spin" />}
             Create Run
-          </button>
+          </Button>
         </div>
       </div>
     </div>
@@ -638,39 +609,31 @@ export default function TestRunsPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold text-slate-900">Test Runs</h1>
-          <p className="text-sm text-slate-500 mt-0.5">
-            {scoped.length} runs{scoped.length !== runs.length ? ` (of ${runs.length})` : ''}
-          </p>
-        </div>
-        <button
-          onClick={() => setShowNewModal(true)}
-          className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 transition-colors"
-        >
-          <Plus size={15} />
-          New Test Run
-        </button>
-      </div>
+      <PageHeader
+        title="Test Runs"
+        description={`${scoped.length} runs${scoped.length !== runs.length ? ` (of ${runs.length})` : ''}`}
+        actions={
+          <Button onClick={() => setShowNewModal(true)}>
+            <Plus size={15} />
+            New Test Run
+          </Button>
+        }
+      />
 
       {/* Status tabs */}
-      <div className="flex gap-1 bg-slate-100 p-1 rounded-lg w-fit">
+      <div className="flex gap-1 bg-surface-muted p-1 rounded-lg w-fit">
         {tabs.map(t => (
           <button
             key={t.key}
             onClick={() => setTab(t.key)}
             className={cn(
               'px-4 py-1.5 text-sm font-medium rounded-md transition-colors',
-              tab === t.key
-                ? 'bg-white text-slate-900 shadow-sm'
-                : 'text-slate-500 hover:text-slate-700',
+              tab === t.key ? 'bg-surface text-fg shadow-xs' : 'text-fg-muted hover:text-fg',
             )}
           >
             {t.label}
             {t.key !== 'ALL' && (
-              <span className="ml-1.5 text-xs text-slate-400">
+              <span className="ml-1.5 text-xs text-fg-subtle">
                 {scoped.filter(r => r.status === t.key).length}
               </span>
             )}
@@ -679,29 +642,29 @@ export default function TestRunsPage() {
       </div>
 
       {/* Runs list */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
+      <div className="bg-surface rounded-xl border border-border shadow-sm">
         {filtered.length === 0 && (
           <div className="py-16 text-center">
-            <PlayCircle size={32} className="mx-auto text-slate-300 mb-3" />
-            <p className="text-sm text-slate-500">No test runs found.</p>
-            <p className="text-xs text-slate-400 mt-1">
+            <PlayCircle size={32} className="mx-auto text-fg-subtle mb-3" />
+            <p className="text-sm text-fg-muted">No test runs found.</p>
+            <p className="text-xs text-fg-subtle mt-1">
               Create a test run to start executing test cases.
             </p>
           </div>
         )}
-        <div className="divide-y divide-slate-50">
+        <div className="divide-y divide-border">
           {filtered.map(run => (
             <div
               key={run.id}
               onClick={() => navigate(`${base}/test-runs/${run.id}`)}
-              className="px-5 py-4 hover:bg-slate-50 cursor-pointer transition-colors"
+              className="px-5 py-4 hover:bg-surface-muted cursor-pointer transition-colors"
             >
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2 flex-wrap mb-1">
-                    <p className="font-medium text-slate-900 text-sm">{run.name}</p>
+                    <p className="font-medium text-fg text-sm">{run.name}</p>
                     {run.releaseVersion && (
-                      <span className="text-xs px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded font-mono">
+                      <span className="text-xs px-1.5 py-0.5 bg-surface-muted text-fg-muted rounded font-mono">
                         {run.releaseVersion}
                       </span>
                     )}
@@ -714,7 +677,7 @@ export default function TestRunsPage() {
                   <div className="mt-2">
                     <RunProgressBar run={run} />
                   </div>
-                  <div className="flex items-center gap-3 mt-1.5 text-xs text-slate-400">
+                  <div className="flex items-center gap-3 mt-1.5 text-xs text-fg-subtle">
                     {run.triggeredBy && <span>by {run.triggeredBy}</span>}
                     <span>{relativeTime(run.createdAt)}</span>
                     {run.completedAt && <span>· completed {relativeTime(run.completedAt)}</span>}
@@ -729,7 +692,7 @@ export default function TestRunsPage() {
                       onClick={() => completeMutation.mutate(run.id)}
                       disabled={completeMutation.isPending}
                       title="Complete run"
-                      className="p-1.5 text-green-600 hover:bg-green-50 rounded-lg transition-colors disabled:opacity-50"
+                      className="p-1.5 text-success hover:bg-success-bg rounded-lg transition-colors disabled:opacity-50"
                     >
                       {completeMutation.isPending ? (
                         <Loader2 size={15} className="animate-spin" />
@@ -742,7 +705,7 @@ export default function TestRunsPage() {
                     onClick={() => deleteMutation.mutate(run.id)}
                     disabled={deleteMutation.isPending}
                     title="Delete run"
-                    className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors disabled:opacity-50"
+                    className="p-1.5 text-fg-subtle hover:text-danger hover:bg-danger-bg rounded-lg transition-colors disabled:opacity-50"
                   >
                     <Trash2 size={15} />
                   </button>

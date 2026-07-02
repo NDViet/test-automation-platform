@@ -6,6 +6,7 @@ interface StatCardProps {
   value: string | number
   subtitle?: string
   icon?: LucideIcon
+  /** Token text color for the value + icon, e.g. 'text-primary', 'text-danger'. */
   colorClass?: string
   trend?: { value: string; positive: boolean }
 }
@@ -15,21 +16,21 @@ export default function StatCard({
   value,
   subtitle,
   icon: Icon,
-  colorClass = 'text-blue-600',
+  colorClass = 'text-primary',
   trend,
 }: StatCardProps) {
   return (
-    <div className="bg-white rounded-xl border border-slate-200 p-5 shadow-sm">
+    <div className="bg-surface rounded-lg border border-border p-4 shadow-xs">
       <div className="flex items-start justify-between">
         <div>
-          <p className="text-xs font-medium text-slate-500 uppercase tracking-wide">{title}</p>
+          <p className="text-xs font-medium text-fg-muted uppercase tracking-wide">{title}</p>
           <p className={cn('text-3xl font-bold mt-1', colorClass)}>{value}</p>
-          {subtitle && <p className="text-xs text-slate-500 mt-1">{subtitle}</p>}
+          {subtitle && <p className="text-xs text-fg-muted mt-1">{subtitle}</p>}
           {trend && (
             <span
               className={cn(
                 'text-xs font-medium mt-1 inline-block',
-                trend.positive ? 'text-green-600' : 'text-red-600',
+                trend.positive ? 'text-success' : 'text-danger',
               )}
             >
               {trend.positive ? '↑' : '↓'} {trend.value}
@@ -37,7 +38,7 @@ export default function StatCard({
           )}
         </div>
         {Icon && (
-          <div className={cn('p-2 rounded-lg bg-slate-50', colorClass)}>
+          <div className={cn('p-2 rounded-lg bg-surface-muted', colorClass)}>
             <Icon size={20} />
           </div>
         )}

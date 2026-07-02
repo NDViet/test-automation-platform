@@ -4,6 +4,7 @@ import { Plus, Pencil, Trash2, Copy, Bot, Info } from 'lucide-react'
 import { api } from '@/lib/api'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import ErrorMessage from '@/components/ErrorMessage'
+import { Button, Input, Select, PageHeader, StatusBadge } from '@/components/ui'
 import type { Agent, AgentForm, AgentScope } from '@/lib/types'
 
 const MODEL_ROLES = ['', 'STANDARD', 'COMPLEX', 'SUMMARIZER']
@@ -47,7 +48,6 @@ export default function AgentsPage() {
   const orgs = useQuery({ queryKey: ['organizations'], queryFn: () => api.organizations() })
   const projects = useQuery({ queryKey: ['projects'], queryFn: () => api.projects() })
 
-  // Effective list for a project (own ∪ inherited org); plain list for an org.
   const agentsQuery = useQuery({
     queryKey: ['agents', scopeKind, scopeId],
     queryFn: () =>
@@ -55,7 +55,6 @@ export default function AgentsPage() {
     enabled: !!scopeId,
   })
 
-  // Templates/skills for the editor pickers — only meaningful in project scope (v1).
   const templates = useQuery({
     queryKey: ['ai-prompt-templates', scopeId],
     queryFn: () => api.aiPromptTemplates(scopeId),
@@ -122,62 +121,49 @@ export default function AgentsPage() {
   }
 
   return (
-    <div className="space-y-6 max-w-4xl h-full min-h-0 overflow-y-auto pr-1">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-          <Bot size={22} /> Agents
-        </h1>
-        <p className="text-sm text-slate-500 mt-1">
-          Reusable AI agents (persona + prompt templates + skills + model + context) assignable to
-          platform tasks. Org agents are inherited by every project; a project agent of the same
-          name overrides it.
-        </p>
-      </div>
+    <div className="space-y-6 max-w-4xl h-full min-h-0 overflow-y-auto scrollbar-thin pr-1">
+      <PageHeader
+        title="Agents"
+        icon={<Bot size={20} />}
+        description="Reusable AI agents (persona + prompt templates + skills + model + context) assignable to platform tasks. Org agents are inherited by every project; a project agent of the same name overrides it."
+      />
 
       {/* Scope picker */}
-      <div className="flex flex-wrap items-end gap-3 bg-white rounded-xl border border-slate-200 p-4">
+      <div className="flex flex-wrap items-end gap-3 bg-surface rounded-lg border border-border p-4">
         <label className="text-sm">
-          <span className="block text-slate-600 mb-1">Scope</span>
-          <select
+          <span className="block text-fg-muted mb-1">Scope</span>
+          <Select
+            containerClassName="w-auto min-w-[10rem]"
             value={scopeKind}
             onChange={e => {
               setScopeKind(e.target.value as AgentScope)
               setScopeId('')
             }}
-            className="border border-slate-200 rounded-lg px-3 py-2 text-sm"
           >
             <option value="projects">Project</option>
             <option value="orgs">Organization</option>
-          </select>
+          </Select>
         </label>
         <label className="text-sm flex-1 min-w-56">
-          <span className="block text-slate-600 mb-1">
+          <span className="block text-fg-muted mb-1">
             {scopeKind === 'orgs' ? 'Organization' : 'Project'}
           </span>
-          <select
-            value={scopeId}
-            onChange={e => setScopeId(e.target.value)}
-            className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
-          >
+          <Select value={scopeId} onChange={e => setScopeId(e.target.value)}>
             <option value="">Select…</option>
             {ownerOptions.map(o => (
               <option key={o.id} value={o.id}>
                 {o.label}
               </option>
             ))}
-          </select>
+          </Select>
         </label>
-        <button
-          onClick={openCreate}
-          disabled={!scopeId}
-          className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50"
-        >
+        <Button onClick={openCreate} disabled={!scopeId}>
           <Plus size={15} /> New agent
-        </button>
+        </Button>
       </div>
 
       {!scopeId && (
-        <p className="text-sm text-slate-400">Pick a scope and owner to manage agents.</p>
+        <p className="text-sm text-fg-subtle">Pick a scope and owner to manage agents.</p>
       )}
 
       {scopeId && agentsQuery.isLoading && <LoadingSpinner message="Loading agents…" />}
@@ -186,27 +172,19 @@ export default function AgentsPage() {
       )}
 
       {scopeId && agentsQuery.data && (
-        <div className="bg-white rounded-xl border border-slate-200 divide-y divide-slate-100">
+        <div className="bg-surface rounded-lg border border-border divide-y divide-border">
           {agentsQuery.data.length === 0 && (
-            <p className="px-5 py-6 text-sm text-slate-400">No agents yet.</p>
+            <p className="px-5 py-6 text-sm text-fg-subtle">No agents yet.</p>
           )}
           {agentsQuery.data.map(a => (
             <div key={a.id} className="px-5 py-4 flex items-center gap-3">
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-slate-900 flex items-center gap-2">
+                <p className="text-sm font-medium text-fg flex items-center gap-2">
                   {a.name}
-                  {a.inherited && (
-                    <span className="text-xs font-normal text-amber-700 bg-amber-50 border border-amber-200 rounded px-1.5 py-0.5">
-                      inherited (org)
-                    </span>
-                  )}
-                  {!a.enabled && (
-                    <span className="text-xs font-normal text-slate-500 bg-slate-100 rounded px-1.5 py-0.5">
-                      disabled
-                    </span>
-                  )}
+                  {a.inherited && <StatusBadge variant="warning">inherited (org)</StatusBadge>}
+                  {!a.enabled && <StatusBadge variant="neutral">disabled</StatusBadge>}
                 </p>
-                <p className="text-xs text-slate-500 truncate">
+                <p className="text-xs text-fg-muted truncate">
                   {a.description || a.persona || '—'} · model{' '}
                   {a.modelId || a.modelRole || 'default'} · {a.skillIds.length} skill(s)
                 </p>
@@ -214,7 +192,7 @@ export default function AgentsPage() {
               {a.inherited ? (
                 <button
                   onClick={() => openEdit(a, true)}
-                  className="flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-700"
+                  className="flex items-center gap-1.5 text-xs font-medium text-primary hover:underline"
                   title="Clone to this project"
                 >
                   <Copy size={14} /> Clone
@@ -223,7 +201,7 @@ export default function AgentsPage() {
                 <>
                   <button
                     onClick={() => openEdit(a, false)}
-                    className="text-slate-400 hover:text-slate-700"
+                    className="text-fg-subtle hover:text-fg"
                     aria-label="Edit"
                   >
                     <Pencil size={16} />
@@ -232,7 +210,7 @@ export default function AgentsPage() {
                     onClick={() => {
                       if (confirm(`Delete agent "${a.name}"?`)) remove.mutate(a.id)
                     }}
-                    className="text-slate-400 hover:text-red-600"
+                    className="text-fg-subtle hover:text-danger"
                     aria-label="Delete"
                   >
                     <Trash2 size={16} />
@@ -297,34 +275,33 @@ function AgentEditor({
         ? form.skillIds.filter(s => s !== id)
         : [...form.skillIds, id],
     })
+  const textarea =
+    'w-full border border-border-strong rounded-md px-3 py-2 text-sm bg-surface text-fg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary'
 
   return (
     <div className="fixed inset-0 bg-black/30 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto">
-        <div className="px-5 py-4 border-b border-slate-100">
-          <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
+      <div className="bg-surface rounded-xl shadow-md w-full max-w-2xl max-h-[90vh] overflow-y-auto">
+        <div className="px-5 py-4 border-b border-border">
+          <h2 className="text-lg font-semibold text-fg">{title}</h2>
         </div>
         <div className="px-5 py-4 space-y-4">
-          {error && <p className="text-sm text-red-600 bg-red-50 rounded-lg px-3 py-2">{error}</p>}
+          {error && (
+            <p className="text-sm text-danger bg-danger-bg rounded-lg px-3 py-2">{error}</p>
+          )}
           {orgScope && (
-            <div className="flex gap-2 text-xs text-blue-800 bg-blue-50 border border-blue-200 rounded-lg px-3 py-2">
+            <div className="flex gap-2 text-xs text-info bg-info-bg border border-info-border rounded-lg px-3 py-2">
               <Info size={14} className="shrink-0 mt-0.5" />
               Template/skill pickers are project-scoped in this version; for an org agent set the
               persona and model, and leave templates blank to use the task seed.
             </div>
           )}
           <Field label="Name">
-            <input
-              value={form.name}
-              onChange={e => setForm({ ...form, name: e.target.value })}
-              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
-            />
+            <Input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} />
           </Field>
           <Field label="Description">
-            <input
+            <Input
               value={form.description ?? ''}
               onChange={e => setForm({ ...form, description: e.target.value })}
-              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
             />
           </Field>
           <Field label="Persona (prepended to the system prompt)">
@@ -332,16 +309,15 @@ function AgentEditor({
               value={form.persona ?? ''}
               onChange={e => setForm({ ...form, persona: e.target.value })}
               rows={2}
-              className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
+              className={textarea}
             />
           </Field>
           <div className="grid grid-cols-2 gap-4">
             <Field label="System template">
-              <select
+              <Select
                 value={form.systemTemplateId ?? ''}
                 onChange={e => setForm({ ...form, systemTemplateId: e.target.value || null })}
                 disabled={orgScope}
-                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm disabled:bg-slate-50"
               >
                 <option value="">(task seed)</option>
                 {templates.map(t => (
@@ -349,14 +325,13 @@ function AgentEditor({
                     {t.label}
                   </option>
                 ))}
-              </select>
+              </Select>
             </Field>
             <Field label="User template">
-              <select
+              <Select
                 value={form.userTemplateId ?? ''}
                 onChange={e => setForm({ ...form, userTemplateId: e.target.value || null })}
                 disabled={orgScope}
-                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm disabled:bg-slate-50"
               >
                 <option value="">(task seed)</option>
                 {templates.map(t => (
@@ -364,39 +339,37 @@ function AgentEditor({
                     {t.label}
                   </option>
                 ))}
-              </select>
+              </Select>
             </Field>
           </div>
           <div className="grid grid-cols-3 gap-4">
             <Field label="Model role">
-              <select
+              <Select
                 value={form.modelRole ?? ''}
                 onChange={e => setForm({ ...form, modelRole: e.target.value })}
-                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
               >
                 {MODEL_ROLES.map(r => (
                   <option key={r} value={r}>
                     {r || '(task default)'}
                   </option>
                 ))}
-              </select>
+              </Select>
             </Field>
             <Field label="Model id (override)">
-              <input
+              <Input
                 value={form.modelId ?? ''}
                 onChange={e => setForm({ ...form, modelId: e.target.value })}
                 placeholder="e.g. claude-sonnet-4-6, gpt-4o"
-                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm font-mono"
+                className="font-mono"
               />
             </Field>
             <Field label="Max rounds">
-              <input
+              <Input
                 type="number"
                 min={0}
                 max={5}
                 value={form.maxRounds ?? 3}
                 onChange={e => setForm({ ...form, maxRounds: Number(e.target.value) })}
-                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm"
               />
             </Field>
           </div>
@@ -410,8 +383,8 @@ function AgentEditor({
                     onClick={() => toggleSkill(s.id)}
                     className={`text-xs rounded-full px-3 py-1 border ${
                       form.skillIds.includes(s.id)
-                        ? 'bg-blue-600 text-white border-blue-600'
-                        : 'bg-white text-slate-600 border-slate-200'
+                        ? 'bg-primary text-primary-fg border-primary'
+                        : 'bg-surface text-fg-muted border-border'
                     }`}
                   >
                     {s.label}
@@ -423,36 +396,35 @@ function AgentEditor({
           <Field label="Inject context">
             <div className="flex flex-wrap gap-3">
               {CONTEXT_KEYS.map(k => (
-                <label key={k} className="flex items-center gap-1.5 text-sm text-slate-600">
-                  <input type="checkbox" checked={!!ctx[k]} onChange={() => toggleCtx(k)} />
+                <label key={k} className="flex items-center gap-1.5 text-sm text-fg-muted">
+                  <input
+                    type="checkbox"
+                    className="accent-primary"
+                    checked={!!ctx[k]}
+                    onChange={() => toggleCtx(k)}
+                  />
                   {k}
                 </label>
               ))}
             </div>
           </Field>
-          <label className="flex items-center gap-2 text-sm text-slate-700">
+          <label className="flex items-center gap-2 text-sm text-fg">
             <input
               type="checkbox"
+              className="accent-primary"
               checked={form.enabled ?? true}
               onChange={e => setForm({ ...form, enabled: e.target.checked })}
             />
             Enabled
           </label>
         </div>
-        <div className="px-5 py-4 border-t border-slate-100 flex justify-end gap-3">
-          <button
-            onClick={onCancel}
-            className="px-4 py-2 text-sm font-medium text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50"
-          >
+        <div className="px-5 py-4 border-t border-border flex justify-end gap-3">
+          <Button variant="secondary" onClick={onCancel}>
             Cancel
-          </button>
-          <button
-            onClick={onSave}
-            disabled={saving || !form.name.trim()}
-            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50"
-          >
+          </Button>
+          <Button onClick={onSave} disabled={!form.name.trim()} loading={saving}>
             {saving ? 'Saving…' : 'Save'}
-          </button>
+          </Button>
         </div>
       </div>
     </div>
@@ -462,7 +434,7 @@ function AgentEditor({
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="block text-sm font-medium text-slate-700 mb-1">{label}</label>
+      <label className="block text-sm font-medium text-fg mb-1">{label}</label>
       {children}
     </div>
   )

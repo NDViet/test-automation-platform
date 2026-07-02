@@ -69,6 +69,9 @@ function makePreset(days: number, label: string): DateRange {
   return { from: daysAgo(days), to: endOfDay(now), label }
 }
 
+const rangeInputCls =
+  'w-full text-sm border border-border-strong rounded-lg px-3 py-1.5 bg-surface text-fg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary'
+
 function DateRangePicker({
   value,
   onChange,
@@ -110,20 +113,20 @@ function DateRangePicker({
     <div ref={ref} className="relative">
       <button
         onClick={() => setOpen(o => !o)}
-        className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-lg border border-slate-200 bg-white shadow-sm hover:bg-slate-50 transition-colors whitespace-nowrap"
+        className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium rounded-lg border border-border bg-surface shadow-sm hover:bg-surface-muted transition-colors whitespace-nowrap"
       >
-        <Calendar size={14} className="text-slate-400 shrink-0" />
-        <span className="text-slate-700">{value.label}</span>
+        <Calendar size={14} className="text-fg-subtle shrink-0" />
+        <span className="text-fg">{value.label}</span>
         <ChevronDown
           size={13}
-          className={cn('text-slate-400 transition-transform', open && 'rotate-180')}
+          className={cn('text-fg-subtle transition-transform', open && 'rotate-180')}
         />
       </button>
 
       {open && (
-        <div className="absolute right-0 top-full mt-1.5 z-50 bg-white border border-slate-200 rounded-xl shadow-lg p-4 min-w-[300px]">
+        <div className="absolute right-0 top-full mt-1.5 z-50 bg-surface border border-border rounded-xl shadow-md p-4 min-w-[300px]">
           {/* Preset chips */}
-          <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-2">
+          <p className="text-[11px] font-semibold text-fg-subtle uppercase tracking-wide mb-2">
             Quick select
           </p>
           <div className="flex flex-wrap gap-1.5 mb-4">
@@ -134,8 +137,8 @@ function DateRangePicker({
                 className={cn(
                   'px-3 py-1 text-xs font-medium rounded-full border transition-colors',
                   value.label === p.label
-                    ? 'bg-blue-600 text-white border-blue-600'
-                    : 'bg-white text-slate-600 border-slate-200 hover:border-blue-400 hover:text-blue-600',
+                    ? 'bg-primary text-primary-fg border-primary'
+                    : 'bg-surface text-fg-muted border-border hover:border-primary/40 hover:text-primary',
                 )}
               >
                 {p.label}
@@ -144,34 +147,34 @@ function DateRangePicker({
           </div>
 
           {/* Divider */}
-          <div className="border-t border-slate-100 mb-4" />
+          <div className="border-t border-border mb-4" />
 
           {/* Custom range */}
-          <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide mb-2">
+          <p className="text-[11px] font-semibold text-fg-subtle uppercase tracking-wide mb-2">
             Custom range
           </p>
           <div className="space-y-2">
             <div>
-              <label className="text-xs text-slate-500 block mb-1">From</label>
+              <label className="text-xs text-fg-muted block mb-1">From</label>
               <input
                 type="datetime-local"
                 value={fromStr}
                 onChange={e => setFromStr(e.target.value)}
-                className="w-full text-sm border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className={rangeInputCls}
               />
             </div>
             <div>
-              <label className="text-xs text-slate-500 block mb-1">To</label>
+              <label className="text-xs text-fg-muted block mb-1">To</label>
               <input
                 type="datetime-local"
                 value={toStr}
                 onChange={e => setToStr(e.target.value)}
-                className="w-full text-sm border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className={rangeInputCls}
               />
             </div>
             <button
               onClick={applyCustom}
-              className="w-full mt-1 px-4 py-1.5 text-sm font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+              className="w-full mt-1 px-4 py-1.5 text-sm font-medium bg-primary text-primary-fg rounded-lg hover:brightness-95 transition-all"
             >
               Apply
             </button>
@@ -190,21 +193,21 @@ type ViewMode = 'tests' | 'runs'
 function lastStatusColor(status: string): string {
   switch (status) {
     case 'PASSED':
-      return 'text-green-700 bg-green-100'
+      return 'text-success bg-success-bg'
     case 'FAILED':
     case 'BROKEN':
-      return 'text-red-700 bg-red-100'
+      return 'text-danger bg-danger-bg'
     case 'SKIPPED':
-      return 'text-slate-600 bg-slate-100'
+      return 'text-neutral bg-neutral-bg'
     default:
-      return 'text-orange-700 bg-orange-100'
+      return 'text-warning bg-warning-bg'
   }
 }
 
 function passRateColor(rate: number): string {
-  if (rate >= 0.9) return 'bg-green-500'
-  if (rate >= 0.7) return 'bg-yellow-400'
-  return 'bg-red-500'
+  if (rate >= 0.9) return 'bg-success'
+  if (rate >= 0.7) return 'bg-warning'
+  return 'bg-danger'
 }
 
 // ── Trend chart (SVG stacked bar, one bar per day) ────────────────────────────
@@ -214,7 +217,7 @@ function TrendChart({ data }: { data: TestTrendPoint[] }) {
 
   if (data.length === 0) {
     return (
-      <div className="flex items-center justify-center h-32 text-sm text-slate-400">
+      <div className="flex items-center justify-center h-32 text-sm text-fg-subtle">
         No execution data for this period
       </div>
     )
@@ -232,16 +235,16 @@ function TrendChart({ data }: { data: TestTrendPoint[] }) {
   return (
     <div className="relative select-none">
       {hovered !== null && (
-        <div className="absolute top-0 left-0 bg-slate-800 text-white text-xs rounded-lg px-2.5 py-2 pointer-events-none z-10 shadow-lg min-w-[110px]">
-          <p className="text-slate-300 mb-1">{data[hovered].date}</p>
+        <div className="absolute top-0 left-0 bg-fg text-surface text-xs rounded-lg px-2.5 py-2 pointer-events-none z-10 shadow-md min-w-[110px]">
+          <p className="text-surface/70 mb-1">{data[hovered].date}</p>
           <p className="text-green-400">✓ {data[hovered].passed} passed</p>
           {data[hovered].failed > 0 && (
             <p className="text-red-400">✗ {data[hovered].failed} failed</p>
           )}
           {data[hovered].skipped > 0 && (
-            <p className="text-slate-400">◌ {data[hovered].skipped} skipped</p>
+            <p className="text-surface/60">◌ {data[hovered].skipped} skipped</p>
           )}
-          <p className="text-slate-300 mt-1 border-t border-slate-700 pt-1">
+          <p className="text-surface/70 mt-1 border-t border-white/15 pt-1">
             {Math.round(data[hovered].passRate * 100)}% pass rate
           </p>
         </div>
@@ -343,7 +346,7 @@ function TrendChart({ data }: { data: TestTrendPoint[] }) {
         })}
       </svg>
 
-      <div className="flex items-center gap-4 mt-2 text-xs text-slate-500">
+      <div className="flex items-center gap-4 mt-2 text-xs text-fg-muted">
         <span className="flex items-center gap-1.5">
           <span className="inline-block w-2.5 h-2.5 bg-green-400 rounded-sm" /> Passed
         </span>
@@ -351,7 +354,7 @@ function TrendChart({ data }: { data: TestTrendPoint[] }) {
           <span className="inline-block w-2.5 h-2.5 bg-red-400 rounded-sm" /> Failed
         </span>
         <span className="flex items-center gap-1.5">
-          <span className="inline-block w-2.5 h-2.5 bg-slate-300 rounded-sm" /> Skipped
+          <span className="inline-block w-2.5 h-2.5 bg-border-strong rounded-sm" /> Skipped
         </span>
       </div>
     </div>
@@ -364,7 +367,7 @@ function PassRateBar({ rate, total }: { rate: number; total: number }) {
   const pct = Math.round(rate * 100)
   return (
     <div className="flex items-center gap-2 min-w-[90px]">
-      <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+      <div className="flex-1 h-1.5 bg-surface-muted rounded-full overflow-hidden">
         <div
           className={cn('h-full rounded-full transition-all', passRateColor(rate))}
           style={{ width: `${pct}%` }}
@@ -373,7 +376,7 @@ function PassRateBar({ rate, total }: { rate: number; total: number }) {
       <span
         className={cn(
           'text-xs font-medium tabular-nums w-9 text-right',
-          rate >= 0.9 ? 'text-green-700' : rate >= 0.7 ? 'text-yellow-700' : 'text-red-700',
+          rate >= 0.9 ? 'text-success' : rate >= 0.7 ? 'text-warning' : 'text-danger',
         )}
       >
         {total === 0 ? '—' : `${pct}%`}
@@ -419,19 +422,17 @@ function SparkCard({
   const gradId = `spark-grad-${dataKey}`
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm px-4 pt-3 pb-0 overflow-hidden">
-      <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wide">{title}</p>
+    <div className="bg-surface rounded-xl border border-border shadow-sm px-4 pt-3 pb-0 overflow-hidden">
+      <p className="text-[11px] font-semibold text-fg-subtle uppercase tracking-wide">{title}</p>
       <div className="flex items-end justify-between mt-0.5">
-        <p className="text-2xl font-bold text-slate-900">{value}</p>
+        <p className="text-2xl font-bold text-fg">{value}</p>
         {data.length >= 4 && prev !== curr && (
-          <span
-            className={cn('text-xs font-semibold mb-1', up ? 'text-green-600' : 'text-red-500')}
-          >
+          <span className={cn('text-xs font-semibold mb-1', up ? 'text-success' : 'text-danger')}>
             {up ? '↑' : '↓'} {Math.abs(delta).toFixed(0)}%
           </span>
         )}
       </div>
-      {sub && <p className="text-[11px] text-slate-400">{sub}</p>}
+      {sub && <p className="text-[11px] text-fg-subtle">{sub}</p>}
       <div className="mt-2 -mx-4">
         <ResponsiveContainer width="100%" height={52}>
           <AreaChart data={data} margin={{ top: 2, right: 0, bottom: 0, left: 0 }}>
@@ -557,16 +558,16 @@ function DetailPanel({
   return (
     <div className="flex flex-col h-full">
       {/* Header */}
-      <div className="flex items-start justify-between gap-3 pb-4 border-b border-slate-100">
+      <div className="flex items-start justify-between gap-3 pb-4 border-b border-border">
         <div className="min-w-0">
-          <p className="text-sm font-semibold text-slate-900 break-words leading-snug">
+          <p className="text-sm font-semibold text-fg break-words leading-snug">
             {test.displayName}
           </p>
           {test.suiteName && (
-            <p className="text-xs text-slate-400 mt-0.5 truncate">{test.suiteName}</p>
+            <p className="text-xs text-fg-subtle mt-0.5 truncate">{test.suiteName}</p>
           )}
           {test.specFile && (
-            <p className="text-[11px] text-slate-400 font-mono truncate mt-1" title={test.specFile}>
+            <p className="text-[11px] text-fg-subtle font-mono truncate mt-1" title={test.specFile}>
               {test.specFile}
             </p>
           )}
@@ -577,7 +578,7 @@ function DetailPanel({
               {test.tags.map(t => (
                 <span
                   key={`tag:${t}`}
-                  className="text-xs bg-violet-50 text-violet-700 px-1.5 py-0.5 rounded font-mono"
+                  className="text-xs bg-teal-50 text-teal-700 px-1.5 py-0.5 rounded font-mono"
                 >
                   {t}
                 </span>
@@ -602,7 +603,7 @@ function DetailPanel({
             </div>
           )}
           {(test.hasScreenshot || test.hasVideo) && (
-            <div className="flex items-center gap-2 mt-1.5 text-xs text-slate-400">
+            <div className="flex items-center gap-2 mt-1.5 text-xs text-fg-subtle">
               {test.hasScreenshot && (
                 <span className="flex items-center gap-1">
                   <Camera size={11} /> Screenshots
@@ -618,43 +619,43 @@ function DetailPanel({
         </div>
         <button
           onClick={onClose}
-          className="shrink-0 text-slate-400 hover:text-slate-600 transition-colors p-1 rounded"
+          className="shrink-0 text-fg-subtle hover:text-fg transition-colors p-1 rounded"
         >
           <ChevronRight size={16} />
         </button>
       </div>
 
       {/* KPIs */}
-      <div className="grid grid-cols-3 gap-3 py-4 border-b border-slate-100">
+      <div className="grid grid-cols-3 gap-3 py-4 border-b border-border">
         <div>
-          <p className="text-xs text-slate-500">Runs</p>
-          <p className="text-xl font-bold text-slate-900">{test.totalRuns}</p>
+          <p className="text-xs text-fg-muted">Runs</p>
+          <p className="text-xl font-bold text-fg">{test.totalRuns}</p>
         </div>
         <div>
-          <p className="text-xs text-slate-500">Pass Rate</p>
+          <p className="text-xs text-fg-muted">Pass Rate</p>
           <p
             className={cn(
               'text-xl font-bold',
               test.passRate >= 0.9
-                ? 'text-green-700'
+                ? 'text-success'
                 : test.passRate >= 0.7
-                  ? 'text-yellow-700'
-                  : 'text-red-700',
+                  ? 'text-warning'
+                  : 'text-danger',
             )}
           >
             {Math.round(test.passRate * 100)}%
           </p>
         </div>
         <div>
-          <p className="text-xs text-slate-500">Avg Duration</p>
-          <p className="text-xl font-bold text-slate-900">{formatDuration(test.avgDurationMs)}</p>
+          <p className="text-xs text-fg-muted">Avg Duration</p>
+          <p className="text-xl font-bold text-fg">{formatDuration(test.avgDurationMs)}</p>
         </div>
       </div>
 
       {/* Trend section */}
-      <div className="py-4 border-b border-slate-100">
+      <div className="py-4 border-b border-border">
         <div className="flex items-center justify-between mb-3">
-          <p className="text-xs font-semibold text-slate-700 uppercase tracking-wide">
+          <p className="text-xs font-semibold text-fg-muted uppercase tracking-wide">
             Execution Trend
           </p>
           <DateRangePicker value={detailRange} onChange={setDetailRange} />
@@ -671,22 +672,22 @@ function DetailPanel({
 
       {/* Recent runs */}
       <div className="flex-1 overflow-y-auto pt-4">
-        <p className="text-xs font-semibold text-slate-700 uppercase tracking-wide mb-3">
+        <p className="text-xs font-semibold text-fg-muted uppercase tracking-wide mb-3">
           Recent Runs
         </p>
         {isLoading && <LoadingSpinner message="" />}
         {!isLoading && (data?.recentRuns ?? []).length === 0 && (
-          <p className="text-sm text-slate-400 text-center py-4">No runs found</p>
+          <p className="text-sm text-fg-subtle text-center py-4">No runs found</p>
         )}
         <div className="space-y-1.5">
           {(data?.recentRuns ?? []).map((run: RecentRun, i: number) => (
             <div
               key={i}
-              className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-slate-50 transition-colors group"
+              className="flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-surface-muted transition-colors group"
             >
               <Badge label={run.status} colorClass={lastStatusColor(run.status)} />
               <div className="flex-1 min-w-0">
-                <div className="flex items-center gap-2 text-xs text-slate-600 flex-wrap">
+                <div className="flex items-center gap-2 text-xs text-fg-muted flex-wrap">
                   <span className="truncate">{relativeTime(run.runAt)}</span>
                   {run.browser && (
                     <span className="flex items-center gap-0.5 text-sky-600 font-medium">
@@ -695,32 +696,32 @@ function DetailPanel({
                     </span>
                   )}
                   {run.environment && (
-                    <span className="text-slate-400 truncate">{run.environment}</span>
+                    <span className="text-fg-subtle truncate">{run.environment}</span>
                   )}
                   {run.durationMs != null && (
-                    <span className="text-slate-400">{formatDuration(run.durationMs)}</span>
+                    <span className="text-fg-subtle">{formatDuration(run.durationMs)}</span>
                   )}
                   {run.hasScreenshot && (
                     <span title="Has screenshot">
-                      <Camera size={11} className="text-slate-400 shrink-0" />
+                      <Camera size={11} className="text-fg-subtle shrink-0" />
                     </span>
                   )}
                   {run.hasVideo && (
                     <span title="Has video">
-                      <Video size={11} className="text-slate-400 shrink-0" />
+                      <Video size={11} className="text-fg-subtle shrink-0" />
                     </span>
                   )}
                 </div>
                 {run.specFile && (
                   <p
-                    className="text-[11px] text-slate-400 font-mono truncate mt-0.5"
+                    className="text-[11px] text-fg-subtle font-mono truncate mt-0.5"
                     title={run.specFile}
                   >
                     {run.specFile}
                   </p>
                 )}
                 {run.failureMessage && (
-                  <p className="text-xs text-red-600 truncate mt-0.5">{run.failureMessage}</p>
+                  <p className="text-xs text-danger truncate mt-0.5">{run.failureMessage}</p>
                 )}
               </div>
               <div className="shrink-0 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -732,7 +733,7 @@ function DetailPanel({
                       rel="noopener noreferrer"
                       title="Open Trace Viewer"
                       className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium
-                                 bg-violet-100 text-violet-700 hover:bg-violet-200 transition-colors"
+                                 bg-teal-100 text-teal-700 hover:bg-teal-200 transition-colors"
                       onClick={e => e.stopPropagation()}
                     >
                       <Play size={9} />
@@ -743,7 +744,7 @@ function DetailPanel({
                       download={`trace-${run.resultId}.zip`}
                       title="Download trace — view with: npx playwright show-trace trace.zip"
                       className="flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium
-                                 bg-slate-100 text-slate-500 hover:bg-slate-200 transition-colors"
+                                 bg-surface-muted text-fg-muted hover:brightness-95 transition-colors"
                       onClick={e => e.stopPropagation()}
                     >
                       ↓
@@ -757,7 +758,7 @@ function DetailPanel({
                     rel="noopener noreferrer"
                     title="View run"
                     onClick={e => e.stopPropagation()}
-                    className="text-slate-300 hover:text-blue-600 transition-colors"
+                    className="text-fg-subtle hover:text-primary transition-colors"
                   >
                     <ExternalLink size={13} />
                   </a>
@@ -774,10 +775,10 @@ function DetailPanel({
 // ── Run status helpers ────────────────────────────────────────────────────────
 
 function runStatusColor(exec: ExecutionSummary): string {
-  if (exec.status === 'RUNNING') return 'text-blue-700 bg-blue-100'
-  if (exec.failed > 0 || exec.broken > 0) return 'text-red-700 bg-red-100'
-  if (exec.skipped > 0 && exec.passed === 0) return 'text-slate-600 bg-slate-100'
-  return 'text-green-700 bg-green-100'
+  if (exec.status === 'RUNNING') return 'text-info bg-info-bg'
+  if (exec.failed > 0 || exec.broken > 0) return 'text-danger bg-danger-bg'
+  if (exec.skipped > 0 && exec.passed === 0) return 'text-neutral bg-neutral-bg'
+  return 'text-success bg-success-bg'
 }
 
 function runStatusLabel(exec: ExecutionSummary): string {
@@ -830,46 +831,46 @@ function RunsView({
             value: totalRuns === 0 ? '—' : `${Math.round(avgPassRate * 100)}%`,
             color:
               avgPassRate >= 0.9
-                ? 'text-green-700'
+                ? 'text-success'
                 : avgPassRate >= 0.7
-                  ? 'text-yellow-700'
-                  : 'text-red-700',
+                  ? 'text-warning'
+                  : 'text-danger',
           },
           {
             label: 'Runs with Failures',
             value: failedRuns.toString(),
-            color: failedRuns > 0 ? 'text-red-700' : 'text-slate-900',
+            color: failedRuns > 0 ? 'text-danger' : 'text-fg',
           },
           { label: 'Total Tests Run', value: totalTests.toLocaleString() },
         ].map(({ label, value, color }) => (
           <div
             key={label}
-            className="bg-white rounded-xl border border-slate-200 shadow-sm px-4 py-3"
+            className="bg-surface rounded-xl border border-border shadow-sm px-4 py-3"
           >
-            <p className="text-xs text-slate-500">{label}</p>
-            <p className={cn('text-2xl font-bold mt-0.5', color ?? 'text-slate-900')}>{value}</p>
+            <p className="text-xs text-fg-muted">{label}</p>
+            <p className={cn('text-2xl font-bold mt-0.5', color ?? 'text-fg')}>{value}</p>
           </div>
         ))}
       </div>
 
       {/* Search */}
       <div className="relative max-w-sm">
-        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-subtle" />
         <input
           type="text"
           placeholder="Filter by branch, environment or commit…"
           value={search}
           onChange={e => setSearch(e.target.value)}
-          className="w-full pl-8 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-full pl-8 pr-3 py-2 text-sm border border-border-strong rounded-lg bg-surface text-fg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
         />
       </div>
 
       {/* Runs table */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+      <div className="bg-surface rounded-xl border border-border shadow-sm overflow-hidden">
         <div
           className="grid grid-cols-[1fr_110px_180px_80px_80px_40px] gap-3 px-4 py-2.5
-                        text-xs font-semibold text-slate-500 uppercase tracking-wide
-                        border-b border-slate-100 bg-slate-50"
+                        text-xs font-semibold text-fg-muted uppercase tracking-wide
+                        border-b border-border bg-surface-muted"
         >
           <span>Run</span>
           <span>Pass Rate</span>
@@ -883,35 +884,35 @@ function RunsView({
         {error && <ErrorMessage message="Failed to load execution runs." onRetry={onRetry} />}
 
         {!isLoading && !error && filtered.length === 0 && (
-          <p className="px-4 py-12 text-center text-sm text-slate-400">
+          <p className="px-4 py-12 text-center text-sm text-fg-subtle">
             No execution runs found for this period.
           </p>
         )}
 
-        <div className="divide-y divide-slate-50">
+        <div className="divide-y divide-border">
           {filtered.map(exec => (
             <div
               key={exec.id}
-              className="grid grid-cols-[1fr_110px_180px_80px_80px_40px] gap-3 px-4 py-3 items-center hover:bg-slate-50 transition-colors"
+              className="grid grid-cols-[1fr_110px_180px_80px_80px_40px] gap-3 px-4 py-3 items-center hover:bg-surface-muted transition-colors"
             >
               {/* Run identity */}
               <div className="min-w-0">
                 <div className="flex items-center gap-2 flex-wrap">
                   <Badge label={runStatusLabel(exec)} colorClass={runStatusColor(exec)} />
                   {exec.branch && (
-                    <span className="flex items-center gap-1 text-xs text-slate-600 font-mono truncate max-w-[180px]">
-                      <GitBranch size={11} className="shrink-0 text-slate-400" />
+                    <span className="flex items-center gap-1 text-xs text-fg-muted font-mono truncate max-w-[180px]">
+                      <GitBranch size={11} className="shrink-0 text-fg-subtle" />
                       {exec.branch}
                     </span>
                   )}
                   {exec.environment && (
-                    <span className="text-xs px-1.5 py-0.5 rounded bg-slate-100 text-slate-500">
+                    <span className="text-xs px-1.5 py-0.5 rounded bg-surface-muted text-fg-muted">
                       {exec.environment}
                     </span>
                   )}
                 </div>
                 {exec.commitSha && (
-                  <p className="text-[11px] text-slate-400 font-mono mt-0.5 truncate">
+                  <p className="text-[11px] text-fg-subtle font-mono mt-0.5 truncate">
                     {exec.commitSha.slice(0, 10)}
                   </p>
                 )}
@@ -922,21 +923,21 @@ function RunsView({
 
               {/* Counts */}
               <div className="flex items-center gap-2 text-xs tabular-nums">
-                <span className="text-green-700 font-medium">{exec.passed}✓</span>
+                <span className="text-success font-medium">{exec.passed}✓</span>
                 {(exec.failed > 0 || exec.broken > 0) && (
-                  <span className="text-red-600 font-medium">{exec.failed + exec.broken}✗</span>
+                  <span className="text-danger font-medium">{exec.failed + exec.broken}✗</span>
                 )}
-                {exec.skipped > 0 && <span className="text-slate-400">{exec.skipped} skip</span>}
-                <span className="text-slate-300">/ {exec.totalTests}</span>
+                {exec.skipped > 0 && <span className="text-fg-subtle">{exec.skipped} skip</span>}
+                <span className="text-fg-subtle">/ {exec.totalTests}</span>
               </div>
 
               {/* Duration */}
-              <span className="text-xs text-slate-500 tabular-nums">
+              <span className="text-xs text-fg-muted tabular-nums">
                 {exec.durationMs > 0 ? formatDuration(exec.durationMs) : '—'}
               </span>
 
               {/* When */}
-              <span className="text-xs text-slate-400">{relativeTime(exec.executedAt)}</span>
+              <span className="text-xs text-fg-subtle">{relativeTime(exec.executedAt)}</span>
 
               {/* Link */}
               <a
@@ -944,7 +945,7 @@ function RunsView({
                 target="_blank"
                 rel="noopener noreferrer"
                 title="View run detail"
-                className="text-slate-300 hover:text-blue-600 transition-colors justify-self-center"
+                className="text-fg-subtle hover:text-primary transition-colors justify-self-center"
               >
                 <ExternalLink size={13} />
               </a>
@@ -975,7 +976,7 @@ function FilterChipRow({
 }) {
   return (
     <div className="flex items-center gap-2 flex-wrap">
-      <span className="flex items-center gap-1 text-[11px] font-semibold text-slate-400 uppercase tracking-wide shrink-0">
+      <span className="flex items-center gap-1 text-[11px] font-semibold text-fg-subtle uppercase tracking-wide shrink-0">
         {icon}
         {label}
       </span>
@@ -987,7 +988,7 @@ function FilterChipRow({
             'inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border transition-colors',
             selected.includes(item)
               ? colorActive
-              : 'bg-white text-slate-600 border-slate-200 hover:border-slate-400',
+              : 'bg-surface text-fg-muted border-border hover:border-border-strong',
           )}
         >
           {item}
@@ -1130,8 +1131,8 @@ export default function AutomatedTestsPage() {
       {/* Header */}
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Automated Tests</h1>
-          <p className="text-sm text-slate-500 mt-0.5">
+          <h1 className="text-2xl font-bold text-fg">Automated Tests</h1>
+          <p className="text-sm text-fg-muted mt-0.5">
             All tests discovered from CI ingestion — pass rates, trends, recent results
           </p>
         </div>
@@ -1139,14 +1140,14 @@ export default function AutomatedTestsPage() {
       </div>
 
       {/* View tabs */}
-      <div className="flex border-b border-slate-200">
+      <div className="flex border-b border-border">
         <button
           onClick={() => setViewMode('tests')}
           className={cn(
             'flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors',
             viewMode === 'tests'
-              ? 'border-blue-600 text-blue-600'
-              : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300',
+              ? 'border-primary text-primary'
+              : 'border-transparent text-fg-muted hover:text-fg hover:border-border-strong',
           )}
         >
           <List size={14} />
@@ -1157,8 +1158,8 @@ export default function AutomatedTestsPage() {
           className={cn(
             'flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 -mb-px transition-colors',
             viewMode === 'runs'
-              ? 'border-blue-600 text-blue-600'
-              : 'border-transparent text-slate-500 hover:text-slate-700 hover:border-slate-300',
+              ? 'border-primary text-primary'
+              : 'border-transparent text-fg-muted hover:text-fg hover:border-border-strong',
           )}
         >
           <FlaskConical size={14} />
@@ -1194,14 +1195,14 @@ export default function AutomatedTestsPage() {
             <div className="relative flex-1 min-w-[200px] max-w-sm">
               <Search
                 size={14}
-                className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
+                className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-subtle"
               />
               <input
                 type="text"
                 placeholder="Search by name, suite, or file…"
                 value={search}
                 onChange={e => setSearch(e.target.value)}
-                className="w-full pl-8 pr-3 py-2 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="w-full pl-8 pr-3 py-2 text-sm border border-border-strong rounded-lg bg-surface text-fg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
               />
             </div>
             <div className="flex gap-1">
@@ -1212,8 +1213,8 @@ export default function AutomatedTestsPage() {
                   className={cn(
                     'px-3 py-1.5 text-xs font-medium rounded-lg transition-colors',
                     statusFilter === f
-                      ? 'bg-blue-600 text-white'
-                      : 'bg-white border border-slate-200 text-slate-600 hover:bg-slate-50',
+                      ? 'bg-primary text-primary-fg'
+                      : 'bg-surface border border-border text-fg-muted hover:bg-surface-muted',
                   )}
                 >
                   {f}
@@ -1223,7 +1224,7 @@ export default function AutomatedTestsPage() {
             {hasActiveFilters && (
               <button
                 onClick={clearAllFilters}
-                className="text-xs text-slate-400 hover:text-red-500 transition-colors flex items-center gap-1"
+                className="text-xs text-fg-subtle hover:text-danger transition-colors flex items-center gap-1"
               >
                 <X size={11} /> Clear filters
               </button>
@@ -1238,7 +1239,7 @@ export default function AutomatedTestsPage() {
               items={availableTags ?? []}
               selected={selectedTags}
               onToggle={item => toggle(selectedTags, setSelectedTags, item)}
-              colorActive="bg-violet-600 text-white border-violet-600"
+              colorActive="bg-teal-600 text-white border-teal-600"
             />
           )}
 
@@ -1273,28 +1274,28 @@ export default function AutomatedTestsPage() {
               <div className="relative">
                 <FileCode
                   size={13}
-                  className="absolute left-2.5 top-1/2 -translate-y-1/2 text-slate-400"
+                  className="absolute left-2.5 top-1/2 -translate-y-1/2 text-fg-subtle"
                 />
                 <input
                   type="text"
                   placeholder="Spec file prefix…"
                   value={specFilePrefix}
                   onChange={e => setSpecFilePrefix(e.target.value)}
-                  className="pl-7 pr-3 py-1.5 text-xs border border-slate-200 rounded-lg w-48 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                  className="pl-7 pr-3 py-1.5 text-xs border border-border-strong rounded-lg w-48 bg-surface text-fg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
                 />
               </div>
 
               {/* Label key select */}
               {(availableLabelKeys ?? []).length > 0 && (
                 <div className="flex items-center gap-1.5">
-                  <span className="text-xs text-slate-400">Label:</span>
+                  <span className="text-xs text-fg-subtle">Label:</span>
                   <select
                     value={labelKey}
                     onChange={e => {
                       setLabelKey(e.target.value)
                       setLabelValue('')
                     }}
-                    className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                    className="text-xs border border-border-strong rounded-lg px-2 py-1.5 bg-surface text-fg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
                   >
                     <option value="">Any key</option>
                     {(availableLabelKeys ?? []).map(k => (
@@ -1307,7 +1308,7 @@ export default function AutomatedTestsPage() {
                     <select
                       value={labelValue}
                       onChange={e => setLabelValue(e.target.value)}
-                      className="text-xs border border-slate-200 rounded-lg px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white"
+                      className="text-xs border border-border-strong rounded-lg px-2 py-1.5 bg-surface text-fg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
                     >
                       <option value="">Any value</option>
                       {(availableLabelValues ?? []).map(v => (
@@ -1323,7 +1324,7 @@ export default function AutomatedTestsPage() {
                         setLabelKey('')
                         setLabelValue('')
                       }}
-                      className="text-slate-300 hover:text-slate-500 transition-colors"
+                      className="text-fg-subtle hover:text-fg-muted transition-colors"
                     >
                       <X size={12} />
                     </button>
@@ -1338,15 +1339,15 @@ export default function AutomatedTestsPage() {
             {/* Test list */}
             <div
               className={cn(
-                'bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden min-w-0',
+                'bg-surface rounded-xl border border-border shadow-sm overflow-hidden min-w-0',
                 selected ? 'flex-[3]' : 'flex-1',
               )}
             >
               {/* Table header */}
               <div
                 className="grid grid-cols-[1fr_120px_60px_80px_80px_70px] gap-3 px-4 py-2.5
-                            text-xs font-semibold text-slate-500 uppercase tracking-wide
-                            border-b border-slate-100 bg-slate-50"
+                            text-xs font-semibold text-fg-muted uppercase tracking-wide
+                            border-b border-border bg-surface-muted"
               >
                 <span>Test</span>
                 <span>Pass Rate</span>
@@ -1365,13 +1366,13 @@ export default function AutomatedTestsPage() {
               )}
 
               {!testsLoading && !testsError && (tests ?? []).length === 0 && (
-                <p className="px-4 py-12 text-center text-sm text-slate-400">
+                <p className="px-4 py-12 text-center text-sm text-fg-subtle">
                   No automated tests found. Run your Playwright suite and stream results to the
                   platform.
                 </p>
               )}
 
-              <div className="divide-y divide-slate-50">
+              <div className="divide-y divide-border">
                 {(tests ?? []).map(t => {
                   const isActive = selected?.testId === t.testId
                   return (
@@ -1380,32 +1381,30 @@ export default function AutomatedTestsPage() {
                       onClick={() => setSelected(isActive ? null : t)}
                       className={cn(
                         'w-full text-left grid grid-cols-[1fr_120px_60px_80px_80px_70px] gap-3 px-4 py-3',
-                        'transition-colors hover:bg-slate-50 items-center',
-                        isActive && 'bg-blue-50 hover:bg-blue-50',
+                        'transition-colors hover:bg-surface-muted items-center',
+                        isActive && 'bg-primary-subtle hover:bg-primary-subtle',
                       )}
                     >
                       <div className="min-w-0">
                         <div className="flex items-center gap-1.5">
-                          <p className="text-sm font-medium text-slate-900 truncate">
-                            {t.displayName}
-                          </p>
+                          <p className="text-sm font-medium text-fg truncate">{t.displayName}</p>
                           {t.hasScreenshot && (
                             <span title="Has screenshot">
-                              <Camera size={11} className="shrink-0 text-slate-400" />
+                              <Camera size={11} className="shrink-0 text-fg-subtle" />
                             </span>
                           )}
                           {t.hasVideo && (
                             <span title="Has video">
-                              <Video size={11} className="shrink-0 text-slate-400" />
+                              <Video size={11} className="shrink-0 text-fg-subtle" />
                             </span>
                           )}
                         </div>
                         {t.suiteName && (
-                          <p className="text-xs text-slate-400 truncate mt-0.5">{t.suiteName}</p>
+                          <p className="text-xs text-fg-subtle truncate mt-0.5">{t.suiteName}</p>
                         )}
                         {t.specFile && (
                           <p
-                            className="text-[11px] text-slate-400 font-mono truncate mt-0.5"
+                            className="text-[11px] text-fg-subtle font-mono truncate mt-0.5"
                             title={t.specFile}
                           >
                             {t.specFile}
@@ -1425,8 +1424,8 @@ export default function AutomatedTestsPage() {
                                 className={cn(
                                   'inline-block px-1.5 py-0.5 rounded text-[10px] font-mono cursor-pointer transition-colors',
                                   selectedTags.includes(tag)
-                                    ? 'bg-violet-100 text-violet-700 ring-1 ring-violet-300'
-                                    : 'bg-slate-100 text-slate-500 hover:bg-violet-100 hover:text-violet-700',
+                                    ? 'bg-teal-100 text-teal-700 ring-1 ring-teal-300'
+                                    : 'bg-surface-muted text-fg-muted hover:bg-teal-100 hover:text-teal-700',
                                 )}
                               >
                                 {tag}
@@ -1443,7 +1442,7 @@ export default function AutomatedTestsPage() {
                                   'inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[10px] cursor-pointer transition-colors',
                                   selectedBrowsers.includes(b)
                                     ? 'bg-sky-100 text-sky-700 ring-1 ring-sky-300'
-                                    : 'bg-slate-100 text-slate-500 hover:bg-sky-100 hover:text-sky-700',
+                                    : 'bg-surface-muted text-fg-muted hover:bg-sky-100 hover:text-sky-700',
                                 )}
                               >
                                 <Monitor size={9} />
@@ -1461,7 +1460,7 @@ export default function AutomatedTestsPage() {
                                   'inline-block px-1.5 py-0.5 rounded text-[10px] cursor-pointer transition-colors',
                                   selectedAnnotations.includes(a)
                                     ? 'bg-amber-100 text-amber-700 ring-1 ring-amber-300'
-                                    : 'bg-slate-100 text-slate-500 hover:bg-amber-100 hover:text-amber-700',
+                                    : 'bg-surface-muted text-fg-muted hover:bg-amber-100 hover:text-amber-700',
                                 )}
                               >
                                 @{a}
@@ -1471,12 +1470,12 @@ export default function AutomatedTestsPage() {
                         )}
                       </div>
                       <PassRateBar rate={t.passRate} total={t.totalRuns} />
-                      <span className="text-sm text-slate-600 text-right tabular-nums">
+                      <span className="text-sm text-fg-muted text-right tabular-nums">
                         {t.totalRuns}
                       </span>
                       <Badge label={t.lastStatus} colorClass={lastStatusColor(t.lastStatus)} />
-                      <span className="text-xs text-slate-400">{relativeTime(t.lastRunAt)}</span>
-                      <span className="text-xs text-slate-400 text-right tabular-nums">
+                      <span className="text-xs text-fg-subtle">{relativeTime(t.lastRunAt)}</span>
+                      <span className="text-xs text-fg-subtle text-right tabular-nums">
                         {formatDuration(t.avgDurationMs)}
                       </span>
                     </button>
@@ -1488,7 +1487,7 @@ export default function AutomatedTestsPage() {
             {/* Detail panel */}
             {selected && (
               <div
-                className="flex-[2] bg-white rounded-xl border border-slate-200 shadow-sm p-5 sticky top-4"
+                className="flex-[2] bg-surface rounded-xl border border-border shadow-sm p-5 sticky top-4"
                 style={{ maxHeight: 'calc(100vh - 120px)', overflowY: 'auto' }}
               >
                 <DetailPanel

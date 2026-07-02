@@ -8,6 +8,7 @@ import type { TestCaseExecution, TestRun } from '@/lib/types'
 import Badge from '@/components/Badge'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import ErrorMessage from '@/components/ErrorMessage'
+import { Button } from '@/components/ui'
 import {
   CheckCircle,
   XCircle,
@@ -31,43 +32,43 @@ import {
 function execStatusColor(status: string): string {
   switch (status) {
     case 'PASSED':
-      return 'text-green-700 bg-green-100'
+      return 'text-success bg-success-bg'
     case 'FAILED':
-      return 'text-red-700 bg-red-100'
+      return 'text-danger bg-danger-bg'
     case 'BLOCKED':
-      return 'text-orange-700 bg-orange-100'
+      return 'text-warning bg-warning-bg'
     case 'SKIPPED':
-      return 'text-slate-500 bg-slate-100'
+      return 'text-neutral bg-neutral-bg'
     case 'PENDING':
-      return 'text-blue-600 bg-blue-50'
+      return 'text-info bg-info-bg'
     default:
-      return 'text-slate-600 bg-slate-100'
+      return 'text-neutral bg-neutral-bg'
   }
 }
 
 function runStatusColor(status: string): string {
   switch (status) {
     case 'IN_PROGRESS':
-      return 'text-blue-700 bg-blue-100'
+      return 'text-info bg-info-bg'
     case 'COMPLETED':
-      return 'text-green-700 bg-green-100'
+      return 'text-success bg-success-bg'
     case 'ABORTED':
-      return 'text-red-700 bg-red-100'
+      return 'text-danger bg-danger-bg'
     default:
-      return 'text-slate-600 bg-slate-100'
+      return 'text-neutral bg-neutral-bg'
   }
 }
 
 function envColor(env: string): string {
   switch (env?.toUpperCase()) {
     case 'PROD':
-      return 'text-red-700 bg-red-100'
+      return 'text-danger bg-danger-bg'
     case 'STAGING':
-      return 'text-orange-700 bg-orange-100'
+      return 'text-warning bg-warning-bg'
     case 'DEV':
-      return 'text-blue-700 bg-blue-100'
+      return 'text-info bg-info-bg'
     default:
-      return 'text-slate-600 bg-slate-100'
+      return 'text-neutral bg-neutral-bg'
   }
 }
 
@@ -77,32 +78,32 @@ function ProgressSection({ run }: { run: TestRun }) {
   const { totalTests, passed, failed, blocked, skipped, pending } = run
 
   const segments = [
-    { label: 'Passed', count: passed, color: 'bg-green-500' },
-    { label: 'Failed', count: failed, color: 'bg-red-500' },
-    { label: 'Blocked', count: blocked, color: 'bg-orange-400' },
-    { label: 'Skipped', count: skipped, color: 'bg-slate-300' },
-    { label: 'Pending', count: pending, color: 'bg-blue-200' },
+    { label: 'Passed', count: passed, color: 'bg-success' },
+    { label: 'Failed', count: failed, color: 'bg-danger' },
+    { label: 'Blocked', count: blocked, color: 'bg-warning' },
+    { label: 'Skipped', count: skipped, color: 'bg-border-strong' },
+    { label: 'Pending', count: pending, color: 'bg-info/40' },
   ]
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-5">
+    <div className="bg-surface rounded-xl border border-border shadow-sm p-5">
       <div className="flex items-center gap-6 mb-4 flex-wrap">
         {segments.map(seg => (
           <div key={seg.label} className="flex items-center gap-2">
             <div className={cn('w-3 h-3 rounded-full', seg.color)} />
             <span className="text-sm">
-              <span className="font-semibold text-slate-900">{seg.count}</span>
-              <span className="text-slate-500 ml-1">{seg.label}</span>
+              <span className="font-semibold text-fg">{seg.count}</span>
+              <span className="text-fg-muted ml-1">{seg.label}</span>
             </span>
           </div>
         ))}
         {totalTests > 0 && (
-          <div className="ml-auto text-sm font-semibold text-slate-700">{totalTests} total</div>
+          <div className="ml-auto text-sm font-semibold text-fg-muted">{totalTests} total</div>
         )}
       </div>
 
       {totalTests > 0 && (
-        <div className="flex h-3 rounded-full overflow-hidden bg-slate-100">
+        <div className="flex h-3 rounded-full overflow-hidden bg-surface-muted">
           {segments.map(
             seg =>
               seg.count > 0 && (
@@ -213,20 +214,20 @@ function ExecutionRow({
       status: 'PASSED',
       icon: CheckCircle,
       label: 'Pass',
-      className: 'text-green-600 hover:bg-green-50',
+      className: 'text-success hover:bg-success-bg',
     },
-    { status: 'FAILED', icon: XCircle, label: 'Fail', className: 'text-red-600 hover:bg-red-50' },
+    { status: 'FAILED', icon: XCircle, label: 'Fail', className: 'text-danger hover:bg-danger-bg' },
     {
       status: 'BLOCKED',
       icon: MinusCircle,
       label: 'Block',
-      className: 'text-orange-500 hover:bg-orange-50',
+      className: 'text-warning hover:bg-warning-bg',
     },
     {
       status: 'SKIPPED',
       icon: SkipForward,
       label: 'Skip',
-      className: 'text-slate-400 hover:bg-slate-50',
+      className: 'text-fg-subtle hover:bg-surface-muted',
     },
   ]
 
@@ -234,8 +235,8 @@ function ExecutionRow({
     <div
       className={cn(
         'px-5 py-3 transition-colors',
-        currentStatus === 'FAILED' ? 'bg-red-50/30' : '',
-        currentStatus === 'PASSED' ? 'bg-green-50/30' : '',
+        currentStatus === 'FAILED' ? 'bg-danger-bg/40' : '',
+        currentStatus === 'PASSED' ? 'bg-success-bg/40' : '',
       )}
     >
       <div className="flex items-center gap-3">
@@ -245,13 +246,13 @@ function ExecutionRow({
         </div>
 
         {/* Title */}
-        <p className="flex-1 text-sm text-slate-900 truncate">{exec.testCaseTitle}</p>
+        <p className="flex-1 text-sm text-fg truncate">{exec.testCaseTitle}</p>
 
         {/* Action buttons (hidden when the run is read-only / completed) */}
         {editable && (
           <div className="flex items-center gap-0.5 shrink-0">
             {mutation.isPending && (
-              <Loader2 size={14} className="animate-spin text-slate-400 mr-1" />
+              <Loader2 size={14} className="animate-spin text-fg-subtle mr-1" />
             )}
             {actionButtons.map(btn => {
               const Icon = btn.icon
@@ -286,14 +287,14 @@ function ExecutionRow({
             readOnly={!editable}
             rows={2}
             placeholder="Describe actual result (optional)"
-            className="w-full border border-red-200 rounded-lg px-3 py-2 text-xs text-slate-700 resize-none focus:outline-none focus:ring-1 focus:ring-red-400 bg-white read-only:bg-slate-50"
+            className="w-full border border-danger-border rounded-lg px-3 py-2 text-xs text-fg resize-none focus:outline-none focus:ring-1 focus:ring-danger/40 bg-surface read-only:bg-surface-muted"
           />
         </div>
       )}
 
       {/* Executed by / at */}
       {exec.executedAt && (
-        <div className="mt-1 ml-[92px] text-xs text-slate-400">
+        <div className="mt-1 ml-[92px] text-xs text-fg-subtle">
           {exec.executedBy ? `${exec.executedBy} · ` : ''}
           {relativeTime(exec.executedAt)}
         </div>
@@ -303,27 +304,27 @@ function ExecutionRow({
       <div className="mt-2 ml-[92px]">
         {exec.defectId ? (
           <div className="flex items-center gap-2 text-xs">
-            <Bug size={13} className="text-red-500 shrink-0" />
+            <Bug size={13} className="text-danger shrink-0" />
             <a
               href={exec.defectUrl ?? '#'}
               target="_blank"
               rel="noreferrer"
-              className="font-mono text-blue-600 hover:underline shrink-0"
+              className="font-mono text-primary hover:underline shrink-0"
             >
               #{exec.defectId}
             </a>
             {exec.defectState && (
-              <Badge label={exec.defectState} colorClass="text-slate-600 bg-slate-100" />
+              <Badge label={exec.defectState} colorClass="text-neutral bg-neutral-bg" />
             )}
             {exec.defectTitle && (
-              <span className="text-slate-500 truncate max-w-md">{exec.defectTitle}</span>
+              <span className="text-fg-muted truncate max-w-md">{exec.defectTitle}</span>
             )}
             {editable && (
               <button
                 onClick={() => unlinkDefect.mutate()}
                 disabled={unlinkDefect.isPending}
                 title="Unlink defect"
-                className="p-0.5 text-slate-300 hover:text-red-600 rounded"
+                className="p-0.5 text-fg-subtle hover:text-danger rounded"
               >
                 <X size={13} />
               </button>
@@ -336,12 +337,12 @@ function ExecutionRow({
                 value={defectInput}
                 onChange={e => setDefectInput(e.target.value)}
                 placeholder="Link ADO work item id…"
-                className="w-44 border border-slate-200 rounded-lg px-2 py-1 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-blue-400"
+                className="w-44 border border-border-strong rounded-lg px-2 py-1 text-xs font-mono bg-surface text-fg focus:outline-none focus:ring-1 focus:ring-primary/30"
               />
               <button
                 onClick={() => linkDefect.mutate()}
                 disabled={!defectInput.trim() || linkDefect.isPending}
-                className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-40"
+                className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-fg-muted border border-border rounded-lg hover:bg-surface-muted disabled:opacity-40"
               >
                 {linkDefect.isPending ? (
                   <Loader2 size={12} className="animate-spin" />
@@ -351,7 +352,7 @@ function ExecutionRow({
                 Link defect
               </button>
               {linkDefect.isError && (
-                <span className="text-xs text-red-600">{(linkDefect.error as Error).message}</span>
+                <span className="text-xs text-danger">{(linkDefect.error as Error).message}</span>
               )}
             </div>
           )
@@ -362,7 +363,7 @@ function ExecutionRow({
       <div className="mt-2 ml-[92px]">
         <button
           onClick={() => setShowEvidence(v => !v)}
-          className="flex items-center gap-1.5 text-xs text-slate-500 hover:text-blue-600"
+          className="flex items-center gap-1.5 text-xs text-fg-muted hover:text-primary"
         >
           <Paperclip size={12} />
           Evidence{showEvidence ? '' : '…'}
@@ -370,31 +371,31 @@ function ExecutionRow({
         {showEvidence && (
           <div className="mt-2 space-y-1.5">
             {attachmentsQ.isLoading && (
-              <div className="text-xs text-slate-400 flex items-center gap-1">
+              <div className="text-xs text-fg-subtle flex items-center gap-1">
                 <Loader2 size={12} className="animate-spin" /> Loading…
               </div>
             )}
             {!attachmentsQ.isLoading && attachments.length === 0 && (
-              <div className="text-xs text-slate-400">No evidence attached.</div>
+              <div className="text-xs text-fg-subtle">No evidence attached.</div>
             )}
             {attachments.map(a => (
               <div key={a.id} className="flex items-center gap-2 text-xs">
-                <Paperclip size={12} className="text-slate-400 shrink-0" />
+                <Paperclip size={12} className="text-fg-subtle shrink-0" />
                 <a
                   href={api.attachmentDownloadUrl(projectId, runId, a.id)}
                   target="_blank"
                   rel="noreferrer"
-                  className="text-blue-600 hover:underline truncate max-w-xs flex items-center gap-1"
+                  className="text-primary hover:underline truncate max-w-xs flex items-center gap-1"
                 >
                   {a.fileName} <Download size={11} />
                 </a>
-                <span className="text-slate-400 shrink-0">{formatBytes(a.sizeBytes)}</span>
+                <span className="text-fg-subtle shrink-0">{formatBytes(a.sizeBytes)}</span>
                 {editable && (
                   <button
                     onClick={() => deleteAttachment.mutate(a.id)}
                     disabled={deleteAttachment.isPending}
                     title="Delete attachment"
-                    className="p-0.5 text-slate-300 hover:text-red-600 rounded"
+                    className="p-0.5 text-fg-subtle hover:text-danger rounded"
                   >
                     <Trash2 size={12} />
                   </button>
@@ -402,7 +403,7 @@ function ExecutionRow({
               </div>
             ))}
             {editable && (
-              <label className="inline-flex items-center gap-1.5 text-xs text-slate-600 cursor-pointer hover:text-blue-600">
+              <label className="inline-flex items-center gap-1.5 text-xs text-fg-muted cursor-pointer hover:text-primary">
                 {uploadAttachment.isPending ? (
                   <Loader2 size={12} className="animate-spin" />
                 ) : (
@@ -421,9 +422,7 @@ function ExecutionRow({
               </label>
             )}
             {uploadAttachment.isError && (
-              <div className="text-xs text-red-600">
-                {(uploadAttachment.error as Error).message}
-              </div>
+              <div className="text-xs text-danger">{(uploadAttachment.error as Error).message}</div>
             )}
           </div>
         )}
@@ -529,19 +528,19 @@ export default function TestRunExecutionPage() {
       <div>
         <button
           onClick={() => navigate(`${base}/test-execution`)}
-          className="flex items-center gap-1 text-sm text-slate-500 hover:text-blue-600 transition-colors mb-2"
+          className="flex items-center gap-1 text-sm text-fg-muted hover:text-primary transition-colors mb-2"
         >
           <ChevronLeft size={14} /> Test Execution
         </button>
         <div className="flex items-start justify-between gap-4">
           <div>
             <div className="flex items-center gap-2 flex-wrap">
-              <h1 className="text-2xl font-bold text-slate-900">{run.name}</h1>
+              <h1 className="text-2xl font-bold text-fg">{run.name}</h1>
               <Badge label={run.environment} colorClass={envColor(run.environment)} />
               <Badge label={run.status.replace('_', ' ')} colorClass={runStatusColor(run.status)} />
             </div>
             {run.triggeredBy && (
-              <p className="text-sm text-slate-500 mt-1">Triggered by {run.triggeredBy}</p>
+              <p className="text-sm text-fg-muted mt-1">Triggered by {run.triggeredBy}</p>
             )}
             {/* Scope summary */}
             <div className="flex items-center gap-2 mt-2 flex-wrap text-xs">
@@ -553,28 +552,28 @@ export default function TestRunExecutionPage() {
           </div>
           <div className="flex items-center gap-2 shrink-0">
             {editable && (
-              <button
+              <Button
+                variant="secondary"
                 onClick={() => setShowEditScope(true)}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors shrink-0 text-slate-700 bg-white border border-slate-200 hover:bg-slate-50"
                 title="Edit scope (release / sprint / area / team) and environment"
               >
                 <SlidersHorizontal size={15} /> Edit scope
-              </button>
+              </Button>
             )}
             {editable && (
-              <button
+              <Button
+                variant="secondary"
                 onClick={() => setShowAddCases(true)}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors shrink-0 text-slate-700 bg-white border border-slate-200 hover:bg-slate-50"
                 title="Add existing approved test cases to this run"
               >
                 <Plus size={15} /> Add cases
-              </button>
+              </Button>
             )}
             {run.status === 'IN_PROGRESS' && (
               <button
                 onClick={handleComplete}
                 disabled={completeMutation.isPending}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors shrink-0 text-white bg-green-600 hover:bg-green-700 disabled:opacity-50"
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all shrink-0 text-white bg-success hover:brightness-95 disabled:opacity-50"
                 title={
                   pendingCount > 0 ? `${pendingCount} test cases still pending` : 'Complete run'
                 }
@@ -594,7 +593,7 @@ export default function TestRunExecutionPage() {
               <button
                 onClick={() => reopenMutation.mutate()}
                 disabled={reopenMutation.isPending}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-colors shrink-0 text-blue-700 bg-blue-50 border border-blue-200 hover:bg-blue-100 disabled:opacity-50"
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg transition-all shrink-0 text-primary bg-primary-subtle border border-primary-subtle hover:brightness-95 disabled:opacity-50"
                 title="Reopen this run to edit results or add cases"
               >
                 {reopenMutation.isPending ? (
@@ -614,7 +613,7 @@ export default function TestRunExecutionPage() {
 
       {/* Pending warning */}
       {pendingCount > 0 && run.status === 'IN_PROGRESS' && (
-        <div className="flex items-center gap-2 px-4 py-3 bg-blue-50 border border-blue-200 rounded-lg text-sm text-blue-700">
+        <div className="flex items-center gap-2 px-4 py-3 bg-info-bg border border-info-border rounded-lg text-sm text-info">
           <AlertCircle size={15} className="shrink-0" />
           {pendingCount} test {pendingCount === 1 ? 'case' : 'cases'} still pending — click Pass /
           Fail / Block / Skip to record results.
@@ -622,15 +621,15 @@ export default function TestRunExecutionPage() {
       )}
 
       {/* Execution list */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
-        <div className="px-5 py-3 border-b border-slate-100 flex items-center justify-between">
-          <h2 className="font-semibold text-slate-900 text-sm">Test Case Results</h2>
-          <span className="text-xs text-slate-400">{displayExecutions.length} test cases</span>
+      <div className="bg-surface rounded-xl border border-border shadow-sm">
+        <div className="px-5 py-3 border-b border-border flex items-center justify-between">
+          <h2 className="font-semibold text-fg text-sm">Test Case Results</h2>
+          <span className="text-xs text-fg-subtle">{displayExecutions.length} test cases</span>
         </div>
         {displayExecutions.length === 0 && (
-          <div className="py-12 text-center text-sm text-slate-500">No test cases in this run.</div>
+          <div className="py-12 text-center text-sm text-fg-muted">No test cases in this run.</div>
         )}
-        <div className="divide-y divide-slate-50">
+        <div className="divide-y divide-border">
           {displayExecutions.map(exec => (
             <ExecutionRow
               key={exec.id}
@@ -680,8 +679,8 @@ export default function TestRunExecutionPage() {
 function ScopeChip({ label, value }: { label: string; value?: string | null }) {
   if (!value) return null
   return (
-    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-slate-100 text-slate-600">
-      <span className="text-slate-400">{label}:</span> {value}
+    <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-surface-muted text-fg-muted">
+      <span className="text-fg-subtle">{label}:</span> {value}
     </span>
   )
 }
@@ -744,10 +743,10 @@ function EditScopeModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-lg mx-4 max-h-[85vh] flex flex-col">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200">
-          <h2 className="font-semibold text-slate-900">Edit scope & environment</h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+      <div className="bg-surface rounded-xl shadow-md w-full max-w-lg mx-4 max-h-[85vh] flex flex-col">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
+          <h2 className="font-semibold text-fg">Edit scope & environment</h2>
+          <button onClick={onClose} className="text-fg-subtle hover:text-fg">
             <X size={18} />
           </button>
         </div>
@@ -817,22 +816,15 @@ function EditScopeModal({
               ))}
             </select>
           </Field>
-          {save.isError && <p className="text-sm text-red-600">{(save.error as Error).message}</p>}
+          {save.isError && <p className="text-sm text-danger">{(save.error as Error).message}</p>}
         </div>
-        <div className="px-5 py-4 border-t border-slate-200 flex justify-end gap-2">
-          <button
-            onClick={onClose}
-            className="px-4 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50"
-          >
+        <div className="px-5 py-4 border-t border-border flex justify-end gap-2">
+          <Button variant="secondary" onClick={onClose}>
             Cancel
-          </button>
-          <button
-            onClick={() => save.mutate()}
-            disabled={save.isPending}
-            className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
-          >
-            {save.isPending && <Loader2 size={14} className="animate-spin" />}Save scope
-          </button>
+          </Button>
+          <Button onClick={() => save.mutate()} loading={save.isPending}>
+            Save scope
+          </Button>
         </div>
       </div>
     </div>
@@ -840,12 +832,12 @@ function EditScopeModal({
 }
 
 const scopeInput =
-  'w-full text-sm border border-slate-200 rounded-lg px-3 py-2 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500'
+  'w-full text-sm border border-border-strong rounded-lg px-3 py-2 bg-surface text-fg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary'
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div>
-      <label className="block text-xs font-medium text-slate-700 mb-1">{label}</label>
+      <label className="block text-xs font-medium text-fg-muted mb-1">{label}</label>
       {children}
     </div>
   )
@@ -906,72 +898,68 @@ function AddCasesModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-xl mx-4 max-h-[85vh] flex flex-col">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200">
+      <div className="bg-surface rounded-xl shadow-md w-full max-w-xl mx-4 max-h-[85vh] flex flex-col">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
           <div>
-            <h2 className="font-semibold text-slate-900">Add test cases</h2>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <h2 className="font-semibold text-fg">Add test cases</h2>
+            <p className="text-xs text-fg-muted mt-0.5">
               Approved cases in this run&apos;s scope · {selected.size} selected
             </p>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+          <button onClick={onClose} className="text-fg-subtle hover:text-fg">
             <X size={18} />
           </button>
         </div>
-        <div className="px-5 py-3 border-b border-slate-100">
+        <div className="px-5 py-3 border-b border-border">
           <input
             value={q}
             onChange={e => setQ(e.target.value)}
             placeholder="Filter by title or id…"
-            className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className={scopeInput}
           />
         </div>
-        <div className="flex-1 overflow-y-auto divide-y divide-slate-50">
+        <div className="flex-1 overflow-y-auto divide-y divide-border">
           {isLoading && (
-            <div className="py-10 text-center text-sm text-slate-400 flex items-center justify-center gap-2">
+            <div className="py-10 text-center text-sm text-fg-subtle flex items-center justify-center gap-2">
               <Loader2 size={14} className="animate-spin" /> Loading approved cases…
             </div>
           )}
           {!isLoading && shown.length === 0 && (
-            <div className="py-10 text-center text-sm text-slate-500">
+            <div className="py-10 text-center text-sm text-fg-muted">
               No approved cases available to add in this scope.
             </div>
           )}
           {shown.map(c => (
             <label
               key={c.id}
-              className="flex items-center gap-3 px-5 py-2.5 cursor-pointer hover:bg-slate-50"
+              className="flex items-center gap-3 px-5 py-2.5 cursor-pointer hover:bg-surface-muted"
             >
               <input
                 type="checkbox"
                 checked={selected.has(c.id)}
                 onChange={() => toggle(c.id)}
-                className="rounded border-slate-300 text-blue-600 focus:ring-blue-500 shrink-0"
+                className="rounded border-border-strong accent-primary shrink-0"
               />
               {c.externalId && (
-                <span className="text-xs font-mono text-slate-400 shrink-0">{c.externalId}</span>
+                <span className="text-xs font-mono text-fg-subtle shrink-0">{c.externalId}</span>
               )}
-              <span className="text-sm text-slate-800 flex-1 truncate">{c.title}</span>
+              <span className="text-sm text-fg flex-1 truncate">{c.title}</span>
             </label>
           ))}
         </div>
-        <div className="px-5 py-4 border-t border-slate-200 flex justify-between items-center">
-          <span className="text-xs text-slate-400">{available.length} available</span>
+        <div className="px-5 py-4 border-t border-border flex justify-between items-center">
+          <span className="text-xs text-fg-subtle">{available.length} available</span>
           <div className="flex gap-2">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50"
-            >
+            <Button variant="secondary" onClick={onClose}>
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={() => addMutation.mutate()}
-              disabled={selected.size === 0 || addMutation.isPending}
-              className="px-4 py-2 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-50 flex items-center gap-2"
+              disabled={selected.size === 0}
+              loading={addMutation.isPending}
             >
-              {addMutation.isPending && <Loader2 size={14} className="animate-spin" />}
               Add {selected.size > 0 ? selected.size : ''} case{selected.size === 1 ? '' : 's'}
-            </button>
+            </Button>
           </div>
         </div>
       </div>

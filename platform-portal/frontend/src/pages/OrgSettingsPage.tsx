@@ -45,16 +45,16 @@ function DisplayNameCard({ org }: { org: Organization }) {
   })
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 flex flex-col gap-4">
+    <div className="bg-surface rounded-xl border border-border shadow-sm p-6 flex flex-col gap-4">
       <div>
-        <h2 className="text-base font-semibold text-slate-800">Display Name</h2>
-        <p className="text-sm text-slate-500 mt-0.5">
+        <h2 className="text-base font-semibold text-fg">Display Name</h2>
+        <p className="text-sm text-fg-muted mt-0.5">
           The friendly name shown in the sidebar and across the platform.
         </p>
       </div>
 
       <div className="flex flex-col gap-2">
-        <label htmlFor="displayName" className="text-sm font-medium text-slate-700">
+        <label htmlFor="displayName" className="text-sm font-medium text-fg">
           Organization display name
         </label>
         <input
@@ -63,15 +63,15 @@ function DisplayNameCard({ org }: { org: Organization }) {
           value={displayName}
           onChange={e => setDisplayName(e.target.value)}
           placeholder={org.name}
-          className="block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 placeholder-slate-400 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+          className="block w-full rounded-lg border border-border-strong px-3 py-2 text-sm text-fg placeholder-slate-400 focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
         />
-        <p className="text-xs text-slate-400">
+        <p className="text-xs text-fg-subtle">
           Slug (read-only): <span className="font-mono">{org.slug}</span>
         </p>
       </div>
 
       {feedback && (
-        <p className={`text-sm font-medium ${feedback.ok ? 'text-green-600' : 'text-red-600'}`}>
+        <p className={`text-sm font-medium ${feedback.ok ? 'text-success' : 'text-danger'}`}>
           {feedback.msg}
         </p>
       )}
@@ -80,7 +80,7 @@ function DisplayNameCard({ org }: { org: Organization }) {
         <button
           onClick={() => mutation.mutate(displayName)}
           disabled={mutation.isPending || displayName.trim() === ''}
-          className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:brightness-95 focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           {mutation.isPending ? 'Saving…' : 'Save'}
         </button>
@@ -138,10 +138,10 @@ function LogoCard({ org }: { org: Organization }) {
   )
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm p-6 flex flex-col gap-4">
+    <div className="bg-surface rounded-xl border border-border shadow-sm p-6 flex flex-col gap-4">
       <div>
-        <h2 className="text-base font-semibold text-slate-800">Organization Logo</h2>
-        <p className="text-sm text-slate-500 mt-0.5">
+        <h2 className="text-base font-semibold text-fg">Organization Logo</h2>
+        <p className="text-sm text-fg-muted mt-0.5">
           Upload a logo (PNG, JPG, SVG — max 2 MB). Drag and drop or click to choose.
         </p>
       </div>
@@ -158,8 +158,8 @@ function LogoCard({ org }: { org: Organization }) {
         className={`flex flex-col items-center justify-center gap-3 rounded-xl border-2 border-dashed p-8 cursor-pointer transition-colors select-none
           ${
             dragOver
-              ? 'border-blue-500 bg-blue-50'
-              : 'border-slate-200 hover:border-blue-400 hover:bg-slate-50'
+              ? 'border-primary bg-primary-subtle'
+              : 'border-border hover:border-primary/40 hover:bg-surface-muted'
           }`}
       >
         {org.logoUrl ? (
@@ -177,7 +177,7 @@ function LogoCard({ org }: { org: Organization }) {
           </div>
         )}
 
-        <p className="text-sm text-slate-500 text-center">
+        <p className="text-sm text-fg-muted text-center">
           {mutation.isPending
             ? 'Uploading…'
             : dragOver
@@ -196,7 +196,7 @@ function LogoCard({ org }: { org: Organization }) {
       />
 
       {feedback && (
-        <p className={`text-sm font-medium ${feedback.ok ? 'text-green-600' : 'text-red-600'}`}>
+        <p className={`text-sm font-medium ${feedback.ok ? 'text-success' : 'text-danger'}`}>
           {feedback.msg}
         </p>
       )}
@@ -205,7 +205,7 @@ function LogoCard({ org }: { org: Organization }) {
         <button
           onClick={() => fileRef.current?.click()}
           disabled={mutation.isPending}
-          className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+          className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white hover:brightness-95 focus:outline-none focus:ring-2 focus:ring-primary/30 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
         >
           {mutation.isPending ? 'Uploading…' : 'Choose file'}
         </button>
@@ -228,14 +228,14 @@ function OrgSelect({
   if (orgs.length <= 1) return null
   return (
     <div className="flex items-center gap-3">
-      <label className="text-sm font-medium text-slate-700">Organization:</label>
+      <label className="text-sm font-medium text-fg">Organization:</label>
       <select
         value={selected.id}
         onChange={e => {
           const found = orgs.find(o => o.id === e.target.value)
           if (found) onSelect(found)
         }}
-        className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm text-slate-900 focus:border-blue-500 focus:outline-none focus:ring-2 focus:ring-blue-500/20"
+        className="rounded-lg border border-border-strong px-3 py-1.5 text-sm text-fg focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20"
       >
         {orgs.map(o => (
           <option key={o.id} value={o.id}>
@@ -286,13 +286,13 @@ export default function OrgSettingsPage() {
     return (
       <div className="max-w-4xl mx-auto px-6 py-8 space-y-6">
         <div className="flex flex-col gap-1">
-          <h1 className="text-2xl font-bold text-slate-900">Organization Branding</h1>
-          <p className="text-sm text-slate-500">
+          <h1 className="text-2xl font-bold text-fg">Organization Branding</h1>
+          <p className="text-sm text-fg-muted">
             Customize how your organization appears across the platform.
           </p>
         </div>
 
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
+        <div className="bg-surface rounded-xl border border-border shadow-sm">
           <EmptyState
             icon={Building2}
             title="No organization yet"
@@ -300,7 +300,7 @@ export default function OrgSettingsPage() {
             action={
               <button
                 onClick={() => setShowCreate(true)}
-                className="inline-flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500/30"
+                className="inline-flex items-center gap-2 rounded-lg bg-primary px-4 py-2 text-sm font-medium text-white transition-colors hover:brightness-95 focus:outline-none focus:ring-2 focus:ring-primary/30"
               >
                 <Plus size={14} /> Create organization
               </button>
@@ -323,8 +323,8 @@ export default function OrgSettingsPage() {
     <div className="max-w-4xl mx-auto px-6 py-8 space-y-6">
       {/* Header */}
       <div className="flex flex-col gap-1">
-        <h1 className="text-2xl font-bold text-slate-900">Organization Branding</h1>
-        <p className="text-sm text-slate-500">
+        <h1 className="text-2xl font-bold text-fg">Organization Branding</h1>
+        <p className="text-sm text-fg-muted">
           Customize how your organization appears across the platform.
         </p>
       </div>

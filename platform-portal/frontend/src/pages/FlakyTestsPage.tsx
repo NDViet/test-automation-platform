@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useProject } from '@/components/layout/ProjectLayout'
+import { usePageWidth } from '@/components/layout/PageWidth'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { cn, relativeTime } from '@/lib/utils'
@@ -8,6 +9,7 @@ import type { FlakinessItem, FailureAnalysis, IntegrationConfig } from '@/lib/ty
 import Badge from '@/components/Badge'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import ErrorMessage from '@/components/ErrorMessage'
+import { Button, Input } from '@/components/ui'
 import {
   Zap,
   RefreshCw,
@@ -21,33 +23,31 @@ import {
   CheckCircle,
 } from 'lucide-react'
 
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
 type Classification = FlakinessItem['classification']
 
 function classColor(c: Classification) {
   switch (c) {
     case 'CRITICAL_FLAKY':
-      return 'text-red-700 bg-red-100'
+      return 'text-danger bg-danger-bg'
     case 'FLAKY':
-      return 'text-orange-700 bg-orange-100'
+      return 'text-warning bg-warning-bg'
     case 'WATCH':
-      return 'text-yellow-700 bg-yellow-100'
+      return 'text-info bg-info-bg'
     default:
-      return 'text-slate-600 bg-slate-100'
+      return 'text-neutral bg-neutral-bg'
   }
 }
 
 function scoreBarColor(c: Classification) {
   switch (c) {
     case 'CRITICAL_FLAKY':
-      return 'bg-red-500'
+      return 'bg-danger'
     case 'FLAKY':
-      return 'bg-orange-400'
+      return 'bg-warning'
     case 'WATCH':
-      return 'bg-yellow-400'
+      return 'bg-info'
     default:
-      return 'bg-slate-300'
+      return 'bg-border-strong'
   }
 }
 
@@ -68,17 +68,15 @@ function shortTestId(testId: string): { cls: string; method: string } {
 function categoryColor(category: string) {
   switch (category?.toUpperCase()) {
     case 'FLAKY_TEST':
-      return 'text-orange-700 bg-orange-100'
+      return 'text-warning bg-warning-bg'
     case 'APPLICATION_BUG':
-      return 'text-red-700 bg-red-100'
+      return 'text-danger bg-danger-bg'
     case 'TEST_DEFECT':
-      return 'text-yellow-700 bg-yellow-100'
-    case 'INFRASTRUCTURE':
-      return 'text-purple-700 bg-purple-100'
+      return 'text-info bg-info-bg'
     case 'ENVIRONMENT':
-      return 'text-blue-700 bg-blue-100'
+      return 'text-primary-subtle-fg bg-primary-subtle'
     default:
-      return 'text-slate-600 bg-slate-100'
+      return 'text-neutral bg-neutral-bg'
   }
 }
 
@@ -114,29 +112,29 @@ function FixTargetModal({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
-      <div className="bg-white rounded-xl shadow-xl w-full max-w-md mx-4">
-        <div className="flex items-center justify-between px-5 py-4 border-b border-slate-200">
+      <div className="bg-surface rounded-xl shadow-md w-full max-w-md mx-4">
+        <div className="flex items-center justify-between px-5 py-4 border-b border-border">
           <div className="flex items-center gap-2">
-            <Sparkles size={16} className="text-orange-500" />
-            <h2 className="text-sm font-semibold text-slate-900">Fix with AI</h2>
+            <Sparkles size={16} className="text-primary" />
+            <h2 className="text-sm font-semibold text-fg">Fix with AI</h2>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+          <button onClick={onClose} className="text-fg-subtle hover:text-fg" aria-label="Close">
             <X size={16} />
           </button>
         </div>
 
         <div className="px-5 py-4 space-y-4">
-          <div className="bg-slate-50 rounded-lg px-4 py-3 text-xs text-slate-700 font-mono break-all">
+          <div className="bg-surface-muted rounded-lg px-4 py-3 text-xs text-fg font-mono break-all">
             {item.testId}
           </div>
 
           {isLoading ? (
             <div className="py-4 flex justify-center">
-              <Loader2 size={18} className="animate-spin text-slate-400" />
+              <Loader2 size={18} className="animate-spin text-fg-subtle" />
             </div>
           ) : repos.length === 0 ? (
             <div className="space-y-3">
-              <div className="flex gap-3 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3 text-sm text-amber-800">
+              <div className="flex gap-3 bg-warning-bg border border-warning-border rounded-lg px-4 py-3 text-sm text-warning">
                 <AlertTriangle size={15} className="shrink-0 mt-0.5" />
                 <div>
                   <p className="font-medium">No test automation repo linked</p>
@@ -148,22 +146,22 @@ function FixTargetModal({
               </div>
               <button
                 onClick={() => navigate(`${base}/settings`)}
-                className="w-full py-2 text-sm font-medium text-blue-700 bg-blue-50 border border-blue-200 rounded-lg hover:bg-blue-100 transition-colors flex items-center justify-center gap-2"
+                className="w-full py-2 text-sm font-medium text-primary bg-primary-subtle border border-primary-subtle rounded-lg hover:brightness-95 transition-all flex items-center justify-center gap-2"
               >
                 <Link2 size={14} /> Go to Project Settings
               </button>
             </div>
           ) : repos.length === 1 ? (
             <div className="space-y-2">
-              <p className="text-sm text-slate-600">
+              <p className="text-sm text-fg-muted">
                 Claude will read the failing test, generate a minimal fix, and raise a draft PR to:
               </p>
-              <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-lg px-4 py-3">
-                <GitBranch size={15} className="text-slate-500 shrink-0" />
+              <div className="flex items-center gap-3 bg-surface-muted border border-border rounded-lg px-4 py-3">
+                <GitBranch size={15} className="text-fg-muted shrink-0" />
                 <div>
-                  <p className="text-sm font-medium text-slate-900">{repoLabel(repos[0])}</p>
+                  <p className="text-sm font-medium text-fg">{repoLabel(repos[0])}</p>
                   {repos[0].connectionParams?.repo && (
-                    <p className="text-xs text-slate-500 font-mono">
+                    <p className="text-xs text-fg-muted font-mono">
                       {repos[0].connectionParams.repo}
                     </p>
                   )}
@@ -172,15 +170,15 @@ function FixTargetModal({
             </div>
           ) : (
             <div className="space-y-2">
-              <p className="text-sm text-slate-600">Select the target repository for the fix PR:</p>
+              <p className="text-sm text-fg-muted">Select the target repository for the fix PR:</p>
               {repos.map((cfg: IntegrationConfig) => (
                 <label
                   key={cfg.id}
                   className={cn(
                     'flex items-center gap-3 px-4 py-3 rounded-lg border cursor-pointer transition-colors',
                     selectedRepo === cfg.id
-                      ? 'border-orange-400 bg-orange-50'
-                      : 'border-slate-200 hover:border-slate-300',
+                      ? 'border-primary/40 bg-primary-subtle'
+                      : 'border-border hover:border-border-strong',
                   )}
                 >
                   <input
@@ -189,14 +187,12 @@ function FixTargetModal({
                     value={cfg.id}
                     checked={selectedRepo === cfg.id}
                     onChange={() => setSelectedRepo(cfg.id)}
-                    className="accent-orange-500"
+                    className="accent-primary"
                   />
                   <div className="min-w-0">
-                    <p className="text-sm font-medium text-slate-900">{repoLabel(cfg)}</p>
+                    <p className="text-sm font-medium text-fg">{repoLabel(cfg)}</p>
                     {cfg.connectionParams?.repo && (
-                      <p className="text-xs text-slate-500 font-mono">
-                        {cfg.connectionParams.repo}
-                      </p>
+                      <p className="text-xs text-fg-muted font-mono">{cfg.connectionParams.repo}</p>
                     )}
                   </div>
                 </label>
@@ -206,22 +202,18 @@ function FixTargetModal({
         </div>
 
         {repos.length > 0 && (
-          <div className="px-5 py-4 border-t border-slate-200 flex justify-end gap-2">
-            <button
-              onClick={onClose}
-              className="px-4 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 transition-colors"
-            >
+          <div className="px-5 py-4 border-t border-border flex justify-end gap-2">
+            <Button variant="secondary" onClick={onClose}>
               Cancel
-            </button>
-            <button
+            </Button>
+            <Button
               onClick={() =>
                 (selectedRepo || repos[0]?.id) && onConfirm(selectedRepo || repos[0]?.id)
               }
               disabled={!selectedRepo && repos.length > 1}
-              className="px-4 py-2 text-sm font-medium text-white bg-orange-500 rounded-lg hover:bg-orange-600 disabled:opacity-50 transition-colors flex items-center gap-2"
             >
               <Sparkles size={13} /> Fix with AI
-            </button>
+            </Button>
           </div>
         )}
       </div>
@@ -260,12 +252,10 @@ function DetailPanel({
   const canFix = item.classification === 'FLAKY' || item.classification === 'CRITICAL_FLAKY'
 
   return (
-    <div className="w-96 shrink-0 border-l border-slate-200 bg-white flex flex-col h-full">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
-        <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
-          Detail
-        </span>
-        <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+    <div className="w-96 shrink-0 border-l border-border bg-surface flex flex-col h-full">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border">
+        <span className="text-xs font-semibold text-fg-muted uppercase tracking-wider">Detail</span>
+        <button onClick={onClose} className="text-fg-subtle hover:text-fg" aria-label="Close">
           <X size={16} />
         </button>
       </div>
@@ -273,21 +263,21 @@ function DetailPanel({
       <div className="flex-1 overflow-y-auto px-4 py-4 space-y-5">
         {/* Test identity */}
         <div>
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-1">Test</p>
-          <p className="text-sm font-medium text-slate-900">
+          <p className="text-xs font-semibold text-fg-muted uppercase tracking-wider mb-1">Test</p>
+          <p className="text-sm font-medium text-fg">
             {cls}
             {method ? `#${method}` : ''}
           </p>
-          <p className="text-xs text-slate-400 font-mono mt-0.5 break-all">{item.testId}</p>
+          <p className="text-xs text-fg-subtle font-mono mt-0.5 break-all">{item.testId}</p>
         </div>
 
         {/* Score */}
         <div>
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+          <p className="text-xs font-semibold text-fg-muted uppercase tracking-wider mb-2">
             Flakiness Score
           </p>
           <div className="flex items-center gap-3 mb-2">
-            <div className="flex-1 h-2 bg-slate-100 rounded-full overflow-hidden">
+            <div className="flex-1 h-2 bg-surface-muted rounded-full overflow-hidden">
               <div
                 className={cn(
                   'h-full rounded-full transition-all',
@@ -296,7 +286,7 @@ function DetailPanel({
                 style={{ width: `${Math.min(item.score * 100, 100)}%` }}
               />
             </div>
-            <span className="text-sm font-bold text-slate-800 w-10 text-right">
+            <span className="text-sm font-bold text-fg w-10 text-right">
               {(item.score * 100).toFixed(0)}
             </span>
           </div>
@@ -304,29 +294,21 @@ function DetailPanel({
             label={item.classification.replace('_', ' ')}
             colorClass={classColor(item.classification)}
           />
-          <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-slate-600">
-            <span>Total runs</span>{' '}
-            <span className="font-medium text-slate-900">{item.totalRuns}</span>
-            <span>Failures</span>{' '}
-            <span className="font-medium text-slate-900">{item.failureCount}</span>
+          <div className="mt-3 grid grid-cols-2 gap-x-4 gap-y-1 text-xs text-fg-muted">
+            <span>Total runs</span> <span className="font-medium text-fg">{item.totalRuns}</span>
+            <span>Failures</span> <span className="font-medium text-fg">{item.failureCount}</span>
             <span>Failure rate</span>{' '}
-            <span className="font-medium text-slate-900">
-              {(item.failureRate * 100).toFixed(1)}%
-            </span>
+            <span className="font-medium text-fg">{(item.failureRate * 100).toFixed(1)}%</span>
             {item.lastFailedAt && (
               <>
                 <span>Last failed</span>
-                <span className="font-medium text-slate-900">
-                  {relativeTime(item.lastFailedAt)}
-                </span>
+                <span className="font-medium text-fg">{relativeTime(item.lastFailedAt)}</span>
               </>
             )}
             {item.lastPassedAt && (
               <>
                 <span>Last passed</span>
-                <span className="font-medium text-slate-900">
-                  {relativeTime(item.lastPassedAt)}
-                </span>
+                <span className="font-medium text-fg">{relativeTime(item.lastPassedAt)}</span>
               </>
             )}
           </div>
@@ -335,7 +317,7 @@ function DetailPanel({
         {/* AI Analysis */}
         {analysis ? (
           <div className="space-y-3">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+            <p className="text-xs font-semibold text-fg-muted uppercase tracking-wider">
               AI Analysis
             </p>
             <div className="flex items-center gap-2 flex-wrap">
@@ -343,65 +325,61 @@ function DetailPanel({
                 label={analysis.category.replace('_', ' ')}
                 colorClass={categoryColor(analysis.category)}
               />
-              <span className="text-xs text-slate-500">
+              <span className="text-xs text-fg-muted">
                 {(analysis.confidence * 100).toFixed(0)}% confidence
               </span>
               {analysis.flakyCandidate && (
-                <Badge label="Flaky candidate" colorClass="text-orange-700 bg-orange-100" />
+                <Badge label="Flaky candidate" colorClass="text-warning bg-warning-bg" />
               )}
             </div>
             <div>
-              <p className="text-xs font-semibold text-slate-500 mb-1">Root Cause</p>
-              <p className="text-sm text-slate-700 leading-snug">{analysis.rootCause}</p>
+              <p className="text-xs font-semibold text-fg-muted mb-1">Root Cause</p>
+              <p className="text-sm text-fg leading-snug">{analysis.rootCause}</p>
             </div>
             <div>
-              <p className="text-xs font-semibold text-slate-500 mb-1">Analysis</p>
-              <p className="text-sm text-slate-700 leading-snug whitespace-pre-wrap">
+              <p className="text-xs font-semibold text-fg-muted mb-1">Analysis</p>
+              <p className="text-sm text-fg leading-snug whitespace-pre-wrap">
                 {analysis.detailedAnalysis}
               </p>
             </div>
             <div>
-              <p className="text-xs font-semibold text-slate-500 mb-1">Suggested Fix</p>
-              <p className="text-sm text-slate-700 leading-snug whitespace-pre-wrap">
+              <p className="text-xs font-semibold text-fg-muted mb-1">Suggested Fix</p>
+              <p className="text-sm text-fg leading-snug whitespace-pre-wrap">
                 {analysis.suggestedFix}
               </p>
             </div>
-            <p className="text-xs text-slate-400">Analysed {relativeTime(analysis.analysedAt)}</p>
+            <p className="text-xs text-fg-subtle">Analysed {relativeTime(analysis.analysedAt)}</p>
           </div>
         ) : (
-          <div className="text-sm text-slate-400 italic">
+          <div className="text-sm text-fg-subtle italic">
             No AI analysis yet — trigger analysis from the header button.
           </div>
         )}
       </div>
 
       {/* Actions */}
-      <div className="px-4 py-3 border-t border-slate-200 space-y-2">
+      <div className="px-4 py-3 border-t border-border space-y-2">
         {fixStarted ? (
-          <div className="flex items-center gap-2 text-sm text-green-700 py-1">
+          <div className="flex items-center gap-2 text-sm text-success py-1">
             <CheckCircle size={15} className="shrink-0" />
             Fix started — a draft PR will appear in the linked repo shortly.
           </div>
         ) : canFix ? (
-          <button
+          <Button
+            className="w-full"
             onClick={() => setShowFixModal(true)}
-            disabled={fixMutation.isPending}
-            className="w-full py-2 text-sm font-medium text-white bg-orange-500 rounded-lg hover:bg-orange-600 disabled:opacity-50 transition-colors flex items-center justify-center gap-2"
+            loading={fixMutation.isPending}
           >
-            {fixMutation.isPending ? (
-              <Loader2 size={14} className="animate-spin" />
-            ) : (
-              <Sparkles size={14} />
-            )}
+            {!fixMutation.isPending && <Sparkles size={14} />}
             {fixMutation.isPending ? 'Starting…' : 'Fix with AI'}
-          </button>
+          </Button>
         ) : (
-          <p className="text-xs text-slate-400 text-center py-1">
+          <p className="text-xs text-fg-subtle text-center py-1">
             Fix with AI is available for FLAKY and CRITICAL_FLAKY tests.
           </p>
         )}
         {fixMutation.isError && (
-          <p className="text-xs text-red-600">{(fixMutation.error as Error).message}</p>
+          <p className="text-xs text-danger">{(fixMutation.error as Error).message}</p>
         )}
       </div>
 
@@ -422,13 +400,13 @@ function DetailPanel({
 function ScoreBar({ score, classification }: { score: number; classification: Classification }) {
   return (
     <div className="flex items-center gap-2 w-24">
-      <div className="flex-1 h-1.5 bg-slate-100 rounded-full overflow-hidden">
+      <div className="flex-1 h-1.5 bg-surface-muted rounded-full overflow-hidden">
         <div
           className={cn('h-full rounded-full', scoreBarColor(classification))}
           style={{ width: `${Math.min(score * 100, 100)}%` }}
         />
       </div>
-      <span className="text-xs font-mono text-slate-600 w-7 text-right">
+      <span className="text-xs font-mono text-fg-muted w-7 text-right">
         {(score * 100).toFixed(0)}
       </span>
     </div>
@@ -446,6 +424,7 @@ const TABS: { label: string; value: Classification | '' }[] = [
 ]
 
 export default function FlakyTestsPage() {
+  usePageWidth('wide')
   const { projectId } = useProject()
   const qc = useQueryClient()
 
@@ -515,39 +494,34 @@ export default function FlakyTestsPage() {
   return (
     <div className="flex-1 flex flex-col h-full min-h-0 overflow-hidden">
       {/* Header */}
-      <div className="px-6 py-4 border-b border-slate-200 bg-white shrink-0">
+      <div className="px-6 py-4 border-b border-border bg-surface shrink-0">
         <div className="flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-bold text-slate-900 flex items-center gap-2">
-              <Zap size={20} className="text-orange-500" />
+            <h1 className="text-xl font-semibold tracking-tight text-fg flex items-center gap-2">
+              <Zap size={20} className="text-warning" />
               Flaky Tests
             </h1>
-            <p className="text-sm text-slate-500 mt-0.5">
+            <p className="text-sm text-fg-muted mt-0.5">
               {items.length} tests tracked ·{' '}
               {(counts['CRITICAL_FLAKY'] ?? 0) + (counts['FLAKY'] ?? 0)} actionable
             </p>
           </div>
           <div className="flex items-center gap-3">
             {recomputeDone && (
-              <span className="text-xs text-green-600 flex items-center gap-1">
+              <span className="text-xs text-success flex items-center gap-1">
                 <CheckCircle size={13} /> Scores refreshed
               </span>
             )}
-            <button
+            <Button
               onClick={() => {
                 void recomputeMutation.mutate()
                 void api.analyseNow(48)
               }}
-              disabled={recomputeMutation.isPending}
-              className="flex items-center gap-2 px-4 py-2 text-sm font-medium bg-slate-800 text-white rounded-lg hover:bg-slate-700 disabled:opacity-50 transition-colors"
+              loading={recomputeMutation.isPending}
             >
-              {recomputeMutation.isPending ? (
-                <Loader2 size={14} className="animate-spin" />
-              ) : (
-                <RefreshCw size={14} />
-              )}
+              {!recomputeMutation.isPending && <RefreshCw size={14} />}
               {recomputeMutation.isPending ? 'Analysing…' : 'Trigger Analysis'}
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -558,8 +532,10 @@ export default function FlakyTestsPage() {
               key={t.value}
               onClick={() => setTab(t.value)}
               className={cn(
-                'px-3 py-1.5 text-sm font-medium rounded-lg transition-colors',
-                tab === t.value ? 'bg-slate-800 text-white' : 'text-slate-600 hover:bg-slate-100',
+                'px-3 py-1.5 text-sm font-medium rounded-md transition-colors',
+                tab === t.value
+                  ? 'bg-primary text-primary-fg'
+                  : 'text-fg-muted hover:bg-surface-muted',
               )}
             >
               {t.label}
@@ -567,7 +543,7 @@ export default function FlakyTestsPage() {
                 <span
                   className={cn(
                     'ml-1.5 text-xs px-1.5 py-0.5 rounded-full',
-                    tab === t.value ? 'bg-white/20 text-white' : 'bg-slate-200 text-slate-600',
+                    tab === t.value ? 'bg-white/25 text-white' : 'bg-surface-muted text-fg-muted',
                   )}
                 >
                   {counts[t.value]}
@@ -578,14 +554,14 @@ export default function FlakyTestsPage() {
 
           <div className="ml-auto flex items-center gap-4">
             {/* Hide permanent failures toggle */}
-            <label className="flex items-center gap-2 text-xs text-slate-600 cursor-pointer select-none">
+            <label className="flex items-center gap-2 text-xs text-fg-muted cursor-pointer select-none">
               <button
                 role="switch"
                 aria-checked={hidePermanent}
                 onClick={() => setHideP(v => !v)}
                 className={cn(
                   'relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors',
-                  hidePermanent ? 'bg-slate-700' : 'bg-slate-200',
+                  hidePermanent ? 'bg-primary' : 'bg-border-strong',
                 )}
               >
                 <span
@@ -598,12 +574,13 @@ export default function FlakyTestsPage() {
               Hide permanent failures
             </label>
 
-            <input
+            <Input
               type="search"
               value={search}
               onChange={e => setSearch(e.target.value)}
               placeholder="Search tests…"
-              className="text-sm border border-slate-200 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-slate-400 w-52"
+              aria-label="Search tests"
+              className="w-52"
             />
           </div>
         </div>
@@ -612,11 +589,11 @@ export default function FlakyTestsPage() {
       {/* Body */}
       <div className="flex-1 flex min-h-0 overflow-hidden">
         {/* List */}
-        <div className={cn('flex-1 overflow-y-auto', selected ? 'border-r border-slate-200' : '')}>
+        <div className={cn('flex-1 overflow-y-auto', selected ? 'border-r border-border' : '')}>
           {filtered.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-center gap-3">
-              <Zap size={36} className="text-slate-300" />
-              <p className="text-slate-500 text-sm">
+              <Zap size={36} className="text-fg-subtle" />
+              <p className="text-fg-muted text-sm">
                 {items.length === 0
                   ? 'No flakiness data yet — run tests and trigger an analysis.'
                   : 'No tests match the current filters.'}
@@ -624,8 +601,8 @@ export default function FlakyTestsPage() {
             </div>
           ) : (
             <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-white border-b border-slate-200 z-10">
-                <tr className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+              <thead className="sticky top-0 bg-surface border-b border-border z-10">
+                <tr className="text-xs font-semibold text-fg-muted uppercase tracking-wider">
                   <th className="text-left px-5 py-3">Test</th>
                   <th className="text-left px-4 py-3">Score</th>
                   <th className="text-left px-4 py-3">Classification</th>
@@ -636,7 +613,7 @@ export default function FlakyTestsPage() {
                   <th className="px-4 py-3" />
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-50">
+              <tbody className="divide-y divide-border">
                 {filtered.map(item => {
                   const analysis = analysisMap.get(item.testId)
                   const { cls, method } = shortTestId(item.testId)
@@ -649,14 +626,14 @@ export default function FlakyTestsPage() {
                       key={item.id}
                       onClick={() => setSelected(isSelected ? null : item)}
                       className={cn(
-                        'cursor-pointer hover:bg-slate-50 transition-colors',
-                        isSelected && 'bg-orange-50 hover:bg-orange-50',
+                        'cursor-pointer hover:bg-surface-muted transition-colors',
+                        isSelected && 'bg-primary-subtle hover:bg-primary-subtle',
                       )}
                     >
                       <td className="px-5 py-3">
-                        <p className="font-medium text-slate-900 truncate max-w-xs">{cls}</p>
+                        <p className="font-medium text-fg truncate max-w-xs">{cls}</p>
                         {method && (
-                          <p className="text-xs text-slate-400 font-mono truncate max-w-xs">
+                          <p className="text-xs text-fg-subtle font-mono truncate max-w-xs">
                             #{method}
                           </p>
                         )}
@@ -670,8 +647,8 @@ export default function FlakyTestsPage() {
                           colorClass={classColor(item.classification)}
                         />
                       </td>
-                      <td className="px-4 py-3 text-right text-slate-700">{item.failureCount}</td>
-                      <td className="px-4 py-3 text-right text-slate-700">
+                      <td className="px-4 py-3 text-right text-fg">{item.failureCount}</td>
+                      <td className="px-4 py-3 text-right text-fg">
                         {(item.failureRate * 100).toFixed(1)}%
                       </td>
                       <td className="px-4 py-3">
@@ -681,10 +658,10 @@ export default function FlakyTestsPage() {
                             colorClass={categoryColor(analysis.category)}
                           />
                         ) : (
-                          <span className="text-xs text-slate-300">—</span>
+                          <span className="text-xs text-fg-subtle">—</span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-slate-500 text-xs whitespace-nowrap">
+                      <td className="px-4 py-3 text-fg-muted text-xs whitespace-nowrap">
                         {item.lastFailedAt ? relativeTime(item.lastFailedAt) : '—'}
                       </td>
                       <td className="px-4 py-3">
@@ -694,7 +671,7 @@ export default function FlakyTestsPage() {
                               e.stopPropagation()
                               setSelected(item)
                             }}
-                            className="flex items-center gap-1 text-xs text-orange-600 hover:text-orange-800 font-medium whitespace-nowrap"
+                            className="flex items-center gap-1 text-xs text-primary hover:underline font-medium whitespace-nowrap"
                           >
                             <Sparkles size={12} /> Fix
                             <ChevronRight size={12} />

@@ -15,6 +15,7 @@ import type {
 import Badge from '@/components/Badge'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import ErrorMessage from '@/components/ErrorMessage'
+import { Button } from '@/components/ui'
 import {
   GitPullRequest,
   ChevronRight,
@@ -39,13 +40,13 @@ import {
 // ── Status helpers ─────────────────────────────────────────────────────────────
 
 const STATUS_META: Record<string, { color: string; icon: React.ReactNode }> = {
-  COMPLETED: { color: 'text-green-700 bg-green-100', icon: <CheckCircle size={13} /> },
-  FAILED: { color: 'text-red-700 bg-red-100', icon: <XCircle size={13} /> },
+  COMPLETED: { color: 'text-success bg-success-bg', icon: <CheckCircle size={13} /> },
+  FAILED: { color: 'text-danger bg-danger-bg', icon: <XCircle size={13} /> },
   RUNNING: {
-    color: 'text-blue-700 bg-blue-100',
+    color: 'text-info bg-info-bg',
     icon: <Loader2 size={13} className="animate-spin" />,
   },
-  DRAFT: { color: 'text-slate-600 bg-slate-100', icon: <Clock size={13} /> },
+  DRAFT: { color: 'text-neutral bg-neutral-bg', icon: <Clock size={13} /> },
 }
 function statusMeta(s: string) {
   return STATUS_META[s] ?? STATUS_META.DRAFT
@@ -54,22 +55,22 @@ function statusMeta(s: string) {
 function priorityColor(p: string) {
   switch (p) {
     case 'HIGH':
-      return 'text-red-700 bg-red-100'
+      return 'text-danger bg-danger-bg'
     case 'MEDIUM':
-      return 'text-orange-700 bg-orange-100'
+      return 'text-warning bg-warning-bg'
     default:
-      return 'text-slate-600 bg-slate-100'
+      return 'text-neutral bg-neutral-bg'
   }
 }
 
 function suggestionIcon(type: ImpactAnalysisSuggestion['type']) {
   switch (type) {
     case 'UPDATE_MANUAL_TEST':
-      return <FileText size={15} className="text-blue-500 shrink-0" />
+      return <FileText size={15} className="text-info shrink-0" />
     case 'CREATE_AUTOMATED_TEST':
-      return <PlusCircle size={15} className="text-green-500 shrink-0" />
+      return <PlusCircle size={15} className="text-success shrink-0" />
     case 'UPDATE_AUTOMATION':
-      return <Code2 size={15} className="text-purple-500 shrink-0" />
+      return <Code2 size={15} className="text-teal-600 shrink-0" />
   }
 }
 
@@ -129,7 +130,7 @@ function TreeCheckbox({ state, onChange }: { state: CheckState; onChange: () => 
       type="checkbox"
       checked={state === 'checked'}
       onChange={onChange}
-      className="rounded border-slate-300 cursor-pointer"
+      className="rounded border-border-strong accent-primary cursor-pointer"
     />
   )
 }
@@ -156,22 +157,19 @@ function ReqTreeRow({
   return (
     <>
       <div
-        className="flex items-center gap-2 px-3 py-1.5 hover:bg-slate-50 rounded"
+        className="flex items-center gap-2 px-3 py-1.5 hover:bg-surface-muted rounded"
         style={{ paddingLeft: `${12 + indent * 20}px` }}
       >
         <TreeCheckbox state={state} onChange={() => onToggleSelect(node)} />
         {hasChildren ? (
-          <button
-            onClick={() => onToggleExpand(node.id)}
-            className="text-slate-400 hover:text-slate-700"
-          >
+          <button onClick={() => onToggleExpand(node.id)} className="text-fg-subtle hover:text-fg">
             {isExpanded ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
           </button>
         ) : (
           <span className="w-[14px]" />
         )}
-        <span className="text-sm text-slate-700 truncate flex-1">{node.title}</span>
-        <span className="text-xs text-slate-400 shrink-0">{node.issueType}</span>
+        <span className="text-sm text-fg truncate flex-1">{node.title}</span>
+        <span className="text-xs text-fg-subtle shrink-0">{node.issueType}</span>
       </div>
       {hasChildren &&
         isExpanded &&
@@ -292,17 +290,17 @@ function CreateModal({
 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl flex flex-col max-h-[85vh]">
+      <div className="bg-surface rounded-2xl shadow-lg w-full max-w-2xl flex flex-col max-h-[85vh]">
         {/* Header */}
-        <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between">
+        <div className="px-6 py-5 border-b border-border flex items-center justify-between">
           <div>
-            <h2 className="font-semibold text-slate-900">New Impact Analysis</h2>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <h2 className="font-semibold text-fg">New Impact Analysis</h2>
+            <p className="text-xs text-fg-muted mt-0.5">
               Step {step === 'prs' ? '1' : '2'} of 2 —{' '}
               {step === 'prs' ? 'Select PRs' : 'Link Requirements'}
             </p>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-700">
+          <button onClick={onClose} className="text-fg-subtle hover:text-fg">
             <X size={18} />
           </button>
         </div>
@@ -313,7 +311,7 @@ function CreateModal({
             value={name}
             onChange={e => setName(e.target.value)}
             placeholder="Analysis name"
-            className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className={inputCls}
           />
         </div>
 
@@ -323,18 +321,18 @@ function CreateModal({
             prsLoading ? (
               <LoadingSpinner message="Loading PRs from Codebase repos…" />
             ) : prList.length === 0 ? (
-              <div className="text-center py-12 text-sm text-slate-500">
-                <AlertTriangle size={32} className="mx-auto mb-3 text-amber-400" />
+              <div className="text-center py-12 text-sm text-fg-muted">
+                <AlertTriangle size={32} className="mx-auto mb-3 text-warning" />
                 <p className="font-medium">No Codebase repos configured</p>
                 <p className="mt-1">
                   Go to Project Settings and mark a GitHub repo as{' '}
-                  <span className="font-mono bg-slate-100 px-1 rounded">Codebase</span> to list PRs
-                  here.
+                  <span className="font-mono bg-surface-muted px-1 rounded">Codebase</span> to list
+                  PRs here.
                 </p>
               </div>
             ) : (
               <div className="space-y-2">
-                <p className="text-xs text-slate-500 mb-3">Select one or more PRs to analyse:</p>
+                <p className="text-xs text-fg-muted mb-3">Select one or more PRs to analyse:</p>
                 {prList.map(pr => {
                   const key = buildPrKey(pr)
                   const checked = selectedPrs.has(key)
@@ -344,37 +342,35 @@ function CreateModal({
                       className={cn(
                         'flex items-start gap-3 p-3 rounded-xl border cursor-pointer transition-colors',
                         checked
-                          ? 'border-blue-400 bg-blue-50'
-                          : 'border-slate-200 hover:border-slate-300',
+                          ? 'border-primary/40 bg-primary-subtle'
+                          : 'border-border hover:border-border-strong',
                       )}
                     >
                       <input
                         type="checkbox"
                         checked={checked}
                         onChange={() => togglePr(key)}
-                        className="rounded border-slate-300 mt-0.5"
+                        className="rounded border-border-strong accent-primary mt-0.5"
                       />
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-2">
-                          <span className="text-sm font-medium text-slate-800 truncate">
-                            {pr.title}
-                          </span>
+                          <span className="text-sm font-medium text-fg truncate">{pr.title}</span>
                           <a
                             href={pr.html_url}
                             target="_blank"
                             rel="noreferrer"
                             onClick={e => e.stopPropagation()}
-                            className="text-blue-500 hover:text-blue-700 shrink-0"
+                            className="text-primary hover:brightness-110 shrink-0"
                           >
                             <ExternalLink size={12} />
                           </a>
                         </div>
-                        <p className="text-xs text-slate-500 mt-0.5">
+                        <p className="text-xs text-fg-muted mt-0.5">
                           {pr.repoFullName} · PR #{pr.number} · {pr.user} · {pr.head_ref} →{' '}
                           {pr.base_ref}
                         </p>
                         {pr.body && (
-                          <p className="text-xs text-slate-400 mt-1 line-clamp-2">{pr.body}</p>
+                          <p className="text-xs text-fg-subtle mt-1 line-clamp-2">{pr.body}</p>
                         )}
                       </div>
                     </label>
@@ -385,7 +381,7 @@ function CreateModal({
           ) : reqsLoading ? (
             <LoadingSpinner message="Loading requirements…" />
           ) : reqList.length === 0 ? (
-            <p className="text-sm text-slate-500 text-center py-12">
+            <p className="text-sm text-fg-muted text-center py-12">
               No requirements found for this project.
             </p>
           ) : (
@@ -394,17 +390,17 @@ function CreateModal({
                 value={reqSearch}
                 onChange={e => setReqSearch(e.target.value)}
                 placeholder="Search requirements…"
-                className="w-full border border-slate-200 rounded-lg px-3 py-2 text-sm mb-3 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className={cn(inputCls, 'mb-3')}
               />
-              <div className="border border-slate-200 rounded-xl overflow-hidden">
+              <div className="border border-border rounded-xl overflow-hidden">
                 {filteredReqs ? (
                   filteredReqs.length === 0 ? (
-                    <p className="px-4 py-6 text-sm text-slate-500 text-center">No matches.</p>
+                    <p className="px-4 py-6 text-sm text-fg-muted text-center">No matches.</p>
                   ) : (
                     filteredReqs.map(r => (
                       <label
                         key={r.id}
-                        className="flex items-center gap-2 px-3 py-2 hover:bg-slate-50 cursor-pointer"
+                        className="flex items-center gap-2 px-3 py-2 hover:bg-surface-muted cursor-pointer"
                       >
                         <input
                           type="checkbox"
@@ -416,15 +412,15 @@ function CreateModal({
                               return next
                             })
                           }
-                          className="rounded border-slate-300"
+                          className="rounded border-border-strong accent-primary"
                         />
                         {r.externalId && (
-                          <span className="text-xs font-mono text-blue-600 bg-blue-50 px-1.5 py-0.5 rounded shrink-0">
+                          <span className="text-xs font-mono text-primary bg-primary-subtle px-1.5 py-0.5 rounded shrink-0">
                             {r.externalId}
                           </span>
                         )}
-                        <span className="text-sm text-slate-700 truncate flex-1">{r.title}</span>
-                        <span className="text-xs text-slate-400 shrink-0">{r.issueType}</span>
+                        <span className="text-sm text-fg truncate flex-1">{r.title}</span>
+                        <span className="text-xs text-fg-subtle shrink-0">{r.issueType}</span>
                       </label>
                     ))
                   )
@@ -447,8 +443,8 @@ function CreateModal({
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-slate-100 flex items-center justify-between">
-          <div className="text-sm text-slate-500">
+        <div className="px-6 py-4 border-t border-border flex items-center justify-between">
+          <div className="text-sm text-fg-muted">
             {step === 'prs'
               ? `${selectedPrs.size} PR${selectedPrs.size !== 1 ? 's' : ''} selected`
               : selectedReqs.size > 0
@@ -457,31 +453,20 @@ function CreateModal({
           </div>
           <div className="flex gap-3">
             {step === 'reqs' && (
-              <button
-                onClick={() => setStep('prs')}
-                className="px-4 py-2 text-sm text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50"
-              >
+              <Button variant="secondary" onClick={() => setStep('prs')}>
                 Back
-              </button>
+              </Button>
             )}
             {step === 'prs' ? (
-              <button
-                disabled={!canProceed}
-                onClick={() => setStep('reqs')}
-                className="flex items-center gap-2 px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
+              <Button disabled={!canProceed} onClick={() => setStep('reqs')}>
                 Next: Requirements
                 <ArrowRight size={14} />
-              </button>
+              </Button>
             ) : (
-              <button
-                disabled={!canProceed}
-                onClick={handleCreate}
-                className="flex items-center gap-2 px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
+              <Button disabled={!canProceed} onClick={handleCreate}>
                 <Sparkles size={14} />
-                Create & Analyse
-              </button>
+                Create &amp; Analyse
+              </Button>
             )}
           </div>
         </div>
@@ -534,11 +519,11 @@ function SuggestionCard({
   )
 
   return (
-    <div className="border border-slate-200 rounded-xl p-4 space-y-2">
+    <div className="border border-border rounded-xl p-4 space-y-2">
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-center gap-2 min-w-0">
           {suggestionIcon(suggestion.type)}
-          <span className="text-sm font-medium text-slate-800 truncate">{suggestion.title}</span>
+          <span className="text-sm font-medium text-fg truncate">{suggestion.title}</span>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <span
@@ -553,28 +538,28 @@ function SuggestionCard({
             label={suggestionLabel(suggestion.type)}
             colorClass={
               suggestion.type === 'UPDATE_MANUAL_TEST'
-                ? 'text-blue-700 bg-blue-100'
+                ? 'text-info bg-info-bg'
                 : suggestion.type === 'CREATE_AUTOMATED_TEST'
-                  ? 'text-green-700 bg-green-100'
-                  : 'text-purple-700 bg-purple-100'
+                  ? 'text-success bg-success-bg'
+                  : 'text-teal-700 bg-teal-100'
             }
           />
         </div>
       </div>
 
-      <p className="text-xs text-slate-600 leading-relaxed">{suggestion.reason}</p>
+      <p className="text-xs text-fg-muted leading-relaxed">{suggestion.reason}</p>
 
       {suggestion.details && (
         <>
           <button
             onClick={() => setExpanded(e => !e)}
-            className="flex items-center gap-1 text-xs text-blue-600 hover:text-blue-800"
+            className="flex items-center gap-1 text-xs text-primary hover:underline"
           >
             {expanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
             {expanded ? 'Hide details' : 'Show details'}
           </button>
           {expanded && (
-            <pre className="text-xs bg-slate-50 border border-slate-200 rounded-lg p-3 whitespace-pre-wrap font-mono leading-relaxed">
+            <pre className="text-xs bg-surface-muted border border-border rounded-lg p-3 whitespace-pre-wrap font-mono leading-relaxed text-fg">
               {suggestion.details}
             </pre>
           )}
@@ -585,14 +570,14 @@ function SuggestionCard({
       {suggestion.type === 'UPDATE_MANUAL_TEST' && (
         <div className="pt-1">
           {applied ? (
-            <span className="inline-flex items-center gap-1 text-xs text-green-600 font-medium">
+            <span className="inline-flex items-center gap-1 text-xs text-success font-medium">
               <CheckCircle size={12} /> Applied — test case is now under review
             </span>
           ) : suggestion.testCaseId ? (
             <button
               onClick={() => applyMutation.mutate(suggestion.testCaseId!)}
               disabled={applyMutation.isPending}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-50 disabled:opacity-50"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-primary border border-primary-subtle rounded-lg hover:bg-primary-subtle disabled:opacity-50"
             >
               {applyMutation.isPending ? (
                 <Loader2 size={11} className="animate-spin" />
@@ -602,55 +587,52 @@ function SuggestionCard({
               Apply to linked test case
             </button>
           ) : applying ? (
-            <div className="border border-slate-200 rounded-lg overflow-hidden">
-              <div className="flex items-center gap-1 px-2 py-1.5 border-b border-slate-100 bg-slate-50">
-                <span className="text-xs text-slate-600 font-medium flex-1">
+            <div className="border border-border rounded-lg overflow-hidden">
+              <div className="flex items-center gap-1 px-2 py-1.5 border-b border-border bg-surface-muted">
+                <span className="text-xs text-fg-muted font-medium flex-1">
                   Select test case to update
                 </span>
-                <button
-                  onClick={() => setApplying(false)}
-                  className="text-slate-400 hover:text-slate-600"
-                >
+                <button onClick={() => setApplying(false)} className="text-fg-subtle hover:text-fg">
                   <X size={12} />
                 </button>
               </div>
-              <div className="px-2 py-1.5 border-b border-slate-100">
+              <div className="px-2 py-1.5 border-b border-border">
                 <input
                   autoFocus
                   value={tcSearch}
                   onChange={e => setTcSearch(e.target.value)}
                   placeholder="Search test cases…"
-                  className="w-full text-xs outline-none"
+                  className="w-full text-xs bg-transparent text-fg placeholder:text-fg-subtle outline-none"
                 />
               </div>
               <div className="max-h-36 overflow-y-auto">
                 {tcLoading ? (
                   <div className="flex justify-center py-3">
-                    <Loader2 size={14} className="animate-spin text-slate-400" />
+                    <Loader2 size={14} className="animate-spin text-fg-subtle" />
                   </div>
                 ) : filteredTcs.length === 0 ? (
-                  <p className="text-xs text-slate-400 px-3 py-2">No test cases found</p>
+                  <p className="text-xs text-fg-subtle px-3 py-2">No test cases found</p>
                 ) : (
                   filteredTcs.slice(0, 10).map(tc => (
                     <button
                       key={tc.id}
                       onClick={() => applyMutation.mutate(tc.id)}
                       disabled={applyMutation.isPending}
-                      className="w-full text-left px-3 py-1.5 text-xs hover:bg-blue-50 flex items-center gap-2 disabled:opacity-50"
+                      className="w-full text-left px-3 py-1.5 text-xs hover:bg-primary-subtle flex items-center gap-2 disabled:opacity-50"
                     >
                       <span
                         className={cn(
                           'shrink-0 px-1.5 py-0.5 rounded text-[10px] font-medium',
                           tc.status === 'APPROVED'
-                            ? 'bg-green-100 text-green-700'
+                            ? 'bg-success-bg text-success'
                             : tc.status === 'DRAFT'
-                              ? 'bg-slate-100 text-slate-600'
-                              : 'bg-yellow-100 text-yellow-700',
+                              ? 'bg-neutral-bg text-neutral'
+                              : 'bg-warning-bg text-warning',
                         )}
                       >
                         {tc.status}
                       </span>
-                      <span className="text-slate-700 truncate">{tc.title}</span>
+                      <span className="text-fg truncate">{tc.title}</span>
                     </button>
                   ))
                 )}
@@ -659,7 +641,7 @@ function SuggestionCard({
           ) : (
             <button
               onClick={() => setApplying(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-blue-700 border border-blue-200 rounded-lg hover:bg-blue-50"
+              className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-primary border border-primary-subtle rounded-lg hover:bg-primary-subtle"
             >
               <ArrowRight size={11} />
               Apply to test case
@@ -686,9 +668,9 @@ function DetailPanel({
   const suggestions = analysis.suggestions?.suggestions ?? []
 
   return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col h-full">
+    <div className="bg-surface rounded-xl border border-border shadow-sm flex flex-col h-full">
       {/* Header */}
-      <div className="px-5 py-4 border-b border-slate-100 flex items-start justify-between gap-3">
+      <div className="px-5 py-4 border-b border-border flex items-start justify-between gap-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2 mb-1">
             <span
@@ -701,10 +683,10 @@ function DetailPanel({
               {analysis.status}
             </span>
           </div>
-          <h3 className="font-semibold text-slate-900 text-sm">{analysis.name}</h3>
-          <p className="text-xs text-slate-500 mt-0.5">{relativeTime(analysis.createdAt)}</p>
+          <h3 className="font-semibold text-fg text-sm">{analysis.name}</h3>
+          <p className="text-xs text-fg-muted mt-0.5">{relativeTime(analysis.createdAt)}</p>
         </div>
-        <button onClick={onClose} className="text-slate-400 hover:text-slate-700 shrink-0">
+        <button onClick={onClose} className="text-fg-subtle hover:text-fg shrink-0">
           <X size={16} />
         </button>
       </div>
@@ -712,7 +694,7 @@ function DetailPanel({
       <div className="flex-1 overflow-y-auto p-5 space-y-5">
         {/* Linked PRs */}
         <div>
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+          <p className="text-xs font-semibold text-fg-muted uppercase tracking-wider mb-2">
             Linked PRs
           </p>
           <div className="space-y-1">
@@ -722,7 +704,7 @@ function DetailPanel({
                 href={pr.prUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="flex items-center gap-2 text-xs text-blue-700 hover:underline"
+                className="flex items-center gap-2 text-xs text-primary hover:underline"
               >
                 <GitPullRequest size={12} />
                 {pr.repoFullName} #{pr.prNumber} — {pr.prTitle}
@@ -734,24 +716,24 @@ function DetailPanel({
 
         {/* Requirements */}
         <div>
-          <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2">
+          <p className="text-xs font-semibold text-fg-muted uppercase tracking-wider mb-2">
             Linked Requirements ({analysis.linkedRequirementIds.length})
           </p>
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-fg-subtle">
             {analysis.linkedRequirementIds.length} requirement(s) linked
           </p>
         </div>
 
         {/* AI Analysis */}
         {analysis.status === 'RUNNING' && (
-          <div className="flex items-center gap-3 py-8 justify-center text-slate-500">
-            <Loader2 size={20} className="animate-spin text-blue-500" />
+          <div className="flex items-center gap-3 py-8 justify-center text-fg-muted">
+            <Loader2 size={20} className="animate-spin text-primary" />
             <span className="text-sm">AI is analysing PR changes and requirements…</span>
           </div>
         )}
 
         {analysis.status === 'FAILED' && (
-          <div className="bg-red-50 border border-red-200 rounded-xl p-4 text-sm text-red-700">
+          <div className="bg-danger-bg border border-danger-border rounded-xl p-4 text-sm text-danger">
             <p className="font-medium mb-1">Analysis failed</p>
             <p className="text-xs">{analysis.summary ?? 'An error occurred during analysis.'}</p>
           </div>
@@ -760,19 +742,17 @@ function DetailPanel({
         {analysis.status === 'COMPLETED' && (
           <>
             {analysis.suggestions?.summary && (
-              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-                <p className="text-xs font-semibold text-blue-700 mb-1">Summary</p>
-                <p className="text-sm text-blue-900 leading-relaxed">
-                  {analysis.suggestions.summary}
-                </p>
+              <div className="bg-info-bg border border-info-border rounded-xl p-4">
+                <p className="text-xs font-semibold text-info mb-1">Summary</p>
+                <p className="text-sm text-fg leading-relaxed">{analysis.suggestions.summary}</p>
               </div>
             )}
 
             {suggestions.length === 0 ? (
-              <p className="text-sm text-slate-500 text-center py-6">No suggestions generated.</p>
+              <p className="text-sm text-fg-muted text-center py-6">No suggestions generated.</p>
             ) : (
               <div>
-                <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-3">
+                <p className="text-xs font-semibold text-fg-muted uppercase tracking-wider mb-3">
                   Suggestions ({suggestions.length})
                 </p>
                 <div className="space-y-3">
@@ -793,6 +773,9 @@ function DetailPanel({
     </div>
   )
 }
+
+const inputCls =
+  'w-full border border-border-strong rounded-lg px-3 py-2 text-sm bg-surface text-fg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary'
 
 // ── Main Page ─────────────────────────────────────────────────────────────────
 
@@ -838,40 +821,37 @@ export default function ImpactAnalysesPage() {
     <div className="space-y-6">
       {/* Breadcrumb + header */}
       <div>
-        <div className="flex items-center gap-2 text-sm text-slate-500 mb-1">
-          <button onClick={() => navigate('/')} className="hover:text-blue-600">
+        <div className="flex items-center gap-2 text-sm text-fg-muted mb-1">
+          <button onClick={() => navigate('/')} className="hover:text-primary">
             Overview
           </button>
           <ChevronRight size={14} />
-          <button onClick={() => navigate(base)} className="hover:text-blue-600">
+          <button onClick={() => navigate(base)} className="hover:text-primary">
             {projectId}
           </button>
           <ChevronRight size={14} />
-          <span className="text-slate-700">Impact Analyses</span>
+          <span className="text-fg">Impact Analyses</span>
         </div>
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <GitPullRequest size={20} className="text-slate-400" />
-            <h1 className="text-2xl font-bold text-slate-900">Impact Analyses</h1>
+            <GitPullRequest size={20} className="text-fg-subtle" />
+            <h1 className="text-2xl font-bold text-fg">Impact Analyses</h1>
           </div>
           <div className="flex items-center gap-2">
             <button
               onClick={() => refetch()}
-              className="p-2 text-slate-500 hover:text-slate-700 hover:bg-slate-100 rounded-lg"
+              className="p-2 text-fg-muted hover:text-fg hover:bg-surface-muted rounded-lg"
               title="Refresh"
             >
               <RefreshCw size={16} />
             </button>
-            <button
-              onClick={() => setShowCreate(true)}
-              className="flex items-center gap-2 px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700"
-            >
+            <Button onClick={() => setShowCreate(true)}>
               <Plus size={14} />
               New Analysis
-            </button>
+            </Button>
           </div>
         </div>
-        <p className="text-sm text-slate-500 mt-1">
+        <p className="text-sm text-fg-muted mt-1">
           Link pull requests from Codebase repos with requirements to get AI-powered test coverage
           suggestions.
         </p>
@@ -881,15 +861,15 @@ export default function ImpactAnalysesPage() {
       {analyses.length > 0 && (
         <div className="grid grid-cols-3 gap-4">
           {[
-            { label: 'Completed', value: completed, color: 'text-green-600' },
-            { label: 'Running', value: running, color: 'text-blue-600' },
-            { label: 'Failed', value: failed, color: 'text-red-600' },
+            { label: 'Completed', value: completed, color: 'text-success' },
+            { label: 'Running', value: running, color: 'text-info' },
+            { label: 'Failed', value: failed, color: 'text-danger' },
           ].map(s => (
             <div
               key={s.label}
-              className="bg-white rounded-xl border border-slate-200 shadow-sm px-5 py-4"
+              className="bg-surface rounded-xl border border-border shadow-sm px-5 py-4"
             >
-              <p className="text-xs text-slate-500">{s.label}</p>
+              <p className="text-xs text-fg-muted">{s.label}</p>
               <p className={cn('text-2xl font-bold', s.color)}>{s.value}</p>
             </div>
           ))}
@@ -899,28 +879,25 @@ export default function ImpactAnalysesPage() {
       {/* Main content — list + detail */}
       <div className={cn('grid gap-6', selected ? 'grid-cols-2' : 'grid-cols-1')}>
         {/* List */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
-          <div className="px-5 py-4 border-b border-slate-100">
-            <h2 className="font-semibold text-slate-900">All Analyses</h2>
+        <div className="bg-surface rounded-xl border border-border shadow-sm">
+          <div className="px-5 py-4 border-b border-border">
+            <h2 className="font-semibold text-fg">All Analyses</h2>
           </div>
 
           {analyses.length === 0 ? (
             <div className="px-5 py-16 text-center">
-              <GitPullRequest size={32} className="mx-auto mb-3 text-slate-300" />
-              <p className="text-sm font-medium text-slate-500">No impact analyses yet</p>
-              <p className="text-xs text-slate-400 mt-1">
+              <GitPullRequest size={32} className="mx-auto mb-3 text-fg-subtle" />
+              <p className="text-sm font-medium text-fg-muted">No impact analyses yet</p>
+              <p className="text-xs text-fg-subtle mt-1">
                 Create one by linking PRs from Codebase repos with requirements.
               </p>
-              <button
-                onClick={() => setShowCreate(true)}
-                className="mt-4 flex items-center gap-2 px-4 py-2 text-sm bg-blue-600 text-white rounded-lg hover:bg-blue-700 mx-auto"
-              >
+              <Button className="mt-4 mx-auto" onClick={() => setShowCreate(true)}>
                 <Plus size={14} />
                 New Analysis
-              </button>
+              </Button>
             </div>
           ) : (
-            <div className="divide-y divide-slate-50">
+            <div className="divide-y divide-border">
               {analyses.map(a => {
                 const { color: sc, icon: si } = statusMeta(a.status)
                 const isSelected = a.id === selectedId
@@ -930,7 +907,7 @@ export default function ImpactAnalysesPage() {
                     onClick={() => setSelectedId(isSelected ? null : a.id)}
                     className={cn(
                       'w-full text-left px-5 py-4 transition-colors',
-                      isSelected ? 'bg-blue-50' : 'hover:bg-slate-50',
+                      isSelected ? 'bg-primary-subtle' : 'hover:bg-surface-muted',
                     )}
                   >
                     <div className="flex items-start justify-between gap-3">
@@ -946,14 +923,14 @@ export default function ImpactAnalysesPage() {
                             {a.status}
                           </span>
                           {a.suggestions && (
-                            <span className="text-xs text-slate-400">
+                            <span className="text-xs text-fg-subtle">
                               {a.suggestions.suggestions?.length ?? 0} suggestion
                               {(a.suggestions.suggestions?.length ?? 0) !== 1 ? 's' : ''}
                             </span>
                           )}
                         </div>
-                        <p className="text-sm font-medium text-slate-800 truncate">{a.name}</p>
-                        <p className="text-xs text-slate-500 mt-0.5">
+                        <p className="text-sm font-medium text-fg truncate">{a.name}</p>
+                        <p className="text-xs text-fg-muted mt-0.5">
                           {a.linkedPrs.length} PR{a.linkedPrs.length !== 1 ? 's' : ''} ·{' '}
                           {a.linkedRequirementIds.length} req
                           {a.linkedRequirementIds.length !== 1 ? 's' : ''} ·{' '}
@@ -970,7 +947,7 @@ export default function ImpactAnalysesPage() {
                     </div>
 
                     {a.suggestions?.summary && (
-                      <p className="text-xs text-slate-500 mt-2 line-clamp-2 leading-relaxed">
+                      <p className="text-xs text-fg-muted mt-2 line-clamp-2 leading-relaxed">
                         {a.suggestions.summary}
                       </p>
                     )}
@@ -1002,7 +979,7 @@ export default function ImpactAnalysesPage() {
 
       {/* Create error */}
       {createMutation.isError && (
-        <div className="fixed bottom-4 right-4 bg-red-600 text-white text-sm px-4 py-3 rounded-xl shadow-lg flex items-center gap-2">
+        <div className="fixed bottom-4 right-4 bg-danger text-white text-sm px-4 py-3 rounded-xl shadow-lg flex items-center gap-2">
           <AlertTriangle size={14} />
           Failed to create analysis. Check that Codebase repos are configured.
           <button onClick={() => createMutation.reset()} className="ml-2 hover:opacity-80">

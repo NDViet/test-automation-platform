@@ -28,40 +28,42 @@ const MAX_TREE_ROOTS = 300
 // ── Colour helpers ────────────────────────────────────────────────────────────
 
 const STATUS_COLORS: Record<string, string> = {
-  OPEN: 'text-blue-700 bg-blue-100',
-  IN_PROGRESS: 'text-yellow-700 bg-yellow-100',
-  DONE: 'text-green-700 bg-green-100',
-  BLOCKED: 'text-red-700 bg-red-100',
-  REJECTED: 'text-slate-600 bg-slate-100',
-  CLOSED: 'text-slate-600 bg-slate-100',
+  OPEN: 'text-info bg-info-bg',
+  IN_PROGRESS: 'text-warning bg-warning-bg',
+  DONE: 'text-success bg-success-bg',
+  BLOCKED: 'text-danger bg-danger-bg',
+  REJECTED: 'text-neutral bg-neutral-bg',
+  CLOSED: 'text-neutral bg-neutral-bg',
 }
 const PRIORITY_COLORS: Record<string, string> = {
-  CRITICAL: 'text-red-700 bg-red-100',
-  HIGH: 'text-orange-700 bg-orange-100',
-  MEDIUM: 'text-yellow-700 bg-yellow-100',
-  LOW: 'text-slate-600 bg-slate-100',
+  CRITICAL: 'text-danger bg-danger-bg',
+  HIGH: 'text-warning bg-warning-bg',
+  MEDIUM: 'text-info bg-info-bg',
+  LOW: 'text-neutral bg-neutral-bg',
 }
+// Categorical taxonomy for work-item types — distinct hues per type (purple/indigo/
+// fuchsia deliberately avoided to keep clear of the retired AI aesthetic).
 const ISSUE_TYPE_COLORS: Record<string, string> = {
-  EPIC: 'text-purple-700 bg-purple-100',
-  CAPABILITY: 'text-fuchsia-700 bg-fuchsia-100',
-  ENABLER: 'text-indigo-700 bg-indigo-100',
+  EPIC: 'text-amber-700 bg-amber-100',
+  CAPABILITY: 'text-rose-700 bg-rose-100',
+  ENABLER: 'text-emerald-700 bg-emerald-100',
   FEATURE: 'text-sky-700 bg-sky-100',
   REQUIREMENT: 'text-cyan-700 bg-cyan-100',
   STORY: 'text-blue-700 bg-blue-100',
   BUG: 'text-red-700 bg-red-100',
   DEFECT: 'text-red-700 bg-red-100',
-  TASK: 'text-slate-600 bg-slate-100',
+  TASK: 'text-neutral bg-neutral-bg',
   SUBTASK: 'text-teal-700 bg-teal-100',
   SPIKE: 'text-orange-700 bg-orange-100',
 }
 function statusColor(s: string) {
-  return STATUS_COLORS[s?.toUpperCase()] ?? 'text-slate-600 bg-slate-100'
+  return STATUS_COLORS[s?.toUpperCase()] ?? 'text-neutral bg-neutral-bg'
 }
 function priorityColor(p: string | null) {
-  return PRIORITY_COLORS[(p ?? '').toUpperCase()] ?? 'text-slate-600 bg-slate-100'
+  return PRIORITY_COLORS[(p ?? '').toUpperCase()] ?? 'text-neutral bg-neutral-bg'
 }
 function issueTypeColor(t: string) {
-  return ISSUE_TYPE_COLORS[t?.toUpperCase()] ?? 'text-slate-600 bg-slate-100'
+  return ISSUE_TYPE_COLORS[t?.toUpperCase()] ?? 'text-neutral bg-neutral-bg'
 }
 function fmtDate(iso: string | null) {
   return iso
@@ -108,13 +110,13 @@ function RelationRow({ r, onNavigate }: { r: RequirementRef; onNavigate: (id: st
     <div className="flex items-center gap-1.5 group">
       <button
         onClick={() => onNavigate(r.id)}
-        className="flex-1 min-w-0 flex items-center gap-1.5 text-left rounded px-1.5 py-1 hover:bg-slate-50"
+        className="flex-1 min-w-0 flex items-center gap-1.5 text-left rounded px-1.5 py-1 hover:bg-surface-muted"
       >
         <Badge label={r.issueType} colorClass={issueTypeColor(r.issueType)} />
         {r.externalId && (
-          <span className="text-xs font-mono text-slate-400 shrink-0">#{r.externalId}</span>
+          <span className="text-xs font-mono text-fg-subtle shrink-0">#{r.externalId}</span>
         )}
-        <span className="text-xs text-slate-700 truncate">{r.title}</span>
+        <span className="text-xs text-fg truncate">{r.title}</span>
       </button>
       {r.sourceUrl && (
         <a
@@ -122,7 +124,7 @@ function RelationRow({ r, onNavigate }: { r: RequirementRef; onNavigate: (id: st
           target="_blank"
           rel="noreferrer"
           title="Open in Azure DevOps"
-          className="text-slate-300 hover:text-blue-600 shrink-0"
+          className="text-fg-subtle hover:text-primary shrink-0"
         >
           <ExternalLink size={11} />
         </a>
@@ -149,12 +151,12 @@ function RequirementDetail({
   })
   return (
     <div
-      className="w-96 shrink-0 bg-white rounded-xl border border-slate-200 shadow-sm flex flex-col
+      className="w-96 shrink-0 bg-surface rounded-xl border border-border shadow-sm flex flex-col
                     sticky top-2 self-start max-h-[calc(100vh-1rem)]"
     >
-      <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 shrink-0">
-        <p className="text-sm font-medium text-slate-700">Detail</p>
-        <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+      <div className="flex items-center justify-between px-5 py-3.5 border-b border-border shrink-0">
+        <p className="text-sm font-medium text-fg-muted">Detail</p>
+        <button onClick={onClose} className="text-fg-subtle hover:text-fg">
           <X size={16} />
         </button>
       </div>
@@ -167,17 +169,17 @@ function RequirementDetail({
               <Badge label={req.priority} colorClass={priorityColor(req.priority)} />
             )}
           </div>
-          <h3 className="text-base font-semibold text-slate-900 leading-snug">{req.title}</h3>
+          <h3 className="text-base font-semibold text-fg leading-snug">{req.title}</h3>
           {req.externalId && (
             <div className="flex items-center gap-2 mt-1.5">
-              <span className="text-xs font-mono text-slate-500">#{req.externalId}</span>
+              <span className="text-xs font-mono text-fg-muted">#{req.externalId}</span>
               {externalHref && (
                 <a
                   href={externalHref}
                   target="_blank"
                   rel="noreferrer"
                   title="Open the original work item in Azure DevOps"
-                  className="inline-flex items-center gap-1 text-xs font-medium text-blue-600 hover:text-blue-700 hover:underline"
+                  className="inline-flex items-center gap-1 text-xs font-medium text-primary hover:underline"
                 >
                   Open in Azure DevOps <ExternalLink size={11} />
                 </a>
@@ -190,13 +192,13 @@ function RequirementDetail({
           <div className="space-y-2">
             {relations?.parent && (
               <div>
-                <p className="text-xs font-medium text-slate-500 mb-1">Parent</p>
+                <p className="text-xs font-medium text-fg-muted mb-1">Parent</p>
                 <RelationRow r={relations.parent} onNavigate={onNavigate} />
               </div>
             )}
             {relations && relations.children.length > 0 && (
               <div>
-                <p className="text-xs font-medium text-slate-500 mb-1">
+                <p className="text-xs font-medium text-fg-muted mb-1">
                   Children ({relations.children.length})
                 </p>
                 <div className="space-y-0.5">
@@ -211,18 +213,18 @@ function RequirementDetail({
 
         {req.description && (
           <div>
-            <p className="text-xs font-medium text-slate-500 mb-1">Description</p>
+            <p className="text-xs font-medium text-fg-muted mb-1">Description</p>
             <RichText className="rich-text">{req.description}</RichText>
           </div>
         )}
 
         {Array.isArray(req.acceptanceCriteria) && req.acceptanceCriteria.length > 0 && (
           <div>
-            <p className="text-xs font-medium text-slate-500 mb-1">Acceptance Criteria</p>
+            <p className="text-xs font-medium text-fg-muted mb-1">Acceptance Criteria</p>
             <ul className="space-y-1">
               {req.acceptanceCriteria.map((ac, i) => (
-                <li key={i} className="flex items-start gap-2 text-sm text-slate-700">
-                  <span className="mt-0.5 shrink-0 w-4 h-4 rounded-full border border-slate-300 flex items-center justify-center text-xs text-slate-400">
+                <li key={i} className="flex items-start gap-2 text-sm text-fg">
+                  <span className="mt-0.5 shrink-0 w-4 h-4 rounded-full border border-border-strong flex items-center justify-center text-xs text-fg-subtle">
                     {i + 1}
                   </span>
                   <span>{typeof ac === 'string' ? ac : JSON.stringify(ac)}</span>
@@ -233,20 +235,20 @@ function RequirementDetail({
         )}
 
         {req.changeSummary && (
-          <div className="rounded-lg bg-amber-50 border border-amber-200 px-3 py-2.5">
-            <p className="text-xs font-medium text-amber-800 mb-0.5">Recent Change</p>
-            <p className="text-xs text-amber-700">{req.changeSummary}</p>
+          <div className="rounded-lg bg-warning-bg border border-warning-border px-3 py-2.5">
+            <p className="text-xs font-medium text-warning mb-0.5">Recent Change</p>
+            <p className="text-xs text-warning">{req.changeSummary}</p>
           </div>
         )}
 
-        <div className="border-t border-slate-100 pt-3 space-y-1">
+        <div className="border-t border-border pt-3 space-y-1">
           {req.createdDate && (
-            <p className="text-xs text-slate-500">Created {fmtDate(req.createdDate)}</p>
+            <p className="text-xs text-fg-muted">Created {fmtDate(req.createdDate)}</p>
           )}
           {req.syncedAt && (
-            <p className="text-xs text-slate-400">Synced {relativeTime(req.syncedAt)}</p>
+            <p className="text-xs text-fg-subtle">Synced {relativeTime(req.syncedAt)}</p>
           )}
-          <p className="text-xs text-slate-400">Updated {relativeTime(req.updatedAt)}</p>
+          <p className="text-xs text-fg-subtle">Updated {relativeTime(req.updatedAt)}</p>
         </div>
       </div>
     </div>
@@ -307,7 +309,7 @@ function highlightMatch(text: string, q: string): React.ReactNode {
   return (
     <>
       {text.slice(0, idx)}
-      <mark className="bg-yellow-200 text-yellow-900 rounded-sm px-0.5">
+      <mark className="bg-warning-bg text-warning rounded-sm px-0.5">
         {text.slice(idx, idx + q.length)}
       </mark>
       {text.slice(idx + q.length)}
@@ -346,17 +348,17 @@ function TreeNodeRow({
     <>
       <div
         className={cn(
-          'flex items-center gap-1 pr-4 py-2 cursor-pointer hover:bg-slate-50 transition-colors',
-          isSelected && 'bg-blue-50 hover:bg-blue-50',
-          isSelfMatch && !isSelected && 'bg-yellow-50 hover:bg-yellow-50',
+          'flex items-center gap-1 pr-4 py-2 cursor-pointer hover:bg-surface-muted transition-colors',
+          isSelected && 'bg-primary-subtle hover:bg-primary-subtle',
+          isSelfMatch && !isSelected && 'bg-warning-bg hover:bg-warning-bg',
         )}
         style={{ paddingLeft: `${depth * 20 + 12}px` }}
         onClick={() => onSelect(node)}
       >
         <button
           className={cn(
-            'shrink-0 w-5 h-5 flex items-center justify-center rounded text-slate-400',
-            hasChildren ? 'hover:text-slate-700 hover:bg-slate-200' : 'invisible',
+            'shrink-0 w-5 h-5 flex items-center justify-center rounded text-fg-subtle',
+            hasChildren ? 'hover:text-fg hover:bg-surface-muted' : 'invisible',
           )}
           onClick={e => {
             e.stopPropagation()
@@ -365,40 +367,40 @@ function TreeNodeRow({
         >
           {isExpanded ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
         </button>
-        {depth > 0 && <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-slate-300 mr-1" />}
+        {depth > 0 && <span className="shrink-0 w-1.5 h-1.5 rounded-full bg-border-strong mr-1" />}
         <div className="flex items-center gap-2 min-w-0 flex-1">
           <Badge label={node.issueType} colorClass={issueTypeColor(node.issueType)} />
           {node.externalId && (
-            <span className="text-xs font-mono text-slate-400 shrink-0">
+            <span className="text-xs font-mono text-fg-subtle shrink-0">
               {highlightMatch(node.externalId, searchQuery)}
             </span>
           )}
           <span
             className={cn(
               'text-sm truncate',
-              isSelected ? 'font-semibold text-blue-900' : 'text-slate-800',
+              isSelected ? 'font-semibold text-primary' : 'text-fg',
             )}
           >
             {highlightMatch(node.title, searchQuery)}
           </span>
           {node.changeSummary && (
-            <span className="text-xs text-amber-500 shrink-0" title={node.changeSummary}>
+            <span className="text-xs text-warning shrink-0" title={node.changeSummary}>
               ⚡
             </span>
           )}
         </div>
         <div className="flex items-center gap-2 shrink-0 ml-2">
-          <span className="text-xs text-slate-400 hidden sm:inline" title="Created date">
+          <span className="text-xs text-fg-subtle hidden sm:inline" title="Created date">
             {fmtDate(node.createdDate)}
           </span>
-          {hasChildren && <span className="text-xs text-slate-400">{node.children.length}</span>}
+          {hasChildren && <span className="text-xs text-fg-subtle">{node.children.length}</span>}
           <Badge label={node.status} colorClass={statusColor(node.status)} />
         </div>
       </div>
       {isExpanded && hasChildren && (
         <div className="relative">
           <div
-            className="absolute top-0 bottom-0 border-l border-slate-200"
+            className="absolute top-0 bottom-0 border-l border-border"
             style={{ left: `${depth * 20 + 20}px` }}
           />
           {node.children.map(child => (
@@ -523,27 +525,27 @@ export default function RequirementsPage() {
       {/* Header */}
       <div className="flex items-start justify-between">
         <div>
-          <div className="flex items-center gap-2 text-sm text-slate-500 mb-1">
-            <button onClick={() => navigate('/')} className="hover:text-blue-600">
+          <div className="flex items-center gap-2 text-sm text-fg-muted mb-1">
+            <button onClick={() => navigate('/')} className="hover:text-primary">
               Overview
             </button>
             <ChevronRight size={14} />
-            <button onClick={() => navigate(base)} className="hover:text-blue-600">
+            <button onClick={() => navigate(base)} className="hover:text-primary">
               {project.name}
             </button>
             <ChevronRight size={14} />
-            <span className="text-slate-700">Requirements</span>
+            <span className="text-fg">Requirements</span>
           </div>
           <div className="flex items-center gap-3">
-            <FileText size={20} className="text-slate-400" />
-            <h1 className="text-2xl font-bold text-slate-900">Requirements</h1>
+            <FileText size={20} className="text-fg-subtle" />
+            <h1 className="text-2xl font-bold text-fg">Requirements</h1>
             {stats && (
-              <span className="text-sm text-slate-500 font-normal">{stats.total} total</span>
+              <span className="text-sm text-fg-muted font-normal">{stats.total} total</span>
             )}
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <div className="flex rounded-lg border border-slate-200 overflow-hidden">
+          <div className="flex rounded-lg border border-border overflow-hidden">
             {(['list', 'tree'] as ViewMode[]).map(mode => (
               <button
                 key={mode}
@@ -553,7 +555,9 @@ export default function RequirementsPage() {
                 }}
                 className={cn(
                   'flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors',
-                  viewMode === mode ? 'bg-blue-600 text-white' : 'text-slate-600 hover:bg-slate-50',
+                  viewMode === mode
+                    ? 'bg-primary text-primary-fg'
+                    : 'text-fg-muted hover:bg-surface-muted',
                 )}
               >
                 {mode === 'list' ? <List size={13} /> : <Network size={13} />}
@@ -563,7 +567,7 @@ export default function RequirementsPage() {
           </div>
           <button
             onClick={() => navigate(`${base}/pr-analyses`)}
-            className="flex items-center gap-1.5 px-3 py-1.5 border border-slate-200 rounded-lg text-sm text-slate-600 hover:bg-slate-50 transition-colors"
+            className="flex items-center gap-1.5 px-3 py-1.5 border border-border rounded-lg text-sm text-fg-muted hover:bg-surface-muted transition-colors"
           >
             <GitBranch size={14} /> PR Analyses
           </button>
@@ -573,18 +577,18 @@ export default function RequirementsPage() {
       {/* Filters (shared by List and Tree) */}
       <div className="flex gap-2 flex-wrap items-center">
         <div className="relative flex-1 min-w-[16rem]">
-          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+          <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-fg-subtle" />
           <input
             type="text"
             value={searchInput}
             onChange={e => setSearchInput(e.target.value)}
             placeholder="Search by title or key…"
-            className="w-full pl-8 pr-3 py-1.5 text-sm border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+            className="w-full pl-8 pr-3 py-1.5 text-sm border border-border-strong rounded-lg bg-surface text-fg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
           />
           {searchInput && (
             <button
               onClick={() => setSearchInput('')}
-              className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+              className="absolute right-2 top-1/2 -translate-y-1/2 text-fg-subtle hover:text-fg"
             >
               <X size={14} />
             </button>
@@ -593,7 +597,7 @@ export default function RequirementsPage() {
         <select
           value={status}
           onChange={e => setStatus(e.target.value)}
-          className="text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="text-sm border border-border-strong rounded-lg px-3 py-1.5 bg-surface text-fg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
         >
           <option value="">All statuses</option>
           {stats &&
@@ -608,7 +612,7 @@ export default function RequirementsPage() {
         <select
           value={issueType}
           onChange={e => setIssueType(e.target.value)}
-          className="text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="text-sm border border-border-strong rounded-lg px-3 py-1.5 bg-surface text-fg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary"
         >
           <option value="">All types</option>
           {issueTypeOptions.map(t => (
@@ -624,7 +628,7 @@ export default function RequirementsPage() {
               setIssueType('')
               setSearchInput('')
             }}
-            className="text-sm text-slate-500 hover:text-slate-800 px-2"
+            className="text-sm text-fg-muted hover:text-fg px-2"
           >
             Clear
           </button>
@@ -633,7 +637,7 @@ export default function RequirementsPage() {
 
       {/* Split pane: list/tree + sticky detail */}
       <div className="flex gap-4 items-start">
-        <div className="flex-1 min-w-0 bg-white rounded-xl border border-slate-200 shadow-sm">
+        <div className="flex-1 min-w-0 bg-surface rounded-xl border border-border shadow-sm">
           {viewMode === 'list' ? listView() : treeView()}
         </div>
         {selected && (
@@ -662,21 +666,21 @@ export default function RequirementsPage() {
 
     if (items.length === 0) {
       return (
-        <p className="px-5 py-12 text-sm text-slate-500 text-center">
+        <p className="px-5 py-12 text-sm text-fg-muted text-center">
           No requirements match. {!stats?.total && 'Sync an integration to populate this list.'}
         </p>
       )
     }
     return (
       <div className="flex flex-col">
-        <div className="divide-y divide-slate-50">
+        <div className="divide-y divide-border">
           {items.map(r => (
             <button
               key={r.id}
               onClick={() => setSelected(selected?.id === r.id ? null : r)}
               className={cn(
-                'w-full text-left px-5 py-3.5 hover:bg-slate-50 transition-colors',
-                selected?.id === r.id && 'bg-blue-50 hover:bg-blue-50',
+                'w-full text-left px-5 py-3.5 hover:bg-surface-muted transition-colors',
+                selected?.id === r.id && 'bg-primary-subtle hover:bg-primary-subtle',
               )}
             >
               <div className="flex items-start justify-between gap-3">
@@ -684,7 +688,7 @@ export default function RequirementsPage() {
                   <div className="flex items-center gap-2 mb-0.5 flex-wrap">
                     <Badge label={r.issueType} colorClass={issueTypeColor(r.issueType)} />
                     {r.externalId && (
-                      <span className="text-xs font-mono text-slate-400">#{r.externalId}</span>
+                      <span className="text-xs font-mono text-fg-subtle">#{r.externalId}</span>
                     )}
                     {r.sourceUrl && (
                       <span
@@ -701,15 +705,15 @@ export default function RequirementsPage() {
                             window.open(r.sourceUrl!, '_blank', 'noopener,noreferrer')
                           }
                         }}
-                        className="text-slate-300 hover:text-blue-600 cursor-pointer"
+                        className="text-fg-subtle hover:text-primary cursor-pointer"
                       >
                         <ExternalLink size={11} />
                       </span>
                     )}
                   </div>
-                  <p className="text-sm font-medium text-slate-900 truncate">{r.title}</p>
+                  <p className="text-sm font-medium text-fg truncate">{r.title}</p>
                   {r.changeSummary && (
-                    <p className="text-xs text-amber-600 mt-0.5 truncate">⚡ {r.changeSummary}</p>
+                    <p className="text-xs text-warning mt-0.5 truncate">⚡ {r.changeSummary}</p>
                   )}
                 </div>
                 <div className="flex flex-col items-end gap-1 shrink-0">
@@ -717,25 +721,25 @@ export default function RequirementsPage() {
                   {r.priority && (
                     <Badge label={r.priority} colorClass={priorityColor(r.priority)} />
                   )}
-                  <p className="text-xs text-slate-500" title="Created date">
+                  <p className="text-xs text-fg-muted" title="Created date">
                     Created {fmtDate(r.createdDate)}
                   </p>
-                  <p className="text-xs text-slate-400">Updated {relativeTime(r.updatedAt)}</p>
+                  <p className="text-xs text-fg-subtle">Updated {relativeTime(r.updatedAt)}</p>
                 </div>
               </div>
             </button>
           ))}
         </div>
         {/* Pagination footer */}
-        <div className="flex items-center justify-between gap-3 px-5 py-3 border-t border-slate-100 text-sm">
-          <div className="flex items-center gap-2 text-slate-500">
+        <div className="flex items-center justify-between gap-3 px-5 py-3 border-t border-border text-sm">
+          <div className="flex items-center gap-2 text-fg-muted">
             <span>
               Page {page + 1} of {Math.max(totalPages, 1)} · {total} item{total !== 1 ? 's' : ''}
             </span>
             <select
               value={size}
               onChange={e => setSize(Number(e.target.value))}
-              className="text-xs border border-slate-200 rounded px-1.5 py-1 bg-white"
+              className="text-xs border border-border-strong rounded px-1.5 py-1 bg-surface text-fg"
             >
               {PAGE_SIZE_OPTIONS.map(n => (
                 <option key={n} value={n}>
@@ -743,20 +747,20 @@ export default function RequirementsPage() {
                 </option>
               ))}
             </select>
-            {listQ.isFetching && <span className="text-xs text-slate-400">updating…</span>}
+            {listQ.isFetching && <span className="text-xs text-fg-subtle">updating…</span>}
           </div>
           <div className="flex items-center gap-1">
             <button
               onClick={() => setPage(p => Math.max(0, p - 1))}
               disabled={page <= 0}
-              className="flex items-center gap-1 px-2.5 py-1 border border-slate-200 rounded-lg disabled:opacity-40 hover:bg-slate-50"
+              className="flex items-center gap-1 px-2.5 py-1 border border-border rounded-lg disabled:opacity-40 hover:bg-surface-muted"
             >
               <ChevronLeft size={14} /> Prev
             </button>
             <button
               onClick={() => setPage(p => (p + 1 < totalPages ? p + 1 : p))}
               disabled={page + 1 >= totalPages}
-              className="flex items-center gap-1 px-2.5 py-1 border border-slate-200 rounded-lg disabled:opacity-40 hover:bg-slate-50"
+              className="flex items-center gap-1 px-2.5 py-1 border border-border rounded-lg disabled:opacity-40 hover:bg-surface-muted"
             >
               Next <ChevronRight size={14} />
             </button>
@@ -781,11 +785,11 @@ export default function RequirementsPage() {
     const capped = !visibleIds && treeData.length > MAX_TREE_ROOTS
 
     if (all.length === 0) {
-      return <p className="px-5 py-12 text-sm text-slate-500 text-center">No requirements found.</p>
+      return <p className="px-5 py-12 text-sm text-fg-muted text-center">No requirements found.</p>
     }
     if (visibleIds && visibleIds.size === 0) {
       return (
-        <p className="px-5 py-8 text-sm text-slate-500 text-center">
+        <p className="px-5 py-8 text-sm text-fg-muted text-center">
           No requirements match the current filters.
         </p>
       )
@@ -806,7 +810,7 @@ export default function RequirementsPage() {
           />
         ))}
         {capped && (
-          <p className="px-5 py-3 text-xs text-amber-600 border-t border-slate-100">
+          <p className="px-5 py-3 text-xs text-warning border-t border-border">
             Showing first {MAX_TREE_ROOTS} of {treeData.length} top-level items — search to narrow,
             or use the List view.
           </p>

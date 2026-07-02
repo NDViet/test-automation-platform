@@ -1,11 +1,13 @@
 import { useState, useEffect } from 'react'
 import { useProject } from '@/components/layout/ProjectLayout'
+import { usePageWidth } from '@/components/layout/PageWidth'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import Badge from '@/components/Badge'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import ErrorMessage from '@/components/ErrorMessage'
+import { Button, Input, PageHeader } from '@/components/ui'
 import {
   Gauge,
   Timer,
@@ -13,7 +15,6 @@ import {
   Layers,
   X,
   ExternalLink,
-  Loader2,
   Check,
   CheckCircle2,
   Hourglass,
@@ -32,14 +33,14 @@ function fmtDate(iso: string | null) {
 }
 function statusBadge(s: string) {
   return s === 'OPEN'
-    ? 'text-blue-700 bg-blue-100'
+    ? 'text-info bg-info-bg'
     : s === 'IN_PROGRESS'
-      ? 'text-yellow-700 bg-yellow-100'
+      ? 'text-warning bg-warning-bg'
       : s === 'BLOCKED'
-        ? 'text-red-700 bg-red-100'
+        ? 'text-danger bg-danger-bg'
         : s === 'DONE'
-          ? 'text-green-700 bg-green-100'
-          : 'text-slate-600 bg-slate-100'
+          ? 'text-success bg-success-bg'
+          : 'text-neutral bg-neutral-bg'
 }
 
 // Drill target: either started-WIP items, or completed lead-time items.
@@ -48,6 +49,7 @@ type Drill =
   | { kind: 'lead'; area: string | undefined; title: string }
 
 export default function ProductivityPage() {
+  usePageWidth('wide')
   const { projectId } = useProject()
   const qc = useQueryClient()
   const [drill, setDrill] = useState<Drill | null>(null)
@@ -75,22 +77,18 @@ export default function ProductivityPage() {
 
   return (
     <div className="flex flex-col gap-5">
-      <div className="flex items-start justify-between">
-        <div>
-          <div className="flex items-center gap-3">
-            <Gauge size={20} className="text-slate-400" />
-            <h1 className="text-2xl font-bold text-slate-900">Productivity</h1>
-          </div>
-          <p className="text-sm text-slate-500 mt-1">
-            Cycle time (work in progress) and lead time (created → completed), by area.
-          </p>
-        </div>
-        <ThresholdEditor
-          projectId={projectId}
-          current={c.thresholdHours}
-          onSaved={() => qc.invalidateQueries({ queryKey: ['productivity-by-area', projectId] })}
-        />
-      </div>
+      <PageHeader
+        title="Productivity"
+        icon={<Gauge size={20} />}
+        description="Cycle time (work in progress) and lead time (created → completed), by area."
+        actions={
+          <ThresholdEditor
+            projectId={projectId}
+            current={c.thresholdHours}
+            onSaved={() => qc.invalidateQueries({ queryKey: ['productivity-by-area', projectId] })}
+          />
+        }
+      />
 
       {/* ── Cycle time ─────────────────────────────────────────────── */}
       <SectionTitle
@@ -103,7 +101,7 @@ export default function ProductivityPage() {
           icon={Timer}
           label="In progress (started)"
           value={c.totalWip}
-          tint="text-slate-700"
+          tint="text-fg"
           onClick={() =>
             setDrill({ kind: 'wip', area: undefined, over: false, title: 'In progress' })
           }
@@ -112,7 +110,7 @@ export default function ProductivityPage() {
           icon={AlertTriangle}
           label={`Over ${fmtH(c.thresholdHours)} target`}
           value={c.totalOver}
-          tint="text-red-600"
+          tint="text-danger"
           onClick={() =>
             setDrill({
               kind: 'wip',
@@ -126,21 +124,16 @@ export default function ProductivityPage() {
           icon={Gauge}
           label="% over target"
           value={`${pctOver}%`}
-          tint={pctOver > 30 ? 'text-red-600' : 'text-amber-600'}
+          tint={pctOver > 30 ? 'text-danger' : 'text-warning'}
         />
-        <Kpi
-          icon={Layers}
-          label="Areas needing action"
-          value={c.areasAffected}
-          tint="text-slate-700"
-        />
+        <Kpi icon={Layers} label="Areas needing action" value={c.areasAffected} tint="text-fg" />
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
-        <div className="flex items-center gap-2 px-5 py-3.5 border-b border-slate-100">
-          <Layers size={16} className="text-slate-400" />
-          <h2 className="text-sm font-semibold text-slate-700">Cycle time by Area</h2>
-          <span className="text-xs text-slate-400">target {fmtH(c.thresholdHours)}</span>
+      <div className="bg-surface rounded-lg border border-border shadow-xs">
+        <div className="flex items-center gap-2 px-5 py-3.5 border-b border-border">
+          <Layers size={16} className="text-fg-muted" />
+          <h2 className="text-sm font-semibold text-fg">Cycle time by Area</h2>
+          <span className="text-xs text-fg-subtle">target {fmtH(c.thresholdHours)}</span>
         </div>
         {c.areas.length === 0 ? (
           <Empty text="No started work in progress. (Cycle time needs work-item history — run Sync work-item history on the Quality page.)" />
@@ -148,7 +141,7 @@ export default function ProductivityPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-xs text-slate-500 border-b border-slate-100">
+                <tr className="text-left text-xs text-fg-muted border-b border-border">
                   <th className="px-5 py-2 font-medium">Area</th>
                   <th className="px-3 py-2 font-medium text-right">In progress</th>
                   <th className="px-3 py-2 font-medium text-right">Over target</th>
@@ -157,14 +150,14 @@ export default function ProductivityPage() {
                   <th className="px-5 py-2 font-medium text-right">Max age</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-50">
+              <tbody className="divide-y divide-border">
                 {c.areas.map((a: AreaProductivity) => {
                   const pct = a.wip > 0 ? Math.round((a.overThreshold / a.wip) * 100) : 0
                   return (
-                    <tr key={a.area} className="hover:bg-slate-50">
-                      <td className="px-5 py-2.5 text-slate-700" title={a.area}>
+                    <tr key={a.area} className="hover:bg-surface-muted">
+                      <td className="px-5 py-2.5 text-fg" title={a.area}>
                         {leaf(a.area)}
-                        <span className="text-xs text-slate-400 font-mono ml-2 hidden lg:inline">
+                        <span className="text-xs text-fg-subtle font-mono ml-2 hidden lg:inline">
                           {a.area}
                         </span>
                       </td>
@@ -196,19 +189,19 @@ export default function ProductivityPage() {
                           className={cn(
                             'px-1.5 py-0.5 rounded text-xs',
                             pct > 50
-                              ? 'bg-red-100 text-red-700'
+                              ? 'bg-danger-bg text-danger'
                               : pct > 0
-                                ? 'bg-amber-100 text-amber-700'
-                                : 'text-slate-400',
+                                ? 'bg-warning-bg text-warning'
+                                : 'text-fg-subtle',
                           )}
                         >
                           {pct}%
                         </span>
                       </td>
-                      <td className="px-3 py-2.5 text-right tabular-nums text-slate-600">
+                      <td className="px-3 py-2.5 text-right tabular-nums text-fg-muted">
                         {fmtH(a.avgHours)}
                       </td>
-                      <td className="px-5 py-2.5 text-right tabular-nums text-slate-600">
+                      <td className="px-5 py-2.5 text-right tabular-nums text-fg-muted">
                         {fmtH(a.maxHours)}
                       </td>
                     </tr>
@@ -231,7 +224,7 @@ export default function ProductivityPage() {
           icon={CheckCircle2}
           label="Completed"
           value={lead?.totalCompleted ?? 0}
-          tint="text-green-600"
+          tint="text-success"
           onClick={() =>
             setDrill({ kind: 'lead', area: undefined, title: 'Completed (lead time)' })
           }
@@ -240,20 +233,20 @@ export default function ProductivityPage() {
           icon={Hourglass}
           label="Avg lead time"
           value={fmtH(lead?.avgHours ?? null)}
-          tint="text-slate-700"
+          tint="text-fg"
         />
         <Kpi
           icon={Hourglass}
           label="Max lead time"
           value={fmtH(lead?.maxHours ?? null)}
-          tint="text-amber-600"
+          tint="text-warning"
         />
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
-        <div className="flex items-center gap-2 px-5 py-3.5 border-b border-slate-100">
-          <Layers size={16} className="text-slate-400" />
-          <h2 className="text-sm font-semibold text-slate-700">Lead time by Area</h2>
+      <div className="bg-surface rounded-lg border border-border shadow-xs">
+        <div className="flex items-center gap-2 px-5 py-3.5 border-b border-border">
+          <Layers size={16} className="text-fg-muted" />
+          <h2 className="text-sm font-semibold text-fg">Lead time by Area</h2>
         </div>
         {leadQ.isLoading ? (
           <LoadingSpinner />
@@ -263,19 +256,19 @@ export default function ProductivityPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-xs text-slate-500 border-b border-slate-100">
+                <tr className="text-left text-xs text-fg-muted border-b border-border">
                   <th className="px-5 py-2 font-medium">Area</th>
                   <th className="px-3 py-2 font-medium text-right">Completed</th>
                   <th className="px-3 py-2 font-medium text-right">Avg lead</th>
                   <th className="px-5 py-2 font-medium text-right">Max lead</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-50">
+              <tbody className="divide-y divide-border">
                 {lead.areas.map((a: LeadAreaStat) => (
-                  <tr key={a.area} className="hover:bg-slate-50">
-                    <td className="px-5 py-2.5 text-slate-700" title={a.area}>
+                  <tr key={a.area} className="hover:bg-surface-muted">
+                    <td className="px-5 py-2.5 text-fg" title={a.area}>
                       {leaf(a.area)}
-                      <span className="text-xs text-slate-400 font-mono ml-2 hidden lg:inline">
+                      <span className="text-xs text-fg-subtle font-mono ml-2 hidden lg:inline">
                         {a.area}
                       </span>
                     </td>
@@ -290,10 +283,10 @@ export default function ProductivityPage() {
                         })
                       }
                     />
-                    <td className="px-3 py-2.5 text-right tabular-nums text-slate-600">
+                    <td className="px-3 py-2.5 text-right tabular-nums text-fg-muted">
                       {fmtH(a.avgHours)}
                     </td>
-                    <td className="px-5 py-2.5 text-right tabular-nums text-slate-600">
+                    <td className="px-5 py-2.5 text-right tabular-nums text-fg-muted">
                       {fmtH(a.maxHours)}
                     </td>
                   </tr>
@@ -320,9 +313,9 @@ function SectionTitle({
 }) {
   return (
     <div className="flex items-baseline gap-2 mt-1">
-      <Icon size={16} className="text-slate-400 self-center" />
-      <h2 className="text-base font-semibold text-slate-800">{title}</h2>
-      <span className="text-xs text-slate-400">{subtitle}</span>
+      <Icon size={16} className="text-fg-muted self-center" />
+      <h2 className="text-base font-semibold text-fg">{title}</h2>
+      <span className="text-xs text-fg-subtle">{subtitle}</span>
     </div>
   )
 }
@@ -342,8 +335,8 @@ function Kpi({
 }) {
   const clickable = !!onClick && value !== 0 && value !== '0'
   return (
-    <div className="bg-white rounded-xl border border-slate-200 shadow-sm px-4 py-3">
-      <div className="flex items-center gap-1.5 text-xs text-slate-500 mb-1">
+    <div className="bg-surface rounded-lg border border-border shadow-xs px-4 py-3">
+      <div className="flex items-center gap-1.5 text-xs text-fg-muted mb-1">
         <Icon size={13} /> {label}
       </div>
       {clickable ? (
@@ -371,11 +364,7 @@ function NumCell({
   danger?: boolean
   accent?: boolean
 }) {
-  const cls = danger
-    ? 'font-medium text-red-600'
-    : accent
-      ? 'font-medium text-green-600'
-      : 'text-slate-700'
+  const cls = danger ? 'font-medium text-danger' : accent ? 'font-medium text-success' : 'text-fg'
   return (
     <td className="px-3 py-2.5 text-right tabular-nums">
       {value > 0 ? (
@@ -386,7 +375,7 @@ function NumCell({
           {value}
         </button>
       ) : (
-        <span className="text-slate-300">0</span>
+        <span className="text-fg-subtle">0</span>
       )}
     </td>
   )
@@ -408,12 +397,12 @@ function DrillModal({
       api.productivityWipItems(projectId, drill.area, drill.kind === 'wip' ? drill.over : true),
     enabled: drill.kind === 'wip',
   })
-  const leadQ = useQuery({
+  const leadItemsQ = useQuery({
     queryKey: ['prod-lead-items', projectId, drill.area],
     queryFn: () => api.productivityLeadItems(projectId, drill.area),
     enabled: isLead,
   })
-  const q = isLead ? leadQ : wipQ
+  const q = isLead ? leadItemsQ : wipQ
   const items = (q.data ?? []) as OverThresholdItem[] | LeadItem[]
 
   return (
@@ -422,15 +411,15 @@ function DrillModal({
       onClick={onClose}
     >
       <div
-        className="bg-white rounded-xl shadow-xl w-full max-w-3xl mx-4 max-h-[85vh] flex flex-col"
+        className="bg-surface rounded-xl shadow-md w-full max-w-3xl mx-4 max-h-[85vh] flex flex-col"
         onClick={e => e.stopPropagation()}
       >
-        <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-200">
-          <h2 className="text-sm font-semibold text-slate-800">
+        <div className="flex items-center justify-between px-5 py-3.5 border-b border-border">
+          <h2 className="text-sm font-semibold text-fg">
             {drill.title}{' '}
-            {q.data && <span className="text-slate-400 font-normal">({items.length})</span>}
+            {q.data && <span className="text-fg-subtle font-normal">({items.length})</span>}
           </h2>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600">
+          <button onClick={onClose} className="text-fg-subtle hover:text-fg" aria-label="Close">
             <X size={18} />
           </button>
         </div>
@@ -443,8 +432,8 @@ function DrillModal({
             <Empty text="No items." />
           ) : (
             <table className="w-full text-sm">
-              <thead className="sticky top-0 bg-white">
-                <tr className="text-left text-xs text-slate-500 border-b border-slate-100">
+              <thead className="sticky top-0 bg-surface">
+                <tr className="text-left text-xs text-fg-muted border-b border-border">
                   <th className="px-5 py-2 font-medium">Item</th>
                   <th className="px-3 py-2 font-medium">Type</th>
                   <th className="px-3 py-2 font-medium">Assignee</th>
@@ -463,29 +452,29 @@ function DrillModal({
                   <th className="px-3 py-2"></th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-50">
+              <tbody className="divide-y divide-border">
                 {isLead
                   ? (items as LeadItem[]).map(w => (
-                      <tr key={w.id} className="hover:bg-slate-50 align-top">
+                      <tr key={w.id} className="hover:bg-surface-muted align-top">
                         <td className="px-5 py-2">
-                          <div className="text-slate-800">{w.title}</div>
+                          <div className="text-fg">{w.title}</div>
                           {w.externalId && (
-                            <span className="text-xs font-mono text-slate-400">
+                            <span className="text-xs font-mono text-fg-subtle">
                               #{w.externalId}
                             </span>
                           )}
                         </td>
                         <td className="px-3 py-2">
-                          <Badge label={w.issueType} colorClass="text-slate-600 bg-slate-100" />
+                          <Badge label={w.issueType} colorClass="text-neutral bg-neutral-bg" />
                         </td>
-                        <td className="px-3 py-2 text-xs text-slate-500">{w.assignedTo ?? '—'}</td>
-                        <td className="px-3 py-2 text-xs text-slate-500">
+                        <td className="px-3 py-2 text-xs text-fg-muted">{w.assignedTo ?? '—'}</td>
+                        <td className="px-3 py-2 text-xs text-fg-muted">
                           {fmtDate(w.createdDate)}
                         </td>
-                        <td className="px-3 py-2 text-xs text-slate-500">
+                        <td className="px-3 py-2 text-xs text-fg-muted">
                           {fmtDate(w.completedAt)}
                         </td>
-                        <td className="px-3 py-2 text-right tabular-nums font-medium text-slate-700">
+                        <td className="px-3 py-2 text-right tabular-nums font-medium text-fg">
                           {fmtH(w.leadHours)}
                         </td>
                         <td className="px-3 py-2 text-right">
@@ -494,7 +483,7 @@ function DrillModal({
                               href={w.sourceUrl}
                               target="_blank"
                               rel="noreferrer"
-                              className="text-slate-300 hover:text-blue-600 inline-block"
+                              className="text-fg-subtle hover:text-primary inline-block"
                             >
                               <ExternalLink size={13} />
                             </a>
@@ -503,23 +492,23 @@ function DrillModal({
                       </tr>
                     ))
                   : (items as OverThresholdItem[]).map(w => (
-                      <tr key={w.id} className="hover:bg-slate-50 align-top">
+                      <tr key={w.id} className="hover:bg-surface-muted align-top">
                         <td className="px-5 py-2">
-                          <div className="text-slate-800">{w.title}</div>
+                          <div className="text-fg">{w.title}</div>
                           {w.externalId && (
-                            <span className="text-xs font-mono text-slate-400">
+                            <span className="text-xs font-mono text-fg-subtle">
                               #{w.externalId}
                             </span>
                           )}
                         </td>
                         <td className="px-3 py-2">
-                          <Badge label={w.issueType} colorClass="text-slate-600 bg-slate-100" />
+                          <Badge label={w.issueType} colorClass="text-neutral bg-neutral-bg" />
                         </td>
-                        <td className="px-3 py-2 text-xs text-slate-500">{w.assignedTo ?? '—'}</td>
+                        <td className="px-3 py-2 text-xs text-fg-muted">{w.assignedTo ?? '—'}</td>
                         <td className="px-3 py-2">
                           <Badge label={w.status} colorClass={statusBadge(w.status)} />
                         </td>
-                        <td className="px-3 py-2 text-right tabular-nums font-medium text-red-600">
+                        <td className="px-3 py-2 text-right tabular-nums font-medium text-danger">
                           {fmtH(w.cycleHours)}
                         </td>
                         <td className="px-3 py-2 text-right">
@@ -528,7 +517,7 @@ function DrillModal({
                               href={w.sourceUrl}
                               target="_blank"
                               rel="noreferrer"
-                              className="text-slate-300 hover:text-blue-600 inline-block"
+                              className="text-fg-subtle hover:text-primary inline-block"
                             >
                               <ExternalLink size={13} />
                             </a>
@@ -566,34 +555,27 @@ function ThresholdEditor({
   return (
     <div className="flex items-end gap-2">
       <div>
-        <label className="block text-xs font-medium text-slate-500 mb-1">
+        <label className="block text-xs font-medium text-fg-muted mb-1">
           Cycle-time target (hours)
         </label>
-        <input
+        <Input
           type="number"
           min={0.5}
           step={0.5}
           value={val}
           onChange={e => setVal(e.target.value)}
-          className="w-28 border border-slate-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+          className="w-28"
+          aria-label="Cycle-time target hours"
         />
       </div>
-      <button
-        onClick={() => save.mutate()}
-        disabled={!dirty || save.isPending}
-        className="flex items-center gap-1.5 px-3 py-1.5 text-sm font-medium text-white bg-blue-600 rounded-lg hover:bg-blue-700 disabled:opacity-40 transition-colors"
-      >
-        {save.isPending ? (
-          <Loader2 size={13} className="animate-spin" />
-        ) : save.isSuccess && !dirty ? (
-          <Check size={13} />
-        ) : null}
+      <Button size="sm" onClick={() => save.mutate()} disabled={!dirty} loading={save.isPending}>
+        {!save.isPending && save.isSuccess && !dirty ? <Check size={13} /> : null}
         Save
-      </button>
+      </Button>
     </div>
   )
 }
 
 function Empty({ text }: { text: string }) {
-  return <p className="px-5 py-10 text-sm text-slate-500 text-center">{text}</p>
+  return <p className="px-5 py-10 text-sm text-fg-muted text-center">{text}</p>
 }

@@ -5,6 +5,7 @@ import { useProjectId } from '@/components/layout/ProjectLayout'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import ErrorMessage from '@/components/ErrorMessage'
 import MappingRulesEditor from '@/components/MappingRulesEditor'
+import { Button, PageHeader, Select } from '@/components/ui'
 import {
   Boxes,
   Bug,
@@ -57,23 +58,22 @@ function toYaml(value: unknown, indent = 0): string {
 }
 
 function laneBadge(lane: string) {
-  if (lane === 'DEFECT') return { cls: 'text-red-700 bg-red-100', icon: <Bug size={12} /> }
-  if (lane === 'REQUIREMENT')
-    return { cls: 'text-blue-700 bg-blue-100', icon: <FileText size={12} /> }
-  return { cls: 'text-slate-500 bg-slate-100', icon: <Ban size={12} /> }
+  if (lane === 'DEFECT') return { cls: 'text-danger bg-danger-bg', icon: <Bug size={12} /> }
+  if (lane === 'REQUIREMENT') return { cls: 'text-info bg-info-bg', icon: <FileText size={12} /> }
+  return { cls: 'text-neutral bg-neutral-bg', icon: <Ban size={12} /> }
 }
 function catColor(cat: string) {
   switch (cat) {
     case 'Proposed':
-      return 'text-slate-600 bg-slate-100'
+      return 'text-neutral bg-neutral-bg'
     case 'InProgress':
-      return 'text-blue-700 bg-blue-100'
+      return 'text-info bg-info-bg'
     case 'Completed':
-      return 'text-green-700 bg-green-100'
+      return 'text-success bg-success-bg'
     case 'Removed':
-      return 'text-red-700 bg-red-100'
+      return 'text-danger bg-danger-bg'
     default:
-      return 'text-slate-500 bg-slate-50'
+      return 'text-neutral bg-neutral-bg'
   }
 }
 
@@ -143,32 +143,28 @@ export default function AdoMappingPage() {
 
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-          <Boxes size={22} /> Mapping Discovery
-        </h1>
-        <p className="text-sm text-slate-500 mt-1">
-          Explore the Azure DevOps work-item structure and get a suggested mapping profile to start
-          from.
-        </p>
-      </div>
+      <PageHeader
+        title="Mapping Discovery"
+        icon={<Boxes size={20} />}
+        description="Explore the Azure DevOps work-item structure and get a suggested mapping profile to start from."
+      />
 
       <div className="flex items-center gap-3">
-        <label className="text-sm font-medium text-slate-700">ADO project:</label>
-        <select
+        <label className="text-sm font-medium text-fg">ADO project:</label>
+        <Select
+          containerClassName="w-auto min-w-[12rem]"
           value={effProject}
           onChange={e => {
             setAdoProject(e.target.value)
             setSelectedType('')
           }}
-          className="text-sm border border-slate-200 rounded-lg px-3 py-1.5 bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
         >
           {(projectsQ.data ?? []).map(p => (
             <option key={p.id} value={p.name}>
               {p.name}
             </option>
           ))}
-        </select>
+        </Select>
       </div>
 
       <div className="grid grid-cols-3 gap-5">
@@ -178,27 +174,27 @@ export default function AdoMappingPage() {
           {laneOrder
             .filter(l => grouped[l]?.length)
             .map(lane => (
-              <div key={lane} className="bg-white rounded-xl border border-slate-200 shadow-sm">
-                <div className="px-4 py-2 border-b border-slate-100 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+              <div key={lane} className="bg-surface rounded-lg border border-border shadow-xs">
+                <div className="px-4 py-2 border-b border-border text-xs font-semibold text-fg-muted uppercase tracking-wider">
                   {lane === 'IGNORE' ? 'Not tracked' : lane}
                 </div>
-                <div className="divide-y divide-slate-50">
+                <div className="divide-y divide-border">
                   {grouped[lane].map(t => {
                     const b = laneBadge(t.suggestedLane)
                     return (
                       <button
                         key={t.name}
                         onClick={() => setSelectedType(t.name)}
-                        className={`w-full text-left px-4 py-2 flex items-center gap-2 text-sm hover:bg-slate-50 ${selectedType === t.name ? 'bg-blue-50' : ''}`}
+                        className={`w-full text-left px-4 py-2 flex items-center gap-2 text-sm hover:bg-surface-muted ${selectedType === t.name ? 'bg-primary-subtle' : ''}`}
                       >
                         <span
                           className={`inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded ${b.cls}`}
                         >
                           {b.icon}
                         </span>
-                        <span className="flex-1 truncate text-slate-800">{t.name}</span>
+                        <span className="flex-1 truncate text-fg">{t.name}</span>
                         {t.custom && (
-                          <span className="text-[10px] px-1 py-0.5 rounded bg-amber-100 text-amber-700">
+                          <span className="text-[10px] px-1 py-0.5 rounded bg-warning-bg text-warning">
                             custom
                           </span>
                         )}
@@ -213,7 +209,7 @@ export default function AdoMappingPage() {
         {/* Schema + suggestion */}
         <div className="col-span-2 space-y-4">
           {!selectedType && (
-            <div className="text-sm text-slate-400 py-10 text-center bg-white rounded-xl border border-slate-200">
+            <div className="text-sm text-fg-subtle py-10 text-center bg-surface rounded-lg border border-border">
               Select a work-item type to view its fields, states, and a suggested mapping.
             </div>
           )}
@@ -232,11 +228,11 @@ export default function AdoMappingPage() {
               )}
 
               {/* Fields */}
-              <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
-                <div className="px-4 py-2 border-b border-slate-100 text-sm font-semibold text-slate-900">
+              <div className="bg-surface rounded-lg border border-border shadow-xs">
+                <div className="px-4 py-2 border-b border-border text-sm font-semibold text-fg">
                   {schemaQ.data.workItemType} — fields ({schemaQ.data.fields.length})
                 </div>
-                <div className="max-h-60 overflow-y-auto divide-y divide-slate-50">
+                <div className="max-h-60 overflow-y-auto divide-y divide-border">
                   {schemaQ.data.fields
                     .filter(
                       f =>
@@ -255,25 +251,27 @@ export default function AdoMappingPage() {
                         key={f.referenceName}
                         className="px-4 py-1.5 flex items-center gap-2 text-xs"
                       >
-                        <code className="font-mono text-slate-700">{f.referenceName}</code>
-                        <span className="text-slate-400">{f.name}</span>
+                        <code className="font-mono text-fg">{f.referenceName}</code>
+                        <span className="text-fg-subtle">{f.name}</span>
                         {f.custom && (
-                          <span className="px-1 rounded bg-amber-100 text-amber-700">custom</span>
+                          <span className="px-1 rounded bg-warning-bg text-warning">custom</span>
                         )}
                         {f.required && (
-                          <span className="px-1 rounded bg-slate-100 text-slate-500">required</span>
+                          <span className="px-1 rounded bg-surface-muted text-fg-muted">
+                            required
+                          </span>
                         )}
                       </div>
                     ))}
-                  <p className="px-4 py-1.5 text-[11px] text-slate-400">
+                  <p className="px-4 py-1.5 text-[11px] text-fg-subtle">
                     Showing custom + mappable fields. {schemaQ.data.fields.length} total.
                   </p>
                 </div>
               </div>
 
               {/* States */}
-              <div className="bg-white rounded-xl border border-slate-200 shadow-sm px-4 py-3">
-                <p className="text-sm font-semibold text-slate-900 mb-2">
+              <div className="bg-surface rounded-lg border border-border shadow-xs px-4 py-3">
+                <p className="text-sm font-semibold text-fg mb-2">
                   States → category (drives status normalization)
                 </p>
                 <div className="flex flex-wrap gap-1.5">
@@ -289,32 +287,30 @@ export default function AdoMappingPage() {
               </div>
 
               {/* Suggested profile */}
-              <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
-                <div className="px-4 py-2 border-b border-slate-100 flex items-center gap-2">
-                  <Wand2 size={15} className="text-purple-600" />
-                  <span className="text-sm font-semibold text-slate-900">
-                    Suggested mapping profile
-                  </span>
+              <div className="bg-surface rounded-lg border border-border shadow-xs">
+                <div className="px-4 py-2 border-b border-border flex items-center gap-2">
+                  <Wand2 size={15} className="text-primary" />
+                  <span className="text-sm font-semibold text-fg">Suggested mapping profile</span>
                   <div className="ml-auto flex items-center gap-1">
                     {(['yaml', 'json'] as const).map(f => (
                       <button
                         key={f}
                         onClick={() => setFmt(f)}
-                        className={`px-2 py-0.5 text-xs rounded ${fmt === f ? 'bg-blue-600 text-white' : 'text-slate-500 hover:bg-slate-100'}`}
+                        className={`px-2 py-0.5 text-xs rounded ${fmt === f ? 'bg-primary text-primary-fg' : 'text-fg-muted hover:bg-surface-muted'}`}
                       >
                         {f.toUpperCase()}
                       </button>
                     ))}
                     <button
                       onClick={copy}
-                      className="ml-1 inline-flex items-center gap-1 text-xs px-2 py-0.5 border border-slate-200 rounded hover:bg-slate-50"
+                      className="ml-1 inline-flex items-center gap-1 text-xs px-2 py-0.5 border border-border rounded hover:bg-surface-muted"
                     >
                       {copied ? <Check size={12} /> : <Copy size={12} />}{' '}
                       {copied ? 'Copied' : 'Copy'}
                     </button>
                   </div>
                 </div>
-                <pre className="text-xs font-mono text-slate-800 bg-slate-50 p-3 overflow-x-auto max-h-[28rem] leading-relaxed">
+                <pre className="text-xs font-mono text-fg bg-surface-muted p-3 overflow-x-auto max-h-[28rem] leading-relaxed">
                   {profileText}
                 </pre>
               </div>
@@ -330,26 +326,24 @@ export default function AdoMappingPage() {
       </div>
 
       {/* Project mapping-rule overrides (advanced) */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
+      <div className="bg-surface rounded-lg border border-border shadow-xs">
         <button
           onClick={() => setShowRules(v => !v)}
           className="w-full px-5 py-3 flex items-center gap-2 text-left"
         >
           {showRules ? (
-            <ChevronDown size={16} className="text-slate-400" />
+            <ChevronDown size={16} className="text-fg-subtle" />
           ) : (
-            <ChevronRight size={16} className="text-slate-400" />
+            <ChevronRight size={16} className="text-fg-subtle" />
           )}
-          <SlidersHorizontal size={15} className="text-slate-500" />
-          <span className="text-sm font-semibold text-slate-900">
-            Mapping rules for this project
-          </span>
-          <span className="text-xs text-slate-400">
+          <SlidersHorizontal size={15} className="text-fg-muted" />
+          <span className="text-sm font-semibold text-fg">Mapping rules for this project</span>
+          <span className="text-xs text-fg-subtle">
             override the org default · controls these suggestions
           </span>
         </button>
         {showRules && (
-          <div className="px-5 pb-5 border-t border-slate-100 pt-4">
+          <div className="px-5 pb-5 border-t border-border pt-4">
             <MappingRulesEditor scope="PROJECT" id={projectId} />
           </div>
         )}
@@ -369,7 +363,7 @@ function DriftBanner({
 }) {
   if (!report.hasBaseline) {
     return (
-      <div className="bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 text-xs text-slate-500">
+      <div className="bg-surface-muted border border-border rounded-lg px-4 py-3 text-xs text-fg-muted">
         Baseline captured for <span className="font-mono">{report.workItemType}</span>. Future
         schema changes (removed / renamed / added fields) will be flagged here.
       </div>
@@ -377,10 +371,10 @@ function DriftBanner({
   }
   if (!report.hasDrift) {
     return (
-      <div className="bg-green-50 border border-green-200 rounded-xl px-4 py-3 flex items-center gap-2 text-sm text-green-800">
+      <div className="bg-success-bg border border-success-border rounded-lg px-4 py-3 flex items-center gap-2 text-sm text-success">
         <CheckCircle2 size={15} /> Schema matches baseline
         {report.baselineCapturedAt && (
-          <span className="text-xs text-green-600">
+          <span className="text-xs text-success/80">
             · captured {relativeTime(report.baselineCapturedAt)}
           </span>
         )}
@@ -389,59 +383,55 @@ function DriftBanner({
   }
   const mappedRemoved = report.removed.filter(f => f.mapped)
   return (
-    <div className="bg-amber-50 border border-amber-300 rounded-xl p-4 space-y-2">
+    <div className="bg-warning-bg border border-warning-border rounded-lg p-4 space-y-2">
       <div className="flex items-center justify-between gap-3">
-        <p className="text-sm font-semibold text-amber-900 flex items-center gap-2">
+        <p className="text-sm font-semibold text-warning flex items-center gap-2">
           <AlertTriangle size={15} /> Schema drift since baseline
           {report.baselineCapturedAt && (
-            <span className="text-xs font-normal text-amber-700">
+            <span className="text-xs font-normal text-warning/80">
               (baseline {relativeTime(report.baselineCapturedAt)})
             </span>
           )}
         </p>
-        <button
-          onClick={onUpdateBaseline}
-          disabled={updating}
-          className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium border border-amber-400 text-amber-800 rounded-lg hover:bg-amber-100 disabled:opacity-50"
-        >
+        <Button variant="secondary" size="sm" onClick={onUpdateBaseline} loading={updating}>
           <RefreshCw size={12} className={updating ? 'animate-spin' : ''} />{' '}
           {updating ? 'Updating…' : 'Update baseline'}
-        </button>
+        </Button>
       </div>
 
       {mappedRemoved.length > 0 && (
-        <p className="text-xs text-red-700 bg-red-50 border border-red-200 rounded px-2 py-1">
+        <p className="text-xs text-danger bg-danger-bg border border-danger-border rounded px-2 py-1">
           ⚠ {mappedRemoved.length} <strong>mapped</strong> field(s) removed upstream — data for
           these will go stale: {mappedRemoved.map(f => f.referenceName).join(', ')}
         </p>
       )}
 
       <div className="grid grid-cols-3 gap-3 text-xs">
-        <DriftCol title={`Removed (${report.removed.length})`} color="text-red-700">
+        <DriftCol title={`Removed (${report.removed.length})`} color="text-danger">
           {report.removed.map(f => (
             <li key={f.referenceName} className="truncate">
               <span className="font-mono">{f.referenceName}</span>
               {f.mapped && (
-                <span className="ml-1 text-[10px] px-1 rounded bg-red-100 text-red-700">
+                <span className="ml-1 text-[10px] px-1 rounded bg-danger-bg text-danger">
                   mapped
                 </span>
               )}
             </li>
           ))}
         </DriftCol>
-        <DriftCol title={`Added (${report.added.length})`} color="text-blue-700">
+        <DriftCol title={`Added (${report.added.length})`} color="text-info">
           {report.added.map(f => (
             <li key={f.referenceName} className="truncate">
               <span className="font-mono">{f.referenceName}</span>
               {f.mapped && (
-                <span className="ml-1 text-[10px] px-1 rounded bg-blue-100 text-blue-700">
+                <span className="ml-1 text-[10px] px-1 rounded bg-info-bg text-info">
                   auto-mappable
                 </span>
               )}
             </li>
           ))}
         </DriftCol>
-        <DriftCol title={`Type changed (${report.typeChanged.length})`} color="text-amber-700">
+        <DriftCol title={`Type changed (${report.typeChanged.length})`} color="text-warning">
           {report.typeChanged.map(f => (
             <li key={f.referenceName} className="truncate">
               <span className="font-mono">{f.referenceName}</span>: {f.fromType} → {f.toType}
@@ -451,7 +441,7 @@ function DriftBanner({
       </div>
 
       {(report.removedStateCategories.length > 0 || report.addedStateCategories.length > 0) && (
-        <p className="text-xs text-amber-800">
+        <p className="text-xs text-warning">
           State categories changed
           {report.removedStateCategories.length > 0 && (
             <> · removed: {report.removedStateCategories.join(', ')}</>
@@ -478,7 +468,7 @@ function DriftCol({
   return (
     <div>
       <p className={`font-semibold mb-1 ${color}`}>{title}</p>
-      <ul className="space-y-0.5 text-slate-600">{children}</ul>
+      <ul className="space-y-0.5 text-fg-muted">{children}</ul>
     </div>
   )
 }

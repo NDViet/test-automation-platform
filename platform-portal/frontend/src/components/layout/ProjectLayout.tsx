@@ -72,12 +72,12 @@ function FilterBar({ projectId }: { projectId: string }) {
   })
 
   const sel =
-    'border border-slate-200 rounded-lg pl-7 pr-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 max-w-[15rem]'
+    'border border-border-strong rounded-md pl-7 pr-2 py-1.5 text-sm bg-surface text-fg focus:outline-none focus:ring-2 focus:ring-primary/30 focus:border-primary max-w-[15rem]'
   return (
-    <div className="sticky top-0 z-20 -mx-6 px-6 py-2.5 mb-4 bg-white/95 backdrop-blur border-b border-slate-200 flex items-center gap-3 flex-wrap">
-      <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Scope</span>
+    <div className="sticky top-0 z-20 -mx-6 px-6 py-2.5 mb-4 bg-surface/95 backdrop-blur border-b border-border flex items-center gap-3 flex-wrap">
+      <span className="text-xs font-semibold text-fg-muted uppercase tracking-wide">Scope</span>
       <div className="relative">
-        <Users size={13} className="absolute left-2 top-1/2 -translate-y-1/2 text-slate-400" />
+        <Users size={13} className="absolute left-2 top-1/2 -translate-y-1/2 text-fg-subtle" />
         <select
           className={sel}
           value={filter.teamId}
@@ -94,7 +94,7 @@ function FilterBar({ projectId }: { projectId: string }) {
       </div>
       <PathSelect
         className="w-[15rem]"
-        leftIcon={<LayoutGrid size={13} className="text-slate-400 shrink-0" />}
+        leftIcon={<LayoutGrid size={13} className="text-fg-subtle shrink-0" />}
         value={filter.area}
         onChange={v => setFilter({ area: v })}
         placeholder="All areas"
@@ -102,7 +102,7 @@ function FilterBar({ projectId }: { projectId: string }) {
       />
       <PathSelect
         className="w-[15rem]"
-        leftIcon={<CalendarRange size={13} className="text-slate-400 shrink-0" />}
+        leftIcon={<CalendarRange size={13} className="text-fg-subtle shrink-0" />}
         value={filter.iteration}
         onChange={v => setFilter({ iteration: v })}
         placeholder="All sprints"
@@ -111,7 +111,7 @@ function FilterBar({ projectId }: { projectId: string }) {
       {active && (
         <button
           onClick={clear}
-          className="flex items-center gap-1 text-xs text-slate-500 hover:text-slate-700"
+          className="flex items-center gap-1 text-xs text-fg-muted hover:text-fg"
         >
           <X size={13} /> Clear
         </button>

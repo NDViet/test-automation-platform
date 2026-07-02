@@ -3,6 +3,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import ErrorMessage from '@/components/ErrorMessage'
+import { Button, Input, Select, PageHeader } from '@/components/ui'
 import {
   Save,
   FlaskConical,
@@ -15,6 +16,7 @@ import {
   Plus,
   Trash2,
   RefreshCw,
+  Bot,
 } from 'lucide-react'
 import LiteLlmExport from '@/components/LiteLlmExport'
 import type { AiSettingsUpdate, LiteLlmModel } from '@/lib/types'
@@ -35,7 +37,7 @@ function Toggle({
       disabled={disabled}
       onClick={onChange}
       className={`relative inline-flex h-6 w-11 shrink-0 rounded-full border-2 border-transparent transition-colors focus:outline-none disabled:opacity-40 ${
-        checked ? 'bg-blue-600' : 'bg-slate-200'
+        checked ? 'bg-primary' : 'bg-border-strong'
       }`}
     >
       <span
@@ -65,29 +67,24 @@ function ModelSelect({
   const known = value === '' || ids.includes(value)
   return (
     <div>
-      <label className="block text-sm font-medium text-slate-700 mb-1">{label}</label>
+      <label className="block text-sm font-medium text-fg mb-1">{label}</label>
       {models.length > 0 && known ? (
-        <select
-          value={value}
-          onChange={e => onChange(e.target.value)}
-          className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
-        >
+        <Select value={value} onChange={e => onChange(e.target.value)}>
           {models.map(m => (
             <option key={m.id} value={m.id}>
               {m.label ? `${m.label} (${m.id})` : m.id}
             </option>
           ))}
-        </select>
+        </Select>
       ) : (
-        <input
-          type="text"
+        <Input
           value={value}
           onChange={e => onChange(e.target.value)}
           placeholder={hint}
-          className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+          className="font-mono"
         />
       )}
-      <p className="text-xs text-slate-400 mt-1">{hint}</p>
+      <p className="text-xs text-fg-subtle mt-1">{hint}</p>
     </div>
   )
 }
@@ -199,16 +196,14 @@ export default function AiSettingsPage() {
     setModels(ms => ms.map((m, idx) => (idx === i ? { ...m, ...patch } : m)))
 
   return (
-    <div className="space-y-6 max-w-2xl h-full min-h-0 overflow-y-auto pr-1">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900">AI Settings</h1>
-        <p className="text-sm text-slate-500 mt-1">
-          The platform reaches every model through a single LiteLLM gateway. Point it at your
-          LiteLLM endpoint and map the models used for analysis and agent workflows.
-        </p>
-      </div>
+    <div className="space-y-6 max-w-2xl h-full min-h-0 overflow-y-auto scrollbar-thin pr-1">
+      <PageHeader
+        title="AI Settings"
+        icon={<Bot size={20} />}
+        description="The platform reaches every model through a single LiteLLM gateway. Point it at your LiteLLM endpoint and map the models used for analysis and agent workflows."
+      />
 
-      <div className="flex gap-3 bg-blue-50 border border-blue-200 rounded-xl px-4 py-3 text-sm text-blue-800">
+      <div className="flex gap-3 bg-info-bg border border-info-border rounded-lg px-4 py-3 text-sm text-info">
         <Info size={16} className="shrink-0 mt-0.5" />
         <div>
           LiteLLM is OpenAI-compatible — the same base URL + key + model list you use in OpenCode,
@@ -217,12 +212,12 @@ export default function AiSettingsPage() {
         </div>
       </div>
 
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm divide-y divide-slate-100">
+      <div className="bg-surface rounded-lg border border-border shadow-xs divide-y divide-border">
         {/* Enable / Realtime */}
         <div className="px-5 py-4 flex items-center justify-between">
           <div>
-            <p className="text-sm font-medium text-slate-900">AI Analysis</p>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <p className="text-sm font-medium text-fg">AI Analysis</p>
+            <p className="text-xs text-fg-muted mt-0.5">
               When enabled, failures are automatically analysed and classified
             </p>
           </div>
@@ -230,8 +225,8 @@ export default function AiSettingsPage() {
         </div>
         <div className="px-5 py-4 flex items-center justify-between">
           <div>
-            <p className="text-sm font-medium text-slate-900">Real-time Analysis</p>
-            <p className="text-xs text-slate-500 mt-0.5">
+            <p className="text-sm font-medium text-fg">Real-time Analysis</p>
+            <p className="text-xs text-fg-muted mt-0.5">
               Classify failures immediately on ingestion. When off, the nightly batch (02:00 UTC)
               handles them.
             </p>
@@ -245,45 +240,45 @@ export default function AiSettingsPage() {
 
         {/* Gateway connection */}
         <div className="px-5 py-4 space-y-4">
-          <p className="text-sm font-medium text-slate-700">LiteLLM Gateway</p>
+          <p className="text-sm font-medium text-fg">LiteLLM Gateway</p>
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">Base URL</label>
-            <input
-              type="text"
+            <label className="block text-sm font-medium text-fg mb-1">Base URL</label>
+            <Input
               value={baseUrl}
               onChange={e => setBaseUrl(e.target.value)}
               placeholder="http://litellm:4000/v1"
-              className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+              className="font-mono"
             />
-            <p className="text-xs text-slate-400 mt-1">
+            <p className="text-xs text-fg-subtle mt-1">
               OpenAI-compatible endpoint of your LiteLLM proxy
             </p>
           </div>
           <div>
-            <label className="block text-sm font-medium text-slate-700 mb-1">
+            <label className="block text-sm font-medium text-fg mb-1">
               API Key
               {settings?.liteLlmKeySet ? (
-                <span className="ml-2 text-xs font-normal text-green-600">
+                <span className="ml-2 text-xs font-normal text-success">
                   (configured — enter new value to replace)
                 </span>
               ) : (
-                <span className="ml-2 text-xs font-normal text-slate-400">(not set)</span>
+                <span className="ml-2 text-xs font-normal text-fg-subtle">(not set)</span>
               )}
             </label>
             <div className="relative">
-              <input
+              <Input
                 type={showKey ? 'text' : 'password'}
                 value={apiKey}
                 onChange={e => setApiKey(e.target.value)}
                 placeholder={
                   settings?.liteLlmKeySet ? '••••••••  (leave blank to keep current)' : 'sk-…'
                 }
-                className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 pr-10 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+                className="pr-10 font-mono"
               />
               <button
                 type="button"
                 onClick={() => setShowKey(v => !v)}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600"
+                className="absolute right-2 top-1/2 -translate-y-1/2 text-fg-subtle hover:text-fg"
+                aria-label={showKey ? 'Hide key' : 'Show key'}
               >
                 {showKey ? <EyeOff size={16} /> : <Eye size={16} />}
               </button>
@@ -294,7 +289,7 @@ export default function AiSettingsPage() {
         {/* Model list */}
         <div className="px-5 py-4 space-y-3">
           <div className="flex items-center justify-between">
-            <p className="text-sm font-medium text-slate-700">Models</p>
+            <p className="text-sm font-medium text-fg">Models</p>
             <div className="flex items-center gap-3">
               <button
                 onClick={() => {
@@ -302,7 +297,7 @@ export default function AiSettingsPage() {
                   void fetchModelsMutation.mutate()
                 }}
                 disabled={fetchModelsMutation.isPending}
-                className="flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-700 disabled:opacity-50"
+                className="flex items-center gap-1.5 text-xs font-medium text-primary hover:underline disabled:opacity-50"
               >
                 <RefreshCw
                   size={14}
@@ -312,14 +307,14 @@ export default function AiSettingsPage() {
               </button>
               <button
                 onClick={() => setModels(ms => [...ms, { id: '', label: '' }])}
-                className="flex items-center gap-1.5 text-xs font-medium text-blue-600 hover:text-blue-700"
+                className="flex items-center gap-1.5 text-xs font-medium text-primary hover:underline"
               >
                 <Plus size={14} /> Add model
               </button>
             </div>
           </div>
           {models.length === 0 && (
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-fg-subtle">
               No models yet — click <span className="font-medium">Test Connection</span> to load the
               models your key is allowed to use, or add their ids manually (e.g. claude-sonnet-4-6,
               gpt-4o). The per-role pickers below select from this list.
@@ -327,23 +322,21 @@ export default function AiSettingsPage() {
           )}
           {models.map((m, i) => (
             <div key={i} className="flex items-center gap-2">
-              <input
-                type="text"
+              <Input
                 value={m.id}
                 onChange={e => updateModel(i, { id: e.target.value })}
                 placeholder="model id (e.g. gpt-4o)"
-                className="flex-1 text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500 font-mono"
+                className="flex-1 font-mono"
               />
-              <input
-                type="text"
+              <Input
                 value={m.label ?? ''}
                 onChange={e => updateModel(i, { label: e.target.value })}
                 placeholder="label (optional)"
-                className="flex-1 text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                className="flex-1"
               />
               <button
                 onClick={() => setModels(ms => ms.filter((_, idx) => idx !== i))}
-                className="text-slate-400 hover:text-red-600"
+                className="text-fg-subtle hover:text-danger"
                 aria-label="Remove model"
               >
                 <Trash2 size={16} />
@@ -387,7 +380,7 @@ export default function AiSettingsPage() {
         {testResult && (
           <div
             className={`px-5 py-3 flex items-center gap-2 text-sm ${
-              testResult.success ? 'text-green-700 bg-green-50' : 'text-red-700 bg-red-50'
+              testResult.success ? 'text-success bg-success-bg' : 'text-danger bg-danger-bg'
             }`}
           >
             {testResult.success ? (
@@ -400,32 +393,28 @@ export default function AiSettingsPage() {
         )}
 
         <div className="px-5 py-4 flex items-center gap-3">
-          <button
+          <Button
+            variant="secondary"
             onClick={() => {
               setTestResult(null)
               void testMutation.mutate()
             }}
-            disabled={testMutation.isPending}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium border border-slate-200 rounded-lg hover:bg-slate-50 disabled:opacity-50 transition-colors"
+            loading={testMutation.isPending}
           >
             <FlaskConical size={15} />
             {testMutation.isPending ? 'Testing…' : 'Test Connection'}
-          </button>
-          <button
-            onClick={() => void saveMutation.mutate()}
-            disabled={saveMutation.isPending}
-            className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 transition-colors"
-          >
+          </Button>
+          <Button onClick={() => void saveMutation.mutate()} loading={saveMutation.isPending}>
             <Save size={15} />
             {saveMutation.isPending ? 'Saving…' : 'Save Settings'}
-          </button>
+          </Button>
           {saveMutation.isSuccess && (
-            <span className="text-xs text-green-600 flex items-center gap-1">
+            <span className="text-xs text-success flex items-center gap-1">
               <CheckCircle size={13} /> Saved
             </span>
           )}
           {saveMutation.isError && (
-            <span className="text-xs text-red-600">Failed to save — please try again.</span>
+            <span className="text-xs text-danger">Failed to save — please try again.</span>
           )}
         </div>
       </div>
@@ -434,36 +423,36 @@ export default function AiSettingsPage() {
       <LiteLlmExport baseUrl={baseUrl} models={models} />
 
       {/* On-Demand Analysis */}
-      <div className="bg-white rounded-xl border border-slate-200 shadow-sm divide-y divide-slate-100">
+      <div className="bg-surface rounded-lg border border-border shadow-xs divide-y divide-border">
         <div className="px-5 py-4">
-          <p className="text-sm font-medium text-slate-900">On-Demand Analysis</p>
-          <p className="text-xs text-slate-500 mt-0.5">
+          <p className="text-sm font-medium text-fg">On-Demand Analysis</p>
+          <p className="text-xs text-fg-muted mt-0.5">
             Immediately classify all unanalysed failures from the last 24 hours without waiting for
             the nightly batch.
           </p>
         </div>
         <div className="px-5 py-4 flex items-center gap-4">
-          <button
+          <Button
             onClick={() => {
               setAnalyseResult(null)
               void analyseNowMutation.mutate()
             }}
-            disabled={!enabled || analyseNowMutation.isPending}
-            className="flex items-center gap-2 px-4 py-2 bg-slate-800 text-white text-sm font-medium rounded-lg hover:bg-slate-700 disabled:opacity-50 transition-colors"
+            disabled={!enabled}
+            loading={analyseNowMutation.isPending}
           >
             <Play size={14} />
             {analyseNowMutation.isPending ? 'Queuing…' : 'Analyze Now'}
-          </button>
+          </Button>
           {analyseResult !== null &&
             (analyseResult.queued >= 0 ? (
-              <span className="text-sm text-green-700 flex items-center gap-1.5">
+              <span className="text-sm text-success flex items-center gap-1.5">
                 <CheckCircle size={15} className="shrink-0" />
                 {analyseResult.queued === 0
                   ? 'No unanalysed failures found in the last 24 hours'
                   : `${analyseResult.queued} failure${analyseResult.queued !== 1 ? 's' : ''} queued for analysis`}
               </span>
             ) : (
-              <span className="text-sm text-red-600 flex items-center gap-1.5">
+              <span className="text-sm text-danger flex items-center gap-1.5">
                 <XCircle size={15} className="shrink-0" />
                 Failed to trigger analysis — check platform-ai logs
               </span>
