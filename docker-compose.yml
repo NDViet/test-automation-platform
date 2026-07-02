@@ -12,14 +12,11 @@
 # (bundled LiteLLM + monitoring) with:
 #   docker compose -f docker-compose.yml -f docker-compose-full.yml up -d
 #
-# Shared auth/RBAC env injected into every Spring service (portal + backends).
+# Auth/RBAC env is set explicitly on each Spring service below (portal + backends).
 # PLATFORM_JWT_SECRET MUST be identical across services so a token minted by the portal
 # verifies everywhere; if unset, each service derives its own random secret and cross-service
-# JWT verification fails. PLATFORM_SECURITY_ENABLED flips capability enforcement — ON by default
-# after the Phase F cutover; set it to false only for break-glass/local debugging.
-x-security-env: &security-env
-  PLATFORM_JWT_SECRET: ${PLATFORM_JWT_SECRET:-}
-  PLATFORM_SECURITY_ENABLED: ${PLATFORM_SECURITY_ENABLED:-true}
+# JWT verification fails. PLATFORM_SECURITY_ENABLED flips capability enforcement — ON by default;
+# set it to false only for break-glass/local debugging.
 
 services:
 
@@ -207,7 +204,8 @@ services:
     ports:
       - "8082:8082"
     environment:
-      <<: *security-env
+      PLATFORM_JWT_SECRET: ${PLATFORM_JWT_SECRET:-}
+      PLATFORM_SECURITY_ENABLED: ${PLATFORM_SECURITY_ENABLED:-true}
       DB_URL: jdbc:postgresql://postgres:5432/platform
       DB_USERNAME: platform
       DB_PASSWORD: platform
@@ -232,7 +230,8 @@ services:
     ports:
       - "8083:8083"
     environment:
-      <<: *security-env
+      PLATFORM_JWT_SECRET: ${PLATFORM_JWT_SECRET:-}
+      PLATFORM_SECURITY_ENABLED: ${PLATFORM_SECURITY_ENABLED:-true}
       DB_URL: jdbc:postgresql://postgres:5432/platform
       DB_USERNAME: platform
       DB_PASSWORD: platform
@@ -257,7 +256,8 @@ services:
     ports:
       - "8084:8084"
     environment:
-      <<: *security-env
+      PLATFORM_JWT_SECRET: ${PLATFORM_JWT_SECRET:-}
+      PLATFORM_SECURITY_ENABLED: ${PLATFORM_SECURITY_ENABLED:-true}
       DATASOURCE_URL: jdbc:postgresql://postgres:5432/platform
       DATASOURCE_USERNAME: platform
       DATASOURCE_PASSWORD: platform
@@ -290,7 +290,8 @@ services:
     ports:
       - "8081:8081"
     environment:
-      <<: *security-env
+      PLATFORM_JWT_SECRET: ${PLATFORM_JWT_SECRET:-}
+      PLATFORM_SECURITY_ENABLED: ${PLATFORM_SECURITY_ENABLED:-true}
       DB_URL: jdbc:postgresql://postgres:5432/platform
       DB_USERNAME: platform
       DB_PASSWORD: platform
@@ -324,7 +325,8 @@ services:
     ports:
       - "8085:8085"
     environment:
-      <<: *security-env
+      PLATFORM_JWT_SECRET: ${PLATFORM_JWT_SECRET:-}
+      PLATFORM_SECURITY_ENABLED: ${PLATFORM_SECURITY_ENABLED:-true}
       INGESTION_URL: http://platform-ingestion:8081
       ANALYTICS_URL: http://platform-analytics:8082
       INTEGRATION_URL: http://platform-integration:8083
@@ -360,7 +362,8 @@ services:
     ports:
       - "8087:8086"
     environment:
-      <<: *security-env
+      PLATFORM_JWT_SECRET: ${PLATFORM_JWT_SECRET:-}
+      PLATFORM_SECURITY_ENABLED: ${PLATFORM_SECURITY_ENABLED:-true}
       DB_URL: jdbc:postgresql://postgres:5432/platform
       DB_USERNAME: platform
       DB_PASSWORD: platform
