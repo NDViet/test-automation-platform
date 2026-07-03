@@ -1,8 +1,5 @@
-# TODO — Enhance Impact Analyses (editable jobs, richer context, filter/search)
+# TODO — Fix test-case delete + AI origin on approval
 
-- [x] **Task 1** — Flyway V10 `custom_prompt` column + `customPrompt` on ImpactAnalysis entity.
-- [x] **Task 2** — Backend `PUT` update + re-run endpoint (409 running / 404 mismatch) + portal proxy.
-- [x] **Task 3** — Richer AI context: PR body + Markdown-file diffs (bounded) + customPrompt in prompt.
-- [x] **Task 4** — Frontend api `updateImpactAnalysis` + types (`customPrompt`, `prBody`).
-- [x] **Task 5** — Frontend PR repo-filter dropdown + title/number search.
-- [x] **Task 6** — Frontend edit job (pre-filled add PRs/reqs) + "Instructions for the AI" textarea.
+- [x] **Task 1** — Backend: `acceptEntity` stamps `createdBy='AGENT'` (not the approver) + test.
+- [x] **Task 2** — Migration `V11`: backfill `created_by NOT IN ('AGENT','HUMAN')` → `'AGENT'`.
+- [x] **Task 3** — Frontend: wire a Delete action (confirm) for test cases in TestCasesPage.

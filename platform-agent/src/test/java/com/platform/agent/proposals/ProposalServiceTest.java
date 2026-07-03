@@ -103,6 +103,28 @@ class ProposalServiceTest {
   }
 
   @Test
+  void acceptStampsAgentOriginNotApprover() {
+    UUID pid = UUID.randomUUID();
+    UUID tcId = UUID.randomUUID();
+    GeneratedTestCaseProposal p = proposal(projectId, 0, "Login", "[]");
+    when(proposalRepo.findByIdAndProjectId(pid, projectId)).thenReturn(Optional.of(p));
+    PlatformTestCase savedTc = mock(PlatformTestCase.class);
+    when(savedTc.getId()).thenReturn(tcId);
+    when(testCaseRepo.save(any(PlatformTestCase.class))).thenReturn(savedTc);
+    when(proposalRepo.save(any())).thenAnswer(i -> i.getArgument(0));
+
+    // Approved by an admin user — the AI origin must be preserved, not overwritten with the
+    // approver.
+    service.accept(projectId, pid, "admin");
+
+    ArgumentCaptor<PlatformTestCase> tc = ArgumentCaptor.forClass(PlatformTestCase.class);
+    verify(testCaseRepo).save(tc.capture());
+    assertThat(tc.getValue().getCreatedBy())
+        .as("AI-generated proposal keeps AGENT origin regardless of approver")
+        .isEqualTo("AGENT");
+  }
+
+  @Test
   void acceptIsIdempotentForAlreadyAccepted() {
     UUID pid = UUID.randomUUID();
     GeneratedTestCaseProposal p = proposal(projectId, 0, "Login", "[]");

@@ -1,164 +1,143 @@
-# SPEC — Enhance Impact Analyses: editable jobs, richer context, PR filter/search
+# SPEC — Fix: test-case delete + preserve AI origin on approval
 
-> Status: **DRAFT — awaiting confirmation.** Builds on the deployed Impact Analyses fixes (PR listing
-> from GitHub-tab Codebase repos, PR-diff token via credential cascade). Prior spec archived at
-> `spec/archive/impact-analyses-codebase-fix-spec.md`.
+> Status: **DRAFT — awaiting confirmation.** Two bug fixes. Prior spec archived at
+> `spec/archive/impact-analyses-edit-rerun-spec.md`.
 
 ## 1. Objective
 
-Make an Impact Analysis a **living, refinable job** instead of a one-shot create-and-forget. A user can
-**edit an existing analysis** — add PRs (across repos), add requirements, and add free-text
-**instructions for the AI** — then **re-run** it; the agent recomputes the result with the fuller
-context. The PR picker gains a **repo filter** and **PR search (title / number)**, and the agent feeds
-the AI more signal: each PR's **description** and the **full diff of changed Markdown files** (which
-are often specs authored by a coding agent), while non-Markdown files stay as a changed-file list.
+Fix two defects in test-case management:
+
+1. **A test case cannot be deleted.** The delete API works end-to-end (`api.deleteTestCase` →
+   portal `DELETE /test-cases/{tcId}` → ingestion `@DeleteMapping` guarded by `OPERATE_QUALITY` →
+   `TestCaseManagementService.delete`; a raw DB delete succeeds and children cascade). **But no
+   frontend UI ever calls `api.deleteTestCase`** — users have no way to trigger a delete.
+2. **Approving an AI-generated test case loses its "created by AI" origin.** `ProposalService.
+   acceptEntity` builds `new PlatformTestCase(…, actor != null ? actor : "AGENT", …)` — passing the
+   **approver** (`actor`) as `createdBy`. `createdBy` is an origin marker (`AGENT | HUMAN`), so the
+   approver's username leaks in. **Confirmed in data: 17 rows have `created_by='admin'`** (vs 71
+   `AGENT`); the only non-role value present is `admin`.
 
 ### Target users
-- **QA leads / engineers** iterating on an impact analysis as PRs land or scope grows — refine and
-  re-run without recreating the job.
+- QA leads / engineers managing the catalog — need to delete obsolete cases and trust that
+  AI-authored cases stay attributed to the AI after approval.
 
-### Locked decisions (from clarification)
-1. **Re-run fresh, replace result.** Editing + re-running recomputes the whole analysis from the full
-   updated context; the new `summary` + `suggestions` **replace** the previous ones. No versioning.
-2. **Single editable instructions field** — one free-text `customPrompt` per job (new column), fed to
-   the AI on every run; editable each time.
-3. **Diff depth:** keep the **changed-file list** for all files; additionally include each PR's
-   **description/body**, and for changed files ending in `.md`/`.markdown`, include their **diff
-   (patch)** content (potential coding-agent specs). No full patch for non-Markdown files. All added
-   context is **size-bounded** to protect token budget.
+### Root causes (verified)
+- Delete: no wired UI action (backend fully functional; entity is flat; FK children use
+  `ON DELETE CASCADE`; raw `DELETE` returned `DELETE 1`).
+- Origin: `platform-agent/.../proposals/ProposalService.acceptEntity` uses the approver as
+  `createdBy`. The direct approve path (`TestCaseManagementService.approve` → `tc.approve()`)
+  correctly preserves `createdBy`, so **only the proposal-acceptance path is wrong**.
+
+### Locked decisions (defaults — confirm or override)
+1. **Hard delete** (matches the existing endpoint), gated behind an explicit confirm that warns it is
+   permanent and also removes the case's steps / executions / run history (cascade).
+2. **Fix forward + one-time backfill**: `acceptEntity` sets `createdBy="AGENT"`; a migration restores
+   existing bug rows (`created_by NOT IN ('AGENT','HUMAN')`) to `'AGENT'`.
+3. **Preserve AI origin only** — no new approver column; who-approved is already recorded by the
+   review-queue / work-item flow.
 
 ## 2. Scope
 
 ### In scope
-- **Edit + re-run endpoint** (agent + portal proxy) to update a job's `linkedPrs`,
-  `linkedRequirementIds`, `name`, and `customPrompt`, then re-run asynchronously (fresh, replaces
-  result). Blocked while a run is in progress.
-- **New field** `custom_prompt` on `impact_analyses` (Flyway `V10`).
-- **Richer context assembly** in `ImpactAnalysisService`: PR descriptions + Markdown-file diffs +
-  existing changed-file list + `customPrompt`, all bounded.
-- **Frontend**: PR-picker **repo filter dropdown** + **search (title/number)**; **Edit** action that
-  reopens a job pre-filled (PRs, requirements, instructions), supports adding more, and Saves → re-run;
-  an **"Instructions for the AI"** textarea in create + edit.
+- **Backend (agent):** `ProposalService.acceptEntity` → `createdBy` is always `"AGENT"` for an
+  accepted AI proposal (never the actor). Keep `markAccepted`, steps, requirement linking unchanged.
+- **Migration (core) `V11`:** backfill `UPDATE platform_test_cases SET created_by='AGENT' WHERE
+  created_by NOT IN ('AGENT','HUMAN')`.
+- **Frontend (portal):** a **Delete** action for a test case (list-row action and/or the detail/edit
+  view) wired to `api.deleteTestCase`, behind a clear confirm; invalidate the test-case queries on
+  success; handle a `403` (insufficient capability) gracefully. Design tokens + `ui/` kit.
 
 ### Out of scope (deferred)
-- Result versioning / run history; augment-merge of prior suggestions (decision #1 = replace).
-- Full patch content for non-Markdown files; binary/large-file handling beyond truncation.
-- Multiple/threaded prompt notes (decision #2 = single field).
-- Changing the suggestion JSON schema, the apply-suggestion flow, or requirement sourcing.
-- Auto-re-run on new commits/webhooks (manual re-run only).
+- Soft-delete / deprecate workflow (unless chosen instead of hard delete).
+- A dedicated approver / decided-by column on the test case.
+- Bulk delete, undo/restore, or trash view.
+- Any change to the direct approve endpoint or the generation flow beyond the origin fix.
 
 ## 3. Acceptance criteria
 
-**Edit + re-run (backend)**
-- [ ] `PUT /hub/impact/{projectId}/{id}` accepts `{ name?, linkedPrs, linkedRequirementIds, customPrompt? }`,
-      replaces those fields on the job, sets status `RUNNING`, and triggers the async run; returns the
-      updated job (`200`).
-- [ ] Re-run **replaces** `summary` + `suggestions` (fresh compute from the full current context).
-- [ ] Updating a job whose status is `RUNNING` is rejected (`409`) — no concurrent runs.
-- [ ] `id`/`projectId` mismatch → `404`; the portal proxies `PUT /projects/{projectId}/impact-analyses/{id}`.
-- [ ] Existing create/get/list behavior unchanged.
+**Delete**
+- [ ] Each test case exposes a **Delete** action (row and/or detail) that calls
+      `DELETE /projects/{projectId}/test-cases/{tcId}`; on success the case is removed from the list
+      (React Query invalidated) and any open detail closes.
+- [ ] A confirm dialog states the delete is **permanent** and removes the case's steps/executions/history.
+- [ ] Deleting a case that has steps / tags / executions succeeds (cascade) — no error surfaced.
+- [ ] The endpoint's `OPERATE_QUALITY` capability guard is unchanged; a `403` is shown as a friendly
+      error, not a crash.
 
-**Richer context (backend)**
-- [ ] Each linked PR contributes its **title + description/body** to the prompt (from linked-PR
-      metadata; body captured when a PR is linked).
-- [ ] Changed **Markdown** files contribute their **diff/patch** text (bounded, e.g. ≤ N KB each and a
-      total cap); non-Markdown changed files contribute **filename only** (current behavior).
-- [ ] `customPrompt`, when present, is included as explicit user instructions in the AI prompt.
-- [ ] Context assembly is **bounded** (per-file and overall caps) and never throws on a missing
-      body/patch — it degrades to what's available.
+**AI origin**
+- [ ] Accepting/approving an AI-generated proposal yields a test case with `createdBy='AGENT'`,
+      regardless of who approves.
+- [ ] No newly created test case stores a username in `created_by` (only `AGENT` / `HUMAN`).
+- [ ] After `V11`, `SELECT count(*) FROM platform_test_cases WHERE created_by NOT IN ('AGENT','HUMAN')`
+      returns **0**.
+- [ ] The direct approve endpoint (`/test-cases/{tcId}/approve`) still preserves the case's existing
+      `createdBy` (regression guard).
 
-**PR filter / search + Edit (frontend)**
-- [ ] In the PR-selection step (create + edit), a **repo dropdown** narrows the PR list to a chosen
-      repo (options derived from the loaded PRs' `repoFullName`; includes an "All repos" option), and a
-      **search box** filters by PR **title** or **number/ID**. Both compose with each other and with
-      existing selection.
-- [ ] Multiple PRs across different repos can be selected in one job (already supported; the filter
-      makes it navigable).
-- [ ] An **Edit** action on a job opens the modal **pre-populated** with the job's current PRs,
-      requirements, and instructions; the user can add PRs/requirements and edit instructions; **Save**
-      calls the update endpoint and the UI reflects `RUNNING` → updated result.
-- [ ] An **"Instructions for the AI"** textarea appears in create + edit and round-trips to
-      `customPrompt`.
-- [ ] `npx tsc -b` clean; design-token styling preserved (no raw palette / no purple).
-
-## 4. Approach (implementation sketch — not binding)
-- **Schema:** `platform-core/.../db/migration/V10__impact_analysis_custom_prompt.sql` →
-  `ALTER TABLE impact_analyses ADD COLUMN custom_prompt text;` + `customPrompt` field on
-  `ImpactAnalysis`.
-- **Agent controller:** add `PUT /{projectId}/{id}` (`update`) — load, guard non-`RUNNING`, set fields,
-  save, `impactAnalysisService.runAnalysis(id, projectId)`. Reuse the existing `CreateImpactAnalysisRequest`
-  shape (+ `customPrompt`) or a sibling `UpdateImpactAnalysisRequest`.
-- **Service (`runAnalysis`):** extend PR loop — capture `prBody` (from stored linked-PR metadata) and,
-  from the PR-files response, include `patch` for `*.md` files (bounded). Append `customPrompt` to the
-  user message. Keep the credential-cascade token resolution (already fixed).
-- **Portal proxy:** `PUT /{id}` → `agentClient.put().uri("/hub/impact/{projectId}/{id}")`.
-- **Frontend (`ImpactAnalysesPage.tsx` + `api.ts`):** add `updateImpactAnalysis`; extend
-  `CreateImpactAnalysisForm`/types with `customPrompt` and per-PR `prBody`; add repo `<Select>` + search
-  `Input` to the PR step; make `CreateModal` double as an edit modal seeded from a job; add the
-  instructions textarea. Store PR `body` in `linkedPrs` when selecting (it's already in the `/prs`
-  payload).
+## 4. Approach (sketch — not binding)
+- `ProposalService.acceptEntity(p, actor)`: replace `actor != null ? actor : "AGENT"` with `"AGENT"`.
+  (The `actor` parameter stays for logging/audit only; it must never populate `createdBy`.)
+- `platform-core/.../db/migration/V11__fix_ai_testcase_origin.sql`: the backfill `UPDATE`.
+- Frontend: add a `Trash2` action in `TestCasesPage` (and/or the case detail modal) →
+  `confirm(...)` → `useMutation(api.deleteTestCase)` → invalidate `['test-cases', projectId]`
+  (match the page's existing query keys). Mirror the confirm+delete pattern already used for suites /
+  runs / projects.
 
 ## 5. Commands
-- **Backend build/test:** `mvn -q -pl platform-agent -am test` (agent) and `-pl platform-core` (entity +
-  migration compile). Package for deploy: `mvn -q -pl platform-agent -am package -DskipTests` and
-  `-pl platform-portal`.
-- **DB migration** runs via the `db-migrate` (Flyway) compose service on stack up.
+- **Backend build/test:** `mvn -q -pl platform-agent -am test` (ProposalService + regression) and
+  `-pl platform-core` (migration compiles). Deploy build: `mvn -q -pl platform-agent,platform-portal
+  -am package -DskipTests`.
+- **Migration** applies via the `db-migrate` (Flyway) service (`db_migration` volume binds
+  `platform-core/.../db/migration`).
 - **Frontend:** `cd platform-portal/frontend && npx tsc -b`.
-- **Deploy (local docker-compose):** rebuild + recreate `platform-agent` and `platform-portal`
-  (`docker compose build … && docker compose up -d …`); `db-migrate` applies `V10`.
+- **Deploy (local docker-compose):** apply `V11` (run `db-migrate`), rebuild + recreate
+  `platform-agent` and `platform-portal` (use `--no-deps` to leave data volumes untouched).
 
 ## 6. Project structure (touched)
 ```
-platform-core/src/main/java/com/platform/core/domain/ImpactAnalysis.java        # + customPrompt
-platform-core/src/main/resources/db/migration/V10__impact_analysis_custom_prompt.sql  # new
-platform-agent/.../api/ImpactAnalysisController.java                             # PUT update + re-run
-platform-agent/.../api/ImpactAnalysisService.java                               # md-diff + PR body + customPrompt
-platform-agent/.../api/ImpactAnalysis{Controller,Service}Test.java              # tests
-platform-portal/.../api/PortalImpactController.java                             # PUT proxy
-platform-portal/frontend/src/pages/ImpactAnalysesPage.tsx                       # filter/search + edit + instructions
-platform-portal/frontend/src/lib/{api.ts,types.ts}                              # updateImpactAnalysis + fields
+platform-agent/.../proposals/ProposalService.java            # createdBy='AGENT' on accept
+platform-agent/.../proposals/ProposalServiceTest.java        # new/updated test
+platform-core/src/main/resources/db/migration/V11__fix_ai_testcase_origin.sql   # backfill
+platform-portal/frontend/src/pages/TestCasesPage.tsx         # Delete action (+ detail if applicable)
+# unchanged (already correct/working):
+platform-portal/frontend/src/lib/api.ts                      # deleteTestCase exists
+platform-portal/.../api/PortalTestCaseController.java         # DELETE proxy exists (line 215)
+platform-ingestion/.../tcm/TestCaseManagementController.java  # @DeleteMapping guarded, works
 ```
 
 ## 7. Code style / conventions
-- **Java:** constructor injection; reuse `GitHubApiClient`, `CredentialResolver`; keep per-PR
-  `try/catch` + `log.warn`, never log tokens; bound all AI context (constants for md-patch and total
-  caps). No response-shape change to `suggestions`.
-- **SQL:** additive, nullable column; forward-only Flyway (`V10`, never edit shipped migrations).
-- **Frontend:** Tailwind v4 **design tokens** + `ui/` primitives (`Select`, `Input`, `Button`); no raw
-  palette, no purple/indigo; accessible labels + focus rings; `cn()` for class composition.
+- **Java:** minimal change; `createdBy` must remain within the `AGENT | HUMAN` vocabulary; don't widen
+  the column; keep the accept flow transactional.
+- **SQL:** additive, forward-only Flyway (`V11`); the backfill is idempotent (re-running is a no-op).
+- **Frontend:** Tailwind v4 design tokens + `ui/` primitives (`Button`); real `<button>` + confirm;
+  invalidate the exact query keys the page uses; no raw palette / no purple.
 
 ## 8. Testing strategy
-- **Agent unit tests (JUnit5 + Mockito, mirror existing):**
-  - update endpoint replaces fields + re-runs and overwrites summary/suggestions;
-  - `409` when status is `RUNNING`; `404` on id/project mismatch;
-  - `runAnalysis` includes PR body, includes `.md` file patch (and excludes non-md patch), and injects
-    `customPrompt`; context bounded (truncation applied over cap).
-- **Regression:** full `mvn -q -pl platform-agent test` green (30+ classes).
-- **Frontend:** `npx tsc -b`; manual pass — repo filter + PR search narrow the list; Edit pre-fills and
-  re-runs; instructions round-trip.
-- No SPA unit runner (type-check is the gate, matching the codebase).
+- **Agent unit test:** `acceptEntity` produces `createdBy='AGENT'` even when `actor="admin"`; proposal
+  is marked accepted and steps are created (mirrors existing `ProposalService`/generation tests).
+- **Migration:** assert the post-migrate invariant via psql (`… NOT IN ('AGENT','HUMAN')` = 0) during
+  verification; optionally a data-JPA test.
+- **Regression:** full `mvn -q -pl platform-agent test`; ingestion delete behavior unchanged.
+- **Frontend:** `npx tsc -b`; manual — delete a case (with steps/executions) → gone; cancel confirm →
+  no-op; approve an AI proposal → origin stays AI.
 
 ## 9. Boundaries
 **Always**
-- Preserve create/get/list and the `suggestions`/`CodabasePr` contracts; keep credential-cascade token
-  resolution.
-- Bound AI context (per-file + total) to protect token budget/cost; degrade gracefully on missing
-  body/patch.
-- Frontend stays presentation-consistent (tokens + `ui/` kit).
+- Keep the `OPERATE_QUALITY` capability guard on delete; confirm before the (irreversible) hard delete.
+- Keep `created_by` restricted to `AGENT` / `HUMAN`.
+- Preserve the direct approve/generation behavior; keep accept transactional.
 
 **Ask first**
-- Any **further** schema change beyond the single additive `custom_prompt` column.
-- Increasing context depth beyond Markdown diffs (e.g. full patches for all files) — token/cost impact.
-- Changing the `suggestions` JSON schema or the apply-to-test-case flow.
-- Auto-re-run triggers (webhooks/schedules).
+- Switching delete to soft-delete/deprecate instead of hard delete.
+- Adding an approver/decided-by column, or any schema change beyond the additive `V11` backfill.
+- Bulk delete / undo.
 
 **Never**
-- Log or expose PATs/tokens; send unbounded diffs to the LLM.
-- Break or silently drop existing analyses; edit an already-shipped Flyway migration.
-- Allow concurrent runs on the same job (guard `RUNNING`).
+- Delete a test case without an explicit confirm.
+- Store a username (or anything other than `AGENT`/`HUMAN`) in `created_by`.
+- Edit an already-shipped Flyway migration; break the generation or approve flow.
 
-## 10. Open questions (non-blocking; sensible defaults chosen)
-- Markdown-diff caps: default proposal **≤ 8 KB per file, ≤ 32 KB total** md content (tunable).
-- Editable statuses: allow edit on `DRAFT`/`COMPLETED`/`FAILED`; block only `RUNNING`.
-- PR body source: captured at link time from the `/prs` payload (no extra GitHub call); if absent,
-  skip (no hard fetch) unless you want a live fetch fallback.
+## 10. Open questions (defaults chosen; override on review)
+- Delete type: **hard delete + confirm** (vs deprecate). Hard delete removes execution history.
+- Backfill: **yes** — restore 17 `admin` rows to `AGENT`.
+- Approver tracking: **not added** (review/work-item flow already records the approver).
+- Delete placement: list-row action **and** case detail (confirm on both) — adjust if you prefer one.

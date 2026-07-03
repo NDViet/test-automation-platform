@@ -83,9 +83,10 @@ public class ProposalService {
     }
     UUID projectId = p.getProjectId();
 
+    // The case was authored by the AI — origin is always AGENT, never the approving user. The
+    // `actor` (approver) is tracked by the review-queue / work-item record, not on createdBy.
     PlatformTestCase tc =
-        new PlatformTestCase(
-            projectId, p.getTitle(), List.of(), actor != null ? actor : "AGENT", p.getWorkflowId());
+        new PlatformTestCase(projectId, p.getTitle(), List.of(), "AGENT", p.getWorkflowId());
     tc.setDescription(p.getDescription());
     tc.setPreconditions(p.getPreconditions());
     tc.setExpectedResult(p.getExpectedResult());

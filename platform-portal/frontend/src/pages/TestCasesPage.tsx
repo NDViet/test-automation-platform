@@ -42,6 +42,7 @@ import {
   Download,
   FileSpreadsheet,
   ArrowUpRight,
+  Trash2,
 } from 'lucide-react'
 import {
   ExcelImportModal,
@@ -1738,6 +1739,26 @@ function TestCaseDetailPanel({
       void queryClient.invalidateQueries({ queryKey: ['testCases', projectId] })
     },
   })
+  const deleteMutation = useMutation({
+    mutationFn: () => api.deleteTestCase(projectId, tc.id),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['testCases', projectId] })
+      onClose()
+    },
+    onError: (e: Error) => window.alert(`Could not delete this test case: ${e.message}`),
+  })
+
+  function handleDelete() {
+    if (
+      window.confirm(
+        `Delete "${tc.title}"?\n\n` +
+          'This permanently removes the test case along with its steps, executions and run ' +
+          'history. This cannot be undone.',
+      )
+    ) {
+      deleteMutation.mutate()
+    }
+  }
 
   const detailUrl = `${base}/test-cases/${tc.id}`
 
@@ -1779,6 +1800,14 @@ function TestCaseDetailPanel({
             className="flex items-center gap-1 text-xs font-medium text-fg-muted hover:text-primary px-2 py-1 rounded hover:bg-surface-muted transition-colors"
           >
             <Pencil size={13} /> Edit
+          </button>
+          <button
+            onClick={handleDelete}
+            disabled={deleteMutation.isPending}
+            title="Delete test case"
+            className="flex items-center gap-1 text-xs font-medium text-fg-muted hover:text-danger px-2 py-1 rounded hover:bg-danger-bg transition-colors disabled:opacity-50"
+          >
+            <Trash2 size={13} /> {deleteMutation.isPending ? 'Deleting…' : 'Delete'}
           </button>
           <button
             onClick={onClose}
