@@ -45,6 +45,10 @@ public class ImpactAnalysis {
   @Column(name = "summary", columnDefinition = "text")
   private String summary;
 
+  /** Free-text user instructions fed to the AI on each run (editable). */
+  @Column(name = "custom_prompt", columnDefinition = "text")
+  private String customPrompt;
+
   @Column(name = "workflow_id")
   private UUID workflowId;
 
@@ -90,6 +94,10 @@ public class ImpactAnalysis {
     return summary;
   }
 
+  public String getCustomPrompt() {
+    return customPrompt;
+  }
+
   public UUID getWorkflowId() {
     return workflowId;
   }
@@ -128,6 +136,10 @@ public class ImpactAnalysis {
 
   public void setSummary(String summary) {
     this.summary = summary;
+  }
+
+  public void setCustomPrompt(String customPrompt) {
+    this.customPrompt = customPrompt;
   }
 
   public void setWorkflowId(UUID workflowId) {

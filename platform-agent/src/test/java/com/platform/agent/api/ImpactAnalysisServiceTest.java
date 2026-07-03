@@ -90,7 +90,9 @@ class ImpactAnalysisServiceTest {
     when(configRepo.findByProjectId(projectId)).thenReturn(List.of());
     // Token resolves via the Org→Project→Team GitHub credential cascade (GitHub-tab repos).
     when(credentialResolver.resolve(projectId, "GITHUB"))
-        .thenReturn(Optional.of(new ResolvedCredential("GITHUB", null, Map.of(), Map.of("pat", "tok"), null)));
+        .thenReturn(
+            Optional.of(
+                new ResolvedCredential("GITHUB", null, Map.of(), Map.of("pat", "tok"), null)));
     when(gitHubApiClient.getPrFiles("acme", "app", 7, "tok")).thenReturn("[]");
     when(testCaseRepo.findByProjectIdOrderByCreatedAtDesc(projectId)).thenReturn(List.of());
     lenient().when(settings.model(anyString(), anyString())).thenReturn("claude-sonnet-4-6");
@@ -100,5 +102,40 @@ class ImpactAnalysisServiceTest {
 
     // The PR diff was fetched with the cascade-resolved token (previously null → empty diff).
     verify(gitHubApiClient).getPrFiles("acme", "app", 7, "tok");
+  }
+
+  @Test
+  void extractMarkdownDiffsKeepsMarkdownTruncatesAndSkipsNonMarkdown() {
+    Map<String, Object> md = new LinkedHashMap<>();
+    md.put("filename", "docs/spec.md");
+    md.put("patch", "+ # Spec\n" + "X".repeat(50));
+    Map<String, Object> java = new LinkedHashMap<>();
+    java.put("filename", "src/App.java");
+    java.put("patch", "+ public class App {}");
+
+    List<String> diffs = ImpactAnalysisService.extractMarkdownDiffs(List.of(md, java), 20, 1000);
+
+    assertThat(diffs).hasSize(1);
+    assertThat(diffs.get(0)).contains("docs/spec.md").contains("# Spec").contains("truncated");
+    assertThat(String.join("", diffs)).doesNotContain("public class App");
+  }
+
+  @Test
+  void buildUserMessageIncludesPrBodyMarkdownDiffsAndCustomPrompt() {
+    ImpactAnalysisService.PrDiffContext pr =
+        new ImpactAnalysisService.PrDiffContext(
+            "acme/app",
+            7,
+            "Add checkout",
+            "Adds the checkout flow.",
+            List.of("src/Checkout.java", "docs/spec.md"),
+            List.of("docs/spec.md\n+ # Checkout Spec"));
+
+    String msg = service.buildUserMessage(List.of(pr), List.of(), List.of(), "Focus on refunds.");
+
+    assertThat(msg).contains("Adds the checkout flow."); // PR body
+    assertThat(msg).contains("src/Checkout.java"); // non-md filename still listed
+    assertThat(msg).contains("# Checkout Spec"); // md diff content included
+    assertThat(msg).contains("Focus on refunds."); // custom instructions
   }
 }

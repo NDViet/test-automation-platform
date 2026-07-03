@@ -41,6 +41,11 @@ public class ImpactAnalysisService {
   private static final String KEY_MODEL = "ai.litellm.model.standard";
   private static final String DEFAULT_MODEL = "claude-sonnet-4-6";
 
+  // Bounds for the extra AI context (protect token budget).
+  private static final int MD_PATCH_MAX_PER_FILE = 8 * 1024;
+  private static final int MD_PATCH_MAX_TOTAL = 32 * 1024;
+  private static final int PR_BODY_MAX = 4000;
+
   private static final String SYSTEM_PROMPT =
       "You are an Impact Analysis AI. Given PR diffs, requirements, and existing test cases, you"
           + " identify what test coverage needs creating or updating.\n\n"
@@ -133,8 +138,19 @@ public class ImpactAnalysisService {
                   .filter(Objects::nonNull)
                   .toList();
 
+          // Changed Markdown files often carry a coding-agent's spec — feed their diff (bounded);
+          // non-Markdown files stay a filename list only.
+          List<String> markdownDiffs =
+              extractMarkdownDiffs(files, MD_PATCH_MAX_PER_FILE, MD_PATCH_MAX_TOTAL);
+
           prDiffs.add(
-              new PrDiffContext(repoFullName, prNumber, asString(prRef.get("prTitle")), filenames));
+              new PrDiffContext(
+                  repoFullName,
+                  prNumber,
+                  asString(prRef.get("prTitle")),
+                  asString(prRef.get("prBody")),
+                  filenames,
+                  markdownDiffs));
         } catch (Exception e) {
           log.warn(
               "runAnalysis: failed to fetch files for {}/{}#{}: {}",
@@ -155,7 +171,8 @@ public class ImpactAnalysisService {
       List<PlatformTestCase> existingTestCases = loadRelatedTestCases(projectId, linkedReqIds);
 
       // ── 4. Build Claude prompt ────────────────────────────────────────────
-      String userMessage = buildUserMessage(prDiffs, requirements, existingTestCases);
+      String userMessage =
+          buildUserMessage(prDiffs, requirements, existingTestCases, analysis.getCustomPrompt());
 
       // ── 4. Call the LiteLLM gateway ───────────────────────────────────────
       ChatModel model = chatModelProvider.chatModel(llmSettings.model(KEY_MODEL, DEFAULT_MODEL));
@@ -281,10 +298,39 @@ public class ImpactAnalysisService {
         .toList();
   }
 
-  private String buildUserMessage(
+  /**
+   * Collect the diff (patch) of changed Markdown files only, each bounded to {@code perFileCap} and
+   * the whole set to {@code totalCap}. Non-Markdown files are ignored here (they remain a filename
+   * list). Never throws — degrades to what's available.
+   */
+  static List<String> extractMarkdownDiffs(
+      List<Map<String, Object>> files, int perFileCap, int totalCap) {
+    List<String> out = new ArrayList<>();
+    if (files == null) return out;
+    int total = 0;
+    for (Map<String, Object> f : files) {
+      String name = asString(f.get("filename"));
+      if (name == null) continue;
+      String lower = name.toLowerCase();
+      if (!(lower.endsWith(".md") || lower.endsWith(".markdown"))) continue;
+      String patch = asString(f.get("patch"));
+      if (patch == null || patch.isBlank()) continue;
+      if (patch.length() > perFileCap) patch = patch.substring(0, perFileCap) + "\n… (truncated)";
+      if (total + patch.length() > totalCap) {
+        out.add(name + " — (omitted, Markdown context size cap reached)");
+        break;
+      }
+      total += patch.length();
+      out.add(name + "\n" + patch);
+    }
+    return out;
+  }
+
+  String buildUserMessage(
       List<PrDiffContext> prDiffs,
       List<Map<String, Object>> requirements,
-      List<PlatformTestCase> existingTestCases) {
+      List<PlatformTestCase> existingTestCases,
+      String customPrompt) {
     StringBuilder sb = new StringBuilder();
 
     sb.append("## PR Changes\n");
@@ -296,11 +342,23 @@ public class ImpactAnalysisService {
         if (pr.prTitle() != null && !pr.prTitle().isBlank()) {
           sb.append(": ").append(pr.prTitle());
         }
-        sb.append("\nChanged files:\n");
+        sb.append("\n");
+        if (pr.prBody() != null && !pr.prBody().isBlank()) {
+          String body = pr.prBody().trim();
+          if (body.length() > PR_BODY_MAX) body = body.substring(0, PR_BODY_MAX) + "…";
+          sb.append("Description:\n").append(body).append("\n");
+        }
+        sb.append("Changed files:\n");
         if (pr.changedFiles().isEmpty()) {
           sb.append("(no files)\n");
         } else {
           pr.changedFiles().forEach(f -> sb.append("- ").append(f).append("\n"));
+        }
+        if (pr.markdownDiffs() != null && !pr.markdownDiffs().isEmpty()) {
+          sb.append("Changed Markdown (potential specs):\n");
+          for (String md : pr.markdownDiffs()) {
+            sb.append(md).append("\n\n");
+          }
         }
         sb.append("\n");
       }
@@ -349,6 +407,10 @@ public class ImpactAnalysisService {
       }
     }
 
+    if (customPrompt != null && !customPrompt.isBlank()) {
+      sb.append("\n## Additional Instructions\n").append(customPrompt.trim()).append("\n");
+    }
+
     sb.append(
         "\nAnalyze the PR impact on these requirements and existing test cases. "
             + "Generate specific, actionable suggestions. "
@@ -386,6 +448,11 @@ public class ImpactAnalysisService {
 
   // ── Internal DTO ──────────────────────────────────────────────────────────
 
-  private record PrDiffContext(
-      String repoFullName, int prNumber, String prTitle, List<String> changedFiles) {}
+  record PrDiffContext(
+      String repoFullName,
+      int prNumber,
+      String prTitle,
+      String prBody,
+      List<String> changedFiles,
+      List<String> markdownDiffs) {}
 }

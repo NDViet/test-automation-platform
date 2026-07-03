@@ -94,7 +94,8 @@ class ImpactAnalysisControllerPrsTest {
             PID, "GITHUB", "CODEBASE", true))
         .thenReturn(List.of());
     when(assignmentRepo.findByProjectIdOrderByRepoFullName(PID)).thenReturn(List.of(a));
-    when(credentialResolver.resolve(PID, "GITHUB")).thenReturn(Optional.of(githubCredWithPat("tok")));
+    when(credentialResolver.resolve(PID, "GITHUB"))
+        .thenReturn(Optional.of(githubCredWithPat("tok")));
     when(gitHubApiClient.getOpenPRs("acme", "app", "tok")).thenReturn(prJson(1, "PR one"));
 
     List<Map<String, Object>> prs = controller.listOpenPrs(PID).getBody();

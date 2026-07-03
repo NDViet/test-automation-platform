@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useRef, useMemo } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { useProject } from '@/components/layout/ProjectLayout'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
@@ -15,7 +15,7 @@ import type {
 import Badge from '@/components/Badge'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import ErrorMessage from '@/components/ErrorMessage'
-import { Button } from '@/components/ui'
+import { Button, Input, Select } from '@/components/ui'
 import {
   GitPullRequest,
   ChevronRight,
@@ -35,6 +35,7 @@ import {
   FileText,
   Code2,
   PlusCircle,
+  Pencil,
 } from 'lucide-react'
 
 // ── Status helpers ─────────────────────────────────────────────────────────────
@@ -192,19 +193,35 @@ function ReqTreeRow({
 
 function CreateModal({
   projectId,
+  existing,
   onClose,
-  onCreate,
+  onSubmit,
 }: {
   projectId: string
+  existing?: ImpactAnalysis
   onClose: () => void
-  onCreate: (form: CreateImpactAnalysisForm) => void
+  onSubmit: (form: CreateImpactAnalysisForm) => void
 }) {
+  const isEdit = !!existing
   const [step, setStep] = useState<'prs' | 'reqs'>('prs')
-  const [name, setName] = useState('Impact Analysis')
-  const [selectedPrs, setSelectedPrs] = useState<Set<string>>(new Set())
-  const [selectedReqs, setSelectedReqs] = useState<Set<string>>(new Set())
+  const [name, setName] = useState(existing?.name ?? 'Impact Analysis')
+  const [selectedPrs, setSelectedPrs] = useState<Set<string>>(
+    () => new Set((existing?.linkedPrs ?? []).map(p => `${p.repoFullName}#${p.prNumber}`)),
+  )
+  const [selectedReqs, setSelectedReqs] = useState<Set<string>>(
+    () => new Set(existing?.linkedRequirementIds ?? []),
+  )
   const [expandedReqs, setExpandedReqs] = useState<Set<string>>(new Set())
   const [reqSearch, setReqSearch] = useState('')
+  const [repoFilter, setRepoFilter] = useState('') // '' = all repos
+  const [prSearch, setPrSearch] = useState('')
+  const [customPrompt, setCustomPrompt] = useState(existing?.customPrompt ?? '')
+
+  // Preserve details for already-linked PRs that may no longer be in the open-PR list.
+  const existingByKey = useMemo(
+    () => new Map((existing?.linkedPrs ?? []).map(p => [`${p.repoFullName}#${p.prNumber}`, p])),
+    [existing],
+  )
 
   const { data: prs, isLoading: prsLoading } = useQuery({
     queryKey: ['codebase-prs', projectId],
@@ -251,6 +268,17 @@ function CreateModal({
   const reqList = Array.isArray(reqs) ? reqs : []
   const reqTree = buildTree(reqList)
 
+  // Repo filter + PR search over the loaded PRs (multiple repos in one job).
+  const repoOptions = [...new Set(prList.map(pr => pr.repoFullName))].sort()
+  const shownPrs = prList.filter(pr => {
+    if (repoFilter && pr.repoFullName !== repoFilter) return false
+    if (prSearch) {
+      const q = prSearch.toLowerCase()
+      return pr.title.toLowerCase().includes(q) || String(pr.number).includes(q)
+    }
+    return true
+  })
+
   const filteredReqs = reqSearch
     ? reqList.filter(
         r =>
@@ -293,16 +321,29 @@ function CreateModal({
     return `${pr.repoFullName}#${pr.number}`
   }
 
-  function handleCreate() {
-    const linked: LinkedPr[] = prList
-      .filter(pr => selectedPrs.has(buildPrKey(pr)))
-      .map(pr => ({
-        repoFullName: pr.repoFullName,
-        prNumber: pr.number,
-        prUrl: pr.html_url,
-        prTitle: pr.title,
-      }))
-    onCreate({ name, linkedPrs: linked, linkedRequirementIds: Array.from(selectedReqs) })
+  function handleSubmit() {
+    // Build from every selected key — fresh open PRs (with body) or previously-linked PRs that
+    // may have since closed (from the existing job), so editing never silently drops a PR.
+    const linked: LinkedPr[] = Array.from(selectedPrs)
+      .map(key => {
+        const pr = prList.find(p => buildPrKey(p) === key)
+        if (pr)
+          return {
+            repoFullName: pr.repoFullName,
+            prNumber: pr.number,
+            prUrl: pr.html_url,
+            prTitle: pr.title,
+            prBody: pr.body ?? undefined,
+          }
+        return existingByKey.get(key)
+      })
+      .filter((p): p is LinkedPr => !!p)
+    onSubmit({
+      name,
+      linkedPrs: linked,
+      linkedRequirementIds: Array.from(selectedReqs),
+      customPrompt: customPrompt.trim() || undefined,
+    })
   }
 
   const canProceed = step === 'prs' ? selectedPrs.size > 0 : true
@@ -313,10 +354,12 @@ function CreateModal({
         {/* Header */}
         <div className="px-6 py-5 border-b border-border flex items-center justify-between">
           <div>
-            <h2 className="font-semibold text-fg">New Impact Analysis</h2>
+            <h2 className="font-semibold text-fg">
+              {isEdit ? 'Edit Impact Analysis' : 'New Impact Analysis'}
+            </h2>
             <p className="text-xs text-fg-muted mt-0.5">
               Step {step === 'prs' ? '1' : '2'} of 2 —{' '}
-              {step === 'prs' ? 'Select PRs' : 'Link Requirements'}
+              {step === 'prs' ? 'Select PRs' : 'Requirements & instructions'}
             </p>
           </div>
           <button onClick={onClose} className="text-fg-subtle hover:text-fg">
@@ -364,8 +407,40 @@ function CreateModal({
               </div>
             ) : (
               <div className="space-y-2">
-                <p className="text-xs text-fg-muted mb-3">Select one or more PRs to analyse:</p>
-                {prList.map(pr => {
+                {/* Repo filter + PR search */}
+                <div className="flex gap-2">
+                  <Select
+                    value={repoFilter}
+                    onChange={e => setRepoFilter(e.target.value)}
+                    containerClassName="w-56"
+                    aria-label="Filter by repository"
+                  >
+                    <option value="">All repos ({prList.length})</option>
+                    {repoOptions.map(r => (
+                      <option key={r} value={r}>
+                        {r}
+                      </option>
+                    ))}
+                  </Select>
+                  <Input
+                    type="search"
+                    value={prSearch}
+                    onChange={e => setPrSearch(e.target.value)}
+                    placeholder="Search PR title or #number…"
+                    aria-label="Search pull requests"
+                  />
+                </div>
+                <p className="text-xs text-fg-muted pt-1">
+                  {shownPrs.length === prList.length
+                    ? 'Select one or more PRs to analyse:'
+                    : `Showing ${shownPrs.length} of ${prList.length} PRs`}
+                </p>
+                {shownPrs.length === 0 && (
+                  <p className="px-4 py-6 text-sm text-fg-muted text-center">
+                    No PRs match the filter.
+                  </p>
+                )}
+                {shownPrs.map(pr => {
                   const key = buildPrKey(pr)
                   const checked = selectedPrs.has(key)
                   return (
@@ -474,6 +549,23 @@ function CreateModal({
           )}
         </div>
 
+        {/* Instructions for the AI (step 2) */}
+        {step === 'reqs' && (
+          <div className="px-6 pb-2">
+            <label className="block text-xs font-medium text-fg-muted mb-1">
+              Instructions for the AI <span className="font-normal text-fg-subtle">(optional)</span>
+            </label>
+            <textarea
+              value={customPrompt}
+              onChange={e => setCustomPrompt(e.target.value)}
+              rows={3}
+              placeholder="e.g. Focus on payment edge cases; ignore doc-only changes."
+              className={cn(inputCls, 'resize-none')}
+              aria-label="Instructions for the AI"
+            />
+          </div>
+        )}
+
         {/* Footer */}
         <div className="px-6 py-4 border-t border-border flex items-center justify-between">
           <div className="text-sm text-fg-muted">
@@ -495,9 +587,9 @@ function CreateModal({
                 <ArrowRight size={14} />
               </Button>
             ) : (
-              <Button disabled={!canProceed} onClick={handleCreate}>
+              <Button disabled={!canProceed} onClick={handleSubmit}>
                 <Sparkles size={14} />
-                Create &amp; Analyse
+                {isEdit ? 'Save & Re-run' : 'Create & Analyse'}
               </Button>
             )}
           </div>
@@ -691,10 +783,12 @@ function DetailPanel({
   analysis,
   projectId,
   onClose,
+  onEdit,
 }: {
   analysis: ImpactAnalysis
   projectId: string
   onClose: () => void
+  onEdit: () => void
 }) {
   const { color: sc, icon: si } = statusMeta(analysis.status)
   const suggestions = analysis.suggestions?.suggestions ?? []
@@ -718,9 +812,23 @@ function DetailPanel({
           <h3 className="font-semibold text-fg text-sm">{analysis.name}</h3>
           <p className="text-xs text-fg-muted mt-0.5">{relativeTime(analysis.createdAt)}</p>
         </div>
-        <button onClick={onClose} className="text-fg-subtle hover:text-fg shrink-0">
-          <X size={16} />
-        </button>
+        <div className="flex items-center gap-1 shrink-0">
+          <button
+            onClick={onEdit}
+            disabled={analysis.status === 'RUNNING'}
+            title={
+              analysis.status === 'RUNNING'
+                ? 'Analysis is running'
+                : 'Edit PRs / requirements / instructions and re-run'
+            }
+            className="p-1 text-fg-subtle hover:text-primary disabled:opacity-40 disabled:hover:text-fg-subtle"
+          >
+            <Pencil size={14} />
+          </button>
+          <button onClick={onClose} className="p-1 text-fg-subtle hover:text-fg">
+            <X size={16} />
+          </button>
+        </div>
       </div>
 
       <div className="flex-1 overflow-y-auto p-5 space-y-5">
@@ -817,6 +925,7 @@ export default function ImpactAnalysesPage() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [showCreate, setShowCreate] = useState(false)
+  const [editing, setEditing] = useState<ImpactAnalysis | null>(null)
   const [selectedId, setSelectedId] = useState<string | null>(analysisId ?? null)
 
   const { data, isLoading, error, refetch } = useQuery({
@@ -835,6 +944,16 @@ export default function ImpactAnalysesPage() {
       queryClient.invalidateQueries({ queryKey: ['impact-analyses', projectId] })
       setShowCreate(false)
       setSelectedId(created.id)
+    },
+  })
+
+  const updateMutation = useMutation({
+    mutationFn: ({ id, form }: { id: string; form: CreateImpactAnalysisForm }) =>
+      api.updateImpactAnalysis(projectId!, id, form),
+    onSuccess: updated => {
+      queryClient.invalidateQueries({ queryKey: ['impact-analyses', projectId] })
+      setEditing(null)
+      setSelectedId(updated.id)
     },
   })
 
@@ -996,16 +1115,24 @@ export default function ImpactAnalysesPage() {
             analysis={selected}
             projectId={projectId!}
             onClose={() => setSelectedId(null)}
+            onEdit={() => setEditing(selected)}
           />
         )}
       </div>
 
-      {/* Create modal */}
-      {showCreate && (
+      {/* Create / Edit modal */}
+      {(showCreate || editing) && (
         <CreateModal
           projectId={projectId!}
-          onClose={() => setShowCreate(false)}
-          onCreate={form => createMutation.mutate(form)}
+          existing={editing ?? undefined}
+          onClose={() => {
+            setShowCreate(false)
+            setEditing(null)
+          }}
+          onSubmit={form => {
+            if (editing) updateMutation.mutate({ id: editing.id, form })
+            else createMutation.mutate(form)
+          }}
         />
       )}
 

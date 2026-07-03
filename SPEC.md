@@ -1,136 +1,164 @@
-# SPEC — Fix: Impact Analyses ignores "Codebase" repos set via the GitHub tab
+# SPEC — Enhance Impact Analyses: editable jobs, richer context, PR filter/search
 
-> Status: **DRAFT — awaiting confirmation.** Bug fix. Prior spec (Portal UI design system, complete)
-> archived at `spec/archive/portal-ui-design-system-spec.md`.
+> Status: **DRAFT — awaiting confirmation.** Builds on the deployed Impact Analyses fixes (PR listing
+> from GitHub-tab Codebase repos, PR-diff token via credential cascade). Prior spec archived at
+> `spec/archive/impact-analyses-codebase-fix-spec.md`.
 
 ## 1. Objective
 
-On the Impact Analyses page (`/{org}/{project}/impact-analyses` → "New Impact Analysis" → step 1),
-a repository that has been marked **Codebase** in **Project Settings → GitHub** still shows:
-
-> **No Codebase repos configured** — Go to Project Settings and mark a GitHub repo as Codebase to
-> list PRs here.
-
-### Root cause (confirmed by code trace)
-There are **two independent surfaces** for tagging a repo "Codebase", persisted to **two different
-tables**, and the PR-listing endpoint reads only one of them:
-
-| Surface (Project Settings) | Persists to | Carries |
-|---|---|---|
-| **Integrations** tab → GITHUB config, Repo Role = Codebase | `ProjectIntegrationConfig` (`integration_config`) | `repoFullName`, `token` params, `repoType=CODEBASE` |
-| **GitHub** tab → repo picker, role = Codebase | `ProjectRepoAssignment` (`project_repo_assignments`) | `repoFullName`, `role=CODEBASE`, `credentialId` (→ org PAT) |
-
-`ImpactAnalysisController.listOpenPrs` (platform-agent, `GET /hub/impact/{projectId}/prs`) queries
-**only** `ProjectIntegrationConfigRepository.findByProjectIdAndIntegrationTypeAndRepoTypeAndEnabled(
-projectId, "GITHUB", "CODEBASE", true)`. A repo marked Codebase via the **GitHub tab** writes
-`ProjectRepoAssignment` and is therefore never seen → empty list → the misleading message.
-
-**User confirmed:** the repo was configured via **Project Settings → GitHub** tab.
+Make an Impact Analysis a **living, refinable job** instead of a one-shot create-and-forget. A user can
+**edit an existing analysis** — add PRs (across repos), add requirements, and add free-text
+**instructions for the AI** — then **re-run** it; the agent recomputes the result with the fuller
+context. The PR picker gains a **repo filter** and **PR search (title / number)**, and the agent feeds
+the AI more signal: each PR's **description** and the **full diff of changed Markdown files** (which
+are often specs authored by a coding agent), while non-Markdown files stay as a changed-file list.
 
 ### Target users
-- Portal users (QA leads/engineers) creating an Impact Analysis — must see PRs from any repo they
-  marked Codebase, regardless of which settings surface they used.
+- **QA leads / engineers** iterating on an impact analysis as PRs land or scope grows — refine and
+  re-run without recreating the job.
 
-## 2. Resolved decision (locked)
-**Read both sources (chosen).** `listOpenPrs` treats a repo as Codebase if it is marked so in
-**either** `ProjectIntegrationConfig` (existing path) **or** `ProjectRepoAssignment` with
-`role='CODEBASE'` (new path). For assignment-sourced repos the GitHub token is resolved from the
-referenced credential via the existing **Org→Project→Team credential cascade**
-(`CredentialResolver` / `IntegrationTokenResolver`, already used by `GitHubPollingService`).
-Results are **merged and de-duplicated by `repoFullName`** so a repo present in both surfaces is
-listed once.
+### Locked decisions (from clarification)
+1. **Re-run fresh, replace result.** Editing + re-running recomputes the whole analysis from the full
+   updated context; the new `summary` + `suggestions` **replace** the previous ones. No versioning.
+2. **Single editable instructions field** — one free-text `customPrompt` per job (new column), fed to
+   the AI on every run; editable each time.
+3. **Diff depth:** keep the **changed-file list** for all files; additionally include each PR's
+   **description/body**, and for changed files ending in `.md`/`.markdown`, include their **diff
+   (patch)** content (potential coding-agent specs). No full patch for non-Markdown files. All added
+   context is **size-bounded** to protect token budget.
 
-Not chosen: write-through sync GitHub-tab→IntegrationConfig; UI consolidation. (Deferred — see §10.)
+## 2. Scope
+
+### In scope
+- **Edit + re-run endpoint** (agent + portal proxy) to update a job's `linkedPrs`,
+  `linkedRequirementIds`, `name`, and `customPrompt`, then re-run asynchronously (fresh, replaces
+  result). Blocked while a run is in progress.
+- **New field** `custom_prompt` on `impact_analyses` (Flyway `V10`).
+- **Richer context assembly** in `ImpactAnalysisService`: PR descriptions + Markdown-file diffs +
+  existing changed-file list + `customPrompt`, all bounded.
+- **Frontend**: PR-picker **repo filter dropdown** + **search (title/number)**; **Edit** action that
+  reopens a job pre-filled (PRs, requirements, instructions), supports adding more, and Saves → re-run;
+  an **"Instructions for the AI"** textarea in create + edit.
+
+### Out of scope (deferred)
+- Result versioning / run history; augment-merge of prior suggestions (decision #1 = replace).
+- Full patch content for non-Markdown files; binary/large-file handling beyond truncation.
+- Multiple/threaded prompt notes (decision #2 = single field).
+- Changing the suggestion JSON schema, the apply-suggestion flow, or requirement sourcing.
+- Auto-re-run on new commits/webhooks (manual re-run only).
 
 ## 3. Acceptance criteria
-- [ ] With a repo marked **Codebase in the GitHub tab only** (a `ProjectRepoAssignment`, `role=CODEBASE`,
-      no `integration_config` CODEBASE row), `GET /hub/impact/{projectId}/prs` returns that repo's open
-      PRs, and the Impact Analyses "New" modal lists them (no "No Codebase repos configured" message).
-- [ ] With a repo marked Codebase via the **Integrations tab only** — unchanged: still works exactly
-      as today (no regression).
-- [ ] A repo marked Codebase in **both** surfaces appears **once** (dedupe by `repoFullName`).
-- [ ] Assignment-sourced repos fetch PRs using the token resolved from their credential; if no token
-      resolves, that repo is skipped with a `log.warn` (never a 500) — consistent with the existing
-      per-repo `try/catch`.
-- [ ] Each returned PR keeps the same JSON shape (`number, title, html_url, state, user, updated_at,
-      head_ref, base_ref, body(≤500 chars), repoFullName`) so `CodabasePr` / the frontend need no change.
-- [ ] Empty result (genuinely no Codebase repo in either surface) still shows the existing empty state.
-- [ ] Backend build + tests green; no frontend behavior/logic change required (the empty-state copy may
-      optionally be broadened to mention both tabs — see §7).
 
-## 4. Approach (implementation sketch — for the plan, not binding)
-In `platform-agent/.../api/ImpactAnalysisController.java` (`listOpenPrs`):
-1. Keep the existing `ProjectIntegrationConfig` CODEBASE loop.
-2. Add a second source: inject `ProjectRepoAssignmentRepository` (platform-core) +
-   `CredentialResolver`/`IntegrationTokenResolver` (already in platform-agent). Load
-   `findByProjectIdOrderByRepoFullName(projectId)`, filter `role == "CODEBASE"`.
-3. For each assignment, resolve the GitHub token via the credential cascade (mirror
-   `GitHubPollingService.pollProject`), call `gitHubApiClient.getOpenPRs(owner, repo, token)`, map PRs
-   to the same entry shape.
-4. Merge both lists into one `result`, de-duplicating repos by `repoFullName` (prefer whichever
-   resolves a usable token; a repo already fetched from IntegrationConfig is not re-fetched).
-5. Preserve per-repo `try/catch` + `log.warn`; overall endpoint returns `200` with the merged list.
+**Edit + re-run (backend)**
+- [ ] `PUT /hub/impact/{projectId}/{id}` accepts `{ name?, linkedPrs, linkedRequirementIds, customPrompt? }`,
+      replaces those fields on the job, sets status `RUNNING`, and triggers the async run; returns the
+      updated job (`200`).
+- [ ] Re-run **replaces** `summary` + `suggestions` (fresh compute from the full current context).
+- [ ] Updating a job whose status is `RUNNING` is rejected (`409`) — no concurrent runs.
+- [ ] `id`/`projectId` mismatch → `404`; the portal proxies `PUT /projects/{projectId}/impact-analyses/{id}`.
+- [ ] Existing create/get/list behavior unchanged.
 
-Extract a small private helper (e.g. `fetchOpenPrsForRepo(owner, repo, token, repoFullName, result)`)
-to avoid duplicating the PR→map projection.
+**Richer context (backend)**
+- [ ] Each linked PR contributes its **title + description/body** to the prompt (from linked-PR
+      metadata; body captured when a PR is linked).
+- [ ] Changed **Markdown** files contribute their **diff/patch** text (bounded, e.g. ≤ N KB each and a
+      total cap); non-Markdown changed files contribute **filename only** (current behavior).
+- [ ] `customPrompt`, when present, is included as explicit user instructions in the AI prompt.
+- [ ] Context assembly is **bounded** (per-file and overall caps) and never throws on a missing
+      body/patch — it degrades to what's available.
+
+**PR filter / search + Edit (frontend)**
+- [ ] In the PR-selection step (create + edit), a **repo dropdown** narrows the PR list to a chosen
+      repo (options derived from the loaded PRs' `repoFullName`; includes an "All repos" option), and a
+      **search box** filters by PR **title** or **number/ID**. Both compose with each other and with
+      existing selection.
+- [ ] Multiple PRs across different repos can be selected in one job (already supported; the filter
+      makes it navigable).
+- [ ] An **Edit** action on a job opens the modal **pre-populated** with the job's current PRs,
+      requirements, and instructions; the user can add PRs/requirements and edit instructions; **Save**
+      calls the update endpoint and the UI reflects `RUNNING` → updated result.
+- [ ] An **"Instructions for the AI"** textarea appears in create + edit and round-trips to
+      `customPrompt`.
+- [ ] `npx tsc -b` clean; design-token styling preserved (no raw palette / no purple).
+
+## 4. Approach (implementation sketch — not binding)
+- **Schema:** `platform-core/.../db/migration/V10__impact_analysis_custom_prompt.sql` →
+  `ALTER TABLE impact_analyses ADD COLUMN custom_prompt text;` + `customPrompt` field on
+  `ImpactAnalysis`.
+- **Agent controller:** add `PUT /{projectId}/{id}` (`update`) — load, guard non-`RUNNING`, set fields,
+  save, `impactAnalysisService.runAnalysis(id, projectId)`. Reuse the existing `CreateImpactAnalysisRequest`
+  shape (+ `customPrompt`) or a sibling `UpdateImpactAnalysisRequest`.
+- **Service (`runAnalysis`):** extend PR loop — capture `prBody` (from stored linked-PR metadata) and,
+  from the PR-files response, include `patch` for `*.md` files (bounded). Append `customPrompt` to the
+  user message. Keep the credential-cascade token resolution (already fixed).
+- **Portal proxy:** `PUT /{id}` → `agentClient.put().uri("/hub/impact/{projectId}/{id}")`.
+- **Frontend (`ImpactAnalysesPage.tsx` + `api.ts`):** add `updateImpactAnalysis`; extend
+  `CreateImpactAnalysisForm`/types with `customPrompt` and per-PR `prBody`; add repo `<Select>` + search
+  `Input` to the PR step; make `CreateModal` double as an edit modal seeded from a job; add the
+  instructions textarea. Store PR `body` in `linkedPrs` when selecting (it's already in the `/prs`
+  payload).
 
 ## 5. Commands
-- **Build/test (backend):** `mvn -q -pl platform-agent -am test` (and `-pl platform-core` if the repo
-  gains a query method). Full: `mvn -q verify` for the affected modules.
-- **Frontend (only if copy is touched):** `cd platform-portal/frontend && npx tsc -b`.
-- **Manual verify:** with a project whose repo is Codebase via the GitHub tab, open the Impact
-  Analyses "New" modal and confirm PRs list.
+- **Backend build/test:** `mvn -q -pl platform-agent -am test` (agent) and `-pl platform-core` (entity +
+  migration compile). Package for deploy: `mvn -q -pl platform-agent -am package -DskipTests` and
+  `-pl platform-portal`.
+- **DB migration** runs via the `db-migrate` (Flyway) compose service on stack up.
+- **Frontend:** `cd platform-portal/frontend && npx tsc -b`.
+- **Deploy (local docker-compose):** rebuild + recreate `platform-agent` and `platform-portal`
+  (`docker compose build … && docker compose up -d …`); `db-migrate` applies `V10`.
 
 ## 6. Project structure (touched)
 ```
-platform-agent/src/main/java/com/platform/agent/api/ImpactAnalysisController.java   # fix site (listOpenPrs)
-platform-agent/src/main/java/com/platform/agent/node/tools/IntegrationTokenResolver.java  # reuse (token)
-platform-agent/src/main/java/com/platform/agent/hub/polling/GitHubPollingService.java      # pattern to mirror
-platform-core/src/main/java/com/platform/core/repository/ProjectRepoAssignmentRepository.java  # source #2 (maybe + findByProjectIdAndRole)
-platform-core/src/main/java/com/platform/core/domain/ProjectRepoAssignment.java
-# unchanged unless copy tweaked:
-platform-portal/frontend/src/pages/ImpactAnalysesPage.tsx   # empty-state message (optional wording)
-platform-portal/frontend/src/lib/api.ts                     # codebasePrs — no change
-platform-portal/src/main/java/com/platform/portal/api/PortalImpactController.java  # proxy — no change
+platform-core/src/main/java/com/platform/core/domain/ImpactAnalysis.java        # + customPrompt
+platform-core/src/main/resources/db/migration/V10__impact_analysis_custom_prompt.sql  # new
+platform-agent/.../api/ImpactAnalysisController.java                             # PUT update + re-run
+platform-agent/.../api/ImpactAnalysisService.java                               # md-diff + PR body + customPrompt
+platform-agent/.../api/ImpactAnalysis{Controller,Service}Test.java              # tests
+platform-portal/.../api/PortalImpactController.java                             # PUT proxy
+platform-portal/frontend/src/pages/ImpactAnalysesPage.tsx                       # filter/search + edit + instructions
+platform-portal/frontend/src/lib/{api.ts,types.ts}                              # updateImpactAnalysis + fields
 ```
 
 ## 7. Code style / conventions
-- Java: constructor injection (match existing controller); keep the per-repo `try/catch` + `log.warn`;
-  no new endpoint or response-shape change; reuse `CredentialResolver`/`IntegrationTokenResolver` and
-  `GitHubApiClient` rather than adding a new GitHub client.
-- Prefer a repository query method (`findByProjectIdAndRole(projectId, "CODEBASE")`) over in-memory
-  filtering if adding one is cheap and consistent with the repo's style.
-- Optional FE copy tweak: broaden the empty-state hint to "…mark a GitHub repo as Codebase (Project
-  Settings → GitHub, or Integrations)". Presentation-only; keep the migrated design tokens.
+- **Java:** constructor injection; reuse `GitHubApiClient`, `CredentialResolver`; keep per-PR
+  `try/catch` + `log.warn`, never log tokens; bound all AI context (constants for md-patch and total
+  caps). No response-shape change to `suggestions`.
+- **SQL:** additive, nullable column; forward-only Flyway (`V10`, never edit shipped migrations).
+- **Frontend:** Tailwind v4 **design tokens** + `ui/` primitives (`Select`, `Input`, `Button`); no raw
+  palette, no purple/indigo; accessible labels + focus rings; `cn()` for class composition.
 
 ## 8. Testing strategy
-- **Unit/slice (backend):** cover `listOpenPrs` for three cases — assignment-only, config-only, both
-  (dedupe) — with `GitHubApiClient` stubbed to return canned PR JSON and `CredentialResolver` stubbed
-  to yield / withhold a token. Assert merged/deduped output and that a token-less repo is skipped, not
-  fatal. Follow the module's existing test framework (JUnit + Mockito as used elsewhere in platform-agent).
-- **Regression:** existing IntegrationConfig-only behavior unchanged.
-- **Manual:** the §5 walkthrough against the reported project.
+- **Agent unit tests (JUnit5 + Mockito, mirror existing):**
+  - update endpoint replaces fields + re-runs and overwrites summary/suggestions;
+  - `409` when status is `RUNNING`; `404` on id/project mismatch;
+  - `runAnalysis` includes PR body, includes `.md` file patch (and excludes non-md patch), and injects
+    `customPrompt`; context bounded (truncation applied over cap).
+- **Regression:** full `mvn -q -pl platform-agent test` green (30+ classes).
+- **Frontend:** `npx tsc -b`; manual pass — repo filter + PR search narrow the list; Edit pre-fills and
+  re-runs; instructions round-trip.
+- No SPA unit runner (type-check is the gate, matching the codebase).
 
 ## 9. Boundaries
 **Always**
-- Preserve the existing IntegrationConfig path and the endpoint's JSON contract (`CodabasePr`).
-- Resolve tokens only through the existing credential cascade; keep secrets out of logs/responses.
-- Per-repo failures degrade gracefully (skip + warn), never 500 the whole list.
+- Preserve create/get/list and the `suggestions`/`CodabasePr` contracts; keep credential-cascade token
+  resolution.
+- Bound AI context (per-file + total) to protect token budget/cost; degrade gracefully on missing
+  body/patch.
+- Frontend stays presentation-consistent (tokens + `ui/` kit).
 
 **Ask first**
-- Adding a DB migration or new table/column (none expected — reuses existing tables).
-- Changing the `/prs` response shape, the `CodabasePr` type, or the create-analysis flow.
-- Any write-through sync between the two config surfaces, or UI consolidation (§10).
-- Touching credential decryption internals or `CredentialResolver` behavior.
+- Any **further** schema change beyond the single additive `custom_prompt` column.
+- Increasing context depth beyond Markdown diffs (e.g. full patches for all files) — token/cost impact.
+- Changing the `suggestions` JSON schema or the apply-to-test-case flow.
+- Auto-re-run triggers (webhooks/schedules).
 
 **Never**
-- Log or return raw PATs/tokens.
-- Duplicate a repo's PRs when it's configured in both surfaces.
-- Broaden scope into unrelated impact-analysis logic (AI run, suggestions) while fixing PR listing.
+- Log or expose PATs/tokens; send unbounded diffs to the LLM.
+- Break or silently drop existing analyses; edit an already-shipped Flyway migration.
+- Allow concurrent runs on the same job (guard `RUNNING`).
 
-## 10. Out of scope (deferred)
-- Reconciling/merging the two "Codebase" surfaces into one source of truth (write-through sync or UI
-  consolidation) — larger UX/data decision; revisit separately.
-- Test-Automation-repo parity (same two-surface split may exist for `TEST_AUTOMATION`; not in this fix
-  unless the plan finds it trivially adjacent).
-- Any change to how repos are marked Codebase in the UI.
+## 10. Open questions (non-blocking; sensible defaults chosen)
+- Markdown-diff caps: default proposal **≤ 8 KB per file, ≤ 32 KB total** md content (tunable).
+- Editable statuses: allow edit on `DRAFT`/`COMPLETED`/`FAILED`; block only `RUNNING`.
+- PR body source: captured at link time from the `/prs` payload (no extra GitHub call); if absent,
+  skip (no hard fetch) unless you want a live fetch fallback.

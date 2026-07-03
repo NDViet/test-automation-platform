@@ -71,4 +71,22 @@ public class PortalImpactController {
       return Map.of("error", e.getMessage());
     }
   }
+
+  @PutMapping("/{id}")
+  public Object update(
+      @PathVariable String projectId,
+      @PathVariable String id,
+      @RequestBody Map<String, Object> body) {
+    try {
+      return agentClient
+          .put()
+          .uri("/hub/impact/" + projectId + "/" + id)
+          .contentType(MediaType.APPLICATION_JSON)
+          .body(body)
+          .retrieve()
+          .body(Object.class);
+    } catch (RestClientException e) {
+      return Map.of("error", e.getMessage());
+    }
+  }
 }

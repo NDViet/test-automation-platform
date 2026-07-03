@@ -971,6 +971,7 @@ export interface LinkedPr {
   prNumber: number
   prUrl: string
   prTitle: string
+  prBody?: string
 }
 
 export interface ImpactAnalysis {
@@ -980,6 +981,7 @@ export interface ImpactAnalysis {
   status: 'DRAFT' | 'RUNNING' | 'COMPLETED' | 'FAILED'
   linkedPrs: LinkedPr[]
   linkedRequirementIds: string[]
+  customPrompt: string | null
   suggestions: ImpactAnalysisResult | null
   summary: string | null
   workflowId: string | null
@@ -1004,6 +1006,7 @@ export interface CreateImpactAnalysisForm {
   name: string
   linkedPrs: LinkedPr[]
   linkedRequirementIds: string[]
+  customPrompt?: string
 }
 
 // ── Review Queue / Work Items ─────────────────────────────────────────────────

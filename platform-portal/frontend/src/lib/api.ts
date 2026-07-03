@@ -403,6 +403,11 @@ export const api = {
     get<import('./types').CodabasePr[]>(`/projects/${projectId}/impact-analyses/prs`),
   createImpactAnalysis: (projectId: string, body: import('./types').CreateImpactAnalysisForm) =>
     post<import('./types').ImpactAnalysis>(`/projects/${projectId}/impact-analyses`, body),
+  updateImpactAnalysis: (
+    projectId: string,
+    id: string,
+    body: import('./types').CreateImpactAnalysisForm,
+  ) => put<import('./types').ImpactAnalysis>(`/projects/${projectId}/impact-analyses/${id}`, body),
   // Organizations (top tenant — ADO-first)
   createOrganization: (body: import('./types').CreateOrganizationForm) =>
     post<import('./types').Organization>('/organizations', body),

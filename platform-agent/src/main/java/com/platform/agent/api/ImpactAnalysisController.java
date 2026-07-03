@@ -84,7 +84,8 @@ public class ImpactAnalysisController {
       fetchOpenPrs(repoFullName, config.param("token"), result);
     }
 
-    // Source 2 — repos assigned role=CODEBASE via Project Settings → GitHub (ProjectRepoAssignment).
+    // Source 2 — repos assigned role=CODEBASE via Project Settings → GitHub
+    // (ProjectRepoAssignment).
     // The assignment stores no token; resolve the effective GitHub PAT via the Org→Project→Team
     // credential cascade (resolved lazily, once, only if there is a Codebase assignment to fetch).
     List<ProjectRepoAssignment> assignments =
@@ -161,22 +162,10 @@ public class ImpactAnalysisController {
     entity.setName(
         request.name() != null && !request.name().isBlank() ? request.name() : "Impact Analysis");
     entity.setStatus("RUNNING");
-
-    // Convert linkedPrs list-of-records to List<Map<String,Object>>
-    List<Map<String, Object>> linkedPrsMaps = new ArrayList<>();
-    if (request.linkedPrs() != null) {
-      for (LinkedPrRef ref : request.linkedPrs()) {
-        Map<String, Object> m = new LinkedHashMap<>();
-        m.put("repoFullName", ref.repoFullName());
-        m.put("prNumber", ref.prNumber());
-        m.put("prUrl", ref.prUrl());
-        m.put("prTitle", ref.prTitle());
-        linkedPrsMaps.add(m);
-      }
-    }
-    entity.setLinkedPrs(linkedPrsMaps);
+    entity.setLinkedPrs(toLinkedPrMaps(request.linkedPrs()));
     entity.setLinkedRequirementIds(
         request.linkedRequirementIds() != null ? request.linkedRequirementIds() : List.of());
+    entity.setCustomPrompt(request.customPrompt());
 
     ImpactAnalysis saved = impactRepo.save(entity);
 
@@ -184,6 +173,38 @@ public class ImpactAnalysisController {
     impactAnalysisService.runAnalysis(saved.getId(), projectId);
 
     return ResponseEntity.status(201).body(saved);
+  }
+
+  // ── Update analysis (replace PRs / requirements / instructions) + re-run ──
+
+  @PutMapping("/{projectId}/{id}")
+  public ResponseEntity<ImpactAnalysis> update(
+      @PathVariable UUID projectId,
+      @PathVariable UUID id,
+      @RequestBody CreateImpactAnalysisRequest request) {
+
+    ImpactAnalysis entity =
+        impactRepo.findById(id).filter(a -> projectId.equals(a.getProjectId())).orElse(null);
+    if (entity == null) return ResponseEntity.notFound().build();
+    if ("RUNNING".equals(entity.getStatus())) {
+      // Don't clobber an in-flight run.
+      return ResponseEntity.status(409).build();
+    }
+
+    if (request.name() != null && !request.name().isBlank()) entity.setName(request.name());
+    entity.setLinkedPrs(toLinkedPrMaps(request.linkedPrs()));
+    entity.setLinkedRequirementIds(
+        request.linkedRequirementIds() != null ? request.linkedRequirementIds() : List.of());
+    entity.setCustomPrompt(request.customPrompt());
+    // Fresh re-run — clear the prior result so the UI shows a clean RUNNING state.
+    entity.setStatus("RUNNING");
+    entity.setSummary(null);
+    entity.setSuggestions(null);
+
+    ImpactAnalysis saved = impactRepo.save(entity);
+    impactAnalysisService.runAnalysis(saved.getId(), projectId);
+
+    return ResponseEntity.ok(saved);
   }
 
   // ── Get specific analysis ─────────────────────────────────────────────────
@@ -197,10 +218,30 @@ public class ImpactAnalysisController {
         .orElse(ResponseEntity.notFound().build());
   }
 
+  /** Convert linked-PR records to the persisted jsonb shape (carries prTitle + prBody). */
+  private static List<Map<String, Object>> toLinkedPrMaps(List<LinkedPrRef> refs) {
+    List<Map<String, Object>> out = new ArrayList<>();
+    if (refs == null) return out;
+    for (LinkedPrRef ref : refs) {
+      Map<String, Object> m = new LinkedHashMap<>();
+      m.put("repoFullName", ref.repoFullName());
+      m.put("prNumber", ref.prNumber());
+      m.put("prUrl", ref.prUrl());
+      m.put("prTitle", ref.prTitle());
+      m.put("prBody", ref.prBody());
+      out.add(m);
+    }
+    return out;
+  }
+
   // ── Request / inner types ─────────────────────────────────────────────────
 
   public record CreateImpactAnalysisRequest(
-      String name, List<LinkedPrRef> linkedPrs, List<String> linkedRequirementIds) {}
+      String name,
+      List<LinkedPrRef> linkedPrs,
+      List<String> linkedRequirementIds,
+      String customPrompt) {}
 
-  public record LinkedPrRef(String repoFullName, int prNumber, String prUrl, String prTitle) {}
+  public record LinkedPrRef(
+      String repoFullName, int prNumber, String prUrl, String prTitle, String prBody) {}
 }
