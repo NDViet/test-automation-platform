@@ -53,7 +53,7 @@ r.font.color.rgb = INK
 
 sub = doc.add_paragraph()
 no_space(sub)
-r = sub.add_run("Cross-team quality intelligence — shipped capabilities at a glance")
+r = sub.add_run("One product for the whole test cycle — manage it, automate it, then let AI do the work")
 r.font.size = Pt(10)
 r.font.color.rgb = ACCENT
 r.italic = True
@@ -81,11 +81,11 @@ pPr.append(pbdr)
 
 # ---- Metric strip ----
 metrics = [
-    ("11", "backend services"),
-    ("467", "REST APIs"),
-    ("9", "test frameworks ingested"),
-    ("33", "portal screens"),
-    ("92", "automated test suites"),
+    ("1", "portal, whole cycle"),
+    ("9", "CI frameworks in"),
+    ("33", "product screens"),
+    ("3", "trackers connected"),
+    ("5", "AI workflows"),
 ]
 mt = doc.add_table(rows=1, cols=len(metrics))
 mt.autofit = True
@@ -108,16 +108,29 @@ for i, (num, lab) in enumerate(metrics):
 doc.add_paragraph().paragraph_format.space_after = Pt(2)
 
 
-def heading(text):
+def heading(badge, text, tagline):
     p = doc.add_paragraph()
     no_space(p)
-    p.paragraph_format.space_before = Pt(5)
+    p.paragraph_format.space_before = Pt(6)
     p.paragraph_format.space_after = Pt(2)
-    r = p.add_run(text.upper())
+    rb = p.add_run(" " + badge + " ")
+    rb.bold = True
+    rb.font.size = Pt(9.5)
+    rb.font.color.rgb = RGBColor(0xFF, 0xFF, 0xFF)
+    # shade the badge run
+    rPr = rb._r.get_or_add_rPr()
+    shd = OxmlElement("w:shd")
+    shd.set(qn("w:val"), "clear")
+    shd.set(qn("w:fill"), "2B5CE6")
+    rPr.append(shd)
+    r = p.add_run("  " + text.upper())
     r.bold = True
     r.font.size = Pt(9.5)
     r.font.color.rgb = INK
-    # accent tick
+    r = p.add_run("   " + tagline)
+    r.font.size = Pt(8.5)
+    r.italic = True
+    r.font.color.rgb = MUTE
     return p
 
 
@@ -138,29 +151,29 @@ def feature(title, body):
     return p
 
 
-heading("The headline: an AI engineer for your test suite")
-feature("Autonomous failure triage",
-        "every test failure is classified by an LLM (Claude/OpenAI via a gateway) into a root-cause category, with a nightly batch job that clears the backlog while the team sleeps.")
-feature("Agentic workflows that write code",
-        "a self-hosted Agent Hub runs multi-step LLM workflows to generate test cases from requirements, produce runnable automation code, analyze the blast radius of a pull request, and self-heal flaky tests — every proposal gated by a human review queue.")
-feature("Test Impact Analysis",
-        "maps code changes to the exact tests that exercise them, so CI runs the affected slice instead of the whole suite — faster feedback, lower compute.")
+heading("1", "Foundation — own the test cycle", "plan, cover, execute, decide")
+feature("Test case management, end to end",
+        "author, review, and version test cases with steps, priorities, and suites — the single source of truth for what gets tested, across the whole team.")
+feature("Requirements, traceability & coverage",
+        "link every requirement to the tests that cover it; a live coverage matrix shows exactly what is protected and where the gaps are.")
+feature("Run cycles and decide with confidence",
+        "execute manual test runs, then read pass-rate trends, quality gates, and release-readiness reports to make a clear go / no-go call.")
 
-heading("Quality intelligence, running today")
-feature("Flakiness scoring + auto-ticketing",
-        "quantifies unstable tests from execution history and opens Jira tickets automatically for repeat offenders.")
-feature("Quality gates, trends & release reports",
-        "pass-rate trends, risk scoring, and go/no-go release readiness — the signals a release manager actually needs.")
-feature("Universal ingestion",
-        "one pipeline parses 9 frameworks out of the box: JUnit, TestNG, Cucumber, Allure, Playwright, Postman/Newman, k6, Gatling, and JMeter.")
+heading("2", "Test automation — scale execution", "every run, every framework, one view")
+feature("Bring every result together",
+        "one pipeline captures results from 9 CI frameworks out of the box — JUnit, TestNG, Cucumber, Allure, Playwright, Postman/Newman, k6, Gatling, JMeter.")
+feature("One estate, automated + manual",
+        "automated suites, GitHub CI workflows, and execution history sit alongside manual tests, so leaders see the full test estate in a single portal.")
+feature("Close the loop into the tools teams use",
+        "flakiness scoring turns noisy CI into tracked work by auto-filing Jira tickets, with live Jira, GitHub, and Azure DevOps integrations (guided ADO onboarding).")
 
-heading("Enterprise-ready foundation")
-feature("Full test-case management",
-        "requirements, traceability, coverage matrix, suites, and manual + automated runs in one portal (33 screens).")
-feature("Plugs into the toolchain",
-        "live Jira, GitHub, and Azure DevOps integrations, including a guided Azure DevOps onboarding wizard.")
-feature("Built for teams",
-        "role-based access control, multi-org tenancy, API keys, event streaming (Kafka), and a full observability stack (Grafana/Prometheus/Loki).")
+heading("3", "AI — do the testing work", "triage, generate, fix, focus")
+feature("Failures triaged automatically",
+        "every failure is classified to a root cause by an LLM, with a nightly batch that clears the backlog overnight — so mornings start with answers, not logs.")
+feature("Agents that generate and fix",
+        "generate test cases from requirements, produce runnable automation code, analyze a pull request's blast radius, and propose flaky-test fixes — every change gated by a human review queue.")
+feature("Run only what a change touches",
+        "Test Impact Analysis maps a code change to the exact tests that exercise it, cutting CI time and cost without losing coverage.")
 
 # ---- Bottom callout: honesty line ----
 doc.add_paragraph().paragraph_format.space_after = Pt(1)
@@ -169,14 +182,14 @@ cell = ct.rows[0].cells[0]
 set_bg(cell, "EAF6EF")
 cp = cell.paragraphs[0]
 no_space(cp)
-r = cp.add_run("Where it stands   ")
+r = cp.add_run("The bet   ")
 r.bold = True
 r.font.size = Pt(9)
 r.font.color.rgb = GOOD
 r = cp.add_run(
-    "These are working services with automated test coverage and a documented cloud cost model "
-    "(~$170–230/mo compute, LLM tokens separate) — not slideware. The next mile is scale hardening, "
-    "connector breadth, and production pilots with real teams."
+    "Every layer above is working product with automated test coverage and a documented cost model "
+    "(~$170–230/mo compute, LLM tokens separate) — not slideware. Teams get value from day one at the "
+    "foundation; the AI layer compounds it. Next: scale hardening, more connectors, and pilots with real teams."
 )
 r.font.size = Pt(8.5)
 r.font.color.rgb = INK
