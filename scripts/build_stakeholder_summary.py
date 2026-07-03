@@ -84,7 +84,7 @@ metrics = [
     ("1", "portal, whole cycle"),
     ("9", "CI frameworks in"),
     ("33", "product screens"),
-    ("3", "trackers connected"),
+    ("2", "live: ADO + GitHub"),
     ("5", "AI workflows"),
 ]
 mt = doc.add_table(rows=1, cols=len(metrics))
@@ -105,6 +105,24 @@ for i, (num, lab) in enumerate(metrics):
     rr = p2.add_run(lab)
     rr.font.size = Pt(7.5)
     rr.font.color.rgb = MUTE
+
+# ---- Integration ribbon: focus on the stack in use today ----
+rib = doc.add_table(rows=1, cols=1)
+rcell = rib.rows[0].cells[0]
+set_bg(rcell, "1A1A2E")
+rp = rcell.paragraphs[0]
+no_space(rp)
+r = rp.add_run("WORKS IN YOUR STACK TODAY   ")
+r.bold = True
+r.font.size = Pt(8.5)
+r.font.color.rgb = RGBColor(0x8F, 0xB0, 0xFF)
+r = rp.add_run(
+    "Azure DevOps — import projects, areas, iterations, teams & work items as requirements, with field mapping "
+    "and a guided onboarding wizard.   ·   GitHub — CI results in, and agents open pull requests, commit fixes, "
+    "and comment on PRs. No rip-and-replace."
+)
+r.font.size = Pt(8.5)
+r.font.color.rgb = RGBColor(0xEA, 0xEE, 0xFF)
 doc.add_paragraph().paragraph_format.space_after = Pt(2)
 
 
@@ -155,7 +173,7 @@ heading("1", "Foundation — own the test cycle", "plan, cover, execute, decide"
 feature("Test case management, end to end",
         "author, review, and version test cases with steps, priorities, and suites — the single source of truth for what gets tested, across the whole team.")
 feature("Requirements, traceability & coverage",
-        "link every requirement to the tests that cover it; a live coverage matrix shows exactly what is protected and where the gaps are.")
+        "sync requirements straight from Azure DevOps work items, link each to the tests that cover it, and read a live coverage matrix of what is protected and where the gaps are.")
 feature("Run cycles and decide with confidence",
         "execute manual test runs, then read pass-rate trends, quality gates, and release-readiness reports to make a clear go / no-go call.")
 
@@ -164,14 +182,14 @@ feature("Bring every result together",
         "one pipeline captures results from 9 CI frameworks out of the box — JUnit, TestNG, Cucumber, Allure, Playwright, Postman/Newman, k6, Gatling, JMeter.")
 feature("One estate, automated + manual",
         "automated suites, GitHub CI workflows, and execution history sit alongside manual tests, so leaders see the full test estate in a single portal.")
-feature("Close the loop into the tools teams use",
-        "flakiness scoring turns noisy CI into tracked work by auto-filing Jira tickets, with live Jira, GitHub, and Azure DevOps integrations (guided ADO onboarding).")
+feature("Close the loop in the tools teams already use",
+        "GitHub CI feeds results in automatically, and flakiness scoring turns noisy runs into tracked work filed straight into Azure DevOps — teams stay in ADO and GitHub, no new tool to adopt.")
 
 heading("3", "AI — do the testing work", "triage, generate, fix, focus")
 feature("Failures triaged automatically",
         "every failure is classified to a root cause by an LLM, with a nightly batch that clears the backlog overnight — so mornings start with answers, not logs.")
-feature("Agents that generate and fix",
-        "generate test cases from requirements, produce runnable automation code, analyze a pull request's blast radius, and propose flaky-test fixes — every change gated by a human review queue.")
+feature("Agents that generate and fix — inside GitHub",
+        "from an ADO requirement, agents generate test cases, write runnable automation code, and propose flaky-test fixes as GitHub pull requests, plus comment a change's blast radius on the PR — every change gated by a human review queue.")
 feature("Run only what a change touches",
         "Test Impact Analysis maps a code change to the exact tests that exercise it, cutting CI time and cost without losing coverage.")
 
@@ -187,9 +205,9 @@ r.bold = True
 r.font.size = Pt(9)
 r.font.color.rgb = GOOD
 r = cp.add_run(
-    "Every layer above is working product with automated test coverage and a documented cost model "
-    "(~$170–230/mo compute, LLM tokens separate) — not slideware. Teams get value from day one at the "
-    "foundation; the AI layer compounds it. Next: scale hardening, more connectors, and pilots with real teams."
+    "Every layer above is working product, wired to the Azure DevOps + GitHub stack teams use today, with a "
+    "documented cost model (~$170–230/mo compute, LLM tokens separate) — not slideware. Value from day one at "
+    "the foundation; the AI layer compounds it. Next: scale hardening, more connectors, and pilots with real teams."
 )
 r.font.size = Pt(8.5)
 r.font.color.rgb = INK
