@@ -42,6 +42,7 @@ class GenerationResumeServiceTest {
   @Mock GenerationClarificationRepository clarificationRepo;
   @Mock AiGenerationRunRepository runRepo;
   @Mock com.platform.core.repository.GeneratedTestCaseProposalRepository proposalRepo;
+  @Mock com.platform.core.repository.ImpactAnalysisRepository impactRepo;
   @Mock ContextAssembler contextAssembler;
   @Mock TestCaseGenerationNode generationNode;
   @Mock KafkaTemplate<String, String> kafka;
@@ -58,6 +59,7 @@ class GenerationResumeServiceTest {
             clarificationRepo,
             runRepo,
             proposalRepo,
+            impactRepo,
             contextAssembler,
             generationNode,
             kafka,
@@ -67,6 +69,8 @@ class GenerationResumeServiceTest {
   private AgentWorkflow workflow(String status) {
     AgentWorkflow wf = new AgentWorkflow(projectId, "MANUAL", null, java.util.Map.of());
     if ("AWAITING_INPUT".equals(status)) wf.markAwaitingInput();
+    else if ("AWAITING_REVIEW".equals(status)) wf.markAwaitingReview();
+    else if ("RUNNING".equals(status)) wf.markRunning();
     else if ("COMPLETED".equals(status)) wf.markCompleted();
     when(workflowRepo.findById(workflowId)).thenReturn(Optional.of(wf));
     return wf;
@@ -239,5 +243,166 @@ class GenerationResumeServiceTest {
 
     assertThat(plan.instruction()).isEqualTo("tighten all");
     assertThat(wf.getStatus()).isEqualTo("RUNNING");
+  }
+
+  // ---- regenerate (generate more) ------------------------------------------
+
+  private com.platform.core.domain.GeneratedTestCaseProposal proposal(int ordinal, String status) {
+    var p =
+        new com.platform.core.domain.GeneratedTestCaseProposal(
+            workflowId, projectId, ordinal, "T" + ordinal, null, null, null, "HIGH", null, "[]");
+    if (com.platform.core.domain.GeneratedTestCaseProposal.ACCEPTED.equals(status)) {
+      p.markAccepted(UUID.randomUUID());
+    } else if (com.platform.core.domain.GeneratedTestCaseProposal.REJECTED.equals(status)) {
+      p.markRejected();
+    }
+    return p;
+  }
+
+  private GenerationResumeService.RegenerateRequest regenReq(
+      List<String> reqIds, List<String> analysisIds, String freeText) {
+    return new GenerationResumeService.RegenerateRequest(reqIds, analysisIds, freeText);
+  }
+
+  @Test
+  void regenerateRejectedWhenNotAwaitingReview() {
+    workflow("AWAITING_INPUT");
+    assertThatThrownBy(
+            () -> service.validateRegenerate(projectId, workflowId, regenReq(null, null, "more")))
+        .isInstanceOf(ResponseStatusException.class)
+        .satisfies(
+            e -> assertThat(((ResponseStatusException) e).getStatusCode().value()).isEqualTo(409));
+  }
+
+  @Test
+  void regenerateUnknownWorkflowIs404() {
+    when(workflowRepo.findById(workflowId)).thenReturn(Optional.empty());
+    assertThatThrownBy(
+            () -> service.validateRegenerate(projectId, workflowId, regenReq(null, null, "more")))
+        .isInstanceOf(ResponseStatusException.class)
+        .satisfies(
+            e -> assertThat(((ResponseStatusException) e).getStatusCode().value()).isEqualTo(404));
+  }
+
+  @Test
+  void regenerateFreesUnacceptedKeepsAcceptedAndRecordsInputs() {
+    AgentWorkflow wf = workflow("AWAITING_REVIEW");
+    var run = run(null);
+    when(runRepo.findByWorkflowId(workflowId)).thenReturn(Optional.of(run));
+    var accepted = proposal(0, "ACCEPTED");
+    var proposed = proposal(1, "PROPOSED");
+    var rejected = proposal(2, "REJECTED");
+    when(proposalRepo.findByWorkflowIdOrderByOrdinalAsc(workflowId))
+        .thenReturn(List.of(accepted, proposed, rejected));
+
+    String newReq = UUID.randomUUID().toString();
+    GenerationResumeService.RegeneratePlan plan =
+        service.validateRegenerate(
+            projectId, workflowId, regenReq(List.of(newReq), null, "cover edge cases"));
+
+    // un-accepted (proposed + rejected) freed; accepted kept
+    @SuppressWarnings("unchecked")
+    ArgumentCaptor<List<com.platform.core.domain.GeneratedTestCaseProposal>> cap =
+        ArgumentCaptor.forClass(List.class);
+    verify(proposalRepo).deleteAll(cap.capture());
+    assertThat(cap.getValue()).containsExactlyInAnyOrder(proposed, rejected);
+
+    // fresh round appends past the accepted proposal (ordinal 0 → start at 1)
+    assertThat(plan.ordinalStart()).isEqualTo(1);
+    assertThat(plan.entityExternalId()).isEqualTo(newReq);
+    assertThat(wf.getStatus()).isEqualTo("RUNNING");
+
+    // run records the new requirement set + custom input, and bumps the regen counter
+    assertThat(run.getRequirementIdsJson()).contains(newReq);
+    assertThat(run.getFreeText()).isEqualTo("cover edge cases");
+    assertThat(run.getRegenRound()).isEqualTo(1);
+  }
+
+  @Test
+  void regenerateInjectsSelectedPrContextIntoFreeText() {
+    workflow("AWAITING_REVIEW");
+    when(proposalRepo.findByWorkflowIdOrderByOrdinalAsc(workflowId)).thenReturn(List.of());
+
+    UUID analysisId = UUID.randomUUID();
+    var analysis = new com.platform.core.domain.ImpactAnalysis();
+    org.springframework.test.util.ReflectionTestUtils.setField(analysis, "id", analysisId);
+    analysis.setProjectId(projectId);
+    analysis.setName("Checkout refactor");
+    analysis.setLinkedPrs(List.of(java.util.Map.of("number", 42, "title", "Refactor checkout")));
+    analysis.setSummary("Touches payment validation and totals.");
+    when(impactRepo.findById(analysisId)).thenReturn(Optional.of(analysis));
+
+    var run = run(null);
+    when(runRepo.findByWorkflowId(workflowId)).thenReturn(Optional.of(run));
+
+    service.validateRegenerate(
+        projectId, workflowId, regenReq(null, List.of(analysisId.toString()), "focus on payments"));
+
+    assertThat(run.getFreeText()).contains("focus on payments");
+    assertThat(run.getFreeText()).contains("PR context");
+    assertThat(run.getFreeText()).contains("PR #42");
+    assertThat(run.getFreeText()).contains("Touches payment validation");
+    assertThat(run.getPrContextJson()).contains(analysisId.toString());
+  }
+
+  @Test
+  void regenerateAsyncReParksAwaitingReview() {
+    AgentWorkflow wf = workflow("RUNNING");
+    ContextBundle bundle = AgentGridFixtures.bundle();
+    when(contextAssembler.assemble(eq(workflowId), eq(projectId), any())).thenReturn(bundle);
+    when(generationNode.regenerate(eq(bundle), eq(3)))
+        .thenReturn(
+            NodeResult.awaitingReview(
+                bundle.sessionId(),
+                workflowId,
+                NodeType.TEST_GENERATION,
+                AgentTaskType.GENERATE_TEST_CASES,
+                com.platform.common.agent.ArtifactManifest.empty(),
+                "Proposed 4 test cases for review.",
+                "chk-regen",
+                TokenUsage.zero()));
+
+    service.regenerateAsync(
+        new GenerationResumeService.RegeneratePlan(projectId, workflowId, projectId.toString(), 3));
+
+    assertThat(wf.getStatus()).isEqualTo("AWAITING_REVIEW");
+  }
+
+  // ---- finish review -------------------------------------------------------
+
+  @Test
+  void finishRejectsRemainingProposedAndCompletes() {
+    AgentWorkflow wf = workflow("AWAITING_REVIEW");
+    var proposed1 = proposal(1, "PROPOSED");
+    var proposed2 = proposal(2, "PROPOSED");
+    when(proposalRepo.findByWorkflowIdAndStatusOrderByOrdinalAsc(workflowId, "PROPOSED"))
+        .thenReturn(List.of(proposed1, proposed2));
+
+    service.finish(projectId, workflowId);
+
+    assertThat(proposed1.getStatus()).isEqualTo("REJECTED");
+    assertThat(proposed2.getStatus()).isEqualTo("REJECTED");
+    assertThat(wf.getStatus()).isEqualTo("COMPLETED");
+    verify(workflowRepo).save(wf);
+  }
+
+  @Test
+  void finishRejectedWhenNotAwaitingReview() {
+    workflow("AWAITING_INPUT");
+    assertThatThrownBy(() -> service.finish(projectId, workflowId))
+        .isInstanceOf(ResponseStatusException.class)
+        .satisfies(
+            e -> assertThat(((ResponseStatusException) e).getStatusCode().value()).isEqualTo(409));
+  }
+
+  @Test
+  void finishForeignProjectIs404() {
+    var wf = new AgentWorkflow(UUID.randomUUID(), "MANUAL", null, java.util.Map.of());
+    wf.markAwaitingReview();
+    when(workflowRepo.findById(workflowId)).thenReturn(Optional.of(wf));
+    assertThatThrownBy(() -> service.finish(projectId, workflowId))
+        .isInstanceOf(ResponseStatusException.class)
+        .satisfies(
+            e -> assertThat(((ResponseStatusException) e).getStatusCode().value()).isEqualTo(404));
   }
 }

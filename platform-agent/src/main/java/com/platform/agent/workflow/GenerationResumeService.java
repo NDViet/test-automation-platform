@@ -5,15 +5,20 @@ import com.platform.agent.hub.ContextAssembler;
 import com.platform.agent.node.impl.TestCaseGenerationNode;
 import com.platform.common.agent.ContextBundle;
 import com.platform.common.agent.NodeResult;
+import com.platform.common.agent.TriggerRef;
 import com.platform.common.kafka.Topics;
 import com.platform.core.domain.AgentWorkflow;
 import com.platform.core.domain.AiGenerationRun;
 import com.platform.core.domain.GeneratedTestCaseProposal;
 import com.platform.core.domain.GenerationClarification;
+import com.platform.core.domain.ImpactAnalysis;
 import com.platform.core.repository.AgentWorkflowRepository;
 import com.platform.core.repository.AiGenerationRunRepository;
 import com.platform.core.repository.GeneratedTestCaseProposalRepository;
 import com.platform.core.repository.GenerationClarificationRepository;
+import com.platform.core.repository.ImpactAnalysisRepository;
+import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -41,6 +46,7 @@ public class GenerationResumeService {
   private final GenerationClarificationRepository clarificationRepo;
   private final AiGenerationRunRepository runRepo;
   private final GeneratedTestCaseProposalRepository proposalRepo;
+  private final ImpactAnalysisRepository impactRepo;
   private final ContextAssembler contextAssembler;
   private final TestCaseGenerationNode generationNode;
   private final KafkaTemplate<String, String> kafka;
@@ -51,6 +57,7 @@ public class GenerationResumeService {
       GenerationClarificationRepository clarificationRepo,
       AiGenerationRunRepository runRepo,
       GeneratedTestCaseProposalRepository proposalRepo,
+      ImpactAnalysisRepository impactRepo,
       ContextAssembler contextAssembler,
       TestCaseGenerationNode generationNode,
       KafkaTemplate<String, String> kafka,
@@ -59,6 +66,7 @@ public class GenerationResumeService {
     this.clarificationRepo = clarificationRepo;
     this.runRepo = runRepo;
     this.proposalRepo = proposalRepo;
+    this.impactRepo = impactRepo;
     this.contextAssembler = contextAssembler;
     this.generationNode = generationNode;
     this.kafka = kafka;
@@ -303,6 +311,222 @@ public class GenerationResumeService {
                 publishEvent(workflowId, "FAILED");
               });
     }
+  }
+
+  /**
+   * A "generate more" request from the Review Queue: an optional replacement requirement set, the
+   * selected Impact-Analysis ids to inject as PR context, and optional custom free-text input.
+   */
+  public record RegenerateRequest(
+      List<String> requirementIds, List<String> impactAnalysisIds, String freeText) {}
+
+  /** What the async regenerate needs after validation (the fresh trigger + ordinal offset). */
+  public record RegeneratePlan(
+      UUID projectId, UUID workflowId, String entityExternalId, int ordinalStart) {}
+
+  /**
+   * Validate a "generate more" request synchronously (4xx on bad state), free the un-accepted
+   * proposals' ordinals, record the augmented inputs on the run, and flip the workflow to RUNNING.
+   * The fresh round (async) regenerates and re-parks at AWAITING_REVIEW; already-accepted proposals
+   * (real DRAFT test cases) are never touched and their ordinals are preserved.
+   */
+  @Transactional
+  public RegeneratePlan validateRegenerate(UUID projectId, UUID workflowId, RegenerateRequest req) {
+    AgentWorkflow workflow =
+        workflowRepo
+            .findById(workflowId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Run not found"));
+    if (!workflow.getProjectId().equals(projectId)) {
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Run not found");
+    }
+    if (!"AWAITING_REVIEW".equals(workflow.getStatus())) {
+      throw new ResponseStatusException(
+          HttpStatus.CONFLICT, "Run is not awaiting review (status " + workflow.getStatus() + ")");
+    }
+    AiGenerationRun run =
+        runRepo
+            .findByWorkflowId(workflowId)
+            .orElseThrow(
+                () ->
+                    new ResponseStatusException(
+                        HttpStatus.CONFLICT, "Regenerate is not available for this run"));
+
+    // Effective requirement set: an explicit non-empty list replaces it; otherwise keep the run's.
+    List<String> reqIds =
+        req != null && req.requirementIds() != null && !req.requirementIds().isEmpty()
+            ? req.requirementIds()
+            : parseStringList(run.getRequirementIdsJson());
+    String entityExternalId = reqIds.isEmpty() ? projectId.toString() : String.join(",", reqIds);
+
+    // Assemble the PR-context block + audit payload from the selected Impact Analyses.
+    List<String> analysisIds =
+        req != null && req.impactAnalysisIds() != null ? req.impactAnalysisIds() : List.of();
+    List<Map<String, Object>> prAudit = new ArrayList<>();
+    StringBuilder prBlock = new StringBuilder();
+    for (String aid : analysisIds) {
+      ImpactAnalysis a = loadAnalysis(aid, projectId);
+      if (a == null) continue;
+      prAudit.add(
+          Map.of(
+              "analysisId", a.getId().toString(),
+              "name", String.valueOf(a.getName()),
+              "prs", a.getLinkedPrs() != null ? a.getLinkedPrs() : List.of(),
+              "summary", String.valueOf(a.getSummary())));
+      appendPrContext(prBlock, a);
+    }
+
+    // The round's free text = the user's custom input plus the PR-context block. Built from the
+    // request each time so repeated regenerations don't compound a previously-appended block.
+    String customInput = req != null && notBlank(req.freeText()) ? req.freeText() : null;
+    String augmentedFreeText = combineFreeText(customInput, prBlock.toString());
+
+    // Free the un-accepted proposals' ordinals (fresh round replaces them); keep ACCEPTED rows.
+    List<GeneratedTestCaseProposal> forWorkflow =
+        proposalRepo.findByWorkflowIdOrderByOrdinalAsc(workflowId).stream()
+            .filter(p -> p.getProjectId().equals(projectId))
+            .toList();
+    List<GeneratedTestCaseProposal> unaccepted =
+        forWorkflow.stream()
+            .filter(p -> !GeneratedTestCaseProposal.ACCEPTED.equals(p.getStatus()))
+            .toList();
+    if (!unaccepted.isEmpty()) {
+      proposalRepo.deleteAll(unaccepted);
+    }
+    int ordinalStart =
+        forWorkflow.stream()
+                .filter(p -> GeneratedTestCaseProposal.ACCEPTED.equals(p.getStatus()))
+                .mapToInt(GeneratedTestCaseProposal::getOrdinal)
+                .max()
+                .orElse(-1)
+            + 1;
+
+    run.recordRegenInputs(
+        writeJson(reqIds), augmentedFreeText, prAudit.isEmpty() ? null : writeJson(prAudit));
+    runRepo.save(run);
+    workflow.markRunning();
+    workflowRepo.save(workflow);
+    return new RegeneratePlan(projectId, workflowId, entityExternalId, ordinalStart);
+  }
+
+  /** Run a fresh generation round from a new trigger carrying the effective requirement set. */
+  @Async
+  public void regenerateAsync(RegeneratePlan plan) {
+    UUID workflowId = plan.workflowId();
+    try {
+      TriggerRef trigger =
+          new TriggerRef(
+              TriggerRef.TriggerType.MANUAL,
+              null,
+              "generate_test_cases",
+              plan.entityExternalId(),
+              null,
+              null,
+              Instant.now());
+      ContextBundle bundle = contextAssembler.assemble(workflowId, plan.projectId(), trigger);
+      NodeResult result = generationNode.regenerate(bundle, plan.ordinalStart());
+      handleResult(workflowId, result);
+    } catch (Exception e) {
+      log.error("regenerate failed for workflow {}", workflowId, e);
+      workflowRepo
+          .findById(workflowId)
+          .ifPresent(
+              w -> {
+                w.markFailed(e.getMessage());
+                workflowRepo.save(w);
+                publishEvent(workflowId, "FAILED");
+              });
+    }
+  }
+
+  /**
+   * Finish the review of a parked generation workflow: auto-reject (discard) any still-PROPOSED
+   * proposals and mark the workflow COMPLETED so it leaves the Review Queue. Already-accepted
+   * proposals (real DRAFT test cases) are untouched.
+   */
+  @Transactional
+  public void finish(UUID projectId, UUID workflowId) {
+    AgentWorkflow workflow =
+        workflowRepo
+            .findById(workflowId)
+            .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Run not found"));
+    if (!workflow.getProjectId().equals(projectId)) {
+      throw new ResponseStatusException(HttpStatus.NOT_FOUND, "Run not found");
+    }
+    if (!"AWAITING_REVIEW".equals(workflow.getStatus())) {
+      throw new ResponseStatusException(
+          HttpStatus.CONFLICT, "Run is not awaiting review (status " + workflow.getStatus() + ")");
+    }
+    proposalRepo
+        .findByWorkflowIdAndStatusOrderByOrdinalAsc(workflowId, GeneratedTestCaseProposal.PROPOSED)
+        .stream()
+        .filter(p -> p.getProjectId().equals(projectId))
+        .forEach(
+            p -> {
+              p.markRejected();
+              proposalRepo.save(p);
+            });
+    workflow.markCompleted();
+    workflowRepo.save(workflow);
+    publishEvent(workflowId, "COMPLETED");
+  }
+
+  private ImpactAnalysis loadAnalysis(String analysisId, UUID projectId) {
+    try {
+      ImpactAnalysis a = impactRepo.findById(UUID.fromString(analysisId.trim())).orElse(null);
+      return a != null && a.getProjectId().equals(projectId) ? a : null;
+    } catch (IllegalArgumentException e) {
+      return null;
+    }
+  }
+
+  private static void appendPrContext(StringBuilder sb, ImpactAnalysis a) {
+    if (sb.length() == 0) {
+      sb.append(
+          "## PR context\n\nThe following analysed pull requests are relevant — use them to focus"
+              + " and expand the generated test cases:\n\n");
+    }
+    sb.append("### ").append(a.getName());
+    if (a.getLinkedPrs() != null && !a.getLinkedPrs().isEmpty()) {
+      sb.append(" (");
+      List<String> refs = new ArrayList<>();
+      for (Map<String, Object> pr : a.getLinkedPrs()) {
+        Object num = pr.get("number");
+        Object title = pr.get("title");
+        StringBuilder ref = new StringBuilder();
+        if (num != null) ref.append("PR #").append(num);
+        if (title != null) ref.append(ref.length() > 0 ? ": " : "").append(title);
+        if (ref.length() > 0) refs.add(ref.toString());
+      }
+      sb.append(String.join("; ", refs)).append(")");
+    }
+    sb.append("\n");
+    if (notBlank(a.getSummary())) {
+      sb.append(a.getSummary().trim()).append("\n");
+    }
+    sb.append("\n");
+  }
+
+  private static String combineFreeText(String customInput, String prBlock) {
+    boolean hasCustom = notBlank(customInput);
+    boolean hasPr = notBlank(prBlock);
+    if (hasCustom && hasPr) return customInput.trim() + "\n\n" + prBlock.trim();
+    if (hasCustom) return customInput.trim();
+    if (hasPr) return prBlock.trim();
+    return null;
+  }
+
+  private List<String> parseStringList(String json) {
+    if (json == null || json.isBlank()) return List.of();
+    try {
+      return mapper.readValue(
+          json, new com.fasterxml.jackson.core.type.TypeReference<List<String>>() {});
+    } catch (Exception e) {
+      return List.of();
+    }
+  }
+
+  private static boolean notBlank(String s) {
+    return s != null && !s.isBlank();
   }
 
   private void handleResult(UUID workflowId, NodeResult result) {

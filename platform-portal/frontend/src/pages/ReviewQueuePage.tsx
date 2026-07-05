@@ -7,6 +7,7 @@ import { cn, relativeTime } from '@/lib/utils'
 import type { WorkItem, WorkItemType } from '@/lib/types'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import ErrorMessage from '@/components/ErrorMessage'
+import WorkflowReviewModal from '@/components/WorkflowReviewModal'
 import { Button } from '@/components/ui'
 import {
   Inbox,
@@ -216,10 +217,12 @@ function WorkItemCard({
   item,
   projectId,
   onDecide,
+  onReview,
 }: {
   item: WorkItem
   projectId: string
   onDecide: (item: WorkItem, action: 'approve' | 'reject') => void
+  onReview: (item: WorkItem) => void
 }) {
   const navigate = useNavigate()
   const { base } = useProject()
@@ -312,15 +315,17 @@ function WorkItemCard({
           </button>
         )}
 
-        {item.itemType === 'WORKFLOW' && (
-          <span className="text-xs text-fg-subtle italic">
-            {item.status === 'RUNNING'
-              ? 'AI is working…'
-              : item.status === 'AWAITING_REVIEW'
-                ? 'Awaiting decision'
-                : 'Queued'}
-          </span>
-        )}
+        {item.itemType === 'WORKFLOW' &&
+          (item.status === 'AWAITING_REVIEW' && item.metadata.workflowId != null ? (
+            <button onClick={() => onReview(item)} className={approveBtn}>
+              <Sparkles size={11} />
+              Review &amp; Resume
+            </button>
+          ) : (
+            <span className="text-xs text-fg-subtle italic">
+              {item.status === 'RUNNING' ? 'AI is working…' : 'Queued'}
+            </span>
+          ))}
       </div>
 
       {/* Agent review artifact manifest preview */}
@@ -345,6 +350,7 @@ export default function ReviewQueuePage() {
   const [decide, setDecide] = useState<{ item: WorkItem; action: 'approve' | 'reject' } | null>(
     null,
   )
+  const [reviewItem, setReviewItem] = useState<WorkItem | null>(null)
 
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['work-items', projectId],
@@ -468,6 +474,7 @@ export default function ReviewQueuePage() {
               item={item}
               projectId={projectId!}
               onDecide={(i, a) => setDecide({ item: i, action: a })}
+              onReview={i => setReviewItem(i)}
             />
           ))}
         </div>
@@ -480,6 +487,16 @@ export default function ReviewQueuePage() {
           action={decide.action}
           projectId={projectId!}
           onClose={() => setDecide(null)}
+        />
+      )}
+
+      {/* Resume generation review modal */}
+      {reviewItem && reviewItem.metadata.workflowId != null && (
+        <WorkflowReviewModal
+          projectId={projectId!}
+          workflowId={reviewItem.metadata.workflowId as string}
+          title={reviewItem.title}
+          onClose={() => setReviewItem(null)}
         />
       )}
     </div>

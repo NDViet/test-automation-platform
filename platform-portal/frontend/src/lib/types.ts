@@ -1666,3 +1666,18 @@ export interface GeneratedProposal {
   acceptedTestCaseId: string | null
   steps: ProposalStep[]
 }
+
+// One selectable PR-context source (a stored Impact Analysis) for the regenerate panel.
+export interface PrContextItem {
+  analysisId: string
+  name: string
+  prs: Record<string, unknown>[]
+  summary: string | null
+}
+
+// "Generate more" request from the Review Queue (all fields optional).
+export interface RegenerateForm {
+  requirementIds?: string[]
+  impactAnalysisIds?: string[]
+  freeText?: string
+}

@@ -1,11 +1,9 @@
-# TODO — Epic F: Reporting & notifications
+# TODO — Resume generation workflow from Review Queue
 
-## Autonomous (F1–F5)
-- [x] **Task 1** — V21 notification_pref + entity/repo.
-- [x] **Task 2** — Notification prefs CRUD + endpoints + portal + RBAC.
-- [x] **Task 3** — Notification prefs UI.
-- [x] **Task 4** — CSV export endpoints (traceability + exec-summary).
-- [x] **Task 5** — Export/download buttons.
-
-## ⚠️ SIGN-OFF GATE — notification dispatch (secrets + external send)
-- [x] **Task 6** — Notification dispatch (Kafka consumer + Slack/email send).
+- [x] T1 — V24 migration: ai_generation_runs columns + AiGenerationRun accessors
+- [x] T2 — PrContextService (reverse-query ImpactAnalysis) + GET pr-context endpoint
+- [x] T3 — GenerationResumeService.regenerate (fresh round replaces) + POST regenerate endpoint
+- [x] T4 — GenerationResumeService.finish → COMPLETED + POST finish endpoint
+- [x] T5 — Portal BFF proxies + api.ts + types.ts
+- [x] T6 — Review Queue "Review" action + WorkflowReviewModal reusing ProposalsReview
+- [x] T7 — Generate-more panel (requirements + PR-context + custom input) + Finish review button

@@ -189,6 +189,22 @@ public class TestCaseGenerationNode implements AgentNode {
   @Override
   @Transactional
   public NodeResult execute(ContextBundle bundle) {
+    return generate(bundle, 0);
+  }
+
+  /**
+   * Run a fresh generation round for a workflow being resumed from the Review Queue, staging the
+   * new proposals starting at {@code ordinalStart}. The caller frees the un-accepted proposals'
+   * ordinals and passes the offset past any kept (accepted) proposals so the UNIQUE(workflow_id,
+   * ordinal) constraint holds. Otherwise identical to {@link #execute} — a brand-new conversation
+   * using the run's (now augmented) inputs.
+   */
+  @Transactional
+  public NodeResult regenerate(ContextBundle bundle, int ordinalStart) {
+    return generate(bundle, ordinalStart);
+  }
+
+  private NodeResult generate(ContextBundle bundle, int ordinalStart) {
     UUID projectId = bundle.projectId();
 
     // Load the resolved run inputs (skills, prompts, free text, files). Absent → legacy one-shot.
@@ -241,7 +257,7 @@ public class TestCaseGenerationNode implements AgentNode {
     TextOnlyNode shim = new TextOnlyNode(this, fullPrompt, allowQuestions, modelOverride);
     NodeResult claudeResult = orchestrator.run(bundle, shim);
 
-    return finishFromClaude(bundle, claudeResult);
+    return finishFromClaude(bundle, claudeResult, ordinalStart);
   }
 
   /**
@@ -362,8 +378,17 @@ public class TestCaseGenerationNode implements AgentNode {
     return arr.isEmpty() ? null : arr.get(0);
   }
 
-  /** Parse the model's response and persist DRAFT test cases, or propagate pause/failure. */
   private NodeResult finishFromClaude(ContextBundle bundle, NodeResult claudeResult) {
+    return finishFromClaude(bundle, claudeResult, 0);
+  }
+
+  /**
+   * Parse the model's response and stage the proposals, or propagate pause/failure. Staged
+   * proposals are numbered from {@code ordinalStart} so a regeneration round can append past kept
+   * proposals without violating UNIQUE(workflow_id, ordinal).
+   */
+  private NodeResult finishFromClaude(
+      ContextBundle bundle, NodeResult claudeResult, int ordinalStart) {
     UUID projectId = bundle.projectId();
 
     // Paused for clarification — propagate without persisting any test cases this turn.
@@ -391,7 +416,7 @@ public class TestCaseGenerationNode implements AgentNode {
     // Write the generated cases to the staging table as PROPOSED — they are NOT catalog test cases
     // yet. The user reviews them (accept → DRAFT, reject, or refine) via the proposals API; the
     // workflow parks at AWAITING_REVIEW. Nothing lands in platform_test_cases here.
-    int ordinal = 0;
+    int ordinal = ordinalStart;
     int proposedCount = 0;
     for (GeneratedTestCase gen : generatedCases) {
       try {

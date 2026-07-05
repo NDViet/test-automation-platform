@@ -52,6 +52,7 @@ public class TestCaseGenerationController {
   private final GenerationStatusService statusService;
   private final com.platform.agent.agents.AgentResolutionService agentResolutionService;
   private final com.platform.agent.proposals.ProposalService proposalService;
+  private final com.platform.agent.workflow.PrContextService prContextService;
 
   public TestCaseGenerationController(
       AgentWorkflowService workflowService,
@@ -62,7 +63,8 @@ public class TestCaseGenerationController {
       GenerationResumeService resumeService,
       GenerationStatusService statusService,
       com.platform.agent.agents.AgentResolutionService agentResolutionService,
-      com.platform.agent.proposals.ProposalService proposalService) {
+      com.platform.agent.proposals.ProposalService proposalService,
+      com.platform.agent.workflow.PrContextService prContextService) {
     this.workflowService = workflowService;
     this.contextAssembler = contextAssembler;
     this.mapper = mapper;
@@ -72,6 +74,7 @@ public class TestCaseGenerationController {
     this.statusService = statusService;
     this.agentResolutionService = agentResolutionService;
     this.proposalService = proposalService;
+    this.prContextService = prContextService;
   }
 
   /**
@@ -154,6 +157,9 @@ public class TestCaseGenerationController {
               notBlank(req.userPromptOverride()) ? req.userPromptOverride() : cfg.userPrompt(),
               rounds);
       run.recordAgentResolution(cfg.agentId(), effectiveSubType, cfg.modelId());
+      // Persist the requirement set so it survives the workflow parking (the trigger's
+      // entityExternalId is not reconstructed on resume) — needed for PR-context + regeneration.
+      run.recordRequirementSet(writeJson(requirementIds));
       runRepo.save(run);
 
       ContextBundle bundle = contextAssembler.assemble(workflow.getId(), projectId, trigger);
@@ -191,6 +197,20 @@ public class TestCaseGenerationController {
   public GenerationStatusService.GenerationStatusDto getGeneration(
       @PathVariable UUID projectId, @PathVariable UUID workflowId) {
     return statusService.getStatus(projectId, workflowId);
+  }
+
+  /**
+   * GET /hub/test-cases/{projectId}/generations/{workflowId}/pr-context
+   *
+   * <p>The Impact Analyses whose linked requirements intersect this workflow's requirement set,
+   * each carrying its PR reference(s) + summary. These are the selectable PR-context sources for a
+   * Review-Queue regeneration round (no live GitHub fetching).
+   */
+  @GetMapping("/{projectId}/generations/{workflowId}/pr-context")
+  @RequireCapability(value = Capability.VIEW_RESULTS, scope = "projectId")
+  public List<com.platform.agent.workflow.PrContextService.PrContextItem> prContext(
+      @PathVariable UUID projectId, @PathVariable UUID workflowId) {
+    return prContextService.forWorkflow(projectId, workflowId);
   }
 
   /**
@@ -293,6 +313,51 @@ public class TestCaseGenerationController {
     resumeService.refineAllAsync(plan);
     return ResponseEntity.accepted()
         .body(Map.of("workflowId", workflowId.toString(), "status", "REFINING"));
+  }
+
+  /**
+   * POST /hub/test-cases/{projectId}/generations/{workflowId}/regenerate
+   *
+   * <p>"Generate more": run a fresh generation round for a parked (AWAITING_REVIEW) workflow with
+   * an augmented requirement set, selected PR context (Impact Analyses), and/or custom input. The
+   * fresh round replaces the un-accepted proposals; already-accepted DRAFT cases are untouched.
+   * Async — re-fetch proposals when the run returns to review. Body: {@code { "requirementIds":
+   * [...], "impactAnalysisIds": [...], "freeText": "..." }} (all optional).
+   */
+  @PostMapping("/{projectId}/generations/{workflowId}/regenerate")
+  @RequireCapability(value = Capability.OPERATE_QUALITY, scope = "projectId")
+  public ResponseEntity<Map<String, Object>> regenerate(
+      @PathVariable UUID projectId,
+      @PathVariable UUID workflowId,
+      @RequestBody(required = false) String body) {
+    GenerationResumeService.RegenerateRequest req = parseRegenerate(body);
+    GenerationResumeService.RegeneratePlan plan =
+        resumeService.validateRegenerate(projectId, workflowId, req);
+    resumeService.regenerateAsync(plan);
+    return ResponseEntity.accepted()
+        .body(
+            Map.of(
+                "workflowId", workflowId.toString(),
+                "projectId", projectId.toString(),
+                "status", "REGENERATING"));
+  }
+
+  /**
+   * POST /hub/test-cases/{projectId}/generations/{workflowId}/finish
+   *
+   * <p>Finish the review: auto-reject any remaining PROPOSED proposals and mark the workflow
+   * COMPLETED so it leaves the Review Queue. Already-accepted DRAFT cases are untouched.
+   */
+  @PostMapping("/{projectId}/generations/{workflowId}/finish")
+  @RequireCapability(value = Capability.OPERATE_QUALITY, scope = "projectId")
+  public ResponseEntity<Map<String, Object>> finish(
+      @PathVariable UUID projectId, @PathVariable UUID workflowId) {
+    resumeService.finish(projectId, workflowId);
+    return ResponseEntity.ok(
+        Map.of(
+            "workflowId", workflowId.toString(),
+            "projectId", projectId.toString(),
+            "status", "COMPLETED"));
   }
 
   /**
@@ -462,6 +527,23 @@ public class TestCaseGenerationController {
       return UUID.fromString(s.trim());
     } catch (IllegalArgumentException e) {
       return null;
+    }
+  }
+
+  /** Parse the optional regenerate body into a request (missing fields → null/empty). */
+  private GenerationResumeService.RegenerateRequest parseRegenerate(String body) {
+    if (body == null || body.isBlank()) {
+      return new GenerationResumeService.RegenerateRequest(List.of(), List.of(), null);
+    }
+    try {
+      JsonNode root = mapper.readTree(body);
+      return new GenerationResumeService.RegenerateRequest(
+          stringList(root.path("requirementIds")),
+          stringList(root.path("impactAnalysisIds")),
+          textOrNull(root.path("freeText")));
+    } catch (Exception e) {
+      log.debug("Could not parse regenerate body: {}", e.getMessage());
+      return new GenerationResumeService.RegenerateRequest(List.of(), List.of(), null);
     }
   }
 

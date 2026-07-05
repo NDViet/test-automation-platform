@@ -488,6 +488,45 @@ public class PortalTestCaseController {
         .body(Object.class);
   }
 
+  @GetMapping("/test-cases/generations/{workflowId}/pr-context")
+  @Operation(summary = "PR context (Impact Analyses) linked to the workflow's requirements")
+  public Object generationPrContext(
+      @PathVariable String projectId, @PathVariable String workflowId) {
+    return agentClient
+        .get()
+        .uri("/hub/test-cases/" + projectId + "/generations/" + workflowId + "/pr-context")
+        .accept(MediaType.APPLICATION_JSON)
+        .retrieve()
+        .body(Object.class);
+  }
+
+  @PostMapping("/test-cases/generations/{workflowId}/regenerate")
+  @Operation(summary = "Generate more: fresh round with added requirements/PR context/custom input")
+  public Object regenerateGeneration(
+      @PathVariable String projectId,
+      @PathVariable String workflowId,
+      @RequestBody(required = false) Object body) {
+    return agentClient
+        .post()
+        .uri("/hub/test-cases/" + projectId + "/generations/" + workflowId + "/regenerate")
+        .contentType(MediaType.APPLICATION_JSON)
+        .accept(MediaType.APPLICATION_JSON)
+        .body(body != null ? body : java.util.Map.of())
+        .retrieve()
+        .body(Object.class);
+  }
+
+  @PostMapping("/test-cases/generations/{workflowId}/finish")
+  @Operation(summary = "Finish review: reject remaining proposals and complete the workflow")
+  public Object finishGeneration(@PathVariable String projectId, @PathVariable String workflowId) {
+    return agentClient
+        .post()
+        .uri("/hub/test-cases/" + projectId + "/generations/" + workflowId + "/finish")
+        .accept(MediaType.APPLICATION_JSON)
+        .retrieve()
+        .body(Object.class);
+  }
+
   @PostMapping(
       value = "/test-cases/generation-files",
       consumes = MediaType.MULTIPART_FORM_DATA_VALUE)

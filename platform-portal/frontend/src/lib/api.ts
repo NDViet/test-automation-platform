@@ -734,6 +734,25 @@ export const api = {
       `/projects/${projectId}/test-cases/generations/${workflowId}/answers`,
       { answers },
     ),
+  // Resume-from-queue: PR context (Impact Analyses), regenerate (fresh round), and finish review.
+  generationPrContext: (projectId: string, workflowId: string) =>
+    get<import('./types').PrContextItem[]>(
+      `/projects/${projectId}/test-cases/generations/${workflowId}/pr-context`,
+    ),
+  regenerateGeneration: (
+    projectId: string,
+    workflowId: string,
+    body: import('./types').RegenerateForm,
+  ) =>
+    post<{ workflowId: string; status: string }>(
+      `/projects/${projectId}/test-cases/generations/${workflowId}/regenerate`,
+      body,
+    ),
+  finishGeneration: (projectId: string, workflowId: string) =>
+    post<{ workflowId: string; status: string }>(
+      `/projects/${projectId}/test-cases/generations/${workflowId}/finish`,
+      {},
+    ),
   uploadGenerationFile: async (projectId: string, file: File) => {
     const fd = new FormData()
     fd.append('file', file)

@@ -71,6 +71,25 @@ public class AiGenerationRun {
   @Column(name = "review_checkpoint_id", columnDefinition = "TEXT")
   private String reviewCheckpointId;
 
+  /**
+   * The selected Impact-Analysis / PR context injected into the latest regeneration round (JSON),
+   * for audit. Null until the run is regenerated with PR context from the Review Queue.
+   */
+  @Column(name = "pr_context_json", columnDefinition = "TEXT")
+  private String prContextJson;
+
+  /**
+   * The effective requirement id set (JSON array) for the latest regeneration round. Persisted on
+   * the run so "add more requirements" does not mutate the shared workflow trigger. Null ⇒ use the
+   * workflow trigger's original requirement set.
+   */
+  @Column(name = "requirement_ids_json", columnDefinition = "TEXT")
+  private String requirementIdsJson;
+
+  /** Number of regeneration rounds run from the Review Queue (0 for the original generation). */
+  @Column(name = "regen_round", nullable = false)
+  private int regenRound = 0;
+
   @Column(name = "created_at", nullable = false, updatable = false)
   private Instant createdAt = Instant.now();
 
@@ -107,6 +126,39 @@ public class AiGenerationRun {
 
   public String getReviewCheckpointId() {
     return reviewCheckpointId;
+  }
+
+  /**
+   * Persist the effective requirement id set for this run (JSON array) without counting it as a
+   * regeneration. Called at initial generation so the requirement set survives the workflow parking
+   * (the trigger's entityExternalId is not reconstructed on resume) and can drive PR-context
+   * resolution + regeneration.
+   */
+  public void recordRequirementSet(String requirementIdsJson) {
+    this.requirementIdsJson = requirementIdsJson;
+  }
+
+  /**
+   * Record the augmented inputs for a fresh regeneration round from the Review Queue and increment
+   * the regeneration counter. Any argument may be null to leave the corresponding field cleared.
+   */
+  public void recordRegenInputs(String requirementIdsJson, String freeText, String prContextJson) {
+    this.requirementIdsJson = requirementIdsJson;
+    this.freeText = freeText;
+    this.prContextJson = prContextJson;
+    this.regenRound += 1;
+  }
+
+  public String getPrContextJson() {
+    return prContextJson;
+  }
+
+  public String getRequirementIdsJson() {
+    return requirementIdsJson;
+  }
+
+  public int getRegenRound() {
+    return regenRound;
   }
 
   /** Record which agent (and sub-type / model) drove this run, for audit and node consumption. */
