@@ -14,6 +14,8 @@ public interface TestCaseTagRepository extends JpaRepository<TestCaseTag, UUID> 
 
   Optional<TestCaseTag> findByTestCaseIdAndName(UUID testCaseId, String name);
 
+  void deleteAllByTestCaseId(UUID testCaseId);
+
   /** Distinct tag names used across a project's test cases — for typeahead suggestions. */
   @Query(
       """

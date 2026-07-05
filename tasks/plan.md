@@ -1,37 +1,37 @@
-# Plan — Fix test-case delete + preserve AI origin on approval
+# PLAN — Epic F: Reporting & notifications
 
-Spec: `SPEC.md`. Branch `fix/test-case-delete-and-ai-origin`. Decisions: hard delete + confirm;
-fix-forward + backfill; no approver column.
+Spec: `SPEC.md`. Each task: RED → GREEN → regression → build → 1 commit.
 
-Backend gate: `mvn -q -pl platform-agent -am test` (+ `platform-core` compiles migration).
-Frontend gate: `cd platform-portal/frontend && npx tsc -b`. One commit per task.
+## Autonomous (F1–F5)
 
-## Task 1 — Backend: preserve AI origin on proposal accept  ⟶ 1 commit
-**File:** `platform-agent/.../proposals/ProposalService.java` (+ test). **Deps:** none.
-- `acceptEntity(p, actor)`: build the `PlatformTestCase` with `createdBy="AGENT"` (never `actor`).
-  Keep `actor` only for audit/logging; it must not populate `createdBy`.
-- RED: `ProposalServiceTest.acceptStampsAgentOriginNotApprover` — accepting a PROPOSED proposal with
-  `actor="admin"` saves a `PlatformTestCase` whose `createdBy == "AGENT"` (captured via the
-  test-case repo save), and the proposal is marked accepted.
-- GREEN: change the one expression. Gate: `mvn -q -pl platform-agent -am test` green.
+### Task 1 — V21 notification_pref + entity/repo  ⟶ 1 commit
+`notification_pref` (project, channel, destination, events TEXT-JSON, enabled, timestamps) + entity +
+repo (findByProjectIdOrderByCreatedAtDesc, findByIdAndProjectId).
+- RED: entity update() replaces fields; migration applies on rolled-back psql.
 
-## Task 2 — Migration V11: backfill mis-stamped origin  ⟶ 1 commit
-**File:** `platform-core/src/main/resources/db/migration/V11__fix_ai_testcase_origin.sql`. **Deps:** none.
-- `UPDATE platform_test_cases SET created_by='AGENT' WHERE created_by NOT IN ('AGENT','HUMAN');`
-  (idempotent; additive; forward-only).
-- Verification (per SPEC §3): after apply, `SELECT count(*) … WHERE created_by NOT IN
-  ('AGENT','HUMAN')` = 0 — checked at deploy via psql (data migration; no unit runner for SQL here).
-- Gate: `mvn -q -pl platform-core -DskipTests package` compiles resources.
+### Task 2 — Notification prefs CRUD + endpoints + portal  ⟶ 1 commit
+`NotificationPrefService` CRUD (events via ObjectMapper list) + `NotificationPrefController`
+(MANAGE_PROJECT) + portal proxy + RBAC test.
+- RED: create persists channel+events; get-not-found → 404.
 
-## Task 3 — Frontend: wire a Delete action for test cases  ⟶ 1 commit
-**File:** `platform-portal/frontend/src/pages/TestCasesPage.tsx`. **Deps:** none (api already exists).
-- Add a `Trash2` delete action (list-row and/or the case detail view) → `window.confirm(...)` warning
-  it's permanent and removes steps/executions/history → `useMutation(() =>
-  api.deleteTestCase(projectId, tcId))` → invalidate the page's test-case query keys; close the detail
-  if the deleted case was open. Mirror the confirm+delete pattern used for suites/runs/projects.
-- Handle error (e.g. 403) with the existing error surface; don't crash.
-- Gate: `npx tsc -b`. (No SPA unit runner — type-check + manual.)
+### Task 3 — Notification prefs UI  ⟶ 1 commit
+`NotificationsPage` (list + create/edit modal: channel, destination, event checkboxes, enabled + delete)
++ route + nav; api + types. `tsc -b`.
 
-## Out of scope (SPEC §2 / §9)
-Soft-delete/deprecate, approver column, bulk delete/undo. Deploy (apply V11, rebuild agent+portal)
-is a separate step after the build.
+### Task 4 — CSV export endpoints  ⟶ 1 commit
+A `CsvWriter` helper (quote fields with comma/quote/newline). `ReportController`:
+`GET …/reports/traceability.csv` (from CoverageService rows) + `GET …/reports/exec-summary.csv` (from
+ReleaseReportService), both VIEW_RESULTS, `produces=text/csv` + Content-Disposition. Portal proxy.
+- RED: CsvWriter quotes a field containing a comma; traceability CSV has a header + one row per requirement.
+
+### Task 5 — Export/download buttons  ⟶ 1 commit
+"Download CSV" buttons on Coverage (traceability) and Releases (exec-summary) pages; api helpers that
+fetch the CSV and trigger a browser download. `tsc -b`.
+
+## ⚠️ SIGN-OFF GATE — notification dispatch (Slack/email secrets + external send + SMTP dep). STOP.
+
+### Task 6 — Notification dispatch  ⟶ 1 commit
+A Kafka consumer (own groupId) on TEST_RESULTS_RAW (+ review/gate) that, per matching enabled pref,
+sends via the existing Slack sender / a new email sender; records a dispatch log; add a gate-result
+event. Degrades gracefully when a channel is unconfigured.
+- RED: a run-completed event with a matching SLACK pref invokes the sender (mocked); disabled pref skipped.

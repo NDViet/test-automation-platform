@@ -94,6 +94,23 @@ public class TestRunController {
     return service.updateExecution(projectId, runId, execId, req);
   }
 
+  @PutMapping("/{runId}/executions/{execId}/assignee")
+  @RequireCapability(value = Capability.OPERATE_QUALITY, scope = "projectId")
+  public TestCaseExecutionDto assignExecution(
+      @PathVariable UUID projectId,
+      @PathVariable UUID runId,
+      @PathVariable UUID execId,
+      @RequestBody AssignRequest req) {
+    UUID assignee =
+        req == null || req.assigneeUserId() == null || req.assigneeUserId().isBlank()
+            ? null
+            : UUID.fromString(req.assigneeUserId().trim());
+    return service.assign(projectId, runId, execId, assignee);
+  }
+
+  /** Assign payload — null/blank id unassigns. */
+  public record AssignRequest(String assigneeUserId) {}
+
   @PostMapping("/{runId}/executions/{execId}/defect")
   @RequireCapability(value = Capability.OPERATE_QUALITY, scope = "projectId")
   public TestCaseExecutionDto linkDefect(

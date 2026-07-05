@@ -88,6 +88,15 @@
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>
+                <!--
+                  This module is BOTH a deployable service AND a library (platform-ingestion depends
+                  on its IssueTrackerPort/factories for the failure-cluster "create defect" flow).
+                  Keep the default artifact a plain thin jar so it is usable as a Maven dependency,
+                  and emit the executable fat jar under the "exec" classifier for the Dockerfile.
+                -->
+                <configuration>
+                    <classifier>exec</classifier>
+                </configuration>
             </plugin>
         </plugins>
     </build>

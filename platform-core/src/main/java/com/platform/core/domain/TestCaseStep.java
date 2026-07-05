@@ -28,6 +28,12 @@ public class TestCaseStep {
   @Column(name = "notes", columnDefinition = "TEXT")
   private String notes;
 
+  /**
+   * When set, this step references a shared step; its action/expected are resolved at read time.
+   */
+  @Column(name = "shared_step_id")
+  private UUID sharedStepId;
+
   protected TestCaseStep() {}
 
   public TestCaseStep(
@@ -73,6 +79,14 @@ public class TestCaseStep {
 
   public void setNotes(String notes) {
     this.notes = notes;
+  }
+
+  public UUID getSharedStepId() {
+    return sharedStepId;
+  }
+
+  public void setSharedStepId(UUID sharedStepId) {
+    this.sharedStepId = sharedStepId;
   }
 
   @Override

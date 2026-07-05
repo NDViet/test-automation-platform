@@ -53,6 +53,10 @@ public class TestRun {
   @Column(name = "triggered_by", length = 200)
   private String triggeredBy;
 
+  /** Run-level default assignee; new executions inherit it. */
+  @Column(name = "assignee_user_id")
+  private UUID assigneeUserId;
+
   @Column(name = "started_at")
   private Instant startedAt;
 
@@ -146,6 +150,15 @@ public class TestRun {
 
   public String getTriggeredBy() {
     return triggeredBy;
+  }
+
+  public UUID getAssigneeUserId() {
+    return assigneeUserId;
+  }
+
+  public void setAssigneeUserId(UUID assigneeUserId) {
+    this.assigneeUserId = assigneeUserId;
+    this.updatedAt = Instant.now();
   }
 
   public Instant getStartedAt() {

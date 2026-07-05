@@ -63,16 +63,19 @@ public class StreamingRunService {
   private final TestCaseResultRepository resultRepo;
   private final TestExecutionRepository executionRepo;
   private final ResultEventPublisher eventPublisher;
+  private final com.platform.core.quality.FailureClusterService failureClusters;
 
   public StreamingRunService(
       ExecutionPersistenceService persistenceService,
       TestCaseResultRepository resultRepo,
       TestExecutionRepository executionRepo,
-      ResultEventPublisher eventPublisher) {
+      ResultEventPublisher eventPublisher,
+      com.platform.core.quality.FailureClusterService failureClusters) {
     this.persistenceService = persistenceService;
     this.resultRepo = resultRepo;
     this.executionRepo = executionRepo;
     this.eventPublisher = eventPublisher;
+    this.failureClusters = failureClusters;
   }
 
   /**
@@ -149,50 +152,61 @@ public class StreamingRunService {
                 () -> new IllegalStateException("Execution not found for runId: " + runId));
 
     // Upsert: update the existing row on retry so each testId has one canonical result.
-    resultRepo
-        .findFirstByExecution_RunIdAndTestId(runId, testId)
-        .ifPresentOrElse(
-            existing -> {
-              existing.setStatus(status);
-              existing.setDurationMs(req.durationMs());
-              existing.setFailureMessage(req.failureMessage());
-              existing.setStackTrace(req.stackTrace());
-              existing.setRetryCount(req.retryCount());
-              existing.setHasScreenshot(req.hasScreenshot());
-              existing.setHasVideo(req.hasVideo());
-              existing.setWorkerIndex(req.workerIndex());
-              existing.setAnnotations(req.annotations());
-              existing.setCoveredFiles(req.coveredFiles());
-              existing.setCoveredComponents(req.coveredComponents());
-              existing.setCoveredRoutes(req.coveredRoutes());
-              existing.setLabels(req.labels());
-              resultRepo.save(existing);
-            },
-            () ->
-                resultRepo.save(
-                    TestCaseResult.builder()
-                        .execution(execution)
-                        .testId(testId)
-                        .displayName(req.displayName())
-                        .className(req.suiteName())
-                        .methodName(req.displayName())
-                        .tags(req.tags() != null ? req.tags() : List.of())
-                        .status(status)
-                        .durationMs(req.durationMs())
-                        .failureMessage(req.failureMessage())
-                        .stackTrace(req.stackTrace())
-                        .retryCount(req.retryCount())
-                        .specFile(req.specFile())
-                        .browser(req.browser())
-                        .annotations(req.annotations())
-                        .hasScreenshot(req.hasScreenshot())
-                        .hasVideo(req.hasVideo())
-                        .workerIndex(req.workerIndex())
-                        .coveredFiles(req.coveredFiles())
-                        .coveredComponents(req.coveredComponents())
-                        .coveredRoutes(req.coveredRoutes())
-                        .labels(req.labels())
-                        .build()));
+    TestCaseResult saved =
+        resultRepo
+            .findFirstByExecution_RunIdAndTestId(runId, testId)
+            .map(
+                existing -> {
+                  existing.setStatus(status);
+                  existing.setDurationMs(req.durationMs());
+                  existing.setFailureMessage(req.failureMessage());
+                  existing.setStackTrace(req.stackTrace());
+                  existing.setRetryCount(req.retryCount());
+                  existing.setHasScreenshot(req.hasScreenshot());
+                  existing.setHasVideo(req.hasVideo());
+                  existing.setWorkerIndex(req.workerIndex());
+                  existing.setAnnotations(req.annotations());
+                  existing.setCoveredFiles(req.coveredFiles());
+                  existing.setCoveredComponents(req.coveredComponents());
+                  existing.setCoveredRoutes(req.coveredRoutes());
+                  existing.setLabels(req.labels());
+                  return resultRepo.save(existing);
+                })
+            .orElseGet(
+                () ->
+                    resultRepo.save(
+                        TestCaseResult.builder()
+                            .execution(execution)
+                            .testId(testId)
+                            .displayName(req.displayName())
+                            .className(req.suiteName())
+                            .methodName(req.displayName())
+                            .tags(req.tags() != null ? req.tags() : List.of())
+                            .status(status)
+                            .durationMs(req.durationMs())
+                            .failureMessage(req.failureMessage())
+                            .stackTrace(req.stackTrace())
+                            .retryCount(req.retryCount())
+                            .specFile(req.specFile())
+                            .browser(req.browser())
+                            .annotations(req.annotations())
+                            .hasScreenshot(req.hasScreenshot())
+                            .hasVideo(req.hasVideo())
+                            .workerIndex(req.workerIndex())
+                            .coveredFiles(req.coveredFiles())
+                            .coveredComponents(req.coveredComponents())
+                            .coveredRoutes(req.coveredRoutes())
+                            .labels(req.labels())
+                            .build()));
+
+    failureClusters.recordAutomated(
+        execution.getProject() != null ? execution.getProject().getId() : null,
+        saved.getTestId(),
+        saved.getStatus() != null ? saved.getStatus().name() : null,
+        saved.getFailureMessage(),
+        saved.getStackTrace(),
+        saved.getId(),
+        execution.getId());
 
     log.debug("[Stream] Test pushed runId={} test={} status={}", runId, req.displayName(), status);
   }

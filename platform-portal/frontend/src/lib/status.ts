@@ -20,6 +20,31 @@ export function testCaseStatusVariant(status: string): StatusVariant {
   }
 }
 
+export function failureClusterStatusVariant(status: string): StatusVariant {
+  switch (status?.toUpperCase()) {
+    case 'RESOLVED':
+      return 'success'
+    case 'KNOWN_ISSUE':
+      return 'info'
+    case 'OPEN':
+    default:
+      return 'danger'
+  }
+}
+
+export function gateStatusVariant(status: string | null | undefined): StatusVariant {
+  switch (status?.toUpperCase()) {
+    case 'PASS':
+      return 'success'
+    case 'OVERRIDDEN':
+      return 'warning'
+    case 'FAIL':
+      return 'danger'
+    default:
+      return 'neutral'
+  }
+}
+
 export function runStatusVariant(status: string): StatusVariant {
   switch (status?.toUpperCase()) {
     case 'PASSED':

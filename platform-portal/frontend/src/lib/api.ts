@@ -133,6 +133,43 @@ async function delMsg(path: string): Promise<void> {
   if (!res.ok) throw new Error(await errMessage(res, `DELETE ${path} → ${res.status}`))
 }
 
+/** Fetches a CSV from the BFF and triggers a browser download. */
+async function downloadCsv(path: string, filename: string): Promise<void> {
+  const res = await fetch(BASE + path)
+  if (!res.ok) throw new Error(`GET ${path} → ${res.status}`)
+  const blob = await res.blob()
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
+}
+
+/** PUT with a JSON body, returning JSON; surfaces the server's error message on failure. */
+async function putMsg<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(BASE + path, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) throw new Error(await errMessage(res, `PUT ${path} → ${res.status}`))
+  return res.json() as Promise<T>
+}
+
+/** PATCH with a JSON body, returning JSON; surfaces the server's error message on failure. */
+async function patchMsg<T>(path: string, body: unknown): Promise<T> {
+  const res = await fetch(BASE + path, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+  if (!res.ok) throw new Error(await errMessage(res, `PATCH ${path} → ${res.status}`))
+  return res.json() as Promise<T>
+}
+
 /** POST that surfaces the server's error message body (for user-facing flows like onboarding). */
 async function postMsg<T>(path: string, body: unknown): Promise<T> {
   const res = await fetch(BASE + path, {
@@ -595,6 +632,18 @@ export const api = {
   },
   testCase: (projectId: string, tcId: string) =>
     get<import('./types').ManagedTestCase>(`/projects/${projectId}/test-cases/${tcId}`),
+  testCaseRevisions: (projectId: string, tcId: string) =>
+    get<import('./types').TestCaseRevision[]>(
+      `/projects/${projectId}/test-cases/${tcId}/revisions`,
+    ),
+  bulkTestCases: (
+    projectId: string,
+    body: { ids: string[]; action: 'APPROVE' | 'REJECT' | 'TAG' | 'DELETE'; tag?: string },
+  ) =>
+    postMsg<{ processed: number; skipped: string[] }>(
+      `/projects/${projectId}/test-cases/bulk`,
+      body,
+    ),
   createTestCase: (projectId: string, body: import('./types').CreateTestCaseForm) =>
     post<import('./types').ManagedTestCase>(`/projects/${projectId}/test-cases`, body),
   updateTestCase: (projectId: string, tcId: string, body: import('./types').CreateTestCaseForm) =>
@@ -723,6 +772,45 @@ export const api = {
       body,
     ),
 
+  // Failure Clusters
+  failureClusters: (projectId: string, status?: string) => {
+    const q = new URLSearchParams()
+    if (status) q.set('status', status)
+    const qs = q.toString()
+    return get<import('./types').FailureCluster[]>(
+      `/projects/${projectId}/failure-clusters${qs ? '?' + qs : ''}`,
+    )
+  },
+  failureCluster: (projectId: string, id: string) =>
+    get<import('./types').FailureCluster>(`/projects/${projectId}/failure-clusters/${id}`),
+  setFailureClusterStatus: (projectId: string, id: string, status: string) =>
+    patchMsg<import('./types').FailureCluster>(`/projects/${projectId}/failure-clusters/${id}`, {
+      status,
+    }),
+  linkFailureClusterDefect: (
+    projectId: string,
+    id: string,
+    body: { externalId: string; url?: string; title?: string; state?: string },
+  ) =>
+    postMsg<import('./types').FailureCluster>(
+      `/projects/${projectId}/failure-clusters/${id}/link-defect`,
+      body,
+    ),
+  createFailureClusterDefect: (
+    projectId: string,
+    id: string,
+    body: { issueType?: string; priority?: string; description?: string },
+  ) =>
+    postMsg<import('./types').FailureCluster>(
+      `/projects/${projectId}/failure-clusters/${id}/create-defect`,
+      body,
+    ),
+  retestFailureCluster: (projectId: string, id: string) =>
+    postMsg<import('./types').FailureClusterRetestResponse>(
+      `/projects/${projectId}/failure-clusters/${id}/retest`,
+      {},
+    ),
+
   // Test Runs
   testRuns: (projectId: string) =>
     get<import('./types').TestRun[]>(`/projects/${projectId}/test-runs`),
@@ -747,6 +835,7 @@ export const api = {
       iterationPath?: string
       areaPath?: string
       teamId?: string
+      assigneeUserId?: string
     },
   ) => put<import('./types').TestRun>(`/projects/${projectId}/test-runs/${runId}`, body),
   addTestRunCases: (
@@ -775,6 +864,20 @@ export const api = {
     ),
   unlinkExecutionDefect: (projectId: string, runId: string, execId: string) =>
     del(`/projects/${projectId}/test-runs/${runId}/executions/${execId}/defect`),
+  assignExecution: (
+    projectId: string,
+    runId: string,
+    execId: string,
+    assigneeUserId: string | null,
+  ) =>
+    put<import('./types').TestCaseExecution>(
+      `/projects/${projectId}/test-runs/${runId}/executions/${execId}/assignee`,
+      { assigneeUserId },
+    ),
+  myQueue: (projectId: string) =>
+    get<import('./types').TestCaseExecution[]>(`/projects/${projectId}/my-queue`),
+  assignableUsers: (projectId: string) =>
+    get<import('./types').AssignableUser[]>(`/projects/${projectId}/assignable-users`),
   listExecutionAttachments: (projectId: string, runId: string, execId: string) =>
     get<import('./types').ExecutionAttachment[]>(
       `/projects/${projectId}/test-runs/${runId}/executions/${execId}/attachments`,
@@ -815,8 +918,25 @@ export const api = {
   createRelease: (projectId: string, body: import('./types').CreateReleaseForm) =>
     post<import('./types').Release>(`/projects/${projectId}/releases`, body),
   updateRelease: (projectId: string, id: string, body: import('./types').CreateReleaseForm) =>
-    put<import('./types').Release>(`/projects/${projectId}/releases/${id}`, body),
+    // putMsg so a gate-blocked RELEASED transition surfaces the failing criteria to the user.
+    putMsg<import('./types').Release>(`/projects/${projectId}/releases/${id}`, body),
   deleteRelease: (projectId: string, id: string) => del(`/projects/${projectId}/releases/${id}`),
+
+  // Quality Gate
+  gateConfig: (projectId: string) =>
+    get<import('./types').QualityGate>(`/projects/${projectId}/gate-config`),
+  updateGateConfig: (projectId: string, body: import('./types').QualityGate) =>
+    putMsg<import('./types').QualityGate>(`/projects/${projectId}/gate-config`, body),
+  evaluateGate: (projectId: string, releaseId: string) =>
+    postMsg<import('./types').GateEvaluation>(
+      `/projects/${projectId}/releases/${releaseId}/evaluate-gate`,
+      {},
+    ),
+  overrideGate: (projectId: string, releaseId: string, reason: string) =>
+    postMsg<import('./types').GateStatus>(
+      `/projects/${projectId}/releases/${releaseId}/override-gate`,
+      { reason },
+    ),
 
   // Unified Test Execution list — manual runs + automated executions merged
   unifiedExecutions: (
@@ -1029,6 +1149,78 @@ export const api = {
   // GitHub Actions workflows (TEST_AUTOMATION repos)
   githubWorkflows: (projectId: string) =>
     get<import('./types').GitHubWorkflow[]>(`/projects/${projectId}/github/workflows`),
+
+  // Run Schedules (CI dispatch)
+  runSchedules: (projectId: string) =>
+    get<import('./types').RunSchedule[]>(`/projects/${projectId}/run-schedules`),
+  createRunSchedule: (projectId: string, body: import('./types').RunScheduleForm) =>
+    postMsg<import('./types').RunSchedule>(`/projects/${projectId}/run-schedules`, body),
+  updateRunSchedule: (projectId: string, id: string, body: import('./types').RunScheduleForm) =>
+    putMsg<import('./types').RunSchedule>(`/projects/${projectId}/run-schedules/${id}`, body),
+  deleteRunSchedule: (projectId: string, id: string) =>
+    del(`/projects/${projectId}/run-schedules/${id}`),
+  dispatchRunSchedule: (projectId: string, id: string) =>
+    postMsg<{ triggered: boolean; message: string }>(
+      `/projects/${projectId}/run-schedules/${id}/dispatch`,
+      {},
+    ),
+
+  // Datasets
+  datasets: (projectId: string) =>
+    get<import('./types').Dataset[]>(`/projects/${projectId}/datasets`),
+  createDataset: (projectId: string, body: import('./types').DatasetForm) =>
+    postMsg<import('./types').Dataset>(`/projects/${projectId}/datasets`, body),
+  updateDataset: (projectId: string, id: string, body: import('./types').DatasetForm) =>
+    putMsg<import('./types').Dataset>(`/projects/${projectId}/datasets/${id}`, body),
+  deleteDataset: (projectId: string, id: string) => del(`/projects/${projectId}/datasets/${id}`),
+
+  // Shared Steps
+  sharedSteps: (projectId: string) =>
+    get<import('./types').SharedStep[]>(`/projects/${projectId}/shared-steps`),
+  createSharedStep: (projectId: string, body: import('./types').SharedStepForm) =>
+    postMsg<import('./types').SharedStep>(`/projects/${projectId}/shared-steps`, body),
+  updateSharedStep: (projectId: string, id: string, body: import('./types').SharedStepForm) =>
+    putMsg<import('./types').SharedStep>(`/projects/${projectId}/shared-steps/${id}`, body),
+  deleteSharedStep: (projectId: string, id: string) =>
+    del(`/projects/${projectId}/shared-steps/${id}`),
+
+  // Report CSV exports
+  downloadTraceabilityCsv: (projectId: string) =>
+    downloadCsv(`/projects/${projectId}/reports/traceability.csv`, 'traceability.csv'),
+  downloadExecSummaryCsv: (projectId: string, days = 30) =>
+    downloadCsv(`/projects/${projectId}/reports/exec-summary.csv?days=${days}`, 'exec-summary.csv'),
+
+  // Notification prefs
+  notificationPrefs: (projectId: string) =>
+    get<import('./types').NotificationPref[]>(`/projects/${projectId}/notification-prefs`),
+  createNotificationPref: (projectId: string, body: import('./types').NotificationPrefForm) =>
+    postMsg<import('./types').NotificationPref>(`/projects/${projectId}/notification-prefs`, body),
+  updateNotificationPref: (
+    projectId: string,
+    id: string,
+    body: import('./types').NotificationPrefForm,
+  ) =>
+    putMsg<import('./types').NotificationPref>(
+      `/projects/${projectId}/notification-prefs/${id}`,
+      body,
+    ),
+  deleteNotificationPref: (projectId: string, id: string) =>
+    del(`/projects/${projectId}/notification-prefs/${id}`),
+
+  // Audit Log
+  auditLog: (
+    projectId: string,
+    params?: { eventType?: string; resourceType?: string; days?: number },
+  ) => {
+    const q = new URLSearchParams()
+    if (params?.eventType) q.set('eventType', params.eventType)
+    if (params?.resourceType) q.set('resourceType', params.resourceType)
+    if (params?.days) q.set('days', String(params.days))
+    const qs = q.toString()
+    return get<import('./types').AuditEvent[]>(
+      `/projects/${projectId}/audit-log${qs ? '?' + qs : ''}`,
+    )
+  },
   githubWorkflowRuns: (projectId: string, repo: string, workflowId: number, limit = 15) =>
     get<import('./types').GitHubWorkflowRun[]>(
       `/projects/${projectId}/github/workflow-runs?repo=${encodeURIComponent(repo)}&workflowId=${workflowId}&limit=${limit}`,

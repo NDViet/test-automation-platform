@@ -3,13 +3,19 @@ package com.platform.ingestion.management.tcm;
 import com.platform.core.domain.TestCaseStep;
 
 public record TestCaseStepDto(
-    String id, int stepNumber, String action, String expectedResult, String notes) {
+    String id,
+    int stepNumber,
+    String action,
+    String expectedResult,
+    String notes,
+    String sharedStepId) {
   public static TestCaseStepDto from(TestCaseStep s) {
     return new TestCaseStepDto(
         s.getId() != null ? s.getId().toString() : null,
         s.getStepNumber(),
         s.getAction(),
         s.getExpectedResult(),
-        s.getNotes());
+        s.getNotes(),
+        s.getSharedStepId() != null ? s.getSharedStepId().toString() : null);
   }
 }

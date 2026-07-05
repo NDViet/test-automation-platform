@@ -558,6 +558,7 @@ function NewManualRunModal({
   const [name, setName] = useState('')
   const [environment, setEnvironment] = useState('DEV')
   const [triggeredBy, setTriggeredBy] = useState('')
+  const [assigneeUserId, setAssigneeUserId] = useState('')
   const [selectedTcIds, setSelectedTcIds] = useState<Set<string>>(new Set())
   const [environmentId, setEnvironmentId] = useState('')
   const [matrixType, setMatrixType] = useState<'FULL' | 'PAIRWISE'>('FULL')
@@ -606,6 +607,10 @@ function NewManualRunModal({
   const { data: suites = [] } = useQuery({
     queryKey: ['testSuites', projectId],
     queryFn: () => api.testSuites(projectId),
+  })
+  const { data: assignableUsers = [] } = useQuery({
+    queryKey: ['assignable-users', projectId],
+    queryFn: () => api.assignableUsers(projectId),
   })
 
   const createEnvMutation = useMutation({
@@ -692,6 +697,7 @@ function NewManualRunModal({
       iterationPath: iterationPath || undefined,
       areaPath: areaPath || undefined,
       teamId: teamId || undefined,
+      assigneeUserId: assigneeUserId || undefined,
     })
   }
 
@@ -794,13 +800,33 @@ function NewManualRunModal({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className={lbl}>Triggered By</label>
-              <input
-                type="text"
+              <select
                 value={triggeredBy}
                 onChange={e => setTriggeredBy(e.target.value)}
                 className={inp}
-                placeholder="e.g. john.doe@example.com"
-              />
+              >
+                <option value="">— select a user —</option>
+                {assignableUsers.map(u => (
+                  <option key={u.id} value={u.username}>
+                    {u.displayName || u.username}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className={lbl}>Default Assignee</label>
+              <select
+                value={assigneeUserId}
+                onChange={e => setAssigneeUserId(e.target.value)}
+                className={inp}
+              >
+                <option value="">— unassigned —</option>
+                {assignableUsers.map(u => (
+                  <option key={u.id} value={u.id}>
+                    {u.displayName || u.username}
+                  </option>
+                ))}
+              </select>
             </div>
             <div>
               <label className={lbl}>Matrix (parametrized cases)</label>

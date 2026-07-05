@@ -16,5 +16,6 @@ public record CreateTestRunRequest(
     String releaseId, // optional — platform release (sot_releases) this run validates
     String iterationPath, // optional — ADO iteration (Sprint) path
     String areaPath, // optional — ADO area path
-    String teamId // optional — owning ADO team (ado_teams)
+    String teamId, // optional — owning ADO team (ado_teams)
+    String assigneeUserId // optional — default assignee; each new execution inherits it
     ) {}

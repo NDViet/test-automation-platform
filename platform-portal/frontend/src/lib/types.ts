@@ -577,6 +577,7 @@ export interface TestCaseStep {
   action: string
   expectedResult: string | null
   notes: string | null
+  sharedStepId: string | null
 }
 
 export interface ManagedTestCase {
@@ -629,6 +630,8 @@ export interface TestRun {
   areaPath: string | null
   teamId: string | null
   teamName: string | null
+  assigneeUserId: string | null
+  assigneeUsername: string | null
   startedAt: string | null
   completedAt: string | null
   createdAt: string
@@ -649,6 +652,104 @@ export interface TestCaseExecution {
   defectUrl: string | null
   defectTitle: string | null
   defectState: string | null
+  assigneeUserId: string | null
+  assigneeUsername: string | null
+}
+
+export interface AssignableUser {
+  id: string
+  username: string
+  displayName: string | null
+}
+
+export interface Dataset {
+  id: string
+  name: string
+  env: string
+  rows: Record<string, string>
+  createdAt: string | null
+}
+
+export interface DatasetForm {
+  name: string
+  env: string
+  rows: Record<string, string>
+}
+
+export interface SharedStep {
+  id: string
+  action: string
+  expectedResult: string | null
+  notes: string | null
+  createdAt: string | null
+}
+
+export interface SharedStepForm {
+  action: string
+  expectedResult: string
+  notes: string
+}
+
+export interface NotificationPref {
+  id: string
+  channel: string
+  destination: string
+  events: string[]
+  enabled: boolean
+  createdAt: string | null
+}
+
+export interface NotificationPrefForm {
+  channel: string
+  destination: string
+  events: string[]
+  enabled: boolean
+}
+
+export interface TestCaseRevision {
+  id: string
+  version: number
+  snapshot: string
+  changedBy: string | null
+  changeKind: string | null
+  changedAt: string | null
+}
+
+export interface AuditEvent {
+  id: string
+  eventType: string
+  actorUsername: string | null
+  actorUserId: string | null
+  actorKeyPrefix: string | null
+  resourceType: string | null
+  resourceId: string | null
+  outcome: string | null
+  details: string | null
+  occurredAt: string | null
+}
+
+export type FailureClusterStatus = 'OPEN' | 'KNOWN_ISSUE' | 'RESOLVED'
+
+export interface FailureCluster {
+  id: string
+  source: string // AUTOMATED | MANUAL
+  testRef: string | null
+  title: string | null
+  sampleMessage: string | null
+  status: string
+  defectExternalId: string | null
+  defectUrl: string | null
+  defectTitle: string | null
+  defectState: string | null
+  occurrences: number
+  firstSeenAt: string
+  lastSeenAt: string
+}
+
+export interface FailureClusterRetestResponse {
+  runId: string
+  name: string
+  status: string
 }
 
 export interface ExecutionAttachment {
@@ -680,7 +781,7 @@ export interface CreateTestCaseForm {
   sourceRequirementId?: string
   linkedRequirementIds?: string[]
   acRefs?: string[]
-  steps?: { action: string; expectedResult?: string; notes?: string }[]
+  steps?: { action: string; expectedResult?: string; notes?: string; sharedStepId?: string }[]
 }
 
 export interface ApplySuggestionForm {
@@ -688,7 +789,7 @@ export interface ApplySuggestionForm {
   title?: string
   description?: string
   expectedResult?: string
-  steps?: { action: string; expectedResult?: string; notes?: string }[]
+  steps?: { action: string; expectedResult?: string; notes?: string; sharedStepId?: string }[]
 }
 
 export interface CreateTestRunForm {
@@ -704,6 +805,7 @@ export interface CreateTestRunForm {
   iterationPath?: string // monitoring dimension: ADO sprint
   areaPath?: string // monitoring dimension: ADO area
   teamId?: string // monitoring dimension: ADO team
+  assigneeUserId?: string // default assignee; each new execution inherits it
 }
 
 // ── Releases ───────────────────────────────────────────────────────────────────
@@ -726,6 +828,40 @@ export interface Release {
   mappedRequirementCount: number
   linkedRunCount: number
   createdAt: string
+  // quality gate verdict + override trail
+  gateStatus: string | null
+  gateEvaluatedAt: string | null
+  gateOverrideReason: string | null
+  gateOverriddenBy: string | null
+}
+
+export interface QualityGate {
+  enabled: boolean
+  minPassRate: number
+  minCoveragePct: number
+  maxOpenBlockers: number
+  maxCriticalFlaky: number
+  requireSuitesExecuted: boolean
+}
+
+export interface GateCriterion {
+  name: string
+  actual: string
+  threshold: string
+  passed: boolean
+}
+
+export interface GateEvaluation {
+  status: string
+  enabled: boolean
+  criteria: GateCriterion[]
+}
+
+export interface GateStatus {
+  status: string | null
+  evaluatedAt: string | null
+  overrideReason: string | null
+  overriddenBy: string | null
 }
 
 export interface CreateReleaseForm {
@@ -1119,6 +1255,30 @@ export interface GitHubWorkflow {
   state: 'active' | 'disabled_manually' | 'disabled_inactivity' | string
   htmlUrl: string
   repoFullName: string
+}
+
+export interface RunSchedule {
+  id: string
+  name: string
+  repoFullName: string
+  workflowId: number
+  ref: string
+  inputs: Record<string, string>
+  intervalMinutes: number
+  nextRunAt: string | null
+  enabled: boolean
+  lastDispatchedAt: string | null
+  createdAt: string
+}
+
+export interface RunScheduleForm {
+  name: string
+  repoFullName: string
+  workflowId: number
+  ref: string
+  inputs: Record<string, string>
+  intervalMinutes: number
+  enabled: boolean
 }
 
 export interface GitHubWorkflowRun {

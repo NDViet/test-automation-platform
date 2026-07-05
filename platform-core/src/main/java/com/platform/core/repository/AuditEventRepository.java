@@ -23,4 +23,17 @@ public interface AuditEventRepository extends JpaRepository<AuditEvent, UUID> {
       @Param("type") String type, @Param("since") Instant since, Pageable pageable);
 
   List<AuditEvent> findByActorKeyIdOrderByOccurredAtDesc(UUID keyId, Pageable pageable);
+
+  /** Project-scoped audit feed with optional eventType/resourceType filters, newest first. */
+  @Query(
+      "SELECT a FROM AuditEvent a WHERE a.projectId = :projectId"
+          + " AND (:eventType IS NULL OR a.eventType = :eventType)"
+          + " AND (:resourceType IS NULL OR a.resourceType = :resourceType)"
+          + " AND a.occurredAt >= :since ORDER BY a.occurredAt DESC")
+  List<AuditEvent> findForProject(
+      @Param("projectId") UUID projectId,
+      @Param("eventType") String eventType,
+      @Param("resourceType") String resourceType,
+      @Param("since") Instant since,
+      Pageable pageable);
 }

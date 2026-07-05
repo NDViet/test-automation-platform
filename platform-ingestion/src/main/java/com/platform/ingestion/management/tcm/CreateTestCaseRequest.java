@@ -14,5 +14,6 @@ public record CreateTestCaseRequest(
     List<String> linkedRequirementIds,
     List<String> acRefs,
     List<StepRequest> steps) {
-  public record StepRequest(String action, String expectedResult, String notes) {}
+  public record StepRequest(
+      String action, String expectedResult, String notes, String sharedStepId) {}
 }

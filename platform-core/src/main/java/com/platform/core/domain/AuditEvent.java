@@ -40,6 +40,17 @@ public class AuditEvent {
   @Column(name = "actor_key_prefix", length = 10)
   private String actorKeyPrefix;
 
+  /** Portal user (JWT) who performed the action, when the caller was a signed-in user. */
+  @Column(name = "actor_user_id")
+  private UUID actorUserId;
+
+  @Column(name = "actor_username", length = 100)
+  private String actorUsername;
+
+  /** Project the event belongs to (for project-scoped audit views). */
+  @Column(name = "project_id")
+  private UUID projectId;
+
   @Column(name = "team_id")
   private UUID teamId;
 
@@ -69,6 +80,9 @@ public class AuditEvent {
     this.eventType = b.eventType;
     this.actorKeyId = b.actorKeyId;
     this.actorKeyPrefix = b.actorKeyPrefix;
+    this.actorUserId = b.actorUserId;
+    this.actorUsername = b.actorUsername;
+    this.projectId = b.projectId;
     this.teamId = b.teamId;
     this.resourceType = b.resourceType;
     this.resourceId = b.resourceId;
@@ -95,6 +109,18 @@ public class AuditEvent {
 
   public String getActorKeyPrefix() {
     return actorKeyPrefix;
+  }
+
+  public UUID getActorUserId() {
+    return actorUserId;
+  }
+
+  public String getActorUsername() {
+    return actorUsername;
+  }
+
+  public UUID getProjectId() {
+    return projectId;
   }
 
   public UUID getTeamId() {
@@ -141,6 +167,9 @@ public class AuditEvent {
     private String eventType;
     private UUID actorKeyId;
     private String actorKeyPrefix;
+    private UUID actorUserId;
+    private String actorUsername;
+    private UUID projectId;
     private UUID teamId;
     private String resourceType;
     private String resourceId;
@@ -160,6 +189,21 @@ public class AuditEvent {
 
     public Builder actorKeyPrefix(String v) {
       this.actorKeyPrefix = v;
+      return this;
+    }
+
+    public Builder actorUserId(UUID v) {
+      this.actorUserId = v;
+      return this;
+    }
+
+    public Builder actorUsername(String v) {
+      this.actorUsername = v;
+      return this;
+    }
+
+    public Builder projectId(UUID v) {
+      this.projectId = v;
       return this;
     }
 

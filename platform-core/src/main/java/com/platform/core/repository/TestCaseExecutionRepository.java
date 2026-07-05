@@ -26,4 +26,12 @@ public interface TestCaseExecutionRepository extends JpaRepository<TestCaseExecu
       "SELECT e.testRunId, e.status, COUNT(e) FROM TestCaseExecution e WHERE e.testRunId IN :runIds"
           + " GROUP BY e.testRunId, e.status")
   List<Object[]> countByRunIdsGrouped(@Param("runIds") Collection<UUID> runIds);
+
+  /** Executions assigned to a user within one project (join to the run for project scope). */
+  @Query(
+      "SELECT e FROM TestCaseExecution e, TestRun r WHERE e.testRunId = r.id"
+          + " AND r.projectId = :projectId AND e.assigneeUserId = :userId"
+          + " ORDER BY e.updatedAt DESC")
+  List<TestCaseExecution> findMyQueue(
+      @Param("projectId") UUID projectId, @Param("userId") UUID userId);
 }

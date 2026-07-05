@@ -4,9 +4,11 @@ import com.platform.core.domain.AdoTeam;
 import com.platform.core.domain.SotRelease;
 import com.platform.core.repository.AdoTeamRepository;
 import com.platform.core.repository.SotReleaseRepository;
+import com.platform.ingestion.quality.ReleaseGateService;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.jdbc.core.namedparam.MapSqlParameterSource;
@@ -27,12 +29,17 @@ public class ReleaseService {
   private final SotReleaseRepository repo;
   private final AdoTeamRepository teamRepo;
   private final NamedParameterJdbcTemplate njdbc;
+  private final ReleaseGateService gate;
 
   public ReleaseService(
-      SotReleaseRepository repo, AdoTeamRepository teamRepo, NamedParameterJdbcTemplate njdbc) {
+      SotReleaseRepository repo,
+      AdoTeamRepository teamRepo,
+      NamedParameterJdbcTemplate njdbc,
+      ReleaseGateService gate) {
     this.repo = repo;
     this.teamRepo = teamRepo;
     this.njdbc = njdbc;
+    this.gate = gate;
   }
 
   @Transactional(readOnly = true)
@@ -63,11 +70,41 @@ public class ReleaseService {
 
   public ReleaseDto update(UUID projectId, UUID id, CreateReleaseRequest req) {
     SotRelease r = load(projectId, id);
+    // Enforce the quality gate on the transition INTO released — the one irreversible step.
+    String newState = req.state() == null ? null : req.state().trim().toUpperCase();
+    if ("RELEASED".equals(newState) && !"RELEASED".equals(r.getState())) {
+      enforceGate(projectId, r);
+    }
     r.setName(req.name().trim());
     r.setReleaseType(req.releaseType());
     r.setExternalId(req.externalId());
     applyEditable(r, req);
     return toDto(projectId, repo.save(r));
+  }
+
+  /**
+   * Blocks the transition to RELEASED unless the gate passes. An explicit prior OVERRIDDEN decision
+   * stands (never re-evaluated away); otherwise the gate is (re-)evaluated fresh and a FAIL raises
+   * a {@code 409} listing the failing criteria. A disabled gate evaluates to PASS, so this is a
+   * no-op.
+   */
+  private void enforceGate(UUID projectId, SotRelease r) {
+    if ("OVERRIDDEN".equals(r.getGateStatus())) {
+      return;
+    }
+    ReleaseGateService.GateEvaluation eval = gate.evaluate(projectId, r.getId());
+    if (!"PASS".equals(eval.status())) {
+      String failing =
+          eval.criteria().stream()
+              .filter(c -> !c.passed())
+              .map(c -> c.name() + " (" + c.actual() + " vs " + c.threshold() + ")")
+              .collect(Collectors.joining("; "));
+      throw new ResponseStatusException(
+          HttpStatus.CONFLICT,
+          "Quality gate FAILED — cannot mark this release RELEASED: "
+              + failing
+              + ". Override the gate with a reason to proceed.");
+    }
   }
 
   public void delete(UUID projectId, UUID id) {

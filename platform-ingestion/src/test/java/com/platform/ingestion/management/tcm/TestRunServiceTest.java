@@ -40,6 +40,8 @@ class TestRunServiceTest {
   private AzureBoardsPollClient adoClient;
   private TcmRunService tcmRunService;
   private SotReleaseRepository releaseRepo;
+  private com.platform.core.quality.FailureClusterService failureClusters;
+  private com.platform.core.repository.UserRepository userRepo;
   private TestRunService service;
 
   private final UUID projectId = UUID.randomUUID();
@@ -55,6 +57,8 @@ class TestRunServiceTest {
     adoClient = mock(AzureBoardsPollClient.class);
     tcmRunService = mock(TcmRunService.class);
     releaseRepo = mock(SotReleaseRepository.class);
+    failureClusters = mock(com.platform.core.quality.FailureClusterService.class);
+    userRepo = mock(com.platform.core.repository.UserRepository.class);
     service =
         new TestRunService(
             runRepo,
@@ -65,12 +69,55 @@ class TestRunServiceTest {
             mock(AdoTeamRepository.class),
             mock(SuiteResolverService.class),
             mock(TestSuiteRepository.class),
-            adoClient);
+            adoClient,
+            failureClusters,
+            mock(com.platform.ingestion.quality.FailureClusterRetestService.class),
+            userRepo);
     // toDto() reads executions for counters
     lenient().when(execRepo.findByTestRunId(any())).thenReturn(List.of());
     lenient().when(runRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
     lenient().when(execRepo.save(any())).thenAnswer(inv -> inv.getArgument(0));
     lenient().when(testCaseRepo.findById(any())).thenReturn(Optional.empty());
+  }
+
+  @org.junit.jupiter.api.Test
+  void assignSetsAssigneeForValidUser() {
+    run("IN_PROGRESS");
+    TestCaseExecution exec = new TestCaseExecution(runId, UUID.randomUUID());
+    when(execRepo.findById(execId)).thenReturn(Optional.of(exec));
+    UUID user = UUID.randomUUID();
+    when(userRepo.existsById(user)).thenReturn(true);
+
+    service.assign(projectId, runId, execId, user);
+
+    assertThat(exec.getAssigneeUserId()).isEqualTo(user);
+    verify(execRepo).save(exec);
+  }
+
+  @org.junit.jupiter.api.Test
+  void assignRejectsUnknownUser() {
+    run("IN_PROGRESS");
+    TestCaseExecution exec = new TestCaseExecution(runId, UUID.randomUUID());
+    when(execRepo.findById(execId)).thenReturn(Optional.of(exec));
+    UUID user = UUID.randomUUID();
+    when(userRepo.existsById(user)).thenReturn(false);
+
+    assertThatThrownBy(() -> service.assign(projectId, runId, execId, user))
+        .isInstanceOf(org.springframework.web.server.ResponseStatusException.class);
+    verify(execRepo, never()).save(any());
+  }
+
+  @org.junit.jupiter.api.Test
+  void assignNullUnassigns() {
+    run("IN_PROGRESS");
+    TestCaseExecution exec = new TestCaseExecution(runId, UUID.randomUUID());
+    exec.assignTo(UUID.randomUUID());
+    when(execRepo.findById(execId)).thenReturn(Optional.of(exec));
+
+    service.assign(projectId, runId, execId, null);
+
+    assertThat(exec.getAssigneeUserId()).isNull();
+    verify(execRepo).save(exec);
   }
 
   private TestRun run(String status) {
@@ -91,6 +138,42 @@ class TestRunServiceTest {
     assertThat(r.getCompletedAt()).isNull();
     assertThat(dto.status()).isEqualTo("IN_PROGRESS");
     verify(runRepo).save(r);
+  }
+
+  @Test
+  void updatingExecutionToFailedRecordsAFailureCluster() {
+    run("IN_PROGRESS");
+    UUID caseId = UUID.randomUUID();
+    TestCaseExecution exec = new TestCaseExecution(runId, caseId);
+    when(execRepo.findById(execId)).thenReturn(Optional.of(exec));
+
+    service.updateExecution(
+        projectId,
+        runId,
+        execId,
+        new UpdateExecutionRequest("FAILED", "assertion X failed", null, "bob"));
+
+    verify(failureClusters)
+        .record(
+            eq(projectId),
+            eq("MANUAL"),
+            any(),
+            eq(caseId.toString()),
+            eq("assertion X failed"),
+            any(),
+            eq(runId));
+  }
+
+  @Test
+  void passingExecutionDoesNotRecordAFailureCluster() {
+    run("IN_PROGRESS");
+    TestCaseExecution exec = new TestCaseExecution(runId, UUID.randomUUID());
+    when(execRepo.findById(execId)).thenReturn(Optional.of(exec));
+
+    service.updateExecution(
+        projectId, runId, execId, new UpdateExecutionRequest("PASSED", null, null, "bob"));
+
+    verify(failureClusters, never()).record(any(), any(), any(), any(), any(), any(), any());
   }
 
   @Test
@@ -143,7 +226,8 @@ class TestRunServiceTest {
             null,
             "Product House\\Sprint 6",
             "Product House\\Pay",
-            teamId.toString()));
+            teamId.toString(),
+            null));
 
     assertThat(r.getEnvironment()).isEqualTo("PROD");
     assertThat(r.getIterationPath()).isEqualTo("Product House\\Sprint 6");
@@ -161,10 +245,47 @@ class TestRunServiceTest {
                 service.updateRun(
                     projectId,
                     runId,
-                    new UpdateRunRequest(null, "PROD", null, null, null, null, null)))
+                    new UpdateRunRequest(null, "PROD", null, null, null, null, null, null)))
         .isInstanceOf(ResponseStatusException.class)
         .satisfies(
             e -> assertThat(((ResponseStatusException) e).getStatusCode().value()).isEqualTo(409));
+    verify(runRepo, never()).save(any());
+  }
+
+  @Test
+  void updateRunAssigneeFillsOnlyUnassignedExecutions() {
+    run("IN_PROGRESS");
+    UUID user = UUID.randomUUID();
+    when(userRepo.existsById(user)).thenReturn(true);
+    TestCaseExecution unassigned = new TestCaseExecution(runId, UUID.randomUUID());
+    TestCaseExecution manual = new TestCaseExecution(runId, UUID.randomUUID());
+    UUID other = UUID.randomUUID();
+    manual.assignTo(other);
+    when(execRepo.findByTestRunId(any())).thenReturn(List.of(unassigned, manual));
+
+    service.updateRun(
+        projectId,
+        runId,
+        new UpdateRunRequest(null, null, null, null, null, null, null, user.toString()));
+
+    assertThat(unassigned.getAssigneeUserId()).isEqualTo(user); // filled
+    assertThat(manual.getAssigneeUserId()).isEqualTo(other); // untouched (had a manual assignee)
+  }
+
+  @Test
+  void updateRunRejectsUnknownAssignee() {
+    run("IN_PROGRESS");
+    UUID user = UUID.randomUUID();
+    when(userRepo.existsById(user)).thenReturn(false);
+
+    assertThatThrownBy(
+            () ->
+                service.updateRun(
+                    projectId,
+                    runId,
+                    new UpdateRunRequest(
+                        null, null, null, null, null, null, null, user.toString())))
+        .isInstanceOf(ResponseStatusException.class);
     verify(runRepo, never()).save(any());
   }
 
@@ -265,7 +386,8 @@ class TestRunServiceTest {
             releaseId.toString(),
             null,
             null,
-            null); // blank iteration/area/team
+            null,
+            null); // blank iteration/area/team/assignee
 
     service.create(projectId, req);
 

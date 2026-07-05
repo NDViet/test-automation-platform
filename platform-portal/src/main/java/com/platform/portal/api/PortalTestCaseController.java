@@ -198,6 +198,30 @@ public class PortalTestCaseController {
         .body(Object.class);
   }
 
+  @GetMapping("/test-cases/{tcId}/revisions")
+  @Operation(summary = "Version history for a test case")
+  public Object testCaseRevisions(@PathVariable String projectId, @PathVariable String tcId) {
+    return ingestionClient
+        .get()
+        .uri("/api/v1/projects/" + projectId + "/test-cases/" + tcId + "/revisions")
+        .accept(MediaType.APPLICATION_JSON)
+        .retrieve()
+        .body(Object.class);
+  }
+
+  @PostMapping("/test-cases/bulk")
+  @Operation(summary = "Bulk approve/reject/tag test cases")
+  public Object bulkTestCases(@PathVariable String projectId, @RequestBody Object body) {
+    return ingestionClient
+        .post()
+        .uri("/api/v1/projects/" + projectId + "/test-cases/bulk")
+        .contentType(MediaType.APPLICATION_JSON)
+        .accept(MediaType.APPLICATION_JSON)
+        .body(body)
+        .retrieve()
+        .body(Object.class);
+  }
+
   @PutMapping("/test-cases/{tcId}")
   @Operation(summary = "Update a managed test case")
   public Object updateTestCase(

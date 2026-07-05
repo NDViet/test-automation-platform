@@ -6,8 +6,16 @@ import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import ErrorMessage from '@/components/ErrorMessage'
-import { PageHeader } from '@/components/ui'
-import { Sparkles, ShieldCheck, AlertTriangle, Loader2, LayoutGrid, Users } from 'lucide-react'
+import { PageHeader, Button } from '@/components/ui'
+import {
+  Sparkles,
+  ShieldCheck,
+  AlertTriangle,
+  Loader2,
+  LayoutGrid,
+  Users,
+  Download,
+} from 'lucide-react'
 import type { CoverageRow, CoverageGroup } from '@/lib/types'
 
 function statusBadge(s: string | null) {
@@ -120,6 +128,11 @@ export default function CoverageMatrixPage() {
         title="Requirements Coverage"
         icon={<ShieldCheck size={20} />}
         description="Coverage by Area / Team — track where it's improving and where the gaps are."
+        actions={
+          <Button variant="secondary" onClick={() => void api.downloadTraceabilityCsv(projectId)}>
+            <Download size={15} /> Traceability CSV
+          </Button>
+        }
       />
 
       {/* Summary cards */}

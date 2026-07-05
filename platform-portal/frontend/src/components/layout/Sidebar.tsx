@@ -22,6 +22,11 @@ import {
   Rocket,
   ClipboardCheck,
   Layers,
+  ClipboardList,
+  CalendarClock,
+  ScrollText,
+  Database,
+  ListChecks,
   MonitorCheck,
   ChevronLeft,
   ChevronRight,
@@ -29,6 +34,7 @@ import {
   Settings,
   ArrowLeftRight,
   GitMerge,
+  Bug,
   LogOut,
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
@@ -91,11 +97,17 @@ function projectGroups(base: string): NavGroup[] {
       items: [
         { to: `${base}/test-cases`, label: 'Test Cases', icon: FlaskConical },
         { to: `${base}/test-suites`, label: 'Test Suites', icon: Layers },
+        { to: `${base}/datasets`, label: 'Datasets', icon: Database },
+        { to: `${base}/shared-steps`, label: 'Shared Steps', icon: ListChecks },
         { to: `${base}/test-execution`, label: 'Test Execution', icon: ClipboardCheck },
+        { to: `${base}/test-execution/my-queue`, label: 'My Queue', icon: ClipboardList },
         { to: `${base}/automated-tests`, label: 'Automated Tests', icon: MonitorCheck },
         { to: `${base}/github-workflows`, label: 'GitHub Workflows', icon: GitMerge },
+        { to: `${base}/run-schedules`, label: 'Run Schedules', icon: CalendarClock },
         { to: `${base}/flaky-tests`, label: 'Flaky Tests', icon: Zap },
+        { to: `${base}/failures`, label: 'Failures', icon: Bug },
         { to: `${base}/review-queue`, label: 'Review Queue', icon: Inbox },
+        { to: `${base}/audit-log`, label: 'Audit Log', icon: ScrollText },
       ],
     },
     {
@@ -119,6 +131,7 @@ function projectGroups(base: string): NavGroup[] {
         { to: `${base}/settings/mapping`, label: 'Mapping', icon: Boxes, cap: 'MANAGE_PROJECT' },
         { to: `${base}/settings/ai`, label: 'AI', icon: Bot, cap: 'MANAGE_AI_GATEWAY' },
         { to: `${base}/settings/github`, label: 'GitHub', icon: GitMerge, cap: 'MANAGE_PROJECT' },
+        { to: `${base}/notifications`, label: 'Notifications', icon: Bell, cap: 'MANAGE_PROJECT' },
       ],
     },
   ]

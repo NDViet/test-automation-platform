@@ -81,4 +81,96 @@ class IngestionRbacAnnotationTest {
     assertThat(create.value()).isEqualTo(Capability.OPERATE_QUALITY);
     assertThat(create.scope()).isEqualTo("projectId");
   }
+
+  @Test
+  void failureClusterControllerReadsViewWritesOperate() {
+    RequireCapability cls =
+        classGate(com.platform.ingestion.quality.FailureClusterController.class);
+    assertThat(cls.value()).isEqualTo(Capability.VIEW_RESULTS);
+    assertThat(cls.scope()).isEqualTo("projectId");
+
+    for (String method : new String[] {"updateStatus", "linkDefect", "createDefect", "retest"}) {
+      RequireCapability rc =
+          methodGate(com.platform.ingestion.quality.FailureClusterController.class, method);
+      assertThat(rc.value())
+          .as("%s must require OPERATE_QUALITY", method)
+          .isEqualTo(Capability.OPERATE_QUALITY);
+      assertThat(rc.scope()).isEqualTo("projectId");
+    }
+  }
+
+  @Test
+  void runScheduleControllerRequiresProjectAdmin() {
+    RequireCapability rc =
+        classGate(com.platform.ingestion.management.schedule.RunScheduleController.class);
+    assertThat(rc.value()).isEqualTo(Capability.MANAGE_PROJECT);
+    assertThat(rc.scope()).isEqualTo("projectId");
+  }
+
+  @Test
+  void datasetControllerReadsViewWritesOperate() {
+    Class<?> type = com.platform.ingestion.management.dataset.DatasetController.class;
+    RequireCapability cls = classGate(type);
+    assertThat(cls.value()).isEqualTo(Capability.VIEW_RESULTS);
+    RequireCapability create = methodGate(type, "create");
+    assertThat(create.value()).isEqualTo(Capability.OPERATE_QUALITY);
+    assertThat(create.scope()).isEqualTo("projectId");
+  }
+
+  @Test
+  void sharedStepControllerReadsViewWritesOperate() {
+    Class<?> type = com.platform.ingestion.management.sharedstep.SharedStepController.class;
+    RequireCapability cls = classGate(type);
+    assertThat(cls.value()).isEqualTo(Capability.VIEW_RESULTS);
+    RequireCapability create = methodGate(type, "create");
+    assertThat(create.value()).isEqualTo(Capability.OPERATE_QUALITY);
+    assertThat(create.scope()).isEqualTo("projectId");
+  }
+
+  @Test
+  void notificationPrefControllerRequiresProjectAdmin() {
+    RequireCapability rc =
+        classGate(com.platform.ingestion.management.notification.NotificationPrefController.class);
+    assertThat(rc.value()).isEqualTo(Capability.MANAGE_PROJECT);
+    assertThat(rc.scope()).isEqualTo("projectId");
+  }
+
+  @Test
+  void reportExportsRequireView() {
+    RequireCapability rc = classGate(com.platform.ingestion.management.tcm.ReportController.class);
+    assertThat(rc.value()).isEqualTo(Capability.VIEW_RESULTS);
+    assertThat(rc.scope()).isEqualTo("projectId");
+  }
+
+  @Test
+  void auditLogReadsRequireView() {
+    RequireCapability rc = classGate(com.platform.ingestion.audit.AuditLogController.class);
+    assertThat(rc.value()).isEqualTo(Capability.VIEW_RESULTS);
+    assertThat(rc.scope()).isEqualTo("projectId");
+  }
+
+  @Test
+  void executionPlanningReadsRequireView() {
+    RequireCapability rc =
+        classGate(com.platform.ingestion.management.tcm.ExecutionPlanningController.class);
+    assertThat(rc.value()).isEqualTo(Capability.VIEW_RESULTS);
+    assertThat(rc.scope()).isEqualTo("projectId");
+  }
+
+  @Test
+  void qualityGateControllerGuardsConfigAndOverride() {
+    Class<?> type = com.platform.ingestion.quality.QualityGateController.class;
+    RequireCapability cls = classGate(type);
+    assertThat(cls.value()).isEqualTo(Capability.VIEW_RESULTS);
+    assertThat(cls.scope()).isEqualTo("projectId");
+
+    // Config write + override are project-admin; evaluate is a quality operation.
+    for (String method : new String[] {"updateConfig", "overrideGate"}) {
+      RequireCapability rc = methodGate(type, method);
+      assertThat(rc.value()).as("%s", method).isEqualTo(Capability.MANAGE_PROJECT);
+      assertThat(rc.scope()).isEqualTo("projectId");
+    }
+    RequireCapability eval = methodGate(type, "evaluateGate");
+    assertThat(eval.value()).isEqualTo(Capability.OPERATE_QUALITY);
+  }
 }

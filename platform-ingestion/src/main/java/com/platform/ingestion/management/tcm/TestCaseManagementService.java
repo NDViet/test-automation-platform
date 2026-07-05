@@ -25,18 +25,30 @@ public class TestCaseManagementService {
   private final NamedParameterJdbcTemplate njdbc;
   private final SuiteResolverService suiteResolver;
   private final com.platform.core.repository.TestSuiteRepository suiteRepo;
+  private final com.platform.ingestion.audit.AuditWriter audit;
+  private final TestCaseRevisionService revisions;
+  private final com.platform.core.repository.TestCaseTagRepository tagRepo;
+  private final com.platform.core.repository.SharedStepRepository sharedStepRepo;
 
   public TestCaseManagementService(
       PlatformTestCaseRepository testCaseRepo,
       TestCaseStepRepository stepRepo,
       NamedParameterJdbcTemplate njdbc,
       SuiteResolverService suiteResolver,
-      com.platform.core.repository.TestSuiteRepository suiteRepo) {
+      com.platform.core.repository.TestSuiteRepository suiteRepo,
+      com.platform.ingestion.audit.AuditWriter audit,
+      TestCaseRevisionService revisions,
+      com.platform.core.repository.TestCaseTagRepository tagRepo,
+      com.platform.core.repository.SharedStepRepository sharedStepRepo) {
     this.testCaseRepo = testCaseRepo;
     this.stepRepo = stepRepo;
     this.njdbc = njdbc;
     this.suiteResolver = suiteResolver;
     this.suiteRepo = suiteRepo;
+    this.audit = audit;
+    this.revisions = revisions;
+    this.tagRepo = tagRepo;
+    this.sharedStepRepo = sharedStepRepo;
   }
 
   /** STATIC suite ids the case belongs to. */
@@ -180,7 +192,7 @@ public class TestCaseManagementService {
       cases = cases.stream().filter(tc -> scoped.contains(tc.getId())).toList();
     }
 
-    return cases.stream().map(tc -> ManagedTestCaseDto.from(tc, loadSteps(tc.getId()))).toList();
+    return cases.stream().map(tc -> ManagedTestCaseDto.from(tc, loadStepDtos(tc.getId()))).toList();
   }
 
   /**
@@ -231,7 +243,7 @@ public class TestCaseManagementService {
   @Transactional(readOnly = true)
   public ManagedTestCaseDto get(UUID projectId, UUID tcId) {
     PlatformTestCase tc = loadAndVerify(projectId, tcId);
-    return ManagedTestCaseDto.from(tc, loadSteps(tcId));
+    return ManagedTestCaseDto.from(tc, loadStepDtos(tcId));
   }
 
   public ManagedTestCaseDto create(UUID projectId, CreateTestCaseRequest req) {
@@ -257,7 +269,7 @@ public class TestCaseManagementService {
     tc = testCaseRepo.save(tc);
 
     List<TestCaseStep> steps = saveSteps(tc.getId(), req.steps());
-    return ManagedTestCaseDto.from(tc, steps);
+    return ManagedTestCaseDto.from(tc, stepDtos(steps));
   }
 
   public ManagedTestCaseDto update(UUID projectId, UUID tcId, UpdateTestCaseRequest req) {
@@ -285,13 +297,82 @@ public class TestCaseManagementService {
     } else {
       steps = loadSteps(tcId);
     }
-    return ManagedTestCaseDto.from(tc, steps);
+    audit.record("TEST_CASE_UPDATED", projectId, "TEST_CASE", tcId.toString(), null);
+    revisions.snapshot(projectId, tcId, "UPDATE");
+    return ManagedTestCaseDto.from(tc, stepDtos(steps));
   }
 
   public void delete(UUID projectId, UUID tcId) {
     PlatformTestCase tc = loadAndVerify(projectId, tcId);
     stepRepo.deleteAllByTestCaseId(tcId);
+    tagRepo.deleteAllByTestCaseId(tcId); // clean up tags so they aren't orphaned
     testCaseRepo.delete(tc);
+    audit.record("TEST_CASE_DELETED", projectId, "TEST_CASE", tcId.toString(), null);
+  }
+
+  /** Version history for a case (scoped to its project). */
+  @Transactional(readOnly = true)
+  public List<TestCaseRevisionDto> revisions(UUID projectId, UUID tcId) {
+    loadAndVerify(projectId, tcId);
+    return revisions.list(tcId);
+  }
+
+  /** Outcome of a bulk operation: how many cases were affected and which ids were skipped. */
+  public record BulkResult(int processed, List<String> skipped) {}
+
+  /**
+   * Applies an action to many cases at once. Ids that don't exist or belong to another project are
+   * skipped (not fatal) so one bad id can't abort the batch. Each affected case is audited and
+   * snapshotted just like the single-item path.
+   */
+  public BulkResult bulk(UUID projectId, List<UUID> ids, String action, String tag) {
+    int processed = 0;
+    List<String> skipped = new ArrayList<>();
+    for (UUID id : ids) {
+      PlatformTestCase tc =
+          testCaseRepo.findById(id).filter(c -> projectId.equals(c.getProjectId())).orElse(null);
+      if (tc == null) {
+        skipped.add(id.toString());
+        continue;
+      }
+      switch (action == null ? "" : action.toUpperCase()) {
+        case "APPROVE" -> {
+          tc.approve();
+          testCaseRepo.save(tc);
+          audit.record("TEST_CASE_APPROVED", projectId, "TEST_CASE", id.toString(), null);
+          revisions.snapshot(projectId, id, "APPROVE");
+        }
+        case "REJECT" -> {
+          tc.reject();
+          testCaseRepo.save(tc);
+          audit.record("TEST_CASE_REJECTED", projectId, "TEST_CASE", id.toString(), null);
+          revisions.snapshot(projectId, id, "REJECT");
+        }
+        case "TAG" -> {
+          if (tag == null || tag.isBlank()) {
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "A tag is required");
+          }
+          addTagIfAbsent(id, tag.trim());
+          audit.record("TEST_CASE_UPDATED", projectId, "TEST_CASE", id.toString(), null);
+        }
+        case "DELETE" -> {
+          stepRepo.deleteAllByTestCaseId(id);
+          tagRepo.deleteAllByTestCaseId(id);
+          testCaseRepo.delete(tc);
+          audit.record("TEST_CASE_DELETED", projectId, "TEST_CASE", id.toString(), null);
+        }
+        default ->
+            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown action: " + action);
+      }
+      processed++;
+    }
+    return new BulkResult(processed, skipped);
+  }
+
+  private void addTagIfAbsent(UUID tcId, String name) {
+    if (tagRepo.findByTestCaseIdAndName(tcId, name).isEmpty()) {
+      tagRepo.save(new com.platform.core.domain.TestCaseTag(tcId, name));
+    }
   }
 
   public ManagedTestCaseDto replaceSteps(
@@ -299,42 +380,46 @@ public class TestCaseManagementService {
     PlatformTestCase tc = loadAndVerify(projectId, tcId);
     stepRepo.deleteAllByTestCaseId(tcId);
     List<TestCaseStep> saved = saveSteps(tcId, steps);
-    return ManagedTestCaseDto.from(tc, saved);
+    return ManagedTestCaseDto.from(tc, stepDtos(saved));
   }
 
   public ManagedTestCaseDto submitForReview(UUID projectId, UUID tcId) {
     PlatformTestCase tc = loadAndVerify(projectId, tcId);
     tc.submitForReview();
     tc = testCaseRepo.save(tc);
-    return ManagedTestCaseDto.from(tc, loadSteps(tcId));
+    return ManagedTestCaseDto.from(tc, loadStepDtos(tcId));
   }
 
   public ManagedTestCaseDto approve(UUID projectId, UUID tcId) {
     PlatformTestCase tc = loadAndVerify(projectId, tcId);
     tc.approve();
     tc = testCaseRepo.save(tc);
-    return ManagedTestCaseDto.from(tc, loadSteps(tcId));
+    audit.record("TEST_CASE_APPROVED", projectId, "TEST_CASE", tcId.toString(), null);
+    revisions.snapshot(projectId, tcId, "APPROVE");
+    return ManagedTestCaseDto.from(tc, loadStepDtos(tcId));
   }
 
   public ManagedTestCaseDto reject(UUID projectId, UUID tcId) {
     PlatformTestCase tc = loadAndVerify(projectId, tcId);
     tc.reject();
     tc = testCaseRepo.save(tc);
-    return ManagedTestCaseDto.from(tc, loadSteps(tcId));
+    audit.record("TEST_CASE_REJECTED", projectId, "TEST_CASE", tcId.toString(), null);
+    revisions.snapshot(projectId, tcId, "REJECT");
+    return ManagedTestCaseDto.from(tc, loadStepDtos(tcId));
   }
 
   public ManagedTestCaseDto linkRequirement(UUID projectId, UUID tcId, UUID requirementId) {
     PlatformTestCase tc = loadAndVerify(projectId, tcId);
     tc.linkRequirement(requirementId);
     tc = testCaseRepo.save(tc);
-    return ManagedTestCaseDto.from(tc, loadSteps(tcId));
+    return ManagedTestCaseDto.from(tc, loadStepDtos(tcId));
   }
 
   public ManagedTestCaseDto unlinkRequirement(UUID projectId, UUID tcId, UUID requirementId) {
     PlatformTestCase tc = loadAndVerify(projectId, tcId);
     tc.unlinkRequirement(requirementId);
     tc = testCaseRepo.save(tc);
-    return ManagedTestCaseDto.from(tc, loadSteps(tcId));
+    return ManagedTestCaseDto.from(tc, loadStepDtos(tcId));
   }
 
   public ManagedTestCaseDto applyAnalysisSuggestion(
@@ -350,7 +435,7 @@ public class TestCaseManagementService {
       stepRepo.deleteAllByTestCaseId(tcId);
       saveSteps(tcId, req.steps());
     }
-    return ManagedTestCaseDto.from(tc, loadSteps(tcId));
+    return ManagedTestCaseDto.from(tc, loadStepDtos(tcId));
   }
 
   public ManagedTestCaseDto triggerAutomationGeneration(
@@ -361,7 +446,7 @@ public class TestCaseManagementService {
     }
     tc.markAutomationGenerating();
     tc = testCaseRepo.save(tc);
-    return ManagedTestCaseDto.from(tc, loadSteps(tcId));
+    return ManagedTestCaseDto.from(tc, loadStepDtos(tcId));
   }
 
   // --- helpers ---
@@ -420,6 +505,40 @@ public class TestCaseManagementService {
     return stepRepo.findByTestCaseIdOrderByStepNumberAsc(tcId);
   }
 
+  /**
+   * Loads a case's steps as DTOs, overlaying referenced shared-step content (see {@link
+   * #stepDtos}).
+   */
+  private List<TestCaseStepDto> loadStepDtos(UUID tcId) {
+    return stepDtos(loadSteps(tcId));
+  }
+
+  /**
+   * Builds step DTOs, resolving any that reference a shared step to that step's CURRENT action /
+   * expected result (so shared-step edits propagate). Never mutates the persisted step — the
+   * reference stays; only the resolved view changes.
+   */
+  private List<TestCaseStepDto> stepDtos(List<TestCaseStep> steps) {
+    return steps.stream()
+        .map(
+            s -> {
+              if (s.getSharedStepId() != null) {
+                var shared = sharedStepRepo.findById(s.getSharedStepId()).orElse(null);
+                if (shared != null) {
+                  return new TestCaseStepDto(
+                      s.getId() != null ? s.getId().toString() : null,
+                      s.getStepNumber(),
+                      shared.getAction(),
+                      shared.getExpectedResult(),
+                      s.getNotes(),
+                      s.getSharedStepId().toString());
+                }
+              }
+              return TestCaseStepDto.from(s);
+            })
+        .toList();
+  }
+
   private List<TestCaseStep> saveSteps(
       UUID tcId, List<CreateTestCaseRequest.StepRequest> stepRequests) {
     if (stepRequests == null || stepRequests.isEmpty()) {
@@ -428,7 +547,12 @@ public class TestCaseManagementService {
     List<TestCaseStep> steps = new ArrayList<>();
     for (int i = 0; i < stepRequests.size(); i++) {
       CreateTestCaseRequest.StepRequest sr = stepRequests.get(i);
-      steps.add(new TestCaseStep(tcId, i + 1, sr.action(), sr.expectedResult(), sr.notes()));
+      TestCaseStep step =
+          new TestCaseStep(tcId, i + 1, sr.action(), sr.expectedResult(), sr.notes());
+      if (sr.sharedStepId() != null && !sr.sharedStepId().isBlank()) {
+        step.setSharedStepId(UUID.fromString(sr.sharedStepId().trim()));
+      }
+      steps.add(step);
     }
     return stepRepo.saveAll(steps);
   }

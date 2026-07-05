@@ -8,5 +8,10 @@ import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
 @Configuration
 @EnableJpaAuditing
 @EnableJpaRepositories(basePackages = "com.platform.core.repository")
-@ComponentScan(basePackages = {"com.platform.core.service", "com.platform.core.mapping"})
+@ComponentScan(
+    basePackages = {
+      "com.platform.core.service",
+      "com.platform.core.mapping",
+      "com.platform.core.quality"
+    })
 public class CoreConfiguration {}

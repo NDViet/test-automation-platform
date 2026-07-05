@@ -37,6 +37,9 @@ public class TestRunService {
   private final SuiteResolverService suiteResolver;
   private final com.platform.core.repository.TestSuiteRepository suiteRepo;
   private final AzureBoardsPollClient adoClient;
+  private final com.platform.core.quality.FailureClusterService failureClusters;
+  private final com.platform.ingestion.quality.FailureClusterRetestService clusterRetest;
+  private final com.platform.core.repository.UserRepository userRepo;
 
   public TestRunService(
       TestRunRepository runRepo,
@@ -47,7 +50,10 @@ public class TestRunService {
       AdoTeamRepository teamRepo,
       SuiteResolverService suiteResolver,
       com.platform.core.repository.TestSuiteRepository suiteRepo,
-      AzureBoardsPollClient adoClient) {
+      AzureBoardsPollClient adoClient,
+      com.platform.core.quality.FailureClusterService failureClusters,
+      com.platform.ingestion.quality.FailureClusterRetestService clusterRetest,
+      com.platform.core.repository.UserRepository userRepo) {
     this.runRepo = runRepo;
     this.execRepo = execRepo;
     this.testCaseRepo = testCaseRepo;
@@ -57,6 +63,9 @@ public class TestRunService {
     this.suiteResolver = suiteResolver;
     this.suiteRepo = suiteRepo;
     this.adoClient = adoClient;
+    this.failureClusters = failureClusters;
+    this.clusterRetest = clusterRetest;
+    this.userRepo = userRepo;
   }
 
   @Transactional(readOnly = true)
@@ -112,6 +121,7 @@ public class TestRunService {
       }
     }
     List<UUID> caseIds = effectiveCaseIds(projectId, req.testCaseIds(), suiteIds);
+    UUID assignee = resolveAssignee(req.assigneeUserId());
 
     if (!caseIds.isEmpty()) {
       UUID environmentId =
@@ -133,6 +143,11 @@ public class TestRunService {
                 iterationPath,
                 areaPath,
                 teamId);
+        if (assignee != null) {
+          run.setAssigneeUserId(assignee);
+          runRepo.save(run);
+          fillUnassignedExecutions(run.getId(), assignee); // all fresh executions inherit it
+        }
         return toDto(run);
       } catch (IllegalArgumentException e) {
         throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage());
@@ -144,6 +159,7 @@ public class TestRunService {
         new TestRun(
             projectId, req.name(), req.releaseVersion(), req.environment(), req.triggeredBy());
     run.setDimensions(releaseId, iterationPath, areaPath, teamId);
+    run.setAssigneeUserId(assignee);
     run.setStartedAt(Instant.now());
     run = runRepo.save(run);
     return toDto(run);
@@ -239,6 +255,15 @@ public class TestRunService {
       if (teamId == null) teamId = rel.getMapTeamId();
     }
     run.setDimensions(releaseId, iterationPath, areaPath, teamId);
+
+    // Assignee: a provided value sets the run default and fills still-unassigned executions; an
+    // explicit blank clears the run default without touching per-case assignments.
+    if (req.assigneeUserId() != null) {
+      UUID assignee = resolveAssignee(req.assigneeUserId());
+      run.setAssigneeUserId(assignee);
+      fillUnassignedExecutions(run.getId(), assignee);
+    }
+
     run = runRepo.save(run);
     return toDto(run);
   }
@@ -277,6 +302,19 @@ public class TestRunService {
     TestCaseExecution exec = loadExec(runId, execId);
     exec.record(req.status(), req.actualResult(), req.notes(), req.executedBy());
     exec = execRepo.save(exec);
+    // Feed manual failures into the cluster board so recurring failures group + can be triaged.
+    if ("FAILED".equals(exec.getStatus())) {
+      failureClusters.record(
+          projectId,
+          "MANUAL",
+          com.platform.core.quality.FailureSignature.compute(exec.getActualResult(), null),
+          exec.getTestCaseId() != null ? exec.getTestCaseId().toString() : null,
+          exec.getActualResult(),
+          exec.getId(),
+          runId);
+    }
+    // If this run is a cluster's retest, a finished run rolls its outcome back onto the cluster.
+    clusterRetest.rollUp(runId);
     return toExecDto(exec);
   }
 
@@ -355,7 +393,29 @@ public class TestRunService {
   private TestCaseExecutionDto toExecDto(TestCaseExecution exec) {
     String title =
         testCaseRepo.findById(exec.getTestCaseId()).map(PlatformTestCase::getTitle).orElse(null);
-    return TestCaseExecutionDto.from(exec, title);
+    String assignee =
+        exec.getAssigneeUserId() == null
+            ? null
+            : userRepo
+                .findById(exec.getAssigneeUserId())
+                .map(com.platform.core.domain.User::getUsername)
+                .orElse(null);
+    return TestCaseExecutionDto.from(exec, title, assignee);
+  }
+
+  /**
+   * Assigns (or, with a null user id, unassigns) an execution to a user. Validates the target user
+   * exists so a bad id can't orphan the assignment. Assignment is a planning action, independent of
+   * whether the run is still editable.
+   */
+  public TestCaseExecutionDto assign(UUID projectId, UUID runId, UUID execId, UUID assigneeUserId) {
+    loadAndVerify(projectId, runId);
+    TestCaseExecution exec = loadExec(runId, execId);
+    if (assigneeUserId != null && !userRepo.existsById(assigneeUserId)) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown user: " + assigneeUserId);
+    }
+    exec.assignTo(assigneeUserId);
+    return toExecDto(execRepo.save(exec));
   }
 
   /** A run may only be mutated while IN_PROGRESS; a COMPLETED run must be reopened first. */
@@ -397,7 +457,50 @@ public class TestRunService {
         run.getTeamId() == null
             ? null
             : teamRepo.findById(run.getTeamId()).map(AdoTeam::getName).orElse(null);
+    String assigneeUsername =
+        run.getAssigneeUserId() == null
+            ? null
+            : userRepo
+                .findById(run.getAssigneeUserId())
+                .map(com.platform.core.domain.User::getUsername)
+                .orElse(null);
     return TestRunDto.from(
-        run, total, passed, failed, blocked, skipped, pending, releaseName, teamName);
+        run,
+        total,
+        passed,
+        failed,
+        blocked,
+        skipped,
+        pending,
+        releaseName,
+        teamName,
+        assigneeUsername);
+  }
+
+  /**
+   * Validates + resolves the assignee id from a request field (null/blank → null, unknown → 400).
+   */
+  private UUID resolveAssignee(String assigneeUserId) {
+    if (assigneeUserId == null || assigneeUserId.isBlank()) {
+      return null;
+    }
+    UUID uid = parseUuid(assigneeUserId);
+    if (uid != null && !userRepo.existsById(uid)) {
+      throw new ResponseStatusException(HttpStatus.BAD_REQUEST, "Unknown user: " + assigneeUserId);
+    }
+    return uid;
+  }
+
+  /** Stamps a run's default assignee onto executions that don't yet have one. */
+  private void fillUnassignedExecutions(UUID runId, UUID assigneeUserId) {
+    if (assigneeUserId == null) {
+      return;
+    }
+    for (TestCaseExecution exec : execRepo.findByTestRunId(runId)) {
+      if (exec.getAssigneeUserId() == null) {
+        exec.assignTo(assigneeUserId);
+        execRepo.save(exec);
+      }
+    }
   }
 }

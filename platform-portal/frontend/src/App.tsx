@@ -30,6 +30,13 @@ import ReleasesPage from './pages/ReleasesPage'
 import SuitesPage from './pages/SuitesPage'
 import FlakyTestsPage from './pages/FlakyTestsPage'
 import ReviewQueuePage from './pages/ReviewQueuePage'
+import FailuresPage from './pages/FailuresPage'
+import MyQueuePage from './pages/MyQueuePage'
+import SchedulesPage from './pages/SchedulesPage'
+import AuditLogPage from './pages/AuditLogPage'
+import NotificationsPage from './pages/NotificationsPage'
+import DatasetsPage from './pages/DatasetsPage'
+import SharedStepsPage from './pages/SharedStepsPage'
 import AutomatedTestsPage from './pages/AutomatedTestsPage'
 import GitHubWorkflowsPage from './pages/GitHubWorkflowsPage'
 import LoginPage from './pages/LoginPage'
@@ -155,6 +162,8 @@ export default function App() {
                 <Route path="test-cases" element={<TestCasesPage />} />
                 <Route path="test-cases/:tcId" element={<TestCasesPage />} />
                 <Route path="test-suites" element={<SuitesPage />} />
+                <Route path="datasets" element={<DatasetsPage />} />
+                <Route path="shared-steps" element={<SharedStepsPage />} />
                 <Route path="test-runs/:runId" element={<TestRunExecutionPage />} />
                 <Route path="test-execution" element={<TestExecutionPage />} />
                 <Route path="test-execution/manual/:runId" element={<TestRunExecutionPage />} />
@@ -163,7 +172,12 @@ export default function App() {
                 <Route path="flaky-tests" element={<FlakyTestsPage />} />
                 <Route path="automated-tests" element={<AutomatedTestsPage />} />
                 <Route path="github-workflows" element={<GitHubWorkflowsPage />} />
+                <Route path="run-schedules" element={<SchedulesPage />} />
+                <Route path="audit-log" element={<AuditLogPage />} />
+                <Route path="notifications" element={<NotificationsPage />} />
                 <Route path="review-queue" element={<ReviewQueuePage />} />
+                <Route path="failures" element={<FailuresPage />} />
+                <Route path="test-execution/my-queue" element={<MyQueuePage />} />
               </Route>
 
               <Route path="*" element={<Navigate to="/" replace />} />

@@ -61,6 +61,20 @@ public class SotRelease {
   @Column(name = "mapping_value", length = 1000)
   private String mappingValue;
 
+  // ── Epic B: release quality gate verdict + audited override ─────────────────
+  /** PASS | FAIL | OVERRIDDEN, or null until first evaluated. */
+  @Column(name = "gate_status", length = 20)
+  private String gateStatus;
+
+  @Column(name = "gate_evaluated_at")
+  private Instant gateEvaluatedAt;
+
+  @Column(name = "gate_override_reason", columnDefinition = "TEXT")
+  private String gateOverrideReason;
+
+  @Column(name = "gate_overridden_by", length = 255)
+  private String gateOverriddenBy;
+
   @Column(name = "created_at", nullable = false, updatable = false)
   private Instant createdAt = Instant.now();
 
@@ -158,6 +172,40 @@ public class SotRelease {
 
   public Instant getUpdatedAt() {
     return updatedAt;
+  }
+
+  public String getGateStatus() {
+    return gateStatus;
+  }
+
+  public Instant getGateEvaluatedAt() {
+    return gateEvaluatedAt;
+  }
+
+  public String getGateOverrideReason() {
+    return gateOverrideReason;
+  }
+
+  public String getGateOverriddenBy() {
+    return gateOverriddenBy;
+  }
+
+  /** Records an evaluation verdict (PASS/FAIL); clears any prior override trail. */
+  public void recordGateEvaluation(String status) {
+    this.gateStatus = status;
+    this.gateEvaluatedAt = Instant.now();
+    this.gateOverrideReason = null;
+    this.gateOverriddenBy = null;
+    this.updatedAt = Instant.now();
+  }
+
+  /** Records an override decision with the justifying reason and actor. */
+  public void recordGateOverride(String reason, String actor) {
+    this.gateStatus = "OVERRIDDEN";
+    this.gateEvaluatedAt = Instant.now();
+    this.gateOverrideReason = reason;
+    this.gateOverriddenBy = actor;
+    this.updatedAt = Instant.now();
   }
 
   public void setName(String name) {

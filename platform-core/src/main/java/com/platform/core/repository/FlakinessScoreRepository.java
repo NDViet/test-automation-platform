@@ -16,6 +16,9 @@ public interface FlakinessScoreRepository extends JpaRepository<FlakinessScore, 
 
   long countByClassification(FlakinessScore.Classification classification);
 
+  long countByProjectIdAndClassification(
+      UUID projectId, FlakinessScore.Classification classification);
+
   @Query("SELECT f FROM FlakinessScore f WHERE f.projectId = :projectId " + "ORDER BY f.score DESC")
   List<FlakinessScore> findTopFlakyByProject(@Param("projectId") UUID projectId, Pageable pageable);
 

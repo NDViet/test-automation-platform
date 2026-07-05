@@ -1,7 +1,6 @@
 package com.platform.ingestion.management.tcm;
 
 import com.platform.core.domain.PlatformTestCase;
-import com.platform.core.domain.TestCaseStep;
 import java.util.List;
 
 public record ManagedTestCaseDto(
@@ -32,7 +31,7 @@ public record ManagedTestCaseDto(
     List<TestCaseStepDto> steps,
     String createdAt,
     String updatedAt) {
-  public static ManagedTestCaseDto from(PlatformTestCase tc, List<TestCaseStep> steps) {
+  public static ManagedTestCaseDto from(PlatformTestCase tc, List<TestCaseStepDto> steps) {
     return new ManagedTestCaseDto(
         tc.getId() != null ? tc.getId().toString() : null,
         tc.getProjectId() != null ? tc.getProjectId().toString() : null,
@@ -58,7 +57,7 @@ public record ManagedTestCaseDto(
         tc.getLastUpdatedByAnalysisId() != null ? tc.getLastUpdatedByAnalysisId().toString() : null,
         tc.getLastResult(),
         tc.getLastExecutedAt() != null ? tc.getLastExecutedAt().toString() : null,
-        steps != null ? steps.stream().map(TestCaseStepDto::from).toList() : List.of(),
+        steps != null ? steps : List.of(),
         tc.getCreatedAt() != null ? tc.getCreatedAt().toString() : null,
         tc.getUpdatedAt() != null ? tc.getUpdatedAt().toString() : null);
   }

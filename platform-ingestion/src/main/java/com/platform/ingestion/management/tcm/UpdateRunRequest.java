@@ -11,4 +11,5 @@ public record UpdateRunRequest(
     String releaseId,
     String iterationPath,
     String areaPath,
-    String teamId) {}
+    String teamId,
+    String assigneeUserId) {}

@@ -1,5 +1,11 @@
-# TODO — Fix test-case delete + AI origin on approval
+# TODO — Epic F: Reporting & notifications
 
-- [x] **Task 1** — Backend: `acceptEntity` stamps `createdBy='AGENT'` (not the approver) + test.
-- [x] **Task 2** — Migration `V11`: backfill `created_by NOT IN ('AGENT','HUMAN')` → `'AGENT'`.
-- [x] **Task 3** — Frontend: wire a Delete action (confirm) for test cases in TestCasesPage.
+## Autonomous (F1–F5)
+- [x] **Task 1** — V21 notification_pref + entity/repo.
+- [x] **Task 2** — Notification prefs CRUD + endpoints + portal + RBAC.
+- [x] **Task 3** — Notification prefs UI.
+- [x] **Task 4** — CSV export endpoints (traceability + exec-summary).
+- [x] **Task 5** — Export/download buttons.
+
+## ⚠️ SIGN-OFF GATE — notification dispatch (secrets + external send)
+- [x] **Task 6** — Notification dispatch (Kafka consumer + Slack/email send).

@@ -23,15 +23,19 @@ public record TestRunDto(
     String areaPath,
     String teamId,
     String teamName,
+    String assigneeUserId,
+    String assigneeUsername,
     String startedAt,
     String completedAt,
     String createdAt) {
   public static TestRunDto from(
       TestRun run, long total, long passed, long failed, long blocked, long skipped, long pending) {
-    return from(run, total, passed, failed, blocked, skipped, pending, null, null);
+    return from(run, total, passed, failed, blocked, skipped, pending, null, null, null);
   }
 
-  /** Variant that carries resolved release/team display names (looked up by the caller). */
+  /**
+   * Variant that carries resolved release/team/assignee display names (looked up by the caller).
+   */
   public static TestRunDto from(
       TestRun run,
       long total,
@@ -41,7 +45,8 @@ public record TestRunDto(
       long skipped,
       long pending,
       String releaseName,
-      String teamName) {
+      String teamName,
+      String assigneeUsername) {
     return new TestRunDto(
         run.getId() != null ? run.getId().toString() : null,
         run.getProjectId() != null ? run.getProjectId().toString() : null,
@@ -62,6 +67,8 @@ public record TestRunDto(
         run.getAreaPath(),
         run.getTeamId() != null ? run.getTeamId().toString() : null,
         teamName,
+        run.getAssigneeUserId() != null ? run.getAssigneeUserId().toString() : null,
+        assigneeUsername,
         run.getStartedAt() != null ? run.getStartedAt().toString() : null,
         run.getCompletedAt() != null ? run.getCompletedAt().toString() : null,
         run.getCreatedAt() != null ? run.getCreatedAt().toString() : null);

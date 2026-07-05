@@ -64,11 +64,18 @@ public class AuditAspect {
     UUID actorKeyId = null;
     String actorPrefix = null;
     UUID teamId = null;
+    UUID actorUserId = null;
+    String actorUsername = null;
 
     if (auth != null && auth.getDetails() instanceof ApiKey key) {
       actorKeyId = key.getId();
       actorPrefix = key.getKeyPrefix();
       teamId = key.getTeamId();
+    } else if (auth != null
+        && auth.getPrincipal() instanceof com.platform.security.jwt.AuthenticatedUser user) {
+      // Portal (JWT) caller — capture the signed-in user as the actor.
+      actorUserId = user.userId();
+      actorUsername = user.username();
     }
 
     String clientIp = resolveClientIp();
@@ -78,6 +85,8 @@ public class AuditAspect {
             .eventType(auditLog.eventType())
             .actorKeyId(actorKeyId)
             .actorKeyPrefix(actorPrefix)
+            .actorUserId(actorUserId)
+            .actorUsername(actorUsername)
             .teamId(teamId)
             .resourceType(auditLog.resourceType())
             .clientIp(clientIp)

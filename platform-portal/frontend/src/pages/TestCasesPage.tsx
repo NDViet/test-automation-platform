@@ -43,6 +43,7 @@ import {
   FileSpreadsheet,
   ArrowUpRight,
   Trash2,
+  History,
 } from 'lucide-react'
 import {
   ExcelImportModal,
@@ -116,15 +117,23 @@ interface StepRow {
   action: string
   expectedResult: string
   notes: string
+  sharedStepId?: string
 }
 
 function StepEditor({
   steps,
   onChange,
+  projectId,
 }: {
   steps: StepRow[]
   onChange: (steps: StepRow[]) => void
+  projectId: string
 }) {
+  const { data: shared = [] } = useQuery({
+    queryKey: ['shared-steps', projectId],
+    queryFn: () => api.sharedSteps(projectId),
+  })
+
   function updateStep(i: number, field: keyof StepRow, value: string) {
     const next = steps.map((s, idx) => (idx === i ? { ...s, [field]: value } : s))
     onChange(next)
@@ -134,6 +143,19 @@ function StepEditor({
   }
   function removeStep(i: number) {
     onChange(steps.filter((_, idx) => idx !== i))
+  }
+  function insertShared(id: string) {
+    const ss = shared.find(s => s.id === id)
+    if (!ss) return
+    onChange([
+      ...steps,
+      {
+        action: ss.action,
+        expectedResult: ss.expectedResult ?? '',
+        notes: '',
+        sharedStepId: ss.id,
+      },
+    ])
   }
 
   return (
@@ -147,20 +169,29 @@ function StepEditor({
             {i + 1}.
           </span>
           <div className="flex-1 space-y-1">
-            <input
-              type="text"
-              placeholder="Action — what the tester does"
-              value={step.action}
-              onChange={e => updateStep(i, 'action', e.target.value)}
-              className="w-full border border-border rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-primary/30"
-            />
-            <input
-              type="text"
-              placeholder="Expected result"
-              value={step.expectedResult}
-              onChange={e => updateStep(i, 'expectedResult', e.target.value)}
-              className="w-full border border-border rounded px-2 py-1 text-xs text-fg-muted focus:outline-none focus:ring-1 focus:ring-primary/30"
-            />
+            {step.sharedStepId ? (
+              <div className="text-sm text-fg px-2 py-1 rounded bg-primary-subtle border border-primary-subtle flex items-center justify-between gap-2">
+                <span className="truncate">{step.action}</span>
+                <span className="text-[10px] font-semibold text-primary shrink-0">shared</span>
+              </div>
+            ) : (
+              <>
+                <input
+                  type="text"
+                  placeholder="Action — what the tester does"
+                  value={step.action}
+                  onChange={e => updateStep(i, 'action', e.target.value)}
+                  className="w-full border border-border rounded px-2 py-1 text-sm focus:outline-none focus:ring-1 focus:ring-primary/30"
+                />
+                <input
+                  type="text"
+                  placeholder="Expected result"
+                  value={step.expectedResult}
+                  onChange={e => updateStep(i, 'expectedResult', e.target.value)}
+                  className="w-full border border-border rounded px-2 py-1 text-xs text-fg-muted focus:outline-none focus:ring-1 focus:ring-primary/30"
+                />
+              </>
+            )}
             <input
               type="text"
               placeholder="Notes (optional)"
@@ -179,13 +210,32 @@ function StepEditor({
           </button>
         </div>
       ))}
-      <button
-        type="button"
-        onClick={addStep}
-        className="text-xs text-primary hover:text-primary font-medium flex items-center gap-1 mt-1"
-      >
-        <Plus size={12} /> Add step
-      </button>
+      <div className="flex items-center gap-3 mt-1">
+        <button
+          type="button"
+          onClick={addStep}
+          className="text-xs text-primary hover:text-primary font-medium flex items-center gap-1"
+        >
+          <Plus size={12} /> Add step
+        </button>
+        {shared.length > 0 && (
+          <select
+            value=""
+            onChange={e => {
+              if (e.target.value) insertShared(e.target.value)
+              e.target.value = ''
+            }}
+            className="text-xs border border-border rounded px-1.5 py-1 bg-surface text-fg-muted"
+          >
+            <option value="">Insert shared step…</option>
+            {shared.map(s => (
+              <option key={s.id} value={s.id}>
+                {s.action.slice(0, 60)}
+              </option>
+            ))}
+          </select>
+        )}
+      </div>
     </div>
   )
 }
@@ -469,6 +519,7 @@ function TestCaseFormModal({
           action: s.action ?? '',
           expectedResult: s.expectedResult ?? '',
           notes: s.notes ?? '',
+          sharedStepId: s.sharedStepId ?? undefined,
         }))
       : [{ action: '', expectedResult: '', notes: '' }],
   )
@@ -543,6 +594,7 @@ function TestCaseFormModal({
           action: s.action.trim(),
           expectedResult: s.expectedResult.trim() || undefined,
           notes: s.notes.trim() || undefined,
+          sharedStepId: s.sharedStepId || undefined,
         })),
     })
   }
@@ -676,7 +728,7 @@ function TestCaseFormModal({
             title="Steps"
             hint="Each step: action → expected result, with optional notes."
           >
-            <StepEditor steps={steps} onChange={setSteps} />
+            <StepEditor steps={steps} onChange={setSteps} projectId={projectId} />
           </FormSection>
 
           {/* Traceability */}
@@ -1704,6 +1756,43 @@ function LinkedRequirementsSection({ tc, projectId }: { tc: ManagedTestCase; pro
 
 // ── Test Case Detail Panel ────────────────────────────────────────────────────
 
+function CaseHistory({ projectId, tcId }: { projectId: string; tcId: string }) {
+  const [open, setOpen] = useState(false)
+  const { data } = useQuery({
+    queryKey: ['tc-revisions', projectId, tcId],
+    queryFn: () => api.testCaseRevisions(projectId, tcId),
+    enabled: open,
+  })
+  const revisions = data ?? []
+  return (
+    <div className="pt-2 border-t border-border">
+      <button
+        onClick={() => setOpen(o => !o)}
+        className="text-xs font-medium text-fg-muted hover:text-fg flex items-center gap-1"
+      >
+        <History size={12} /> History {open ? '▾' : '▸'}
+      </button>
+      {open &&
+        (revisions.length === 0 ? (
+          <p className="text-xs text-fg-subtle mt-1">No revisions yet.</p>
+        ) : (
+          <ul className="mt-2 space-y-1">
+            {revisions.map(r => (
+              <li key={r.id} className="text-xs text-fg-muted flex items-center gap-2">
+                <span className="font-mono text-fg-subtle">v{r.version}</span>
+                <span>{(r.changeKind ?? '').toLowerCase()}</span>
+                <span className="text-fg-subtle">{r.changedBy || 'system'}</span>
+                <span className="text-fg-subtle ml-auto">
+                  {r.changedAt ? relativeTime(r.changedAt) : ''}
+                </span>
+              </li>
+            ))}
+          </ul>
+        ))}
+    </div>
+  )
+}
+
 function TestCaseDetailPanel({
   tc,
   projectId,
@@ -1956,6 +2045,9 @@ function TestCaseDetailPanel({
             </div>
           </div>
         )}
+
+        {/* Version history */}
+        <CaseHistory projectId={projectId} tcId={tc.id} />
 
         {/* Timestamps */}
         <div className="text-xs text-fg-subtle space-y-0.5 pt-2 border-t border-border">
@@ -2357,6 +2449,32 @@ export default function TestCasesPage() {
 
   const selectedTc = selectedTcId ? (testCases.find(tc => tc.id === selectedTcId) ?? null) : null
 
+  // Bulk multi-select (approve/reject/tag over selected cases).
+  const [bulkIds, setBulkIds] = useState<Set<string>>(new Set())
+  const toggleBulk = (id: string) =>
+    setBulkIds(prev => {
+      const n = new Set(prev)
+      if (n.has(id)) n.delete(id)
+      else n.add(id)
+      return n
+    })
+  const bulkMutation = useMutation({
+    mutationFn: (body: { action: 'APPROVE' | 'REJECT' | 'TAG' | 'DELETE'; tag?: string }) =>
+      api.bulkTestCases(projectId, { ids: [...bulkIds], ...body }),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: ['testCases', projectId] })
+      setBulkIds(new Set())
+    },
+  })
+  function bulkTag() {
+    const tag = window.prompt('Tag to add to selected cases:')
+    if (tag && tag.trim()) bulkMutation.mutate({ action: 'TAG', tag: tag.trim() })
+  }
+  function bulkDelete() {
+    if (window.confirm(`Permanently delete ${bulkIds.size} test case(s)? This cannot be undone.`))
+      bulkMutation.mutate({ action: 'DELETE' })
+  }
+
   if (tcLoading && !testCases.length) return <LoadingSpinner message="Loading test cases…" />
   if (tcError)
     return <ErrorMessage message="Failed to load test cases." onRetry={() => void tcRefetch()} />
@@ -2490,6 +2608,45 @@ export default function TestCasesPage() {
               </p>
             </div>
           )}
+          {bulkIds.size > 0 && (
+            <div className="flex items-center gap-2 px-4 py-2 border-b border-border bg-primary-subtle text-xs">
+              <span className="font-medium text-fg">{bulkIds.size} selected</span>
+              <button
+                onClick={() => bulkMutation.mutate({ action: 'APPROVE' })}
+                disabled={bulkMutation.isPending}
+                className="px-2 py-1 rounded-md text-success border border-success-border hover:bg-success-bg"
+              >
+                Approve
+              </button>
+              <button
+                onClick={() => bulkMutation.mutate({ action: 'REJECT' })}
+                disabled={bulkMutation.isPending}
+                className="px-2 py-1 rounded-md text-danger border border-danger-border hover:bg-danger-bg"
+              >
+                Reject
+              </button>
+              <button
+                onClick={bulkTag}
+                disabled={bulkMutation.isPending}
+                className="px-2 py-1 rounded-md text-fg border border-border-strong hover:bg-surface-muted"
+              >
+                Tag…
+              </button>
+              <button
+                onClick={bulkDelete}
+                disabled={bulkMutation.isPending}
+                className="px-2 py-1 rounded-md text-danger border border-danger-border hover:bg-danger-bg inline-flex items-center gap-1"
+              >
+                <Trash2 size={12} /> Delete
+              </button>
+              <button
+                onClick={() => setBulkIds(new Set())}
+                className="ml-auto text-fg-subtle hover:text-fg"
+              >
+                Clear
+              </button>
+            </div>
+          )}
           <div className="flex-1 overflow-y-auto divide-y divide-border">
             {testCases.map(tc => {
               const isSelected = tc.id === selectedTcId
@@ -2505,6 +2662,16 @@ export default function TestCasesPage() {
                       : 'border-l-2 border-transparent',
                   )}
                 >
+                  {/* Bulk select */}
+                  <input
+                    type="checkbox"
+                    checked={bulkIds.has(tc.id)}
+                    onClick={e => e.stopPropagation()}
+                    onChange={() => toggleBulk(tc.id)}
+                    className="shrink-0 mt-1"
+                    aria-label={`Select ${tc.title}`}
+                  />
+
                   {/* Priority badge */}
                   <div className="shrink-0 mt-0.5">
                     <Badge

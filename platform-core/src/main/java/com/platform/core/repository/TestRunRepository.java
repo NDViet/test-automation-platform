@@ -14,4 +14,6 @@ public interface TestRunRepository extends JpaRepository<TestRun, UUID> {
   List<TestRun> findByProjectIdAndStatus(UUID projectId, String status);
 
   long countByProjectIdAndStatus(UUID projectId, String status);
+
+  List<TestRun> findByProjectIdAndReleaseId(UUID projectId, UUID releaseId);
 }

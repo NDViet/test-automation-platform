@@ -3,6 +3,8 @@
 ARG BASE_IMAGE=ghcr.io/ndviet/platform-base:main
 FROM ${BASE_IMAGE}
 
-COPY platform-integration/target/platform-integration-*.jar app.jar
+# The executable (repackaged) jar carries the "exec" classifier; the unclassified
+# jar is the plain library consumed by platform-ingestion (see the pom for why).
+COPY platform-integration/target/platform-integration-*-exec.jar app.jar
 
 EXPOSE 8083

@@ -2,12 +2,13 @@ import { useState } from 'react'
 import { useProject, useProjectFilter } from '@/components/layout/ProjectLayout'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
-import type { Release, CreateReleaseForm } from '@/lib/types'
+import type { Release, CreateReleaseForm, GateEvaluation, QualityGate } from '@/lib/types'
+import { gateStatusVariant } from '@/lib/status'
 import Badge from '@/components/Badge'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import ErrorMessage from '@/components/ErrorMessage'
-import { Button, PageHeader } from '@/components/ui'
-import { Plus, Pencil, Trash2, X, Rocket, Link2 } from 'lucide-react'
+import { Button, PageHeader, StatusBadge } from '@/components/ui'
+import { Plus, Pencil, Trash2, X, Rocket, Link2, ShieldCheck, Download } from 'lucide-react'
 
 const STATES = ['PLANNED', 'IN_PROGRESS', 'RELEASED', 'ARCHIVED']
 const TYPES = ['VERSION', 'SPRINT', 'MILESTONE']
@@ -279,11 +280,253 @@ function shortPath(p: string | null): string {
   return parts[parts.length - 1]
 }
 
+// ── Quality gate panel (per release) ──────────────────────────────────────────
+
+function GatePanelModal({
+  projectId,
+  release,
+  onClose,
+}: {
+  projectId: string
+  release: Release
+  onClose: () => void
+}) {
+  const queryClient = useQueryClient()
+  const [evaluation, setEvaluation] = useState<GateEvaluation | null>(null)
+  const [reason, setReason] = useState('')
+  const [error, setError] = useState<string | null>(null)
+
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['releases', projectId] })
+
+  const evalMutation = useMutation({
+    mutationFn: () => api.evaluateGate(projectId, release.id),
+    onSuccess: r => {
+      setEvaluation(r)
+      setError(null)
+      invalidate()
+    },
+    onError: (e: Error) => setError(e.message),
+  })
+  const overrideMutation = useMutation({
+    mutationFn: () => api.overrideGate(projectId, release.id, reason),
+    onSuccess: () => {
+      invalidate()
+      onClose()
+    },
+    onError: (e: Error) => setError(e.message),
+  })
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-surface rounded-xl shadow-md w-full max-w-lg">
+        <div className="px-6 py-5 border-b border-border flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <ShieldCheck size={18} className="text-fg-muted" />
+            <h2 className="font-semibold text-fg">Quality gate — {release.name}</h2>
+          </div>
+          <button onClick={onClose} className="text-fg-subtle hover:text-fg" aria-label="Close">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="px-6 py-5 space-y-4">
+          <div className="flex items-center gap-2 text-sm">
+            <span className="text-fg-muted">Current:</span>
+            <StatusBadge variant={gateStatusVariant(release.gateStatus)}>
+              {release.gateStatus ?? 'not evaluated'}
+            </StatusBadge>
+            {release.gateOverriddenBy && (
+              <span className="text-xs text-fg-subtle">
+                overridden by {release.gateOverriddenBy}
+              </span>
+            )}
+          </div>
+          {release.gateOverrideReason && (
+            <p className="text-xs text-fg-muted italic">“{release.gateOverrideReason}”</p>
+          )}
+
+          {evaluation && (
+            <div className="border border-border rounded-lg divide-y divide-border">
+              {evaluation.criteria.length === 0 ? (
+                <p className="text-xs text-fg-muted px-3 py-2">Gate disabled — always passes.</p>
+              ) : (
+                evaluation.criteria.map(c => (
+                  <div key={c.name} className="flex items-center justify-between px-3 py-2 text-sm">
+                    <span className="text-fg">{c.name}</span>
+                    <span className="flex items-center gap-2">
+                      <span className="text-xs text-fg-subtle">
+                        {c.actual} / {c.threshold}
+                      </span>
+                      <StatusBadge variant={c.passed ? 'success' : 'danger'}>
+                        {c.passed ? 'pass' : 'fail'}
+                      </StatusBadge>
+                    </span>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+
+          <div>
+            <label className="text-xs font-medium text-fg-muted block mb-1">
+              Override reason (audited)
+            </label>
+            <input
+              value={reason}
+              onChange={e => setReason(e.target.value)}
+              placeholder="Why ship despite the gate?"
+              className={inputCls}
+            />
+          </div>
+
+          {error && <p className="text-xs text-danger">{error}</p>}
+        </div>
+
+        <div className="px-6 py-4 border-t border-border flex gap-3 justify-between">
+          <Button
+            variant="secondary"
+            onClick={() => evalMutation.mutate()}
+            loading={evalMutation.isPending}
+          >
+            Evaluate
+          </Button>
+          <div className="flex gap-3">
+            <Button variant="secondary" onClick={onClose}>
+              Close
+            </Button>
+            <Button
+              variant="danger"
+              onClick={() => overrideMutation.mutate()}
+              loading={overrideMutation.isPending}
+              disabled={!reason.trim()}
+            >
+              Override
+            </Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}
+
+// ── Gate thresholds config ────────────────────────────────────────────────────
+
+function GateConfigModal({ projectId, onClose }: { projectId: string; onClose: () => void }) {
+  const { data, isLoading } = useQuery({
+    queryKey: ['quality-gate', projectId],
+    queryFn: () => api.gateConfig(projectId),
+  })
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <div className="bg-surface rounded-xl shadow-md w-full max-w-md">
+        <div className="px-6 py-5 border-b border-border flex items-center justify-between">
+          <h2 className="font-semibold text-fg">Quality gate thresholds</h2>
+          <button onClick={onClose} className="text-fg-subtle hover:text-fg" aria-label="Close">
+            <X size={18} />
+          </button>
+        </div>
+        {isLoading || !data ? (
+          <div className="px-6 py-10">
+            <LoadingSpinner message="Loading gate…" />
+          </div>
+        ) : (
+          <GateConfigForm projectId={projectId} initial={data} onClose={onClose} />
+        )}
+      </div>
+    </div>
+  )
+}
+
+function GateConfigForm({
+  projectId,
+  initial,
+  onClose,
+}: {
+  projectId: string
+  initial: QualityGate
+  onClose: () => void
+}) {
+  const queryClient = useQueryClient()
+  const [enabled, setEnabled] = useState(initial.enabled)
+  const [passRatePct, setPassRatePct] = useState(Math.round(initial.minPassRate * 100))
+  const [coveragePct, setCoveragePct] = useState(initial.minCoveragePct)
+  const [maxBlockers, setMaxBlockers] = useState(initial.maxOpenBlockers)
+  const [maxFlaky, setMaxFlaky] = useState(initial.maxCriticalFlaky)
+  const [requireSuites, setRequireSuites] = useState(initial.requireSuitesExecuted)
+  const [error, setError] = useState<string | null>(null)
+
+  const save = useMutation({
+    mutationFn: () =>
+      api.updateGateConfig(projectId, {
+        enabled,
+        minPassRate: passRatePct / 100,
+        minCoveragePct: coveragePct,
+        maxOpenBlockers: maxBlockers,
+        maxCriticalFlaky: maxFlaky,
+        requireSuitesExecuted: requireSuites,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['quality-gate', projectId] })
+      onClose()
+    },
+    onError: (e: Error) => setError(e.message),
+  })
+
+  const numRow = (label: string, value: number, set: (n: number) => void, suffix?: string) => (
+    <div className="flex items-center justify-between gap-3">
+      <label className="text-sm text-fg">{label}</label>
+      <div className="flex items-center gap-1">
+        <input
+          type="number"
+          value={value}
+          onChange={e => set(Number(e.target.value))}
+          className="w-24 border border-border-strong rounded-md px-2 py-1 text-sm bg-surface text-fg text-right"
+        />
+        {suffix && <span className="text-xs text-fg-subtle w-4">{suffix}</span>}
+      </div>
+    </div>
+  )
+
+  return (
+    <>
+      <div className="px-6 py-5 space-y-4">
+        <label className="flex items-center gap-2 text-sm text-fg">
+          <input type="checkbox" checked={enabled} onChange={e => setEnabled(e.target.checked)} />
+          Enforce the gate on release
+        </label>
+        {numRow('Min pass rate', passRatePct, setPassRatePct, '%')}
+        {numRow('Min coverage', coveragePct, setCoveragePct, '%')}
+        {numRow('Max open blockers', maxBlockers, setMaxBlockers)}
+        {numRow('Max critical-flaky', maxFlaky, setMaxFlaky)}
+        <label className="flex items-center gap-2 text-sm text-fg">
+          <input
+            type="checkbox"
+            checked={requireSuites}
+            onChange={e => setRequireSuites(e.target.checked)}
+          />
+          Require suites to have been executed
+        </label>
+        {error && <p className="text-xs text-danger">{error}</p>}
+      </div>
+      <div className="px-6 py-4 border-t border-border flex gap-3 justify-end">
+        <Button variant="secondary" onClick={onClose}>
+          Cancel
+        </Button>
+        <Button variant="primary" onClick={() => save.mutate()} loading={save.isPending}>
+          Save
+        </Button>
+      </div>
+    </>
+  )
+}
+
 export default function ReleasesPage() {
   const { projectId } = useProject()
   const { filter } = useProjectFilter() // project-wide Area / Team / Iteration scope
   const queryClient = useQueryClient()
   const [modal, setModal] = useState<{ open: boolean; release?: Release }>({ open: false })
+  const [gateModal, setGateModal] = useState<Release | null>(null)
+  const [configOpen, setConfigOpen] = useState(false)
 
   const {
     data: allReleases = [],
@@ -321,9 +564,17 @@ export default function ReleasesPage() {
           releases.length !== allReleases.length ? ` of ${allReleases.length}` : ''
         } releases · a sprint can hold several (one per team)`}
         actions={
-          <Button onClick={() => setModal({ open: true })}>
-            <Plus size={15} /> New Release
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="secondary" onClick={() => void api.downloadExecSummaryCsv(projectId)}>
+              <Download size={15} /> Exec summary CSV
+            </Button>
+            <Button variant="secondary" onClick={() => setConfigOpen(true)}>
+              <ShieldCheck size={15} /> Quality gate
+            </Button>
+            <Button onClick={() => setModal({ open: true })}>
+              <Plus size={15} /> New Release
+            </Button>
+          </div>
         }
       />
 
@@ -340,6 +591,7 @@ export default function ReleasesPage() {
               <tr className="text-left text-xs text-fg-muted border-b border-border">
                 <th className="px-4 py-2.5 font-medium">Release</th>
                 <th className="px-4 py-2.5 font-medium">State</th>
+                <th className="px-4 py-2.5 font-medium">Gate</th>
                 <th className="px-4 py-2.5 font-medium">Scope mapping</th>
                 <th className="px-4 py-2.5 font-medium text-right">Reqs</th>
                 <th className="px-4 py-2.5 font-medium text-right">Runs</th>
@@ -358,6 +610,17 @@ export default function ReleasesPage() {
                   </td>
                   <td className="px-4 py-2.5">
                     <Badge label={r.state.replace('_', ' ')} colorClass={stateColor(r.state)} />
+                  </td>
+                  <td className="px-4 py-2.5">
+                    <button
+                      onClick={() => setGateModal(r)}
+                      title="Quality gate"
+                      className="inline-flex"
+                    >
+                      <StatusBadge variant={gateStatusVariant(r.gateStatus)}>
+                        {r.gateStatus ?? '—'}
+                      </StatusBadge>
+                    </button>
                   </td>
                   <td className="px-4 py-2.5 max-w-sm">
                     {!r.mapIterationPath &&
@@ -419,6 +682,18 @@ export default function ReleasesPage() {
           existing={modal.release}
           onClose={() => setModal({ open: false })}
         />
+      )}
+
+      {gateModal && (
+        <GatePanelModal
+          projectId={projectId!}
+          release={gateModal}
+          onClose={() => setGateModal(null)}
+        />
+      )}
+
+      {configOpen && (
+        <GateConfigModal projectId={projectId!} onClose={() => setConfigOpen(false)} />
       )}
     </div>
   )

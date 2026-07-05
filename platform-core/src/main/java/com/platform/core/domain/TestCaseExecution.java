@@ -42,6 +42,10 @@ public class TestCaseExecution {
   @Column(name = "executed_at")
   private Instant executedAt;
 
+  /** The user this execution is assigned to (owner of the work), or null if unassigned. */
+  @Column(name = "assignee_user_id")
+  private UUID assigneeUserId;
+
   // ── Linked ADO work item (defect) — read-only reference; platform never writes to ADO ──
   @Column(name = "defect_external_id", length = 64)
   private String defectExternalId;
@@ -133,6 +137,16 @@ public class TestCaseExecution {
 
   public Instant getExecutedAt() {
     return executedAt;
+  }
+
+  public UUID getAssigneeUserId() {
+    return assigneeUserId;
+  }
+
+  /** Assigns (or, with null, unassigns) this execution to a user. */
+  public void assignTo(UUID userId) {
+    this.assigneeUserId = userId;
+    this.updatedAt = Instant.now();
   }
 
   public String getDefectExternalId() {

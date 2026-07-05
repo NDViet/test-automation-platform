@@ -58,6 +58,12 @@ public class TestCaseManagementController {
     return service.get(projectId, tcId);
   }
 
+  @GetMapping("/{tcId}/revisions")
+  public java.util.List<TestCaseRevisionDto> revisions(
+      @PathVariable UUID projectId, @PathVariable UUID tcId) {
+    return service.revisions(projectId, tcId);
+  }
+
   @PutMapping("/{tcId}")
   @RequireCapability(value = Capability.OPERATE_QUALITY, scope = "projectId")
   public ManagedTestCaseDto update(
@@ -100,6 +106,18 @@ public class TestCaseManagementController {
   public ManagedTestCaseDto reject(@PathVariable UUID projectId, @PathVariable UUID tcId) {
     return service.reject(projectId, tcId);
   }
+
+  @PostMapping("/bulk")
+  @RequireCapability(value = Capability.OPERATE_QUALITY, scope = "projectId")
+  public TestCaseManagementService.BulkResult bulk(
+      @PathVariable UUID projectId, @RequestBody BulkRequest req) {
+    java.util.List<UUID> ids =
+        req.ids() == null ? java.util.List.of() : req.ids().stream().map(UUID::fromString).toList();
+    return service.bulk(projectId, ids, req.action(), req.tag());
+  }
+
+  /** Bulk payload — {@code action} is APPROVE|REJECT|TAG|DELETE; {@code tag} required for TAG. */
+  public record BulkRequest(java.util.List<String> ids, String action, String tag) {}
 
   @PostMapping("/{tcId}/generate-automation")
   @RequireCapability(value = Capability.OPERATE_QUALITY, scope = "projectId")

@@ -36,6 +36,7 @@ public class ExecutionPersistenceService {
   private final ProjectRepository projectRepository;
   private final TeamRepository teamRepository;
   private final PerformanceMetricRepository performanceMetricRepository;
+  private final com.platform.core.quality.FailureClusterService failureClusters;
 
   public ExecutionPersistenceService(
       TestExecutionRepository executionRepository,
@@ -43,13 +44,15 @@ public class ExecutionPersistenceService {
       OrganizationRepository organizationRepository,
       ProjectRepository projectRepository,
       TeamRepository teamRepository,
-      PerformanceMetricRepository performanceMetricRepository) {
+      PerformanceMetricRepository performanceMetricRepository,
+      com.platform.core.quality.FailureClusterService failureClusters) {
     this.executionRepository = executionRepository;
     this.testCaseResultRepository = testCaseResultRepository;
     this.organizationRepository = organizationRepository;
     this.projectRepository = projectRepository;
     this.teamRepository = teamRepository;
     this.performanceMetricRepository = performanceMetricRepository;
+    this.failureClusters = failureClusters;
   }
 
   /**
@@ -297,7 +300,15 @@ public class ExecutionPersistenceService {
               .stackTrace(dto.stackTrace())
               .retryCount(dto.retryCount())
               .build();
-      testCaseResultRepository.save(tcr);
+      var saved = testCaseResultRepository.save(tcr);
+      failureClusters.recordAutomated(
+          execution.getProject() != null ? execution.getProject().getId() : null,
+          saved.getTestId(),
+          saved.getStatus() != null ? saved.getStatus().name() : null,
+          saved.getFailureMessage(),
+          saved.getStackTrace(),
+          saved.getId(),
+          execution.getId());
     }
   }
 }

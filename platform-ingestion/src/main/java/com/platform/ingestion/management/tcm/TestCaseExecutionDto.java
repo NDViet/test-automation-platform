@@ -16,8 +16,16 @@ public record TestCaseExecutionDto(
     String defectId,
     String defectUrl,
     String defectTitle,
-    String defectState) {
+    String defectState,
+    String assigneeUserId,
+    String assigneeUsername) {
+
   public static TestCaseExecutionDto from(TestCaseExecution exec, String testCaseTitle) {
+    return from(exec, testCaseTitle, null);
+  }
+
+  public static TestCaseExecutionDto from(
+      TestCaseExecution exec, String testCaseTitle, String assigneeUsername) {
     return new TestCaseExecutionDto(
         exec.getId() != null ? exec.getId().toString() : null,
         exec.getTestRunId() != null ? exec.getTestRunId().toString() : null,
@@ -32,6 +40,8 @@ public record TestCaseExecutionDto(
         exec.getDefectExternalId(),
         exec.getDefectUrl(),
         exec.getDefectTitle(),
-        exec.getDefectState());
+        exec.getDefectState(),
+        exec.getAssigneeUserId() != null ? exec.getAssigneeUserId().toString() : null,
+        assigneeUsername);
   }
 }

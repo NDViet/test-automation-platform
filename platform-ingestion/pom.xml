@@ -33,6 +33,11 @@
             <groupId>org.ndviet</groupId>
             <artifactId>platform-storage</artifactId>
         </dependency>
+        <dependency>
+            <groupId>org.ndviet</groupId>
+            <artifactId>platform-integration</artifactId>
+            <version>${project.version}</version>
+        </dependency>
 
         <dependency>
             <groupId>org.springframework.boot</groupId>

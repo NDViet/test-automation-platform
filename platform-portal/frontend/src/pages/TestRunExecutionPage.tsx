@@ -128,12 +128,14 @@ function ExecutionRow({
   projectId,
   runId,
   editable,
+  users,
   onUpdated,
 }: {
   exec: TestCaseExecution
   projectId: string
   runId: string
   editable: boolean
+  users: import('@/lib/types').AssignableUser[]
   onUpdated: (updated: TestCaseExecution) => void
 }) {
   const [showActualResult, setShowActualResult] = useState(exec.status === 'FAILED')
@@ -169,6 +171,11 @@ function ExecutionRow({
       setOptimisticStatus(null)
     },
     onError: () => setOptimisticStatus(null),
+  })
+
+  const assign = useMutation({
+    mutationFn: (userId: string | null) => api.assignExecution(projectId, runId, exec.id, userId),
+    onSuccess: updated => onUpdated(updated),
   })
 
   const linkDefect = useMutation({
@@ -299,6 +306,24 @@ function ExecutionRow({
           {relativeTime(exec.executedAt)}
         </div>
       )}
+
+      {/* Assignee */}
+      <div className="mt-1 ml-[92px] flex items-center gap-2 text-xs">
+        <span className="text-fg-subtle">Assignee</span>
+        <select
+          value={exec.assigneeUserId ?? ''}
+          disabled={!editable || assign.isPending}
+          onChange={e => assign.mutate(e.target.value || null)}
+          className="border border-border rounded-md px-1.5 py-0.5 text-xs bg-surface text-fg disabled:opacity-60"
+        >
+          <option value="">— unassigned —</option>
+          {users.map(u => (
+            <option key={u.id} value={u.id}>
+              {u.displayName || u.username}
+            </option>
+          ))}
+        </select>
+      </div>
 
       {/* Linked ADO defect */}
       <div className="mt-2 ml-[92px]">
@@ -473,6 +498,12 @@ export default function TestRunExecutionPage() {
     enabled: !!projectId && !!runId,
   })
 
+  const { data: assignableUsers = [] } = useQuery({
+    queryKey: ['assignable-users', projectId],
+    queryFn: () => api.assignableUsers(projectId!),
+    enabled: !!projectId,
+  })
+
   // Drop optimistic overrides whenever fresh server data arrives. Must NOT setState during
   // render (that caused an infinite render loop — React #301); do it in an effect instead.
   useEffect(() => {
@@ -637,6 +668,7 @@ export default function TestRunExecutionPage() {
               projectId={projectId!}
               runId={runId!}
               editable={editable}
+              users={assignableUsers}
               onUpdated={handleExecutionUpdated}
             />
           ))}
@@ -711,10 +743,15 @@ function EditScopeModal({
   const [iterationPath, setIterationPath] = useState(run.iterationPath ?? '')
   const [areaPath, setAreaPath] = useState(run.areaPath ?? '')
   const [teamId, setTeamId] = useState(run.teamId ?? '')
+  const [assigneeUserId, setAssigneeUserId] = useState(run.assigneeUserId ?? '')
 
   const { data: releases = [] } = useQuery({
     queryKey: ['releases', projectId],
     queryFn: () => api.releases(projectId),
+  })
+  const { data: assignableUsers = [] } = useQuery({
+    queryKey: ['assignable-users', projectId],
+    queryFn: () => api.assignableUsers(projectId),
   })
   const { data: teams = [] } = useQuery({
     queryKey: ['adoTeams', projectId],
@@ -737,6 +774,7 @@ function EditScopeModal({
         iterationPath: iterationPath || undefined,
         areaPath: areaPath || undefined,
         teamId: teamId || undefined,
+        assigneeUserId, // sent as-is ('' clears the run default); fills still-unassigned executions
       }),
     onSuccess: onSaved,
   })
@@ -812,6 +850,20 @@ function EditScopeModal({
               {teams.map(t => (
                 <option key={t.id} value={t.id}>
                   {t.name}
+                </option>
+              ))}
+            </select>
+          </Field>
+          <Field label="Assignee (fills unassigned cases)">
+            <select
+              value={assigneeUserId}
+              onChange={e => setAssigneeUserId(e.target.value)}
+              className={scopeInput}
+            >
+              <option value="">— unassigned —</option>
+              {assignableUsers.map(u => (
+                <option key={u.id} value={u.id}>
+                  {u.displayName || u.username}
                 </option>
               ))}
             </select>

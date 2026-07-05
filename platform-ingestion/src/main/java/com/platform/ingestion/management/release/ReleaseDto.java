@@ -21,7 +21,12 @@ public record ReleaseDto(
     String mappingValue,
     long mappedRequirementCount,
     long linkedRunCount,
-    String createdAt) {
+    String createdAt,
+    // quality gate verdict + override trail
+    String gateStatus,
+    String gateEvaluatedAt,
+    String gateOverrideReason,
+    String gateOverriddenBy) {
   public static ReleaseDto from(
       SotRelease r, String teamName, long mappedRequirementCount, long linkedRunCount) {
     return new ReleaseDto(
@@ -41,6 +46,10 @@ public record ReleaseDto(
         r.getMappingValue(),
         mappedRequirementCount,
         linkedRunCount,
-        r.getCreatedAt() != null ? r.getCreatedAt().toString() : null);
+        r.getCreatedAt() != null ? r.getCreatedAt().toString() : null,
+        r.getGateStatus(),
+        r.getGateEvaluatedAt() != null ? r.getGateEvaluatedAt().toString() : null,
+        r.getGateOverrideReason(),
+        r.getGateOverriddenBy());
   }
 }
