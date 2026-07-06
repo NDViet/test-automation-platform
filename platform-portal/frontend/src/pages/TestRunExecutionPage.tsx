@@ -8,7 +8,7 @@ import type { TestCaseExecution, TestRun } from '@/lib/types'
 import Badge from '@/components/Badge'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import ErrorMessage from '@/components/ErrorMessage'
-import { Button } from '@/components/ui'
+import { Button, UserPicker } from '@/components/ui'
 import {
   CheckCircle,
   XCircle,
@@ -855,18 +855,13 @@ function EditScopeModal({
             </select>
           </Field>
           <Field label="Assignee (fills unassigned cases)">
-            <select
+            <UserPicker
+              users={assignableUsers}
               value={assigneeUserId}
-              onChange={e => setAssigneeUserId(e.target.value)}
-              className={scopeInput}
-            >
-              <option value="">— unassigned —</option>
-              {assignableUsers.map(u => (
-                <option key={u.id} value={u.id}>
-                  {u.displayName || u.username}
-                </option>
-              ))}
-            </select>
+              onChange={setAssigneeUserId}
+              bind="id"
+              placeholder="Unassigned — search by name or email…"
+            />
           </Field>
           {save.isError && <p className="text-sm text-danger">{(save.error as Error).message}</p>}
         </div>

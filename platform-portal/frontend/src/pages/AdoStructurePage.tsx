@@ -3,6 +3,8 @@ import { useProject } from '@/components/layout/ProjectLayout'
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
+import { useAuth } from '@/context/AuthContext'
+import { tierForProject } from '@/lib/auth'
 import Badge from '@/components/Badge'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import ErrorMessage from '@/components/ErrorMessage'
@@ -17,6 +19,7 @@ import {
   Layers,
   Copy,
   Check,
+  UserPlus,
 } from 'lucide-react'
 import type { AdoTeam, AdoArea, AdoIteration, AdoUser } from '@/lib/types'
 
@@ -290,8 +293,10 @@ function qualityColor(role: string | null) {
 
 function UsersTab({ projectId }: { projectId: string }) {
   const qc = useQueryClient()
+  const { user } = useAuth()
   const [qualityOnly, setQualityOnly] = useState(false)
   const [search, setSearch] = useState('')
+  const [confirming, setConfirming] = useState(false)
   const { data, isLoading, error, refetch } = useQuery({
     queryKey: ['ado-users', projectId],
     queryFn: () => api.adoUsers(projectId),
@@ -306,10 +311,23 @@ function UsersTab({ projectId }: { projectId: string }) {
     },
   })
 
+  // Provisioning creates login accounts + project roles — admin-only, mirroring the backend.
+  const tier = user ? tierForProject(user, projectId) : 'NONE'
+  const canProvision = tier === 'ADMIN_ORG' || tier === 'SUPER'
+  const provision = useMutation({
+    mutationFn: () => api.provisionAdoUsers(projectId),
+    onSuccess: () => {
+      setConfirming(false)
+      qc.invalidateQueries({ queryKey: ['assignable-users', projectId] })
+    },
+  })
+
   if (isLoading) return <LoadingSpinner />
   if (error) return <ErrorMessage message="Failed to load users." onRetry={() => void refetch()} />
   let users = data ?? []
   if (!users.length) return <Empty text="No users synced." />
+
+  const provisionableCount = users.filter((u: AdoUser) => u.email).length
 
   if (search)
     users = users.filter(
@@ -338,7 +356,51 @@ function UsersTab({ projectId }: { projectId: string }) {
           />
           Quality roles only
         </label>
+        {canProvision && (
+          <Button
+            variant="secondary"
+            className="shrink-0"
+            onClick={() => setConfirming(true)}
+            loading={provision.isPending}
+          >
+            <UserPlus size={14} className="mr-1.5" />
+            Provision as portal users
+          </Button>
+        )}
       </div>
+
+      {canProvision && confirming && !provision.data && (
+        <div className="px-5 py-3 border-b border-border bg-surface-muted flex items-start gap-3">
+          <div className="flex-1 text-xs text-fg-muted leading-relaxed">
+            Create login-capable platform accounts for the <strong>{provisionableCount}</strong>{' '}
+            person(s) with an email in this project's ADO directory and grant them the{' '}
+            <strong>Tester</strong> role, so they become assignable. Accounts are login-locked until
+            an admin sets a password. Safe to re-run (links existing users).
+          </div>
+          <div className="flex gap-2 shrink-0">
+            <Button variant="secondary" onClick={() => setConfirming(false)}>
+              Cancel
+            </Button>
+            <Button onClick={() => provision.mutate()} loading={provision.isPending}>
+              Provision
+            </Button>
+          </div>
+        </div>
+      )}
+      {provision.isError && (
+        <div className="px-5 py-2 border-b border-border text-xs text-danger">
+          Provisioning failed: {(provision.error as Error).message}
+        </div>
+      )}
+      {provision.data && (
+        <div className="px-5 py-2 border-b border-border text-xs text-success flex items-center gap-2">
+          <Check size={13} />
+          Provisioned {provision.data.total} team member(s): {provision.data.created} created,{' '}
+          {provision.data.linked} linked ({provision.data.activated} activated),{' '}
+          {provision.data.granted} newly granted, {provision.data.alreadyMembers} already members,{' '}
+          {provision.data.skippedNoEmail} skipped (no email).
+        </div>
+      )}
       <div className="divide-y divide-border">
         {users.map((u: AdoUser) => (
           <div key={u.id} className="px-5 py-2.5 flex items-center gap-3">

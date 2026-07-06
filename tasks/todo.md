@@ -1,9 +1,5 @@
-# TODO — Resume generation workflow from Review Queue
+# TODO — Provision ADO team members as platform users
 
-- [x] T1 — V24 migration: ai_generation_runs columns + AiGenerationRun accessors
-- [x] T2 — PrContextService (reverse-query ImpactAnalysis) + GET pr-context endpoint
-- [x] T3 — GenerationResumeService.regenerate (fresh round replaces) + POST regenerate endpoint
-- [x] T4 — GenerationResumeService.finish → COMPLETED + POST finish endpoint
-- [x] T5 — Portal BFF proxies + api.ts + types.ts
-- [x] T6 — Review Queue "Review" action + WorkflowReviewModal reusing ProposalsReview
-- [x] T7 — Generate-more panel (requirements + PR-context + custom input) + Finish review button
+- [x] T1 — Backend: AdoProvisioningService (link-or-create + TESTER grant) + findByEmailIgnoreCase
+- [x] T2 — Backend: admin endpoint POST .../provision-ado-users + audit
+- [x] T3 — Frontend: "Provision team from ADO" admin action + api/types

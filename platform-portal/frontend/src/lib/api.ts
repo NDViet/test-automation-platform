@@ -347,6 +347,12 @@ export const api = {
     get<import('./types').AdoIteration[]>(`/projects/${projectId}/ado/iterations`),
   adoUsers: (projectId: string) =>
     get<import('./types').AdoUser[]>(`/projects/${projectId}/ado/users`),
+  // Admin: provision the project's ADO team members as assignable platform users.
+  provisionAdoUsers: (projectId: string) =>
+    postMsg<import('./types').ProvisionSummary>(
+      `/admin/projects/${projectId}/provision-ado-users`,
+      {},
+    ),
   syncAdoStructure: (projectId: string) =>
     post<{
       success: boolean

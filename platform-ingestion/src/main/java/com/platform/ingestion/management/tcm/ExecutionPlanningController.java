@@ -39,6 +39,6 @@ public class ExecutionPlanningController {
   @GetMapping("/assignable-users")
   public List<ExecutionPlanningService.AssignableUser> assignableUsers(
       @PathVariable UUID projectId) {
-    return service.assignableUsers();
+    return service.assignableUsers(projectId);
   }
 }

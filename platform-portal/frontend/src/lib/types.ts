@@ -660,6 +660,18 @@ export interface AssignableUser {
   id: string
   username: string
   displayName: string | null
+  email: string | null
+}
+
+// Outcome of provisioning a project's ADO team members as platform users.
+export interface ProvisionSummary {
+  total: number
+  created: number
+  linked: number
+  activated: number
+  granted: number
+  alreadyMembers: number
+  skippedNoEmail: number
 }
 
 export interface Dataset {

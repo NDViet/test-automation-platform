@@ -7,7 +7,7 @@ import { cn, relativeTime } from '@/lib/utils'
 import type { UnifiedExecutionItem, CreateTestRunForm } from '@/lib/types'
 import LoadingSpinner from '@/components/LoadingSpinner'
 import ErrorMessage from '@/components/ErrorMessage'
-import { Button } from '@/components/ui'
+import { Button, UserPicker } from '@/components/ui'
 import {
   Plus,
   Bot,
@@ -800,33 +800,23 @@ function NewManualRunModal({
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className={lbl}>Triggered By</label>
-              <select
+              <UserPicker
+                users={assignableUsers}
                 value={triggeredBy}
-                onChange={e => setTriggeredBy(e.target.value)}
-                className={inp}
-              >
-                <option value="">— select a user —</option>
-                {assignableUsers.map(u => (
-                  <option key={u.id} value={u.username}>
-                    {u.displayName || u.username}
-                  </option>
-                ))}
-              </select>
+                onChange={setTriggeredBy}
+                bind="username"
+                placeholder="Search member by name or email…"
+              />
             </div>
             <div>
               <label className={lbl}>Default Assignee</label>
-              <select
+              <UserPicker
+                users={assignableUsers}
                 value={assigneeUserId}
-                onChange={e => setAssigneeUserId(e.target.value)}
-                className={inp}
-              >
-                <option value="">— unassigned —</option>
-                {assignableUsers.map(u => (
-                  <option key={u.id} value={u.id}>
-                    {u.displayName || u.username}
-                  </option>
-                ))}
-              </select>
+                onChange={setAssigneeUserId}
+                bind="id"
+                placeholder="Unassigned — search by name or email…"
+              />
             </div>
             <div>
               <label className={lbl}>Matrix (parametrized cases)</label>
